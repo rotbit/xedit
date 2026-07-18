@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  const trash = new URL(req.url).searchParams.get("trash") === "1";
   const docs = await prisma.document.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user.id, deletedAt: trash ? { not: null } : null },
     orderBy: { updatedAt: "desc" },
     select: { id: true, title: true, updatedAt: true, content: true, category: true },
   });

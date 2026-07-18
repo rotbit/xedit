@@ -49,3 +49,19 @@ async function fetchCss(path: string): Promise<string> {
 export function getCodeThemeCss(id: string): Promise<string> {
   return fetchCss(`/code-themes/${getCodeTheme(id).file}`);
 }
+
+/** 排版微调 CSS 层（叠加在主题之后、自定义 CSS 之前） */
+export function buildTuneCss(t: {
+  tuneFontSize: number;
+  tuneLineHeight: number;
+  tuneParaSpacing: number;
+}): string {
+  const rules: string[] = [];
+  if (t.tuneFontSize !== 16 || t.tuneLineHeight !== 1.75) {
+    rules.push(`#nice { font-size: ${t.tuneFontSize}px; line-height: ${t.tuneLineHeight}; }`);
+  }
+  if (t.tuneParaSpacing !== 16) {
+    rules.push(`#nice p { margin: ${t.tuneParaSpacing}px 0; }`);
+  }
+  return rules.join("\n");
+}

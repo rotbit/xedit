@@ -47,6 +47,50 @@ export function useEditorDoc(routeDocId: string | null) {
     };
   }, []);
 
+  // Cmd+S：立即保存并手动存档一个版本
+  const saveNowRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => {
+    saveNowRef.current = async () => {
+    const s = useStore.getState();
+    if (!loggedIn || !s.docId) {
+      toast("本地文稿已实时保存", "success");
+      return;
+    }
+    s.setSaveState("saving");
+    try {
+      const res = await fetch(`/api/documents/${s.docId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: s.title, content: s.content, category: s.category }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      lastSavedRef.current = {
+        docId: s.docId,
+        title: s.title,
+        content: s.content,
+        category: s.category,
+      };
+      const ver = await fetch(`/api/documents/${s.docId}/versions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "manual" }),
+      });
+      const data = await ver.json().catch(() => ({}));
+      s.setSaveState("saved");
+      toast(data.created ? "已保存并存档版本" : "已保存（内容与最近版本相同）", "success");
+      } catch {
+        useStore.getState().setSaveState("error");
+        toast("保存失败，请检查网络或登录状态", "error");
+      }
+    };
+  });
+
+  useEffect(() => {
+    const handler = () => void saveNowRef.current();
+    window.addEventListener("xedit:save-now", handler);
+    return () => window.removeEventListener("xedit:save-now", handler);
+  }, []);
+
   // —— 装载文档 ——
   useEffect(() => {
     if (!routeDocId) {

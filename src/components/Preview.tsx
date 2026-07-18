@@ -6,7 +6,7 @@ import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { BASE_CSS } from "@/lib/themes/base";
-import { getTheme, getCodeThemeCss } from "@/lib/themes";
+import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 import { useStore } from "@/store/useStore";
 
 interface Props {
@@ -19,6 +19,9 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
   const codeThemeId = useStore((s) => s.codeThemeId);
   const customCss = useStore((s) => s.customCss);
   const macCode = useStore((s) => s.macCode);
+  const tuneFontSize = useStore((s) => s.tuneFontSize);
+  const tuneLineHeight = useStore((s) => s.tuneLineHeight);
+  const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
   const previewMode = useStore((s) => s.previewMode);
 
   const [html, setHtml] = useState("");
@@ -81,6 +84,7 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
         <style>{BASE_CSS}</style>
         <style>{codeCss}</style>
         <style>{theme.css}</style>
+        <style>{buildTuneCss({ tuneFontSize, tuneLineHeight, tuneParaSpacing })}</style>
         {customCss ? <style>{customCss}</style> : null}
         <div
           className={

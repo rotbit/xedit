@@ -7,6 +7,7 @@ import { useEditorDoc } from "@/hooks/useEditorDoc";
 import { useSyncScroll } from "@/hooks/useSyncScroll";
 import { MarkdownEditor, type EditorHandle } from "./MarkdownEditor";
 import { EditorToolbar } from "./EditorToolbar";
+import { OutlinePanel } from "./OutlinePanel";
 import { Preview } from "./Preview";
 import { Topbar } from "./Topbar";
 import { StatusBar } from "./StatusBar";
@@ -27,6 +28,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
     () => false
   );
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
   const [config, setConfig] = useState<AppConfig | null>(null);
 
   const setContent = useStore((s) => s.setContent);
@@ -91,16 +93,25 @@ export function EditorApp({ docId }: { docId: string | null }) {
           style={{ width: focusMode ? "100%" : `${splitRatio * 100}%` }}
           onPointerEnter={() => setActive("editor")}
         >
-          <EditorToolbar onCommand={(cmd) => editorRef.current?.applyFormat(cmd)} />
-          <div className={`min-h-0 flex-1 ${focusMode ? "focus-mode" : ""}`}>
-            <MarkdownEditor
-              key={docKey}
-              ref={editorRef}
-              docKey={docKey}
-              initialContent={useStore.getState().content}
-              onChange={setContent}
-              onScrollLine={onEditorScrollLine}
-            />
+          <EditorToolbar
+            onCommand={(cmd) => editorRef.current?.applyFormat(cmd)}
+            outlineOpen={outlineOpen}
+            onToggleOutline={() => setOutlineOpen((v) => !v)}
+          />
+          <div className="flex min-h-0 flex-1">
+            {outlineOpen ? (
+              <OutlinePanel onJump={(line) => editorRef.current?.scrollToLine(line)} />
+            ) : null}
+            <div className={`min-h-0 min-w-0 flex-1 ${focusMode ? "focus-mode" : ""}`}>
+              <MarkdownEditor
+                key={docKey}
+                ref={editorRef}
+                docKey={docKey}
+                initialContent={useStore.getState().content}
+                onChange={setContent}
+                onScrollLine={onEditorScrollLine}
+              />
+            </div>
           </div>
         </div>
         {focusMode ? null : (
