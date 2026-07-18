@@ -107,6 +107,12 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+const IMAGE_SIZES = [
+  { label: "方形 1:1", value: "1024x1024" },
+  { label: "横版封面 3:2", value: "1536x1024" },
+  { label: "竖版 2:3", value: "1024x1536" },
+];
+
 export function AiImageDialog({
   onClose,
   onInsert,
@@ -115,6 +121,7 @@ export function AiImageDialog({
   onInsert: (markdown: string) => void;
 }) {
   const [prompt, setPrompt] = useState("");
+  const [size, setSize] = useState(IMAGE_SIZES[0].value);
   const [busy, setBusy] = useState(false);
 
   const generate = async () => {
@@ -134,6 +141,7 @@ export function AiImageDialog({
           apiKey: s.aiApiKey,
           model: s.aiImageModel,
           prompt: prompt.trim(),
+          size,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -178,7 +186,23 @@ export function AiImageDialog({
             disabled={busy}
           />
         </div>
-        <div className="flex h-14 items-center justify-end gap-2 border-t border-[var(--hairline)] px-4">
+        <div className="flex h-14 items-center justify-between gap-2 border-t border-[var(--hairline)] px-4">
+          <div className="flex gap-1">
+            {IMAGE_SIZES.map((s2) => (
+              <button
+                key={s2.value}
+                className={`cursor-pointer rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+                  size === s2.value
+                    ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
+                    : "text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+                }`}
+                onClick={() => setSize(s2.value)}
+                disabled={busy}
+              >
+                {s2.label}
+              </button>
+            ))}
+          </div>
           <button
             className="flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[var(--accent-deep)] disabled:opacity-60"
             onClick={() => void generate()}

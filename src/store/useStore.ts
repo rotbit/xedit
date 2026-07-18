@@ -51,6 +51,10 @@ interface SettingsSlice {
   splitRatio: number;
   /** 专注模式：收起预览，正文居中限宽 */
   focusMode: boolean;
+  /** 排版微调：正文字号(px)/行高/段间距(px) */
+  tuneFontSize: number;
+  tuneLineHeight: number;
+  tuneParaSpacing: number;
   /** OpenAI 兼容接口地址，如 https://api.deepseek.com/v1 */
   aiBaseUrl: string;
   aiApiKey: string;
@@ -83,6 +87,7 @@ interface EditorState extends SettingsSlice {
   setCssDialogOpen: (v: boolean) => void;
   setSplitRatio: (r: number) => void;
   setFocusMode: (v: boolean) => void;
+  setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
   setCategory: (c: string) => void;
   setAiConfig: (c: {
     aiBaseUrl?: string;
@@ -104,6 +109,9 @@ export const useStore = create<EditorState>()(
       syncScroll: true,
       splitRatio: 0.5,
       focusMode: false,
+      tuneFontSize: 16,
+      tuneLineHeight: 1.75,
+      tuneParaSpacing: 16,
       aiBaseUrl: "https://api.openai.com/v1",
       aiApiKey: "",
       aiModel: "gpt-4o-mini",
@@ -131,6 +139,7 @@ export const useStore = create<EditorState>()(
       setSplitRatio: (splitRatio) =>
         set({ splitRatio: Math.min(0.75, Math.max(0.25, splitRatio)) }),
       setFocusMode: (focusMode) => set({ focusMode }),
+      setTune: (t) => set(t),
       setCategory: (category) => set({ category }),
       setAiConfig: (c) => set(c),
     }),
@@ -154,6 +163,9 @@ export const useStore = create<EditorState>()(
         syncScroll: state.syncScroll,
         splitRatio: state.splitRatio,
         focusMode: state.focusMode,
+        tuneFontSize: state.tuneFontSize,
+        tuneLineHeight: state.tuneLineHeight,
+        tuneParaSpacing: state.tuneParaSpacing,
         aiBaseUrl: state.aiBaseUrl,
         aiApiKey: state.aiApiKey,
         aiModel: state.aiModel,

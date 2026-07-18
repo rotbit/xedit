@@ -15,7 +15,9 @@ export async function GET(_req: Request, { params }: Params) {
   if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await params;
   const doc = await prisma.document.findFirst({ where: { id, userId } });
-  if (!doc) return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+  if (!doc || doc.deletedAt) {
+    return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+  }
   return NextResponse.json(doc);
 }
 
@@ -24,6 +26,19 @@ export async function PUT(req: Request, { params }: Params) {
   if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
+
+  // 从回收站恢复
+  if (body?.restore === true) {
+    const restored = await prisma.document.updateMany({
+      where: { id, userId, deletedAt: { not: null } },
+      data: { deletedAt: null },
+    });
+    if (restored.count === 0) {
+      return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const data: { title?: string; content?: string; category?: string } = {};
   if (typeof body.title === "string") data.title = body.title.slice(0, 200) || "未命名文章";
   if (typeof body.content === "string") data.content = body.content;
@@ -48,11 +63,18 @@ export async function PUT(req: Request, { params }: Params) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(req: Request, { params }: Params) {
   const userId = await requireUser();
   if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await params;
-  const result = await prisma.document.deleteMany({ where: { id, userId } });
+  const hard = new URL(req.url).searchParams.get("hard") === "1";
+
+  const result = hard
+    ? await prisma.document.deleteMany({ where: { id, userId } })
+    : await prisma.document.updateMany({
+        where: { id, userId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
   if (result.count === 0) {
     return NextResponse.json({ error: "文档不存在" }, { status: 404 });
   }

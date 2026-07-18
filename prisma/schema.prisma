@@ -58,6 +58,8 @@ model Document {
   title     String            @default("未命名文章")
   content   String            @default("") @db.Text
   category  String            @default("未分类")
+  /// 软删除时间；非空表示在回收站
+  deletedAt DateTime?
   userId    String
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions  DocumentVersion[]

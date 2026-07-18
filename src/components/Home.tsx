@@ -37,6 +37,7 @@ interface AppConfig {
 }
 
 const ALL = "__all__";
+const TRASH = "__trash__";
 const UNCATEGORIZED = "未分类";
 
 function formatTime(iso: string): string {
@@ -139,6 +140,7 @@ export function Home() {
   const [menuDocId, setMenuDocId] = useState<string | null>(null);
   const [customCats, setCustomCats] = useState<string[]>([]);
   const [catMenu, setCatMenu] = useState<string | null>(null);
+  const [trashDocs, setTrashDocs] = useState<DocMeta[] | null>(null);
   const migratedRef = useRef(false);
 
   useEffect(() => {
@@ -207,6 +209,23 @@ export function Home() {
     };
   }, [loggedIn]);
 
+  // 回收站列表（进入回收站时拉取）
+  useEffect(() => {
+    if (activeCat !== TRASH || !loggedIn) return;
+    let cancelled = false;
+    void fetch("/api/documents?trash=1")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (!cancelled) setTrashDocs(list);
+      })
+      .catch(() => {
+        if (!cancelled) setTrashDocs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCat, loggedIn]);
+
   // 分类 → 数量（含自建空分类；按中文排序，未分类置底）
   const categories = useMemo(() => {
     const map = new Map<string, number>();
@@ -222,10 +241,13 @@ export function Home() {
     });
   }, [docs, customCats]);
 
+  const isTrash = activeCat === TRASH;
+
   const filtered = useMemo(() => {
-    return (docs ?? []).filter((d) => {
+    const source = isTrash ? trashDocs : docs;
+    return (source ?? []).filter((d) => {
       const cat = d.category || UNCATEGORIZED;
-      if (activeCat !== ALL && cat !== activeCat) return false;
+      if (!isTrash && activeCat !== ALL && cat !== activeCat) return false;
       if (search.trim()) {
         const q = search.trim().toLowerCase();
         return (
@@ -234,7 +256,7 @@ export function Home() {
       }
       return true;
     });
-  }, [docs, activeCat, search]);
+  }, [docs, trashDocs, isTrash, activeCat, search]);
 
   const createDoc = async (category?: string) => {
     setCreating(true);
@@ -260,8 +282,8 @@ export function Home() {
   const removeDoc = async (doc: DocMeta) => {
     const ok = await askConfirm({
       title: "删除文章",
-      message: `确定删除「${doc.title || "未命名文章"}」？该操作不可恢复。`,
-      confirmText: "删除",
+      message: `把「${doc.title || "未命名文章"}」移入回收站？可随时恢复。`,
+      confirmText: "移入回收站",
       danger: true,
     });
     if (!ok) return;
@@ -269,6 +291,43 @@ export function Home() {
     if (res.ok) {
       setDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
       toast("已删除", "success");
+    } else {
+      toast("删除失败", "error");
+    }
+  };
+
+  const restoreDoc = async (doc: DocMeta) => {
+    const res = await fetch(`/api/documents/${doc.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restore: true }),
+    });
+    if (res.ok) {
+      setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
+      // 重新拉主列表
+      void fetch("/api/documents")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((list) => {
+          if (list) setDocs(list);
+        });
+      toast("已恢复", "success");
+    } else {
+      toast("恢复失败", "error");
+    }
+  };
+
+  const hardDeleteDoc = async (doc: DocMeta) => {
+    const ok = await askConfirm({
+      title: "彻底删除",
+      message: `彻底删除「${doc.title || "未命名文章"}」？包括全部版本历史，无法找回。`,
+      confirmText: "彻底删除",
+      danger: true,
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/documents/${doc.id}?hard=1`, { method: "DELETE" });
+    if (res.ok) {
+      setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
+      toast("已彻底删除", "success");
     } else {
       toast("删除失败", "error");
     }
@@ -395,7 +454,7 @@ export function Home() {
 
   const railItem = (key: string, label: string, count: number, icon: React.ReactNode) => {
     const active = activeCat === key;
-    const isCategory = key !== ALL;
+    const isCategory = key !== ALL && key !== TRASH;
     const canManage = isCategory && key !== UNCATEGORIZED;
     return (
       <div key={key} className="group/cat relative">
@@ -557,6 +616,9 @@ export function Home() {
                 <FolderPlus size={14} />
                 新建分类
               </button>
+              <div className="mt-3 border-t border-[var(--hairline)] pt-2">
+                {railItem(TRASH, "回收站", trashDocs?.length ?? 0, <Trash2 size={15} />)}
+              </div>
               <p className="mt-4 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
                 悬停分类可快速新建文章或管理分类
               </p>
@@ -572,13 +634,17 @@ export function Home() {
                   />
                   <input
                     className="h-9 w-full rounded-lg border border-[var(--hairline)] bg-white pl-9 pr-3 text-[13px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
-                    placeholder={`搜索${activeCat === ALL ? "全部" : "「" + activeCat + "」"}文章…`}
+                    placeholder={
+                      isTrash
+                        ? "搜索回收站…"
+                        : `搜索${activeCat === ALL ? "全部" : "「" + activeCat + "」"}文章…`
+                    }
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
                 <button
-                  className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
+                  className={`flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)] disabled:opacity-60 ${isTrash ? "hidden" : ""}`}
                   onClick={() => void createDoc()}
                   disabled={creating}
                 >
@@ -591,7 +657,7 @@ export function Home() {
                 </button>
               </div>
 
-              {docs === null ? (
+              {(isTrash ? trashDocs : docs) === null ? (
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div
@@ -606,9 +672,11 @@ export function Home() {
                   <p className="text-[13px] text-[var(--ink-faint)]">
                     {search
                       ? "没有匹配的文章"
-                      : activeCat === ALL
-                        ? "还没有文章，点「新建文章」开始"
-                        : `「${activeCat}」还没有文章`}
+                      : isTrash
+                        ? "回收站是空的"
+                        : activeCat === ALL
+                          ? "还没有文章，点「新建文章」开始"
+                          : `「${activeCat}」还没有文章`}
                   </p>
                 </div>
               ) : (
@@ -620,7 +688,9 @@ export function Home() {
                         key={doc.id}
                         className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-white p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_14px_36px_-12px_rgba(60,45,20,0.22)]"
                         style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
-                        onClick={() => router.push(`/edit/${doc.id}`)}
+                        onClick={() => {
+                          if (!isTrash) router.push(`/edit/${doc.id}`);
+                        }}
                       >
                         <span className="absolute bottom-5 left-0 top-5 w-[3px] rounded-r-full bg-transparent transition-colors group-hover:bg-[var(--accent)]" />
                         <div className="flex items-center gap-2">
@@ -632,15 +702,17 @@ export function Home() {
                           <span className="text-[11.5px] text-[var(--ink-faint)]">
                             {formatTime(doc.updatedAt)}
                           </span>
-                          <button
-                            className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMenuDocId(menuDocId === doc.id ? null : doc.id);
-                            }}
-                          >
-                            <MoreHorizontal size={15} />
-                          </button>
+                          {isTrash ? null : (
+                            <button
+                              className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenuDocId(menuDocId === doc.id ? null : doc.id);
+                              }}
+                            >
+                              <MoreHorizontal size={15} />
+                            </button>
+                          )}
                         </div>
                         <p className="mt-2.5 truncate text-[15px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
                           {doc.title || "未命名文章"}
@@ -648,9 +720,32 @@ export function Home() {
                         <p className="mt-1 line-clamp-2 h-10 text-[12.5px] leading-5 text-[var(--ink-soft)]">
                           {doc.excerpt || "（暂无内容）"}
                         </p>
-                        <p className="mt-2 text-[11.5px] text-[var(--ink-faint)]">
-                          {typeof doc.chars === "number" ? `${doc.chars} 字` : ""}
-                        </p>
+                        {isTrash ? (
+                          <div className="mt-2.5 flex gap-2">
+                            <button
+                              className="cursor-pointer rounded-md border border-[var(--hairline-strong)] px-2.5 py-1 text-[12px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void restoreDoc(doc);
+                              }}
+                            >
+                              恢复
+                            </button>
+                            <button
+                              className="cursor-pointer rounded-md px-2.5 py-1 text-[12px] text-red-600 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void hardDeleteDoc(doc);
+                              }}
+                            >
+                              彻底删除
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-[11.5px] text-[var(--ink-faint)]">
+                            {typeof doc.chars === "number" ? `${doc.chars} 字` : ""}
+                          </p>
+                        )}
 
                         {/* 卡片菜单 */}
                         {menuDocId === doc.id ? (

@@ -15,7 +15,7 @@ import {
   Table,
   Minus,
 } from "lucide-react";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, ListTree } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import type { FormatCommand } from "./MarkdownEditor";
 
@@ -35,11 +35,31 @@ const BUTTONS: { cmd: FormatCommand; icon: React.ReactNode; label: string }[] = 
   { cmd: "hr", icon: <Minus size={14} />, label: "分割线" },
 ];
 
-export function EditorToolbar({ onCommand }: { onCommand: (cmd: FormatCommand) => void }) {
+export function EditorToolbar({
+  onCommand,
+  outlineOpen,
+  onToggleOutline,
+}: {
+  onCommand: (cmd: FormatCommand) => void;
+  outlineOpen: boolean;
+  onToggleOutline: () => void;
+}) {
   const focusMode = useStore((s) => s.focusMode);
   const setFocusMode = useStore((s) => s.setFocusMode);
   return (
     <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-[var(--hairline)] bg-[var(--panel)] px-2">
+      <button
+        className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded transition-colors ${
+          outlineOpen
+            ? "bg-[var(--accent-wash)] text-[var(--accent)]"
+            : "text-[var(--ink-soft)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+        }`}
+        title="大纲"
+        onClick={onToggleOutline}
+      >
+        <ListTree size={14} />
+      </button>
+      <span className="mx-1 h-4 w-px bg-[var(--hairline)]" />
       {BUTTONS.map((b, i) => (
         <span key={b.cmd} className="flex items-center">
           {(i === 3 || i === 6 || i === 9) && (
