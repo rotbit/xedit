@@ -136,6 +136,8 @@ export function Home() {
   const [activeCat, setActiveCat] = useState<string>(ALL);
   const [search, setSearch] = useState("");
   const [menuDocId, setMenuDocId] = useState<string | null>(null);
+  const [customCats, setCustomCats] = useState<string[]>([]);
+  const [catMenu, setCatMenu] = useState<string | null>(null);
   const migratedRef = useRef(false);
 
   useEffect(() => {
@@ -144,6 +146,29 @@ export function Home() {
       .then(setConfig)
       .catch(() => setConfig(null));
   }, []);
+
+  // 自建分类（允许空分类存在）
+  useEffect(() => {
+    if (!loggedIn) return;
+    let cancelled = false;
+    void fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((st) => {
+        if (cancelled || !st) return;
+        try {
+          const list = JSON.parse(st.categories ?? "[]");
+          if (Array.isArray(list)) {
+            setCustomCats(list.filter((c: unknown): c is string => typeof c === "string"));
+          }
+        } catch {
+          // 忽略脏数据
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [loggedIn]);
 
   // 登录后拉取文章列表；云端为空时把本地文稿自动迁移上去
   useEffect(() => {
@@ -181,9 +206,10 @@ export function Home() {
     };
   }, [loggedIn]);
 
-  // 分类 → 数量（按中文排序，未分类置底）
+  // 分类 → 数量（含自建空分类；按中文排序，未分类置底）
   const categories = useMemo(() => {
     const map = new Map<string, number>();
+    for (const c of customCats) map.set(c, 0);
     for (const d of docs ?? []) {
       const c = d.category || UNCATEGORIZED;
       map.set(c, (map.get(c) ?? 0) + 1);
@@ -193,7 +219,7 @@ export function Home() {
       if (b[0] === UNCATEGORIZED) return -1;
       return a[0].localeCompare(b[0], "zh");
     });
-  }, [docs]);
+  }, [docs, customCats]);
 
   const filtered = useMemo(() => {
     return (docs ?? []).filter((d) => {
@@ -209,7 +235,7 @@ export function Home() {
     });
   }, [docs, activeCat, search]);
 
-  const createDoc = async () => {
+  const createDoc = async (category?: string) => {
     setCreating(true);
     try {
       const res = await fetch("/api/documents", {
@@ -218,7 +244,7 @@ export function Home() {
         body: JSON.stringify({
           title: "未命名文章",
           content: "",
-          category: activeCat === ALL ? UNCATEGORIZED : activeCat,
+          category: category ?? (activeCat === ALL ? UNCATEGORIZED : activeCat),
         }),
       });
       if (!res.ok) throw new Error();
@@ -263,6 +289,80 @@ export function Home() {
     void moveDoc(doc, name.slice(0, 50));
   };
 
+  const persistCustomCats = (next: string[]) => {
+    setCustomCats(next);
+    void fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categories: next }),
+    });
+  };
+
+  const createCategory = () => {
+    const name = prompt("新分类名称：")?.trim().slice(0, 50);
+    if (!name) return;
+    if (name === UNCATEGORIZED || categories.some(([c]) => c === name)) {
+      toast("分类已存在", "error");
+      return;
+    }
+    persistCustomCats([...customCats, name]);
+    setActiveCat(name);
+  };
+
+  const renameCategory = (cat: string) => {
+    const name = prompt(`把「${cat}」重命名为：`, cat)?.trim().slice(0, 50);
+    if (!name || name === cat) return;
+    if (name === UNCATEGORIZED || categories.some(([c]) => c === name)) {
+      toast("分类已存在", "error");
+      return;
+    }
+    void (async () => {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rename", from: cat, to: name }),
+      });
+      if (!res.ok) {
+        toast("重命名失败", "error");
+        return;
+      }
+      setDocs(
+        (prev) =>
+          prev?.map((d) =>
+            (d.category || UNCATEGORIZED) === cat ? { ...d, category: name } : d
+          ) ?? null
+      );
+      setCustomCats((prev) => {
+        const next = prev.filter((c) => c !== cat);
+        return next.includes(name) ? next : [...next, name];
+      });
+      if (activeCat === cat) setActiveCat(name);
+      toast("已重命名", "success");
+    })();
+  };
+
+  const removeCategory = async (cat: string) => {
+    if (!confirm(`删除分类「${cat}」？该分类下的文章会移入「未分类」。`)) return;
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remove", from: cat }),
+    });
+    if (!res.ok) {
+      toast("删除失败", "error");
+      return;
+    }
+    setDocs(
+      (prev) =>
+        prev?.map((d) =>
+          (d.category || UNCATEGORIZED) === cat ? { ...d, category: UNCATEGORIZED } : d
+        ) ?? null
+    );
+    setCustomCats((prev) => prev.filter((c) => c !== cat));
+    if (activeCat === cat) setActiveCat(ALL);
+    toast("已删除分类", "success");
+  };
+
   const handleLogin = () => {
     if (config && !config.github) {
       toast("尚未配置 GitHub OAuth，请在 .env 中填写 AUTH_GITHUB_ID/SECRET", "error");
@@ -276,28 +376,84 @@ export function Home() {
 
   const railItem = (key: string, label: string, count: number, icon: React.ReactNode) => {
     const active = activeCat === key;
+    const isCategory = key !== ALL;
+    const canManage = isCategory && key !== UNCATEGORIZED;
     return (
-      <button
-        key={key}
-        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13.5px] transition-colors ${
-          active
-            ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
-            : "text-[var(--ink-soft)] hover:bg-white hover:text-[var(--ink)]"
-        }`}
-        onClick={() => setActiveCat(key)}
-      >
-        <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>
-          {icon}
-        </span>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
-        <span
-          className={`rounded-full px-1.5 text-[11px] ${
-            active ? "bg-white/70 text-[var(--accent-deep)]" : "text-[var(--ink-faint)]"
+      <div key={key} className="group/cat relative">
+        <button
+          className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13.5px] transition-colors ${
+            active
+              ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
+              : "text-[var(--ink-soft)] hover:bg-white hover:text-[var(--ink)]"
           }`}
+          onClick={() => setActiveCat(key)}
         >
-          {count}
-        </span>
-      </button>
+          <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>
+            {icon}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          <span
+            className={`rounded-full px-1.5 text-[11px] ${
+              active ? "bg-white/70 text-[var(--accent-deep)]" : "text-[var(--ink-faint)]"
+            } ${isCategory ? "group-hover/cat:hidden" : ""}`}
+          >
+            {count}
+          </span>
+        </button>
+        {isCategory ? (
+          <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
+            <button
+              className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--accent)]"
+              title={`在「${label}」新建文章`}
+              onClick={(e) => {
+                e.stopPropagation();
+                void createDoc(key);
+              }}
+            >
+              <FilePlus2 size={13} />
+            </button>
+            {canManage ? (
+              <button
+                className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-white hover:text-[var(--ink)]"
+                title="管理分类"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCatMenu(catMenu === key ? null : key);
+                }}
+              >
+                <MoreHorizontal size={13} />
+              </button>
+            ) : null}
+          </span>
+        ) : null}
+        {catMenu === key ? (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setCatMenu(null)} />
+            <div className="absolute left-2/3 top-full z-40 w-36 rounded-lg border border-[var(--hairline)] bg-white py-1.5 shadow-[0_10px_36px_rgba(40,30,10,0.16)]">
+              <button
+                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                onClick={() => {
+                  setCatMenu(null);
+                  renameCategory(key);
+                }}
+              >
+                <PenLine size={13} className="text-[var(--ink-faint)]" />
+                重命名
+              </button>
+              <button
+                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  setCatMenu(null);
+                  void removeCategory(key);
+                }}
+              >
+                <Trash2 size={13} />
+                删除分类
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
     );
   };
 
@@ -375,8 +531,15 @@ export function Home() {
                   )
                 )}
               </nav>
-              <p className="mt-5 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
-                在文章卡片的 ⋯ 菜单里可移动分类或新建分类
+              <button
+                className="mt-2 flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-dashed border-[var(--hairline-strong)] px-3 py-2 text-left text-[13px] text-[var(--ink-faint)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-wash)]/40 hover:text-[var(--accent)]"
+                onClick={createCategory}
+              >
+                <FolderPlus size={14} />
+                新建分类
+              </button>
+              <p className="mt-4 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
+                悬停分类可快速新建文章或管理分类
               </p>
             </aside>
 

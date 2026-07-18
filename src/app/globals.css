@@ -86,6 +86,12 @@ body {
   overflow: auto;
 }
 
+/* —— 专注模式：正文居中限宽 —— */
+.focus-mode .cm-content {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
 /* —— 入场动画（首页用） —— */
 @keyframes rise {
   from {

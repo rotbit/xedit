@@ -15,6 +15,8 @@ import {
   Table,
   Minus,
 } from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { useStore } from "@/store/useStore";
 import type { FormatCommand } from "./MarkdownEditor";
 
 const BUTTONS: { cmd: FormatCommand; icon: React.ReactNode; label: string }[] = [
@@ -34,6 +36,8 @@ const BUTTONS: { cmd: FormatCommand; icon: React.ReactNode; label: string }[] = 
 ];
 
 export function EditorToolbar({ onCommand }: { onCommand: (cmd: FormatCommand) => void }) {
+  const focusMode = useStore((s) => s.focusMode);
+  const setFocusMode = useStore((s) => s.setFocusMode);
   return (
     <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-[var(--hairline)] bg-[var(--panel)] px-2">
       {BUTTONS.map((b, i) => (
@@ -50,9 +54,18 @@ export function EditorToolbar({ onCommand }: { onCommand: (cmd: FormatCommand) =
           </button>
         </span>
       ))}
-      <span className="ml-auto pr-2 text-[11px] tracking-widest text-[var(--ink-faint)]">
-        MARKDOWN
-      </span>
+      <button
+        className={`ml-auto flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors ${
+          focusMode
+            ? "bg-[var(--accent-wash)] text-[var(--accent-deep)]"
+            : "text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+        }`}
+        onClick={() => setFocusMode(!focusMode)}
+        title={focusMode ? "恢复双栏预览" : "收起预览，沉浸写作"}
+      >
+        {focusMode ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
+        {focusMode ? "退出专注" : "专注模式"}
+      </button>
     </div>
   );
 }
