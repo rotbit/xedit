@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
-/** 自动版本留存间隔：距上一版本超过该时长才新建快照 */
-const AUTO_SNAPSHOT_INTERVAL_MS = 5 * 60_000;
+/** 停止编辑多久后，把当前内容定格为一个版本 */
+export const IDLE_VERSION_MS = 5 * 60_000;
 /** 每篇文档最多保留的版本数，超出删除最旧的 */
 const MAX_VERSIONS_PER_DOC = 100;
 
@@ -20,26 +20,25 @@ export async function pruneVersions(documentId: string): Promise<void> {
 }
 
 /**
- * 自动保存时调用：若距最近一次快照超过间隔（或还没有快照）则留存新版本。
- * 返回是否创建了新版本。
+ * 留存一个版本快照；与最近版本内容相同时跳过（去重）。
+ * 返回是否真正创建了新版本。
  */
-export async function maybeSnapshot(
+export async function snapshot(
   documentId: string,
   title: string,
-  content: string
+  content: string,
+  kind: "auto" | "manual" | "restore"
 ): Promise<boolean> {
+  if (!content.trim()) return false;
   const latest = await prisma.documentVersion.findFirst({
     where: { documentId },
     orderBy: { createdAt: "desc" },
-    select: { createdAt: true, content: true },
+    select: { content: true },
   });
-  if (latest && Date.now() - latest.createdAt.getTime() < AUTO_SNAPSHOT_INTERVAL_MS) {
-    return false;
-  }
   if (latest && latest.content === content) return false;
 
   await prisma.documentVersion.create({
-    data: { documentId, title, content, kind: "auto" },
+    data: { documentId, title, content, kind },
   });
   await pruneVersions(documentId);
   return true;

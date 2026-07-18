@@ -21,11 +21,30 @@ export function useEditorDoc(routeDocId: string | null) {
   const [reloadTick, setReloadTick] = useState(0);
 
   const settingsLoadedRef = useRef(false);
+  const idleVersionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<{ docId: string | null; title: string; content: string }>({
     docId: null,
     title: "",
     content: "",
   });
+
+  // 停止编辑 5 分钟后，把当前内容定格为一个版本（页面关闭时由服务端在下次保存时兜底）
+  const scheduleIdleVersion = (id: string) => {
+    if (idleVersionTimerRef.current) clearTimeout(idleVersionTimerRef.current);
+    idleVersionTimerRef.current = setTimeout(() => {
+      void fetch(`/api/documents/${id}/versions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "auto" }),
+      });
+    }, 5 * 60_000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (idleVersionTimerRef.current) clearTimeout(idleVersionTimerRef.current);
+    };
+  }, []);
 
   // —— 装载文档 ——
   useEffect(() => {
@@ -106,6 +125,7 @@ export function useEditorDoc(routeDocId: string | null) {
         if (!res.ok) throw new Error(String(res.status));
         lastSavedRef.current = { docId, title, content };
         useStore.getState().setSaveState("saved");
+        scheduleIdleVersion(docId);
       } catch {
         useStore.getState().setSaveState("error");
       }
