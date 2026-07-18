@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env
+
+# 本地皮肤演示页，不上线
+/public/skin-demo.html
