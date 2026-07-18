@@ -43,7 +43,7 @@ function CssDialogInner() {
           </button>
         </div>
         <textarea
-          className="min-h-0 flex-1 resize-none bg-[#fbfaf8] p-4 text-[13px] leading-relaxed text-[var(--ink)] outline-none [font-family:var(--mono)]"
+          className="min-h-0 flex-1 resize-none bg-[var(--paper)] p-4 text-[13px] leading-relaxed text-[var(--ink)] outline-none [font-family:var(--mono)]"
           spellCheck={false}
           placeholder={PLACEHOLDER}
           value={draft}

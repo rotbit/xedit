@@ -90,7 +90,7 @@ export function AiDiffDialog({
               {original}
             </div>
           </div>
-          <div className="flex min-h-0 flex-col bg-[#fbfaf7]">
+          <div className="flex min-h-0 flex-col bg-[var(--paper)]">
             <p className="flex shrink-0 items-center gap-2 px-4 pb-1 pt-2.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
               AI 结果
               {running ? <Loader2 size={11} className="animate-spin text-[var(--accent)]" /> : null}
@@ -99,7 +99,7 @@ export function AiDiffDialog({
               ref={resultRef}
               className="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap px-4 pb-4 text-[13px] leading-6 text-[var(--ink)] [font-family:var(--mono)]"
             >
-              {error ? <span className="text-red-600">{error}</span> : result || "生成中…"}
+              {error ? <span className="text-red-600 dark:text-red-400">{error}</span> : result || "生成中…"}
             </div>
           </div>
         </div>
@@ -210,7 +210,7 @@ export function AiTitlesDialog({ onClose }: { onClose: () => void }) {
             正在根据全文生成候选标题…
           </div>
         ) : error ? (
-          <p className="px-6 py-12 text-center text-[13px] text-red-600">{error}</p>
+          <p className="px-6 py-12 text-center text-[13px] text-red-600 dark:text-red-400">{error}</p>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto py-2">
             {titles!.map((t, i) => (
@@ -298,7 +298,7 @@ export function AiSummaryDialog({ onClose }: { onClose: () => void }) {
               生成中…
             </div>
           ) : error ? (
-            <p className="py-8 text-center text-[13px] text-red-600">{error}</p>
+            <p className="py-8 text-center text-[13px] text-red-600 dark:text-red-400">{error}</p>
           ) : (
             <>
               <p className="rounded-lg bg-[var(--paper)] px-4 py-3.5 text-[13.5px] leading-7 text-[var(--ink)]">

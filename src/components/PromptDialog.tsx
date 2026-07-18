@@ -99,7 +99,7 @@ export function PromptHost() {
         <div className="px-6 pb-5">
           <input
             ref={inputRef}
-            className="h-10 w-full rounded-lg border border-[var(--hairline-strong)] bg-white px-3 text-[14px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
+            className="h-10 w-full rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[14px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
             value={value}
             maxLength={state.maxLength ?? 50}
             placeholder={state.placeholder ?? "请输入…"}

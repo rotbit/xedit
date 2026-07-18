@@ -1,21 +1,90 @@
 @import "tailwindcss";
 
+/* data-theme 驱动的暗色变体：dark:xxx */
+@custom-variant dark ([data-theme="dark"] &);
+
 :root {
   /* 稿纸 + 朱砂 设计基调 */
   --paper: #f7f5f1;
   --panel: #fffefc;
   --ink: #232323;
   --ink-soft: #6b6b6b;
-  --ink-faint: #9a968e;
+  --ink-faint: #85817a;
   --hairline: #e8e4dc;
   --hairline-strong: #d8d3c8;
   --accent: #c0392b; /* 朱砂红 */
   --accent-deep: #a53125;
   --accent-wash: #faeae7;
+  --cm-selection: #f3d9d4;
+  --cm-active-line: #faf8f4;
+  /* 热力图色阶：未活跃 → 高产 */
+  --heat-0: #efe9e2;
+  --heat-1: #f3d9d4;
+  --heat-2: #eab5aa;
+  --heat-3: #dd8672;
+  --heat-4: #cd5a41;
+  --heat-5: #b03c26;
+  /* 分类色（固定次序，已过色觉验证） */
+  --cat-1: #c0392b;
+  --cat-2: #1e6bb8;
+  --cat-3: #0e9285;
+  --cat-4: #d4881f;
+  --cat-5: #8e44ad;
+  --cat-6: #7a8f3c;
+  /* Markdown 源码高亮 */
+  --md-link: #1e6bb8;
+  --md-code: #7c5cbf;
+  --md-code-bg: #f5f2fa;
   --serif: "Songti SC", "Noto Serif SC", "STSong", serif;
   --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", sans-serif;
   --mono: "SF Mono", Menlo, Monaco, "JetBrains Mono", Consolas, monospace;
+}
+
+/* 纸面子树（预览稿纸、主题缩略图、样机）在夜间模式下仍按日间变量渲染 */
+.light-lock {
+  --paper: #f7f5f1;
+  --panel: #fffefc;
+  --ink: #232323;
+  --ink-soft: #6b6b6b;
+  --ink-faint: #85817a;
+  --hairline: #e8e4dc;
+  --hairline-strong: #d8d3c8;
+  --accent: #c0392b;
+  --accent-deep: #a53125;
+  --accent-wash: #faeae7;
+}
+
+/* —— 夜间：墨色书房 —— */
+[data-theme="dark"] {
+  --paper: #16140f;
+  --panel: #211e18;
+  --ink: #ece7dd;
+  --ink-soft: #b3ada1;
+  --ink-faint: #8a8478;
+  --hairline: #322e26;
+  --hairline-strong: #46402f;
+  --accent: #d95441;
+  --accent-deep: #ea7f6d;
+  --accent-wash: #3b211b;
+  --cm-selection: #4a2820;
+  --cm-active-line: #1c1913;
+  --heat-0: #292520;
+  --heat-1: #43261f;
+  --heat-2: #6b3527;
+  --heat-3: #94452f;
+  --heat-4: #c05339;
+  --heat-5: #e56a4b;
+  --cat-1: #d95441;
+  --cat-2: #3b78d1;
+  --cat-3: #159888;
+  --cat-4: #c6821b;
+  --cat-5: #a86bc9;
+  --cat-6: #879a3e;
+  --md-link: #6ba3e8;
+  --md-code: #b39ddb;
+  --md-code-bg: #2c2534;
+  color-scheme: dark;
 }
 
 html,
@@ -77,10 +146,10 @@ body {
 }
 .cm-editor .cm-selectionBackground,
 .cm-editor.cm-focused .cm-selectionBackground {
-  background: #f3d9d4 !important;
+  background: var(--cm-selection) !important;
 }
 .cm-editor .cm-activeLine {
-  background: #faf8f4;
+  background: var(--cm-active-line);
 }
 .cm-editor .cm-scroller {
   overflow: auto;
