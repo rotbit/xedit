@@ -57,6 +57,7 @@ model Document {
   id        String            @id @default(cuid())
   title     String            @default("未命名文章")
   content   String            @default("") @db.Text
+  category  String            @default("未分类")
   userId    String
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions  DocumentVersion[]
@@ -64,6 +65,7 @@ model Document {
   updatedAt DateTime          @updatedAt
 
   @@index([userId, updatedAt(sort: Desc)])
+  @@index([userId, category])
 }
 
 // 版本快照：自动保存按时间间隔留存，支持一键回滚

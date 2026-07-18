@@ -3,7 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
-import { FilePlus2, FileText, Trash2, Loader2, PenLine, LogOut } from "lucide-react";
+import {
+  FilePlus2,
+  Trash2,
+  Loader2,
+  PenLine,
+  LogOut,
+  Search,
+  MoreHorizontal,
+  FolderOpen,
+  Folder,
+  FolderPlus,
+  Inbox,
+} from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
 import { toast, Toaster } from "./Toast";
@@ -12,6 +24,7 @@ import { GithubMark } from "./Topbar";
 interface DocMeta {
   id: string;
   title: string;
+  category?: string;
   updatedAt: string;
   excerpt?: string;
   chars?: number;
@@ -21,6 +34,9 @@ interface AppConfig {
   github: boolean;
   oss: boolean;
 }
+
+const ALL = "__all__";
+const UNCATEGORIZED = "未分类";
 
 function formatTime(iso: string): string {
   const date = new Date(iso);
@@ -35,7 +51,7 @@ const FEATURES = [
   { title: "一键复制", desc: "样式全部内联，公众号 / 知乎直接粘贴，代码、公式、表格都不走样" },
   { title: "十三套主题", desc: "缩略图即见即所得，标注适用内容类型，支持自定义 CSS 叠加" },
   { title: "AI 助手", desc: "翻译、润色、AI 配图，发文前按公众号加热规则做内容审查" },
-  { title: "云端同步", desc: "GitHub 登录后多篇管理、自动保存，每五分钟留存版本，可一键回滚" },
+  { title: "云端同步", desc: "GitHub 登录后多篇分类管理、自动保存、版本定格与一键回滚" },
 ];
 
 /** 主视觉：左 Markdown 源码、右真实主题渲染的双栏编辑器样机 */
@@ -51,7 +67,6 @@ function HeroMock() {
       className="rise mx-auto mt-14 max-w-[840px] overflow-hidden rounded-2xl border border-[var(--hairline)] bg-white shadow-[0_30px_80px_-24px_rgba(70,45,20,0.28)]"
       style={{ animationDelay: "0.2s" }}
     >
-      {/* 窗口栏 */}
       <div className="flex h-9 items-center border-b border-[var(--hairline)] bg-[var(--paper)] px-4">
         <span className="flex gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-[#fc625d]" />
@@ -63,7 +78,6 @@ function HeroMock() {
         </span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2">
-        {/* 左：Markdown 源码 */}
         <div
           className="hidden border-r border-[var(--hairline)] p-6 text-left text-[13px] leading-[2.1] sm:block"
           style={{ fontFamily: "var(--mono)" }}
@@ -86,7 +100,6 @@ function HeroMock() {
             <span style={{ color: "var(--ink-soft)" }}>云端同步，版本可回滚</span>
           </p>
         </div>
-        {/* 右：真实主题渲染 */}
         <div className="p-3 text-left">
           <style>{css}</style>
           <div className="hero-demo" style={{ padding: "10px 20px 18px" }}>
@@ -120,6 +133,9 @@ export function Home() {
   const [docs, setDocs] = useState<DocMeta[] | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [creating, setCreating] = useState(false);
+  const [activeCat, setActiveCat] = useState<string>(ALL);
+  const [search, setSearch] = useState("");
+  const [menuDocId, setMenuDocId] = useState<string | null>(null);
   const migratedRef = useRef(false);
 
   useEffect(() => {
@@ -165,13 +181,45 @@ export function Home() {
     };
   }, [loggedIn]);
 
+  // 分类 → 数量（按中文排序，未分类置底）
+  const categories = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of docs ?? []) {
+      const c = d.category || UNCATEGORIZED;
+      map.set(c, (map.get(c) ?? 0) + 1);
+    }
+    return Array.from(map.entries()).sort((a, b) => {
+      if (a[0] === UNCATEGORIZED) return 1;
+      if (b[0] === UNCATEGORIZED) return -1;
+      return a[0].localeCompare(b[0], "zh");
+    });
+  }, [docs]);
+
+  const filtered = useMemo(() => {
+    return (docs ?? []).filter((d) => {
+      const cat = d.category || UNCATEGORIZED;
+      if (activeCat !== ALL && cat !== activeCat) return false;
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        return (
+          d.title.toLowerCase().includes(q) || (d.excerpt ?? "").toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [docs, activeCat, search]);
+
   const createDoc = async () => {
     setCreating(true);
     try {
       const res = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "未命名文章", content: "" }),
+        body: JSON.stringify({
+          title: "未命名文章",
+          content: "",
+          category: activeCat === ALL ? UNCATEGORIZED : activeCat,
+        }),
       });
       if (!res.ok) throw new Error();
       const doc = await res.json();
@@ -193,6 +241,28 @@ export function Home() {
     }
   };
 
+  const moveDoc = async (doc: DocMeta, category: string) => {
+    const res = await fetch(`/api/documents/${doc.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category }),
+    });
+    if (res.ok) {
+      setDocs((prev) =>
+        prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null
+      );
+      toast(`已移动到「${category}」`, "success");
+    } else {
+      toast("移动失败", "error");
+    }
+  };
+
+  const moveToNewCategory = (doc: DocMeta) => {
+    const name = prompt("新分类名称：")?.trim();
+    if (!name) return;
+    void moveDoc(doc, name.slice(0, 50));
+  };
+
   const handleLogin = () => {
     if (config && !config.github) {
       toast("尚未配置 GitHub OAuth，请在 .env 中填写 AUTH_GITHUB_ID/SECRET", "error");
@@ -204,14 +274,40 @@ export function Home() {
   const localDraft = useStore((s) => s.content);
   const hasLocalDraft = Boolean(localDraft.trim()) && localDraft !== DEFAULT_MARKDOWN;
 
+  const railItem = (key: string, label: string, count: number, icon: React.ReactNode) => {
+    const active = activeCat === key;
+    return (
+      <button
+        key={key}
+        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13.5px] transition-colors ${
+          active
+            ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
+            : "text-[var(--ink-soft)] hover:bg-white hover:text-[var(--ink)]"
+        }`}
+        onClick={() => setActiveCat(key)}
+      >
+        <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span
+          className={`rounded-full px-1.5 text-[11px] ${
+            active ? "bg-white/70 text-[var(--accent-deep)]" : "text-[var(--ink-faint)]"
+          }`}
+        >
+          {count}
+        </span>
+      </button>
+    );
+  };
+
   return (
     <div className="desk relative h-full overflow-y-auto">
-      {/* 氛围光晕 */}
       <div className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(192,57,43,0.07),transparent)]" />
 
       {/* 顶栏 */}
       <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[var(--panel)]/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center gap-2.5 px-6">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2.5 px-6">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--accent)] text-[14px] font-bold text-white shadow-[0_2px_6px_rgba(192,57,43,0.4)] [font-family:var(--serif)]">
             稿
           </span>
@@ -256,90 +352,187 @@ export function Home() {
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-5xl px-6 pb-24">
+      <main className="relative mx-auto max-w-6xl px-6 pb-24">
         {loggedIn ? (
-          /* ———— 已登录：文章工作台 ———— */
-          <>
-            <div className="rise flex items-end justify-between pb-6 pt-12">
-              <div>
-                <p className="text-[11px] tracking-[0.35em] text-[var(--ink-faint)]">
-                  WORKSPACE
-                </p>
-                <h1 className="mt-2 text-[26px] font-semibold leading-none [font-family:var(--serif)]">
-                  我的文章
-                </h1>
-                <p className="mt-2.5 text-[12.5px] text-[var(--ink-faint)]">
-                  {docs === null
-                    ? "加载中…"
-                    : `共 ${docs.length} 篇 · 自动保存到云端，每 5 分钟留存版本`}
-                </p>
-              </div>
-            </div>
+          /* ———— 已登录：分类 + 文章工作台 ———— */
+          <div className="grid grid-cols-1 gap-8 pt-10 md:grid-cols-[220px_1fr]">
+            {/* 左：分类栏 */}
+            <aside className="rise md:sticky md:top-[76px] md:self-start">
+              <p className="px-3 text-[11px] tracking-[0.35em] text-[var(--ink-faint)]">
+                WORKSPACE
+              </p>
+              <h1 className="mt-1.5 px-3 text-[22px] font-semibold leading-none [font-family:var(--serif)]">
+                我的文章
+              </h1>
+              <nav className="mt-5 flex flex-col gap-0.5">
+                {railItem(ALL, "全部文章", docs?.length ?? 0, <Inbox size={15} />)}
+                {categories.map(([cat, count]) =>
+                  railItem(
+                    cat,
+                    cat,
+                    count,
+                    activeCat === cat ? <FolderOpen size={15} /> : <Folder size={15} />
+                  )
+                )}
+              </nav>
+              <p className="mt-5 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
+                在文章卡片的 ⋯ 菜单里可移动分类或新建分类
+              </p>
+            </aside>
 
-            {docs === null ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-[132px] animate-pulse rounded-xl border border-[var(--hairline)] bg-white/70"
+            {/* 右：文章区 */}
+            <section className="min-w-0">
+              <div className="rise flex items-center gap-3" style={{ animationDelay: "0.05s" }}>
+                <div className="relative flex-1">
+                  <Search
+                    size={14}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
                   />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {/* 新建卡片 */}
+                  <input
+                    className="h-9 w-full rounded-lg border border-[var(--hairline)] bg-white pl-9 pr-3 text-[13px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
+                    placeholder={`搜索${activeCat === ALL ? "全部" : "「" + activeCat + "」"}文章…`}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
                 <button
-                  className="rise flex min-h-[132px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--hairline-strong)] text-[var(--ink-faint)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-wash)]/40 hover:text-[var(--accent)] disabled:opacity-60"
+                  className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
                   onClick={() => void createDoc()}
                   disabled={creating}
                 >
                   {creating ? (
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <FilePlus2 size={18} />
+                    <FilePlus2 size={14} />
                   )}
-                  <span className="text-[13px] font-medium">新建文章</span>
+                  新建文章
                 </button>
-
-                {docs.map((doc, i) => (
-                  <div
-                    key={doc.id}
-                    className="rise group relative cursor-pointer overflow-hidden rounded-xl border border-[var(--hairline)] bg-white p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_14px_36px_-12px_rgba(60,45,20,0.22)]"
-                    style={{ animationDelay: `${Math.min(i * 45, 400)}ms` }}
-                    onClick={() => router.push(`/edit/${doc.id}`)}
-                  >
-                    <span className="absolute bottom-5 left-0 top-5 w-[3px] rounded-r-full bg-transparent transition-colors group-hover:bg-[var(--accent)]" />
-                    <p className="truncate pr-6 text-[15px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
-                      {doc.title || "未命名文章"}
-                    </p>
-                    <p className="mt-1.5 line-clamp-2 h-10 text-[12.5px] leading-5 text-[var(--ink-soft)]">
-                      {doc.excerpt || "（暂无内容）"}
-                    </p>
-                    <div className="mt-3 flex items-center gap-2 text-[11.5px] text-[var(--ink-faint)]">
-                      <FileText size={12} />
-                      <span>{formatTime(doc.updatedAt)}</span>
-                      {typeof doc.chars === "number" ? (
-                        <>
-                          <span className="text-[var(--hairline-strong)]">·</span>
-                          <span>{doc.chars} 字</span>
-                        </>
-                      ) : null}
-                    </div>
-                    <button
-                      className="invisible absolute right-3 top-3 cursor-pointer rounded-md p-1.5 text-[var(--ink-faint)] hover:bg-red-50 hover:text-red-600 group-hover:visible"
-                      title="删除"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void removeDoc(doc);
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
               </div>
-            )}
-          </>
+
+              {docs === null ? (
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-[136px] animate-pulse rounded-xl border border-[var(--hairline)] bg-white/70"
+                    />
+                  ))}
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--hairline-strong)] py-16">
+                  <Inbox size={24} className="text-[var(--ink-faint)]" />
+                  <p className="text-[13px] text-[var(--ink-faint)]">
+                    {search
+                      ? "没有匹配的文章"
+                      : activeCat === ALL
+                        ? "还没有文章，点「新建文章」开始"
+                        : `「${activeCat}」还没有文章`}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {filtered.map((doc, i) => {
+                    const cat = doc.category || UNCATEGORIZED;
+                    return (
+                      <div
+                        key={doc.id}
+                        className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-white p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_14px_36px_-12px_rgba(60,45,20,0.22)]"
+                        style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
+                        onClick={() => router.push(`/edit/${doc.id}`)}
+                      >
+                        <span className="absolute bottom-5 left-0 top-5 w-[3px] rounded-r-full bg-transparent transition-colors group-hover:bg-[var(--accent)]" />
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1.5 rounded-md bg-[var(--paper)] px-2 py-0.5 text-[11px] text-[var(--ink-soft)]">
+                            <Folder size={11} />
+                            {cat}
+                          </span>
+                          <span className="flex-1" />
+                          <span className="text-[11.5px] text-[var(--ink-faint)]">
+                            {formatTime(doc.updatedAt)}
+                          </span>
+                          <button
+                            className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuDocId(menuDocId === doc.id ? null : doc.id);
+                            }}
+                          >
+                            <MoreHorizontal size={15} />
+                          </button>
+                        </div>
+                        <p className="mt-2.5 truncate text-[15px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
+                          {doc.title || "未命名文章"}
+                        </p>
+                        <p className="mt-1 line-clamp-2 h-10 text-[12.5px] leading-5 text-[var(--ink-soft)]">
+                          {doc.excerpt || "（暂无内容）"}
+                        </p>
+                        <p className="mt-2 text-[11.5px] text-[var(--ink-faint)]">
+                          {typeof doc.chars === "number" ? `${doc.chars} 字` : ""}
+                        </p>
+
+                        {/* 卡片菜单 */}
+                        {menuDocId === doc.id ? (
+                          <>
+                            <div
+                              className="fixed inset-0 z-30"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenuDocId(null);
+                              }}
+                            />
+                            <div
+                              className="absolute right-3 top-10 z-40 w-44 rounded-lg border border-[var(--hairline)] bg-white py-1.5 shadow-[0_10px_36px_rgba(40,30,10,0.16)]"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <p className="px-3.5 pb-1 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
+                                移动到分类
+                              </p>
+                              {categories
+                                .filter(([c]) => c !== cat)
+                                .map(([c]) => (
+                                  <button
+                                    key={c}
+                                    className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                                    onClick={() => {
+                                      setMenuDocId(null);
+                                      void moveDoc(doc, c);
+                                    }}
+                                  >
+                                    <Folder size={13} className="text-[var(--ink-faint)]" />
+                                    <span className="truncate">{c}</span>
+                                  </button>
+                                ))}
+                              <button
+                                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                                onClick={() => {
+                                  setMenuDocId(null);
+                                  moveToNewCategory(doc);
+                                }}
+                              >
+                                <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+                                新建分类…
+                              </button>
+                              <div className="my-1 border-t border-[var(--hairline)]" />
+                              <button
+                                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50"
+                                onClick={() => {
+                                  setMenuDocId(null);
+                                  void removeDoc(doc);
+                                }}
+                              >
+                                <Trash2 size={13} />
+                                删除文章
+                              </button>
+                            </div>
+                          </>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
         ) : (
           /* ———— 未登录：产品首页 ———— */
           <>
@@ -394,7 +587,6 @@ export function Home() {
 
             <HeroMock />
 
-            {/* 期刊式功能条 */}
             <div
               className="rise mt-20 grid grid-cols-2 gap-x-0 gap-y-10 border-t-2 border-[var(--ink)] pt-9 lg:grid-cols-4"
               style={{ animationDelay: "0.3s" }}
