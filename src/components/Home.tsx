@@ -18,6 +18,7 @@ import {
   ChevronRight,
   FileText,
   Images,
+  BarChart3,
 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
@@ -45,6 +46,7 @@ interface AppConfig {
 const ALL = "__all__";
 const TRASH = "__trash__";
 const ASSETS = "__assets__";
+const STATS = "__stats__";
 const UNCATEGORIZED = "未分类";
 const MAX_DEPTH = 3;
 
@@ -327,7 +329,7 @@ export function Home() {
     setActiveCat(path);
     setReadingId(null);
     setSearch("");
-    if (path !== ALL && path !== TRASH && path !== ASSETS) {
+    if (path !== ALL && path !== TRASH && path !== ASSETS && path !== STATS) {
       // 展开路径上的所有节点
       const next = new Set(expanded);
       const parts = path.split("/");
@@ -352,7 +354,7 @@ export function Home() {
           content: "",
           category:
             category ??
-            (activeCat === ALL || activeCat === TRASH || activeCat === ASSETS
+            (activeCat === ALL || activeCat === TRASH || activeCat === ASSETS || activeCat === STATS
               ? UNCATEGORIZED
               : activeCat),
         }),
@@ -789,9 +791,8 @@ export function Home() {
 
       <main className="relative mx-auto max-w-6xl px-6 pb-24">
         {loggedIn ? (
-          /* ———— 已登录：写作数据 + 文档树 + 内容区 ———— */
+          /* ———— 已登录：文档树 + 内容区 ———— */
           <div className="pt-8">
-            <WritingStats />
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[240px_1fr]">
               {/* 左：文档树 */}
               <aside className="rise md:sticky md:top-[76px] md:self-start">
@@ -813,6 +814,7 @@ export function Home() {
                   新建分类
                 </button>
                 <div className="mt-3 border-t border-[var(--hairline)] pt-2">
+                  {simpleRow(STATS, "写作数据", null, <BarChart3 size={15} />)}
                   {simpleRow(ASSETS, "图片库", null, <Images size={15} />)}
                   {simpleRow(TRASH, "回收站", trashDocs?.length ?? 0, <Trash2 size={15} />)}
                 </div>
@@ -823,7 +825,9 @@ export function Home() {
 
               {/* 右：阅读视图 / 文章列表 */}
               <section className="min-w-0">
-                {activeCat === ASSETS ? (
+                {activeCat === STATS ? (
+                  <WritingStats />
+                ) : activeCat === ASSETS ? (
                   <AssetsGallery ossConfigured={config?.oss ?? false} />
                 ) : readingId && !isTrash ? (
                   <ArticleReader docId={readingId} onOpenCategory={openCategory} />
