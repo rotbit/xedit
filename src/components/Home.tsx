@@ -20,6 +20,7 @@ import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
 import { toast, Toaster } from "./Toast";
 import { askInput, askConfirm } from "./PromptDialog";
+import { WritingStats } from "./WritingStats";
 import { GithubMark } from "./Topbar";
 
 interface DocMeta {
@@ -588,8 +589,10 @@ export function Home() {
 
       <main className="relative mx-auto max-w-6xl px-6 pb-24">
         {loggedIn ? (
-          /* ———— 已登录：分类 + 文章工作台 ———— */
-          <div className="grid grid-cols-1 gap-8 pt-10 md:grid-cols-[220px_1fr]">
+          /* ———— 已登录：写作数据 + 分类 + 文章工作台 ———— */
+          <div className="pt-8">
+            <WritingStats />
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr]">
             {/* 左：分类栏 */}
             <aside className="rise md:sticky md:top-[76px] md:self-start">
               <p className="px-3 text-[11px] tracking-[0.35em] text-[var(--ink-faint)]">
@@ -809,6 +812,7 @@ export function Home() {
                 </div>
               )}
             </section>
+          </div>
           </div>
         ) : (
           /* ———— 未登录：产品首页 ———— */
