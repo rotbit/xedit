@@ -17,12 +17,14 @@ import {
   Inbox,
   ChevronRight,
   FileText,
+  Images,
 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
 import { toast, Toaster } from "./Toast";
 import { askInput, askConfirm } from "./PromptDialog";
 import { WritingStats } from "./WritingStats";
+import { AssetsGallery } from "./AssetsGallery";
 import { ArticleReader } from "./ArticleReader";
 import { GithubMark } from "./Topbar";
 
@@ -42,6 +44,7 @@ interface AppConfig {
 
 const ALL = "__all__";
 const TRASH = "__trash__";
+const ASSETS = "__assets__";
 const UNCATEGORIZED = "未分类";
 const MAX_DEPTH = 3;
 
@@ -324,7 +327,7 @@ export function Home() {
     setActiveCat(path);
     setReadingId(null);
     setSearch("");
-    if (path !== ALL && path !== TRASH) {
+    if (path !== ALL && path !== TRASH && path !== ASSETS) {
       // 展开路径上的所有节点
       const next = new Set(expanded);
       const parts = path.split("/");
@@ -348,7 +351,10 @@ export function Home() {
           title: "未命名文章",
           content: "",
           category:
-            category ?? (activeCat === ALL || activeCat === TRASH ? UNCATEGORIZED : activeCat),
+            category ??
+            (activeCat === ALL || activeCat === TRASH || activeCat === ASSETS
+              ? UNCATEGORIZED
+              : activeCat),
         }),
       });
       if (!res.ok) throw new Error();
@@ -807,6 +813,7 @@ export function Home() {
                   新建分类
                 </button>
                 <div className="mt-3 border-t border-[var(--hairline)] pt-2">
+                  {simpleRow(ASSETS, "图片库", null, <Images size={15} />)}
                   {simpleRow(TRASH, "回收站", trashDocs?.length ?? 0, <Trash2 size={15} />)}
                 </div>
                 <p className="mt-4 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
@@ -816,7 +823,9 @@ export function Home() {
 
               {/* 右：阅读视图 / 文章列表 */}
               <section className="min-w-0">
-                {readingId && !isTrash ? (
+                {activeCat === ASSETS ? (
+                  <AssetsGallery ossConfigured={config?.oss ?? false} />
+                ) : readingId && !isTrash ? (
                   <ArticleReader docId={readingId} onOpenCategory={openCategory} />
                 ) : (
                   <>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ossConfigured, ossPut } from "@/lib/oss";
+import { prisma } from "@/lib/prisma";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES: Record<string, string> = {
@@ -38,7 +39,10 @@ export async function POST(req: Request) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const url = await ossPut(buffer, ext, file.type);
+    const { url, key } = await ossPut(buffer, ext, file.type);
+    await prisma.asset.create({
+      data: { userId: session.user.id, key, url, size: file.size, mime: file.type },
+    });
     return NextResponse.json({ url });
   } catch (e) {
     const message = e instanceof Error ? e.message : "上传失败";
