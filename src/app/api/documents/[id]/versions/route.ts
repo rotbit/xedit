@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { pruneVersions } from "@/lib/versions";
+import { snapshot } from "@/lib/versions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -33,15 +33,14 @@ export async function GET(_req: Request, { params }: Params) {
   );
 }
 
-/** 手动存档当前内容 */
-export async function POST(_req: Request, { params }: Params) {
+/** 存档当前内容（手动，或前端空闲定时器触发的 auto） */
+export async function POST(req: Request, { params }: Params) {
   const { id } = await params;
   const doc = await ownedDoc(id);
   if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
 
-  const version = await prisma.documentVersion.create({
-    data: { documentId: id, title: doc.title, content: doc.content, kind: "manual" },
-  });
-  await pruneVersions(id);
-  return NextResponse.json({ id: version.id, createdAt: version.createdAt });
+  const body = await req.json().catch(() => ({}));
+  const kind = body?.kind === "auto" ? "auto" : "manual";
+  const created = await snapshot(id, doc.title, doc.content, kind);
+  return NextResponse.json({ created });
 }

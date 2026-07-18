@@ -10,7 +10,7 @@ export async function GET() {
   const docs = await prisma.document.findMany({
     where: { userId: session.user.id },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, updatedAt: true, content: true },
+    select: { id: true, title: true, updatedAt: true, content: true, category: true },
   });
   // 列表附带纯文本摘要与字数，正文本身不下发
   return NextResponse.json(
@@ -25,6 +25,7 @@ export async function GET() {
       return {
         id: d.id,
         title: d.title,
+        category: d.category,
         updatedAt: d.updatedAt,
         excerpt: plain.slice(0, 90),
         chars: d.content.replace(/\s/g, "").length,
@@ -44,6 +45,10 @@ export async function POST(req: Request) {
       userId: session.user.id,
       title: typeof body.title === "string" && body.title ? body.title.slice(0, 200) : "未命名文章",
       content: typeof body.content === "string" ? body.content : "",
+      category:
+        typeof body.category === "string" && body.category.trim()
+          ? body.category.trim().slice(0, 50)
+          : "未分类",
     },
   });
   return NextResponse.json(doc);

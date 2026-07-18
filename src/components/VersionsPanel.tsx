@@ -119,8 +119,9 @@ function VersionList({
 
   const saveNow = async () => {
     const res = await fetch(`/api/documents/${docId}/versions`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      toast("已存档当前版本", "success");
+      toast(data.created ? "已存档当前版本" : "内容与最近版本相同，无需重复存档", data.created ? "success" : "info");
       await refresh();
     } else {
       toast("存档失败", "error");
@@ -173,8 +174,8 @@ function VersionList({
         </div>
       ) : versions.length === 0 ? (
         <p className="px-6 py-10 text-center text-[12px] leading-6 text-[var(--ink-faint)]">
-          还没有版本。继续编辑，自动保存会每隔约 5 分钟留存一个快照；
-          也可以点右上角「存档」立即保存一个版本。
+          还没有版本。编辑会实时自动保存，停止编辑 5 分钟后
+          自动定格为一个版本；也可以点右上角「存档」立即保存。
         </p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
