@@ -11,7 +11,7 @@ export interface WritingLevel {
   minChars: number;
   mascot: string;
   motto: string;
-  /** 该等级的界面主题（中国传统色） */
+  /** 该等级的界面纸张（材质逐级升贵） */
   skin: string;
 }
 
@@ -22,7 +22,7 @@ export const LEVELS: WritingLevel[] = [
     minChars: 0,
     mascot: "/mascot/stage-1.png",
     motto: "一滴墨，落在纸上",
-    skin: "朱砂",
+    skin: "素笺",
   },
   {
     lv: 2,
@@ -30,7 +30,7 @@ export const LEVELS: WritingLevel[] = [
     minChars: 5_000,
     mascot: "/mascot/stage-2.png",
     motto: "字里行间，冒出新芽",
-    skin: "青碧",
+    skin: "竹纸",
   },
   {
     lv: 3,
@@ -38,7 +38,7 @@ export const LEVELS: WritingLevel[] = [
     minChars: 20_000,
     mascot: "/mascot/stage-3.png",
     motto: "握住笔，就不想放下",
-    skin: "藤黄",
+    skin: "玉版宣",
   },
   {
     lv: 4,
@@ -46,7 +46,7 @@ export const LEVELS: WritingLevel[] = [
     minChars: 60_000,
     mascot: "/mascot/stage-4.png",
     motto: "伏案疾书，自有章法",
-    skin: "靛青",
+    skin: "蜡笺",
   },
   {
     lv: 5,
@@ -54,7 +54,7 @@ export const LEVELS: WritingLevel[] = [
     minChars: 150_000,
     mascot: "/mascot/stage-5.png",
     motto: "落笔从容，气象渐成",
-    skin: "紫毫",
+    skin: "洒金笺",
   },
   {
     lv: 6,
@@ -62,7 +62,7 @@ export const LEVELS: WritingLevel[] = [
     minChars: 400_000,
     mascot: "/mascot/stage-6.png",
     motto: "笔落惊风雨",
-    skin: "鎏金",
+    skin: "泥金笺",
   },
 ];
 
