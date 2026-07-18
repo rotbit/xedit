@@ -37,7 +37,7 @@ interface Report {
 }
 
 const LEVEL_STYLE: Record<Issue["level"], { text: string; cls: string }> = {
-  high: { text: "高风险", cls: "bg-red-50 text-red-700 border-red-200" },
+  high: { text: "高风险", cls: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900" },
   mid: { text: "中风险", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   low: { text: "建议", cls: "bg-[var(--paper)] text-[var(--ink-soft)] border-[var(--hairline-strong)]" },
 };
@@ -84,7 +84,7 @@ async function runReview(): Promise<{ report: Report; truncated: boolean }> {
 function scoreColor(score: number): string {
   if (score >= 85) return "text-emerald-600";
   if (score >= 60) return "text-amber-600";
-  return "text-red-600";
+  return "text-red-600 dark:text-red-400";
 }
 
 export function ReviewDialog({ onClose }: { onClose: () => void }) {

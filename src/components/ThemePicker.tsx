@@ -17,7 +17,7 @@ function ThemeThumb({ theme }: { theme: ThemePreset }) {
   );
 
   return (
-    <div className="pointer-events-none h-[88px] overflow-hidden rounded-[5px] bg-white">
+    <div className="light-lock pointer-events-none h-[88px] overflow-hidden rounded-[5px] bg-white">
       <style>{css}</style>
       <div
         className={cls}

@@ -91,7 +91,7 @@ export function ArticleReader({
       {/* 面包屑 + 操作 */}
       <div className="flex items-center gap-1.5 pb-3">
         <button
-          className="flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] text-[var(--ink-soft)] hover:bg-white hover:text-[var(--accent-deep)]"
+          className="flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--accent-deep)]"
           onClick={() => onOpenCategory(doc.category || "未分类")}
         >
           <Folder size={13} />
@@ -112,7 +112,7 @@ export function ArticleReader({
       </div>
 
       {/* 渲染内容（已消毒） */}
-      <div className="overflow-hidden rounded-xl bg-white shadow-[0_2px_16px_rgba(60,50,30,0.08)] ring-1 ring-[var(--hairline)]">
+      <div className="light-lock overflow-hidden rounded-xl bg-white shadow-[0_2px_16px_rgba(60,50,30,0.08)] ring-1 ring-[var(--hairline)]">
         <style>{BASE_CSS}</style>
         <style>{codeCss}</style>
         <style>{theme.css}</style>
