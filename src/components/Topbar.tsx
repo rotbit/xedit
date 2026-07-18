@@ -29,6 +29,7 @@ import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { exportMarkdown, exportHtml, exportPdf } from "@/lib/export";
 import { toast } from "./Toast";
+import { askInput } from "./PromptDialog";
 import { ThemePickerPanel } from "./ThemePicker";
 import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
 import { ReviewDialog } from "./ReviewDialog";
@@ -335,10 +336,14 @@ export function Topbar({
           <button
             className={itemCls}
             onClick={() => {
-              const name = prompt("新分类名称：")?.trim().slice(0, 50);
-              if (!name) return;
-              setCategory(name);
-              setCatList((prev) => (prev.includes(name) ? prev : [...prev, name]));
+              void (async () => {
+                const name = (await askInput({ title: "新建分类", placeholder: "分类名称" }))
+                  ?.trim()
+                  .slice(0, 50);
+                if (!name) return;
+                setCategory(name);
+                setCatList((prev) => (prev.includes(name) ? prev : [...prev, name]));
+              })();
             }}
           >
             <FolderPlus size={13} className="text-[var(--ink-faint)]" />
