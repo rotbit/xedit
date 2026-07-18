@@ -48,7 +48,7 @@ export async function PUT(req: Request, { params }: Params) {
   if (typeof body.title === "string") data.title = body.title.slice(0, 200) || "未命名文章";
   if (typeof body.content === "string") data.content = body.content;
   if (typeof body.category === "string") {
-    data.category = body.category.trim().slice(0, 50) || "未分类";
+    data.category = body.category.trim().slice(0, 100) || "未分类";
   }
 
   const existing = await prisma.document.findFirst({ where: { id, userId } });
