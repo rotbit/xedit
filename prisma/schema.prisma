@@ -8,15 +8,16 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(cuid())
+  id            String            @id @default(cuid())
   name          String?
-  email         String?       @unique
+  email         String?           @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
   documents     Document[]
   settings      UserSettings?
+  activities    WritingActivity[]
 }
 
 model Account {
@@ -94,4 +95,15 @@ model UserSettings {
   linkFootnote Boolean @default(true)
   /// 用户自建分类（JSON 数组），与文章上的分类取并集展示，保证空分类不消失
   categories   String  @default("[]")
+}
+
+/// 每日写作流水（date 为东八区 YYYY-MM-DD）
+model WritingActivity {
+  userId     String
+  date       String
+  saves      Int    @default(0)
+  charsAdded Int    @default(0)
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, date])
 }

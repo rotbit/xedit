@@ -3,6 +3,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { snapshot, IDLE_VERSION_MS } from "@/lib/versions";
 
+/** 东八区日期串 YYYY-MM-DD */
+function chinaDate(): string {
+  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+}
+
 type Params = { params: Promise<{ id: string }> };
 
 async function requireUser() {
@@ -59,6 +64,17 @@ export async function PUT(req: Request, { params }: Params) {
     if (idleMs >= IDLE_VERSION_MS) {
       await snapshot(id, existing.title, existing.content, "auto");
     }
+    // 每日写作流水：保存次数 + 净增字数（删减不计负）
+    const delta = Math.max(
+      0,
+      data.content.replace(/\s/g, "").length - existing.content.replace(/\s/g, "").length
+    );
+    const date = chinaDate();
+    await prisma.writingActivity.upsert({
+      where: { userId_date: { userId, date } },
+      update: { saves: { increment: 1 }, charsAdded: { increment: delta } },
+      create: { userId, date, saves: 1, charsAdded: delta },
+    });
   }
   return NextResponse.json({ ok: true });
 }
