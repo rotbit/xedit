@@ -32,6 +32,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
   const setContent = useStore((s) => s.setContent);
   const splitRatio = useStore((s) => s.splitRatio);
   const setSplitRatio = useStore((s) => s.setSplitRatio);
+  const focusMode = useStore((s) => s.focusMode);
   const { loggedIn, docVersion, loading, reload } = useEditorDoc(docId);
 
   const editorRef = useRef<EditorHandle>(null);
@@ -87,11 +88,11 @@ export function EditorApp({ docId }: { docId: string | null }) {
         {/* 编辑区 */}
         <div
           className="flex min-w-0 flex-col"
-          style={{ width: `${splitRatio * 100}%` }}
+          style={{ width: focusMode ? "100%" : `${splitRatio * 100}%` }}
           onPointerEnter={() => setActive("editor")}
         >
           <EditorToolbar onCommand={(cmd) => editorRef.current?.applyFormat(cmd)} />
-          <div className="min-h-0 flex-1">
+          <div className={`min-h-0 flex-1 ${focusMode ? "focus-mode" : ""}`}>
             <MarkdownEditor
               key={docKey}
               ref={editorRef}
@@ -102,18 +103,22 @@ export function EditorApp({ docId }: { docId: string | null }) {
             />
           </div>
         </div>
-        {/* 可拖拽分隔条 */}
-        <div
-          className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-transparent hover:bg-[var(--accent-wash)]"
-          onPointerDown={onDividerPointerDown}
-          title="拖动调整编辑/预览宽度"
-        >
-          <span className="absolute left-1/2 top-1/2 h-8 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--hairline-strong)] group-hover:bg-[var(--accent)]" />
-        </div>
-        {/* 预览区 */}
-        <div className="min-w-0 flex-1" onPointerEnter={() => setActive("preview")}>
-          <Preview ref={previewRef} onScroll={onPreviewScroll} />
-        </div>
+        {focusMode ? null : (
+          <>
+            {/* 可拖拽分隔条 */}
+            <div
+              className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-transparent hover:bg-[var(--accent-wash)]"
+              onPointerDown={onDividerPointerDown}
+              title="拖动调整编辑/预览宽度"
+            >
+              <span className="absolute left-1/2 top-1/2 h-8 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--hairline-strong)] group-hover:bg-[var(--accent)]" />
+            </div>
+            {/* 预览区 */}
+            <div className="min-w-0 flex-1" onPointerEnter={() => setActive("preview")}>
+              <Preview ref={previewRef} onScroll={onPreviewScroll} />
+            </div>
+          </>
+        )}
       </div>
       <StatusBar />
       <CssDialog />

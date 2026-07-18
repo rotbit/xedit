@@ -22,11 +22,12 @@ export function useEditorDoc(routeDocId: string | null) {
 
   const settingsLoadedRef = useRef(false);
   const idleVersionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSavedRef = useRef<{ docId: string | null; title: string; content: string }>({
-    docId: null,
-    title: "",
-    content: "",
-  });
+  const lastSavedRef = useRef<{
+    docId: string | null;
+    title: string;
+    content: string;
+    category: string;
+  }>({ docId: null, title: "", content: "", category: "" });
 
   // 停止编辑 5 分钟后，把当前内容定格为一个版本（页面关闭时由服务端在下次保存时兜底）
   const scheduleIdleVersion = (id: string) => {
@@ -52,6 +53,7 @@ export function useEditorDoc(routeDocId: string | null) {
       // 本地文稿模式：沿用持久化的本地内容
       const s = useStore.getState();
       s.setDoc({ id: null, title: s.title, content: s.content });
+      s.setCategory("未分类");
       s.setSaveState("local");
       return;
     }
@@ -73,8 +75,14 @@ export function useEditorDoc(routeDocId: string | null) {
       }
       const doc = await res.json();
       if (cancelled) return;
-      lastSavedRef.current = { docId: doc.id, title: doc.title, content: doc.content };
+      lastSavedRef.current = {
+        docId: doc.id,
+        title: doc.title,
+        content: doc.content,
+        category: doc.category ?? "未分类",
+      };
       useStore.getState().setDoc({ id: doc.id, title: doc.title, content: doc.content });
+      useStore.getState().setCategory(doc.category ?? "未分类");
       useStore.getState().setSaveState("saved");
       setDocVersion((v) => v + 1);
       setLoading(false);
@@ -104,6 +112,7 @@ export function useEditorDoc(routeDocId: string | null) {
   // —— 内容/标题自动保存（防抖 800ms，含版本快照） ——
   const title = useStore((s) => s.title);
   const content = useStore((s) => s.content);
+  const category = useStore((s) => s.category);
   const docId = useStore((s) => s.docId);
 
   useEffect(() => {
@@ -112,7 +121,13 @@ export function useEditorDoc(routeDocId: string | null) {
       return;
     }
     const last = lastSavedRef.current;
-    if (last.docId === docId && last.title === title && last.content === content) return;
+    if (
+      last.docId === docId &&
+      last.title === title &&
+      last.content === content &&
+      last.category === category
+    )
+      return;
 
     const timer = setTimeout(async () => {
       useStore.getState().setSaveState("saving");
@@ -120,10 +135,10 @@ export function useEditorDoc(routeDocId: string | null) {
         const res = await fetch(`/api/documents/${docId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, content }),
+          body: JSON.stringify({ title, content, category }),
         });
         if (!res.ok) throw new Error(String(res.status));
-        lastSavedRef.current = { docId, title, content };
+        lastSavedRef.current = { docId, title, content, category };
         useStore.getState().setSaveState("saved");
         scheduleIdleVersion(docId);
       } catch {
@@ -131,7 +146,7 @@ export function useEditorDoc(routeDocId: string | null) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [loggedIn, docId, title, content]);
+  }, [loggedIn, docId, title, content, category]);
 
   // —— 偏好设置自动同步（防抖 1s） ——
   const themeId = useStore((s) => s.themeId);

@@ -25,6 +25,13 @@ export async function PUT(req: Request) {
   if (typeof body.customCss === "string") data.customCss = body.customCss;
   if (typeof body.macCode === "boolean") data.macCode = body.macCode;
   if (typeof body.linkFootnote === "boolean") data.linkFootnote = body.linkFootnote;
+  if (Array.isArray(body.categories)) {
+    const list = body.categories
+      .filter((c: unknown): c is string => typeof c === "string" && Boolean(c.trim()))
+      .map((c: string) => c.trim().slice(0, 50))
+      .slice(0, 100);
+    data.categories = JSON.stringify(Array.from(new Set(list)));
+  }
 
   const settings = await prisma.userSettings.upsert({
     where: { userId: session.user.id },
