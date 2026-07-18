@@ -21,6 +21,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "缺少 model 或内容" }, { status: 400 });
   }
 
+  const wantStream = body?.stream === true;
+
   try {
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
@@ -35,9 +37,25 @@ export async function POST(req: Request) {
           { role: "user", content: prompt },
         ],
         temperature: 0.3,
+        ...(wantStream ? { stream: true } : {}),
       }),
       signal: AbortSignal.timeout(110_000),
     });
+
+    if (wantStream) {
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => null);
+        const message = err?.error?.message ?? `上游返回 ${res.status}`;
+        return NextResponse.json({ error: `AI 调用失败：${message}` }, { status: 502 });
+      }
+      // 直接透传上游 SSE
+      return new Response(res.body, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
 
     const data = await res.json().catch(() => null);
     if (!res.ok) {

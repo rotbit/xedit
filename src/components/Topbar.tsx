@@ -23,16 +23,17 @@ import {
   Check,
 } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { getTheme, getCodeThemeCss } from "@/lib/themes";
+import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
-import { exportMarkdown, exportHtml, exportPdf } from "@/lib/export";
+import { exportMarkdown, exportHtml, exportPdf, exportImage } from "@/lib/export";
 import { toast } from "./Toast";
 import { askInput } from "./PromptDialog";
 import { ThemePickerPanel } from "./ThemePicker";
 import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
 import { ReviewDialog } from "./ReviewDialog";
+import { AiDiffDialog, AiTitlesDialog, AiSummaryDialog } from "./AiWriteDialogs";
 import type { EditorHandle } from "./MarkdownEditor";
 
 const AI_PROMPTS = {
@@ -40,7 +41,22 @@ const AI_PROMPTS = {
   zh: "你是专业译者。把用户提供的内容翻译成流畅的简体中文。保留 Markdown 语法结构，代码块内容不翻译。只输出译文，不要任何解释。",
   polish:
     "你是资深中文编辑。润色用户提供的文字，使表达更流畅、精炼、有条理。保留 Markdown 语法结构与原文含义。只输出润色后的文本，不要任何解释。",
+  expand:
+    "你是资深中文编辑。在保留原意、语气与 Markdown 结构的前提下扩写内容（约为原文 1.5~2 倍），补充细节、例证与衔接。只输出扩写后的文本。",
+  condense:
+    "你是资深中文编辑。把内容压缩到约一半篇幅，保留关键信息、结论与 Markdown 结构。只输出压缩后的文本。",
+  format:
+    "你是资深微信公众号编辑。重新组织这篇 Markdown 文章的结构：合理分段、拟定或优化小标题（##/###）、为关键句加粗、把并列内容整理为列表、适当用引用块突出金句。不得改变事实内容与作者语气，不删除信息。只输出整理后的完整 Markdown，不要任何解释。",
 } as const;
+
+const AI_TITLES: Record<keyof typeof AI_PROMPTS, string> = {
+  en: "翻译为英文",
+  zh: "翻译为中文",
+  polish: "润色",
+  expand: "扩写",
+  condense: "缩写",
+  format: "智能排版",
+};
 
 interface AppConfig {
   github: boolean;
@@ -120,6 +136,10 @@ export function Topbar({
   const syncScroll = useStore((s) => s.syncScroll);
   const setSyncScroll = useStore((s) => s.setSyncScroll);
   const setCssDialogOpen = useStore((s) => s.setCssDialogOpen);
+  const tuneFontSize = useStore((s) => s.tuneFontSize);
+  const tuneLineHeight = useStore((s) => s.tuneLineHeight);
+  const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
+  const setTune = useStore((s) => s.setTune);
 
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [catList, setCatList] = useState<string[]>([]);
@@ -153,10 +173,18 @@ export function Topbar({
       cancelled = true;
     };
   }, [status, docId]);
-  const [aiBusy, setAiBusy] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [aiImageOpen, setAiImageOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [titlesOpen, setTitlesOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [diffTask, setDiffTask] = useState<{
+    kind: keyof typeof AI_PROMPTS;
+    original: string;
+    from: number;
+    to: number;
+    wholeDoc: boolean;
+  } | null>(null);
 
   const aiConfigured = () => {
     const s = useStore.getState();
@@ -166,41 +194,54 @@ export function Topbar({
     return false;
   };
 
-  /** 对编辑器选中文本执行 AI 处理并原地替换 */
-  const runAiText = async (kind: keyof typeof AI_PROMPTS) => {
+  /** 选中文本类 AI：打开 diff 对照弹窗 */
+  const startSelectionAi = (kind: keyof typeof AI_PROMPTS) => {
     const view = editorRef.current?.view();
-    if (!view || aiBusy) return;
+    if (!view) return;
     const sel = view.state.selection.main;
     if (sel.from === sel.to) {
       toast("请先在编辑器中选中要处理的文字", "error");
       return;
     }
     if (!aiConfigured()) return;
-    const text = view.state.sliceDoc(sel.from, sel.to);
-    const s = useStore.getState();
-    setAiBusy(true);
-    toast("AI 处理中，请稍候…");
-    try {
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          baseUrl: s.aiBaseUrl,
-          apiKey: s.aiApiKey,
-          model: s.aiModel,
-          system: AI_PROMPTS[kind],
-          prompt: text,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      view.dispatch({ changes: { from: sel.from, to: sel.to, insert: data.text } });
-      toast("已完成", "success");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "AI 调用失败", "error");
-    } finally {
-      setAiBusy(false);
+    setDiffTask({
+      kind,
+      original: view.state.sliceDoc(sel.from, sel.to),
+      from: sel.from,
+      to: sel.to,
+      wholeDoc: false,
+    });
+  };
+
+  /** 全文类 AI（智能排版） */
+  const startDocAi = (kind: keyof typeof AI_PROMPTS) => {
+    const content = useStore.getState().content;
+    if (!content.trim()) {
+      toast("文章还是空的", "error");
+      return;
     }
+    if (!aiConfigured()) return;
+    setDiffTask({ kind, original: content, from: 0, to: 0, wholeDoc: true });
+  };
+
+  const applyDiff = (result: string) => {
+    const view = editorRef.current?.view();
+    if (!view || !diffTask) return;
+    if (diffTask.wholeDoc) {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: result } });
+    } else {
+      view.dispatch({ changes: { from: diffTask.from, to: diffTask.to, insert: result } });
+    }
+    toast("已替换", "success");
+  };
+
+  const requireAiThen = (fn: () => void) => {
+    if (!aiConfigured()) return;
+    if (!useStore.getState().content.trim()) {
+      toast("文章还是空的", "error");
+      return;
+    }
+    fn();
   };
 
   const insertAtCursor = (md: string) => {
@@ -213,10 +254,11 @@ export function Topbar({
   const buildOptions = async () => {
     const s = useStore.getState();
     const codeCss = await getCodeThemeCss(s.codeThemeId);
+    const tuneCss = buildTuneCss(s);
     return {
       themeCss: getTheme(s.themeId).css,
       codeCss,
-      customCss: s.customCss,
+      customCss: `${tuneCss}\n${s.customCss}`.trim(),
       macCode: s.macCode,
       linkFootnote: s.linkFootnote,
     };
@@ -260,7 +302,7 @@ export function Topbar({
     }
   };
 
-  const doExport = async (kind: "md" | "html" | "pdf") => {
+  const doExport = async (kind: "md" | "html" | "pdf" | "image") => {
     const s = useStore.getState();
     if (kind === "md") {
       exportMarkdown(s.title, s.content);
@@ -268,7 +310,11 @@ export function Topbar({
     }
     const opts = await buildOptions();
     if (kind === "html") await exportHtml(s.title, s.content, opts);
-    else await exportPdf(s.title, s.content, opts);
+    else if (kind === "pdf") await exportPdf(s.title, s.content, opts);
+    else {
+      toast("正在生成长图…");
+      await exportImage(s.title, s.content, opts);
+    }
   };
 
   const handleLogin = () => {
@@ -402,6 +448,47 @@ export function Topbar({
           </button>
         ))}
         <div className="my-1.5 border-t border-[var(--hairline)]" />
+        <p className="px-3.5 pb-0.5 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
+          排版微调
+        </p>
+        {(
+          [
+            ["字号", tuneFontSize, 14, 18, 0.5, "px", (v: number) => setTune({ tuneFontSize: v })],
+            ["行高", tuneLineHeight, 1.5, 2.2, 0.05, "", (v: number) => setTune({ tuneLineHeight: v })],
+            ["段距", tuneParaSpacing, 8, 28, 2, "px", (v: number) => setTune({ tuneParaSpacing: v })],
+          ] as const
+        ).map(([label, value, min, max, step, unit, apply]) => (
+          <div
+            key={label}
+            className="flex items-center gap-2.5 px-3.5 py-1.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="w-7 shrink-0 text-[12px] text-[var(--ink-soft)]">{label}</span>
+            <input
+              type="range"
+              className="h-1 flex-1 cursor-pointer accent-[var(--accent)]"
+              min={min}
+              max={max}
+              step={step}
+              value={value}
+              onChange={(e) => apply(Number(e.target.value))}
+            />
+            <span className="w-11 shrink-0 text-right text-[11.5px] text-[var(--ink-faint)] [font-family:var(--mono)]">
+              {value}
+              {unit}
+            </span>
+          </div>
+        ))}
+        <button
+          className="mx-3.5 my-1 cursor-pointer rounded px-1.5 py-0.5 text-[11.5px] text-[var(--ink-faint)] hover:text-[var(--accent)]"
+          onClick={(e) => {
+            e.stopPropagation();
+            setTune({ tuneFontSize: 16, tuneLineHeight: 1.75, tuneParaSpacing: 16 });
+          }}
+        >
+          重置排版微调
+        </button>
+        <div className="my-1.5 border-t border-[var(--hairline)]" />
         <button className={itemCls} onClick={() => setCssDialogOpen(true)}>
           自定义 CSS…
         </button>
@@ -412,47 +499,68 @@ export function Topbar({
         width={200}
         trigger={
           <button className={ghostBtn} title="AI 助手">
-            {aiBusy ? (
-              <Loader2 size={15} className="animate-spin text-[var(--accent)]" />
-            ) : (
-              <Sparkles size={15} />
-            )}
+            <Sparkles size={15} />
           </button>
         }
       >
-        <button className={itemCls} onClick={() => void runAiText("en")} disabled={aiBusy}>
+        <p className="px-3.5 pb-0.5 pt-1 text-[11px] tracking-widest text-[var(--ink-faint)]">
+          选中文字
+        </p>
+        <button className={itemCls} onClick={() => startSelectionAi("en")}>
           <Languages size={14} />
-          选中翻译为英文
+          翻译为英文
         </button>
-        <button className={itemCls} onClick={() => void runAiText("zh")} disabled={aiBusy}>
+        <button className={itemCls} onClick={() => startSelectionAi("zh")}>
           <Languages size={14} />
-          选中翻译为中文
+          翻译为中文
         </button>
-        <button className={itemCls} onClick={() => void runAiText("polish")} disabled={aiBusy}>
+        <button className={itemCls} onClick={() => startSelectionAi("polish")}>
           <Wand2 size={14} />
-          润色选中文字
+          润色
         </button>
-        <button
-          className={itemCls}
-          onClick={() => {
-            if (aiConfigured()) setAiImageOpen(true);
-          }}
-          disabled={aiBusy}
-        >
-          <ImagePlus size={14} />
-          AI 生成配图…
+        <button className={itemCls} onClick={() => startSelectionAi("expand")}>
+          <Wand2 size={14} />
+          扩写
+        </button>
+        <button className={itemCls} onClick={() => startSelectionAi("condense")}>
+          <Wand2 size={14} />
+          缩写
+        </button>
+        <div className="my-1.5 border-t border-[var(--hairline)]" />
+        <p className="px-3.5 pb-0.5 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
+          整篇文章
+        </p>
+        <button className={itemCls} onClick={() => startDocAi("format")}>
+          <Sparkles size={14} />
+          智能排版全文…
+        </button>
+        <button className={itemCls} onClick={() => requireAiThen(() => setTitlesOpen(true))}>
+          <Sparkles size={14} />
+          AI 起标题…
+        </button>
+        <button className={itemCls} onClick={() => requireAiThen(() => setSummaryOpen(true))}>
+          <Sparkles size={14} />
+          AI 摘要…
         </button>
         <button
           className={itemCls}
           onClick={() => {
             if (aiConfigured()) setReviewOpen(true);
           }}
-          disabled={aiBusy}
         >
           <ShieldCheck size={14} />
           公众号内容审查…
         </button>
         <div className="my-1.5 border-t border-[var(--hairline)]" />
+        <button
+          className={itemCls}
+          onClick={() => {
+            if (aiConfigured()) setAiImageOpen(true);
+          }}
+        >
+          <ImagePlus size={14} />
+          AI 生成配图…
+        </button>
         <button className={itemCls} onClick={() => setAiSettingsOpen(true)}>
           <Settings2 size={14} />
           AI 设置…
@@ -481,6 +589,9 @@ export function Topbar({
         </button>
         <button className={itemCls} onClick={() => void doExport("pdf")}>
           导出 PDF（打印）
+        </button>
+        <button className={itemCls} onClick={() => void doExport("image")}>
+          导出长图（PNG）
         </button>
       </Dropdown>
 
@@ -564,6 +675,17 @@ export function Topbar({
       <AiImageDialog onClose={() => setAiImageOpen(false)} onInsert={insertAtCursor} />
     ) : null}
     {reviewOpen ? <ReviewDialog onClose={() => setReviewOpen(false)} /> : null}
+    {diffTask ? (
+      <AiDiffDialog
+        title={`AI ${AI_TITLES[diffTask.kind]}`}
+        system={AI_PROMPTS[diffTask.kind]}
+        original={diffTask.original}
+        onApply={applyDiff}
+        onClose={() => setDiffTask(null)}
+      />
+    ) : null}
+    {titlesOpen ? <AiTitlesDialog onClose={() => setTitlesOpen(false)} /> : null}
+    {summaryOpen ? <AiSummaryDialog onClose={() => setSummaryOpen(false)} /> : null}
     </>
   );
 }

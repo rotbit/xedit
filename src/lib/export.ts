@@ -1,4 +1,5 @@
 import { buildWechatHtml, type WechatBuildOptions } from "./copy/wechat";
+import { toast } from "@/components/Toast";
 
 function downloadFile(filename: string, content: string, mime: string): void {
   const blob = new Blob([content], { type: mime });
@@ -72,4 +73,31 @@ export async function exportPdf(
     iframe.contentWindow?.print();
     setTimeout(() => iframe.remove(), 60_000);
   };
+}
+
+/** 导出长图：以 750px 宽渲染内联样式版全文，转 PNG 下载 */
+export async function exportImage(
+  title: string,
+  markdown: string,
+  opts: WechatBuildOptions
+): Promise<void> {
+  const html = await buildWechatHtml(markdown, opts);
+  const holder = document.createElement("div");
+  holder.style.cssText =
+    "position:fixed;left:-10000px;top:0;width:750px;background:#ffffff;z-index:-1;";
+  // buildWechatHtml 产物已经过 DOMPurify 消毒
+  holder.innerHTML = html;
+  document.body.appendChild(holder);
+  try {
+    const { toPng } = await import("html-to-image");
+    const dataUrl = await toPng(holder, { pixelRatio: 2, backgroundColor: "#ffffff" });
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `${title || "untitled"}.png`;
+    a.click();
+  } catch {
+    toast("长图生成失败（外链图片可能跨域受限）", "error");
+  } finally {
+    holder.remove();
+  }
 }

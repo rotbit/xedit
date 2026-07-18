@@ -20,7 +20,28 @@ import { languages } from "@codemirror/language-data";
 import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { searchKeymap } from "@codemirror/search";
+import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
 import { toast } from "./Toast";
+
+// 富文本粘贴 → Markdown
+let turndown: TurndownService | null = null;
+function htmlToMd(html: string): string {
+  if (!turndown) {
+    turndown = new TurndownService({
+      headingStyle: "atx",
+      codeBlockStyle: "fenced",
+      bulletListMarker: "-",
+      emDelimiter: "*",
+    });
+    turndown.use(gfm);
+  }
+  try {
+    return turndown.turndown(html);
+  } catch {
+    return "";
+  }
+}
 
 export type FormatCommand =
   | "bold"
@@ -40,6 +61,8 @@ export type FormatCommand =
 export interface EditorHandle {
   applyFormat: (cmd: FormatCommand) => void;
   view: () => EditorView | null;
+  /** 跳转到指定行（0 基） */
+  scrollToLine: (line: number) => void;
 }
 
 interface Props {
@@ -176,7 +199,41 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         placeholder("在这里输入 Markdown …"),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(mdHighlight),
-        keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+        keymap.of([
+          {
+            key: "Mod-b",
+            run: (v) => {
+              wrapSelection(v, "**", "**", "加粗文字");
+              return true;
+            },
+          },
+          {
+            key: "Mod-i",
+            run: (v) => {
+              wrapSelection(v, "*", "*", "斜体文字");
+              return true;
+            },
+          },
+          {
+            key: "Mod-k",
+            run: (v) => {
+              wrapSelection(v, "[", "](https://)", "链接文字");
+              return true;
+            },
+          },
+          {
+            // 拦截浏览器保存对话框，改为立即保存并存档版本
+            key: "Mod-s",
+            run: () => {
+              window.dispatchEvent(new CustomEvent("xedit:save-now"));
+              return true;
+            },
+          },
+          ...defaultKeymap,
+          ...historyKeymap,
+          ...searchKeymap,
+          indentWithTab,
+        ]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString());
@@ -188,6 +245,28 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
             if (files && files.length > 0 && handleImageFiles(view, files)) {
               event.preventDefault();
               return true;
+            }
+            const plain = event.clipboardData?.getData("text/plain") ?? "";
+            const sel = view.state.selection.main;
+            // 选中文字时粘贴 URL → 自动变链接
+            if (/^https?:\/\/\S+$/.test(plain.trim()) && sel.from !== sel.to) {
+              const text = view.state.sliceDoc(sel.from, sel.to);
+              view.dispatch({
+                changes: { from: sel.from, to: sel.to, insert: `[${text}](${plain.trim()})` },
+              });
+              event.preventDefault();
+              return true;
+            }
+            // 富文本 → Markdown（纯文本粘贴可用 Cmd+Shift+V）
+            const html = event.clipboardData?.getData("text/html") ?? "";
+            if (html) {
+              const md = htmlToMd(html).trim();
+              const norm = (t: string) => t.replace(/\s+/g, " ").trim();
+              if (md && norm(md) !== norm(plain)) {
+                view.dispatch(view.state.replaceSelection(md));
+                event.preventDefault();
+                return true;
+              }
             }
             return false;
           },
@@ -228,6 +307,17 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
 
   useImperativeHandle(ref, () => ({
     view: () => viewRef.current,
+    scrollToLine: (line: number) => {
+      const view = viewRef.current;
+      if (!view) return;
+      const n = Math.min(view.state.doc.lines, Math.max(1, line + 1));
+      const pos = view.state.doc.line(n).from;
+      view.dispatch({
+        selection: { anchor: pos },
+        effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: 12 }),
+      });
+      view.focus();
+    },
     applyFormat: (cmd: FormatCommand) => {
       const view = viewRef.current;
       if (!view) return;

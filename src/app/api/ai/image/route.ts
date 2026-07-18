@@ -13,6 +13,9 @@ export async function POST(req: Request) {
   const apiKey: string = typeof body?.apiKey === "string" ? body.apiKey : "";
   const model: string = typeof body?.model === "string" ? body.model : "";
   const prompt: string = typeof body?.prompt === "string" ? body.prompt : "";
+  const size: string = ["1024x1024", "1536x1024", "1024x1536"].includes(body?.size)
+    ? body.size
+    : "1024x1024";
 
   if (!/^https?:\/\//.test(baseUrl)) {
     return NextResponse.json({ error: "AI 接口地址无效，请先在「AI 设置」中配置" }, { status: 400 });
@@ -28,7 +31,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
-      body: JSON.stringify({ model, prompt, n: 1, size: "1024x1024" }),
+      body: JSON.stringify({ model, prompt, n: 1, size }),
       signal: AbortSignal.timeout(170_000),
     });
 
