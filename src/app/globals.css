@@ -1,26 +1,113 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 稿纸 + 朱砂 设计基调 */
+  --paper: #f7f5f1;
+  --panel: #fffefc;
+  --ink: #232323;
+  --ink-soft: #6b6b6b;
+  --ink-faint: #9a968e;
+  --hairline: #e8e4dc;
+  --hairline-strong: #d8d3c8;
+  --accent: #c0392b; /* 朱砂红 */
+  --accent-deep: #a53125;
+  --accent-wash: #faeae7;
+  --serif: "Songti SC", "Noto Serif SC", "STSong", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+  --mono: "SF Mono", Menlo, Monaco, "JetBrains Mono", Consolas, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* —— 细滚动条 —— */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* —— 工作台点阵背景（书桌质感） —— */
+.desk {
+  background-color: var(--paper);
+  background-image: radial-gradient(var(--hairline-strong) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* —— CodeMirror 编辑器外观 —— */
+.cm-editor {
+  height: 100%;
+  background: var(--panel);
+  font-size: 14px;
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-editor .cm-content {
+  font-family: var(--mono);
+  line-height: 1.8;
+  padding: 20px 4px 45vh 4px;
+  caret-color: var(--accent);
+}
+.cm-editor .cm-line {
+  padding: 0 14px;
+}
+.cm-editor .cm-cursor {
+  border-left-color: var(--accent);
+  border-left-width: 2px;
+}
+.cm-editor .cm-selectionBackground,
+.cm-editor.cm-focused .cm-selectionBackground {
+  background: #f3d9d4 !important;
+}
+.cm-editor .cm-activeLine {
+  background: #faf8f4;
+}
+.cm-editor .cm-scroller {
+  overflow: auto;
+}
+
+/* —— 入场动画（首页用） —— */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+/* 预览区打印时只打印稿纸 */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #nice,
+  #nice * {
+    visibility: visible;
+  }
 }
