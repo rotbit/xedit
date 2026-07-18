@@ -90,4 +90,6 @@ model UserSettings {
   customCss    String  @default("") @db.Text
   macCode      Boolean @default(true)
   linkFootnote Boolean @default(true)
+  /// 用户自建分类（JSON 数组），与文章上的分类取并集展示，保证空分类不消失
+  categories   String  @default("[]")
 }

@@ -49,6 +49,8 @@ interface SettingsSlice {
   syncScroll: boolean;
   /** 编辑区占编辑+预览总宽的比例 */
   splitRatio: number;
+  /** 专注模式：收起预览，正文居中限宽 */
+  focusMode: boolean;
   /** OpenAI 兼容接口地址，如 https://api.deepseek.com/v1 */
   aiBaseUrl: string;
   aiApiKey: string;
@@ -61,6 +63,8 @@ interface EditorState extends SettingsSlice {
   docId: string | null;
   title: string;
   content: string;
+  /** 当前文档所属分类（云端文档有效） */
+  category: string;
   saveState: SaveState;
   /** 由设置抽屉/弹窗使用 */
   cssDialogOpen: boolean;
@@ -78,6 +82,8 @@ interface EditorState extends SettingsSlice {
   setSyncScroll: (v: boolean) => void;
   setCssDialogOpen: (v: boolean) => void;
   setSplitRatio: (r: number) => void;
+  setFocusMode: (v: boolean) => void;
+  setCategory: (c: string) => void;
   setAiConfig: (c: {
     aiBaseUrl?: string;
     aiApiKey?: string;
@@ -97,6 +103,7 @@ export const useStore = create<EditorState>()(
       previewMode: "pc",
       syncScroll: true,
       splitRatio: 0.5,
+      focusMode: false,
       aiBaseUrl: "https://api.openai.com/v1",
       aiApiKey: "",
       aiModel: "gpt-4o-mini",
@@ -105,6 +112,7 @@ export const useStore = create<EditorState>()(
       docId: null,
       title: "未命名文章",
       content: DEFAULT_MARKDOWN,
+      category: "未分类",
       saveState: "local",
       cssDialogOpen: false,
 
@@ -122,6 +130,8 @@ export const useStore = create<EditorState>()(
       setCssDialogOpen: (cssDialogOpen) => set({ cssDialogOpen }),
       setSplitRatio: (splitRatio) =>
         set({ splitRatio: Math.min(0.75, Math.max(0.25, splitRatio)) }),
+      setFocusMode: (focusMode) => set({ focusMode }),
+      setCategory: (category) => set({ category }),
       setAiConfig: (c) => set(c),
     }),
     {
@@ -143,6 +153,7 @@ export const useStore = create<EditorState>()(
         previewMode: state.previewMode,
         syncScroll: state.syncScroll,
         splitRatio: state.splitRatio,
+        focusMode: state.focusMode,
         aiBaseUrl: state.aiBaseUrl,
         aiApiKey: state.aiApiKey,
         aiModel: state.aiModel,

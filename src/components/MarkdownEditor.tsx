@@ -216,6 +216,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
 
     const view = new EditorView({ state, parent: containerRef.current });
     viewRef.current = view;
+    view.focus();
 
     return () => {
       view.destroy();
