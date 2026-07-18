@@ -30,6 +30,7 @@ import { copyRichHtml } from "@/lib/copy/clipboard";
 import { exportMarkdown, exportHtml, exportPdf, exportImage } from "@/lib/export";
 import { toast } from "./Toast";
 import { askInput } from "./PromptDialog";
+import { DarkToggle } from "./DarkToggle";
 import { ThemePickerPanel } from "./ThemePicker";
 import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
 import { ReviewDialog } from "./ReviewDialog";
@@ -331,8 +332,12 @@ export function Topbar({
       {/* 返回首页 */}
       <button
         className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
-        onClick={() => router.push("/")}
-        title="返回文章列表"
+        onClick={() =>
+          router.push(
+            docId && status === "authenticated" ? `/?doc=${docId}` : "/"
+          )
+        }
+        title={docId ? "返回文章阅读" : "返回文章列表"}
       >
         <ArrowLeft size={16} />
       </button>
@@ -347,7 +352,7 @@ export function Topbar({
 
       {/* 文档标题 */}
       <input
-        className="h-8 w-52 rounded-md border border-transparent bg-transparent px-2 text-[13px] text-[var(--ink)] outline-none transition-colors hover:border-[var(--hairline)] focus:border-[var(--hairline-strong)] focus:bg-white"
+        className="h-8 w-52 rounded-md border border-transparent bg-transparent px-2 text-[13px] text-[var(--ink)] outline-none transition-colors hover:border-[var(--hairline)] focus:border-[var(--hairline-strong)] focus:bg-[var(--panel)]"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="文章标题"
@@ -594,6 +599,9 @@ export function Topbar({
           导出长图（PNG）
         </button>
       </Dropdown>
+
+      {/* 夜间模式 */}
+      <DarkToggle />
 
       <div className="mx-1 h-5 w-px bg-[var(--hairline)]" />
 

@@ -6,7 +6,7 @@ import { useStore } from "@/store/useStore";
 import { toast } from "./Toast";
 
 const fieldCls =
-  "h-9 w-full rounded-md border border-[var(--hairline-strong)] bg-white px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]";
+  "h-9 w-full rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]";
 const labelCls = "mb-1 mt-3 block text-[12px] text-[var(--ink-soft)]";
 
 export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
@@ -179,7 +179,7 @@ export function AiImageDialog({
         </div>
         <div className="px-5 py-4">
           <textarea
-            className="h-24 w-full resize-none rounded-md border border-[var(--hairline-strong)] bg-white p-3 text-[13px] outline-none focus:border-[var(--accent)]"
+            className="h-24 w-full resize-none rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] p-3 text-[13px] outline-none focus:border-[var(--accent)]"
             placeholder="描述你想要的配图，例如：扁平插画风格，一台笔记本电脑上生长出绿色植物，柔和的米色背景"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}

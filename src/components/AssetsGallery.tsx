@@ -141,7 +141,7 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
         </p>
         <span className="flex-1" />
         <button
-          className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] bg-white px-3 text-[13px] text-[var(--ink)] hover:bg-[var(--paper)] disabled:opacity-60"
+          className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] text-[var(--ink)] hover:bg-[var(--paper)] disabled:opacity-60"
           onClick={() => void syncHistory()}
           disabled={syncing || !ossConfigured}
           title="把 OSS 里已有但未入库的图片补录进来"
@@ -199,7 +199,7 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
           {assets.map((asset, i) => (
             <div
               key={asset.id}
-              className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-[var(--hairline)] bg-white shadow-[0_1px_3px_rgba(60,50,30,0.05)] transition-shadow hover:shadow-[0_10px_30px_-8px_rgba(60,45,20,0.25)]"
+              className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(60,50,30,0.05)] transition-shadow hover:shadow-[0_10px_30px_-8px_rgba(60,45,20,0.25)]"
               onClick={() => setLightbox(i)}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}

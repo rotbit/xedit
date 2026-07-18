@@ -13,7 +13,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" className="h-full">
+    <html lang="zh-CN" className="h-full" suppressHydrationWarning>
+      <head>
+        {/* 首帧前恢复夜间模式偏好，避免闪白 */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script src="/theme-init.js" />
+      </head>
       <body className="h-full overflow-hidden">
         <Providers>{children}</Providers>
       </body>

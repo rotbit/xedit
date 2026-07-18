@@ -89,8 +89,8 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
         <div
           className={
             phone
-              ? "mx-auto w-[375px] rounded-[38px] border-[10px] border-[#1f1f1f] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.18)] overflow-hidden"
-              : "mx-auto max-w-[720px] rounded-sm bg-white shadow-[0_2px_16px_rgba(60,50,30,0.08)] ring-1 ring-[var(--hairline)]"
+              ? "light-lock mx-auto w-[375px] rounded-[38px] border-[10px] border-[#1f1f1f] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.18)] overflow-hidden"
+              : "light-lock mx-auto max-w-[720px] rounded-sm bg-white shadow-[0_2px_16px_rgba(60,50,30,0.08)] ring-1 ring-[var(--hairline)]"
           }
         >
           {phone ? (

@@ -16,7 +16,7 @@ export interface VersionMeta {
 
 const KIND_LABEL: Record<VersionMeta["kind"], { text: string; cls: string }> = {
   auto: { text: "自动", cls: "bg-[var(--paper)] text-[var(--ink-faint)]" },
-  manual: { text: "手动", cls: "bg-[#eef4fb] text-[#1e6bb8]" },
+  manual: { text: "手动", cls: "bg-[#eef4fb] text-[#1e6bb8] dark:bg-[#1c2a3a] dark:text-[#7fb3e8]" },
   restore: { text: "回滚备份", cls: "bg-[var(--accent-wash)] text-[var(--accent-deep)]" },
 };
 
@@ -206,14 +206,14 @@ function VersionList({
                 {i === 0 ? <span className="text-[10px] text-[var(--ink-faint)]">最新</span> : null}
                 <span className="flex-1" />
                 <button
-                  className="invisible cursor-pointer rounded p-1 text-[var(--ink-faint)] hover:bg-white hover:text-red-600 group-hover:visible"
+                  className="invisible cursor-pointer rounded p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-red-600 dark:hover:text-red-400 group-hover:visible"
                   title="删除该版本"
                   onClick={() => void remove(v)}
                 >
                   <Trash2 size={12} />
                 </button>
                 <button
-                  className="invisible flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[11px] text-[var(--ink-soft)] hover:bg-white hover:text-[var(--accent)] group-hover:visible"
+                  className="invisible flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[11px] text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--accent)] group-hover:visible"
                   title="回滚到该版本"
                   onClick={() => void restore(v)}
                   disabled={busyId !== null}

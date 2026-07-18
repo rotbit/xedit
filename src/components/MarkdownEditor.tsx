@@ -74,20 +74,20 @@ interface Props {
 }
 
 const mdHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.3em", fontWeight: "700", color: "#232323" },
-  { tag: tags.heading2, fontSize: "1.2em", fontWeight: "700", color: "#232323" },
-  { tag: tags.heading3, fontSize: "1.1em", fontWeight: "700", color: "#232323" },
-  { tag: tags.heading4, fontWeight: "700", color: "#232323" },
-  { tag: tags.strong, fontWeight: "700", color: "#a53125" },
-  { tag: tags.emphasis, fontStyle: "italic", color: "#a53125" },
-  { tag: tags.strikethrough, textDecoration: "line-through", color: "#9a968e" },
-  { tag: tags.link, color: "#1e6bb8" },
-  { tag: tags.url, color: "#1e6bb8" },
-  { tag: tags.monospace, color: "#7c5cbf", background: "#f5f2fa" },
-  { tag: tags.quote, color: "#6b6b6b" },
-  { tag: tags.meta, color: "#9a968e" },
-  { tag: tags.processingInstruction, color: "#c0392b" },
-  { tag: tags.contentSeparator, color: "#c0392b", fontWeight: "700" },
+  { tag: tags.heading1, fontSize: "1.3em", fontWeight: "700", color: "var(--ink)" },
+  { tag: tags.heading2, fontSize: "1.2em", fontWeight: "700", color: "var(--ink)" },
+  { tag: tags.heading3, fontSize: "1.1em", fontWeight: "700", color: "var(--ink)" },
+  { tag: tags.heading4, fontWeight: "700", color: "var(--ink)" },
+  { tag: tags.strong, fontWeight: "700", color: "var(--accent-deep)" },
+  { tag: tags.emphasis, fontStyle: "italic", color: "var(--accent-deep)" },
+  { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--ink-faint)" },
+  { tag: tags.link, color: "var(--md-link)" },
+  { tag: tags.url, color: "var(--md-link)" },
+  { tag: tags.monospace, color: "var(--md-code)", background: "var(--md-code-bg)" },
+  { tag: tags.quote, color: "var(--ink-soft)" },
+  { tag: tags.meta, color: "var(--ink-faint)" },
+  { tag: tags.processingInstruction, color: "var(--accent)" },
+  { tag: tags.contentSeparator, color: "var(--accent)", fontWeight: "700" },
 ]);
 
 function wrapSelection(view: EditorView, before: string, after: string, placeholderText: string) {
