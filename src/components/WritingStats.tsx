@@ -80,33 +80,6 @@ function narrative(chars: number): string {
   return "落笔，即是开始";
 }
 
-/** 成就印章：达成条件全部由现有统计推得 */
-const SEALS = [
-  { char: "启", name: "开笔", desc: "写下第一篇文章", earned: (s: Stats) => s.totalDocs >= 1 },
-  { char: "耕", name: "笔耕", desc: "累计 10 篇文章", earned: (s: Stats) => s.totalDocs >= 10 },
-  { char: "万", name: "万言", desc: "累计写满一万字", earned: (s: Stats) => s.totalChars >= 10_000 },
-  {
-    char: "著",
-    name: "著述",
-    desc: "累计写满十万字",
-    earned: (s: Stats) => s.totalChars >= 100_000,
-  },
-  { char: "恒", name: "有恒", desc: "连续写作 3 天", earned: (s: Stats) => s.streak >= 3 },
-  { char: "毅", name: "不辍", desc: "连续写作 7 天", earned: (s: Stats) => s.streak >= 7 },
-  {
-    char: "鸿",
-    name: "鸿篇",
-    desc: "单篇超过 3000 字",
-    earned: (s: Stats) => (s.longest?.chars ?? 0) >= 3000,
-  },
-  {
-    char: "集",
-    name: "文集",
-    desc: "文章分作 3 个门类",
-    earned: (s: Stats) => s.categories.length >= 3,
-  },
-];
-
 function Heatmap({ data }: { data: Stats["heatmap"] }) {
   // 按周分列（列 = 周，行 = 周一到周日）
   const cell = 13;
@@ -252,7 +225,6 @@ export function WritingStats() {
     },
   ];
 
-  const earnedCount = SEALS.filter((s) => s.earned(stats)).length;
   const catTotal = stats.categories.reduce((s, c) => s + c.count, 0) || 1;
   const insights: string[] = [];
   if (stats.peakHour !== null) insights.push(`最常在 ${stats.peakHour} 点写作`);
@@ -316,16 +288,21 @@ export function WritingStats() {
                       ? `距${degraded ? "夺回" : "进化"}「${next.name}」还差 ${formatNumber(next.minChars - exp)} 字`
                       : "已是最终形态，落笔即传说"}
                   </p>
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1.5" title="点小圆点预览各阶段">
                     {LEVELS.map((l) => (
-                      <span
+                      <button
                         key={l.lv}
-                        title={`Lv${l.lv} ${l.name} · ${formatNumber(l.minChars)} 字`}
-                        className={`h-1.5 w-1.5 rounded-full ${
+                        title={`预览 Lv${l.lv}「${l.name}」· ${formatNumber(l.minChars)} 字`}
+                        className={`h-2 w-2 cursor-pointer rounded-full transition-transform hover:scale-150 ${
                           exp >= l.minChars
                             ? "bg-[var(--accent)]"
                             : "bg-[var(--hairline-strong)]"
                         } ${l.lv === level.lv ? "ring-2 ring-[var(--accent-wash)]" : ""}`}
+                        onClick={() =>
+                          window.dispatchEvent(
+                            new CustomEvent("xedit-evo-preview", { detail: l.lv })
+                          )
+                        }
                       />
                     ))}
                   </span>
@@ -439,52 +416,6 @@ export function WritingStats() {
             ) : null}
           </div>
         ))}
-      </div>
-
-      {/* 成就印章 */}
-      <div
-        className="rise mt-4 rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)]"
-        style={{ animationDelay: "0.1s" }}
-      >
-        <div className="flex items-center gap-2">
-          <p className="text-[11px] tracking-[0.3em] text-[var(--ink-faint)]">SEALS</p>
-          <p className="text-[13px] font-medium [font-family:var(--serif)]">成就印章</p>
-          <span className="flex-1" />
-          <p className="text-[12px] text-[var(--ink-faint)]">
-            {earnedCount} / {SEALS.length}
-          </p>
-        </div>
-        <div className="mt-4 grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-8">
-          {SEALS.map((seal, i) => {
-            const ok = seal.earned(stats);
-            return (
-              <div
-                key={seal.name}
-                className="flex flex-col items-center gap-1.5"
-                title={`${seal.name} · ${seal.desc}`}
-              >
-                <span
-                  className={`flex h-12 w-12 items-center justify-center rounded-[10px] text-[22px] [font-family:var(--serif)] ${
-                    i % 2 === 0 ? "-rotate-3" : "rotate-2"
-                  } ${
-                    ok
-                      ? "bg-[var(--accent)] text-white shadow-[0_3px_10px_rgba(192,57,43,0.35)]"
-                      : "border-2 border-dashed border-[var(--hairline-strong)] text-[var(--ink-faint)] opacity-70"
-                  }`}
-                >
-                  {seal.char}
-                </span>
-                <span
-                  className={`text-[11px] ${
-                    ok ? "text-[var(--ink-soft)]" : "text-[var(--ink-faint)]"
-                  }`}
-                >
-                  {seal.name}
-                </span>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       {/* 热力图 */}
