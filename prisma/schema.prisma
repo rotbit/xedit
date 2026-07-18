@@ -18,6 +18,7 @@ model User {
   documents     Document[]
   settings      UserSettings?
   activities    WritingActivity[]
+  assets        Asset[]
 }
 
 model Account {
@@ -106,4 +107,20 @@ model WritingActivity {
   user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, date])
+}
+
+/// 图片资产（上传/AI 生成到 OSS 的文件索引）
+model Asset {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  url       String
+  size      Int      @default(0)
+  mime      String   @default("")
+  source    String   @default("upload")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, createdAt(sort: Desc)])
 }

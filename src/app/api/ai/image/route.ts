@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { ossConfigured, ossPut } from "@/lib/oss";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 180;
 
@@ -53,7 +55,20 @@ export async function POST(req: Request) {
         );
       }
       const buffer = Buffer.from(item.b64_json, "base64");
-      const url = await ossPut(buffer, "png", "image/png");
+      const { url, key } = await ossPut(buffer, "png", "image/png");
+      const session = await auth();
+      if (session?.user?.id) {
+        await prisma.asset.create({
+          data: {
+            userId: session.user.id,
+            key,
+            url,
+            size: buffer.length,
+            mime: "image/png",
+            source: "ai",
+          },
+        });
+      }
       return NextResponse.json({ url });
     }
     return NextResponse.json({ error: "AI 未返回图片" }, { status: 502 });
