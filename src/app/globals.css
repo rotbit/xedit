@@ -92,6 +92,34 @@ body {
   margin: 0 auto;
 }
 
+/* —— Toast 出入场 —— */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+}
+.toast-in {
+  animation: toast-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.toast-out {
+  animation: toast-out 0.2s ease-in both;
+}
+
 /* —— 入场动画（首页用） —— */
 @keyframes rise {
   from {
