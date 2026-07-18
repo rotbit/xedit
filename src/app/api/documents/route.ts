@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       content: typeof body.content === "string" ? body.content : "",
       category:
         typeof body.category === "string" && body.category.trim()
-          ? body.category.trim().slice(0, 50)
+          ? body.category.trim().slice(0, 100)
           : "未分类",
     },
   });
