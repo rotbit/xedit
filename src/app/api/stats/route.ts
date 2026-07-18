@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { computeDecay } from "@/lib/level";
 
 const DAYS = 84; // 12 周热力图
 
@@ -87,6 +88,19 @@ export async function GET() {
     .filter((a) => a.date.startsWith(monthPrefix))
     .reduce((sum, a) => sum + a.charsAdded, 0);
 
+  // 怠惰衰减：距上次动笔的天数 → 墨力流失（等级依据墨力而非累计字数）
+  let daysSinceActive: number | null = null;
+  if (activeDates.size > 0) {
+    for (let i = 0; i < 3650; i++) {
+      if (activeDates.has(chinaDateStr(new Date(now - i * 86400_000)))) {
+        daysSinceActive = i;
+        break;
+      }
+    }
+  }
+  const decay = computeDecay(daysSinceActive);
+  const effectiveChars = Math.max(0, totalChars - decay);
+
   // 写作时段（版本创建时间的众数小时，东八区）
   const hourCount = new Array(24).fill(0) as number[];
   for (const v of versions) {
@@ -98,6 +112,9 @@ export async function GET() {
   return NextResponse.json({
     totalDocs,
     totalChars,
+    effectiveChars,
+    decay,
+    daysSinceActive,
     monthChars,
     streak,
     avgChars,
