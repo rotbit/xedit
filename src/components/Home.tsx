@@ -205,6 +205,15 @@ export function Home() {
       return new Set();
     }
   });
+  // 「全部文章」根节点默认展开
+  const [rootOpen, setRootOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return localStorage.getItem("xedit-root-open") !== "0";
+    } catch {
+      return true;
+    }
+  });
   const migratedRef = useRef(false);
 
   useEffect(() => {
@@ -323,6 +332,17 @@ export function Home() {
     if (next.has(path)) next.delete(path);
     else next.add(path);
     persistExpanded(next);
+  };
+
+  const toggleRoot = () => {
+    setRootOpen((v) => {
+      try {
+        localStorage.setItem("xedit-root-open", v ? "0" : "1");
+      } catch {
+        // 忽略
+      }
+      return !v;
+    });
   };
 
   const openCategory = (path: string) => {
@@ -803,23 +823,84 @@ export function Home() {
                   我的文章
                 </h1>
                 <nav className="mt-5 flex flex-col gap-0.5">
-                  {simpleRow(ALL, "全部文章", docs?.length ?? 0, <Inbox size={15} />)}
-                  {tree.map((n) => renderCatNode(n, 0))}
+                  {/* 根节点：全部文章，其余分类挂在它下面 */}
+                  <div className="group/cat relative">
+                    <div
+                      className={`flex w-full cursor-pointer items-center gap-1 rounded-lg py-1.5 pr-2 text-left text-[13px] transition-colors ${
+                        activeCat === ALL && !readingId
+                          ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
+                          : "text-[var(--ink-soft)] hover:bg-white hover:text-[var(--ink)]"
+                      }`}
+                      style={{ paddingLeft: "6px" }}
+                      onClick={() => {
+                        if (!rootOpen) toggleRoot();
+                        openCategory(ALL);
+                      }}
+                    >
+                      <span
+                        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] hover:bg-[var(--hairline)]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRoot();
+                        }}
+                      >
+                        <ChevronRight
+                          size={12}
+                          className={`transition-transform ${rootOpen ? "rotate-90" : ""}`}
+                        />
+                      </span>
+                      <span
+                        className={
+                          activeCat === ALL && !readingId
+                            ? "text-[var(--accent)]"
+                            : "text-[var(--ink-faint)]"
+                        }
+                      >
+                        <Inbox size={14} />
+                      </span>
+                      <span className="ml-1 min-w-0 flex-1 truncate">全部文章</span>
+                      <span
+                        className={`rounded-full px-1.5 text-[11px] group-hover/cat:hidden ${
+                          activeCat === ALL && !readingId
+                            ? "bg-white/70 text-[var(--accent-deep)]"
+                            : "text-[var(--ink-faint)]"
+                        }`}
+                      >
+                        {docs?.length ?? 0}
+                      </span>
+                    </div>
+                    <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
+                      <button
+                        className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--accent)]"
+                        title="新建文章"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void createDoc(UNCATEGORIZED);
+                        }}
+                      >
+                        <FilePlus2 size={13} />
+                      </button>
+                      <button
+                        className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-white hover:text-[var(--ink)]"
+                        title="新建分类"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void createCategory();
+                        }}
+                      >
+                        <FolderPlus size={13} />
+                      </button>
+                    </span>
+                  </div>
+                  {rootOpen ? tree.map((n) => renderCatNode(n, 1)) : null}
                 </nav>
-                <button
-                  className="mt-2 flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-dashed border-[var(--hairline-strong)] px-3 py-2 text-left text-[13px] text-[var(--ink-faint)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-wash)]/40 hover:text-[var(--accent)]"
-                  onClick={() => void createCategory()}
-                >
-                  <FolderPlus size={14} />
-                  新建分类
-                </button>
                 <div className="mt-3 border-t border-[var(--hairline)] pt-2">
                   {simpleRow(STATS, "写作数据", null, <BarChart3 size={15} />)}
                   {simpleRow(ASSETS, "图片库", null, <Images size={15} />)}
                   {simpleRow(TRASH, "回收站", trashDocs?.length ?? 0, <Trash2 size={15} />)}
                 </div>
                 <p className="mt-4 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
-                  点分类看列表，点文章看排版效果；悬停分类可新建
+                  点分类看列表，点文章看排版效果；悬停行尾可新建文章、分类
                 </p>
               </aside>
 
