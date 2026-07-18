@@ -15,12 +15,15 @@ import {
   Folder,
   FolderPlus,
   Inbox,
+  ChevronRight,
+  FileText,
 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
 import { toast, Toaster } from "./Toast";
 import { askInput, askConfirm } from "./PromptDialog";
 import { WritingStats } from "./WritingStats";
+import { ArticleReader } from "./ArticleReader";
 import { GithubMark } from "./Topbar";
 
 interface DocMeta {
@@ -40,6 +43,7 @@ interface AppConfig {
 const ALL = "__all__";
 const TRASH = "__trash__";
 const UNCATEGORIZED = "未分类";
+const MAX_DEPTH = 3;
 
 function formatTime(iso: string): string {
   const date = new Date(iso);
@@ -128,6 +132,50 @@ function HeroMock() {
   );
 }
 
+interface CatNode {
+  name: string;
+  path: string;
+  children: CatNode[];
+  docs: DocMeta[];
+  count: number;
+}
+
+/** 由「父/子」路径构建分类树 */
+function buildTree(docs: DocMeta[], customCats: string[]): CatNode[] {
+  const roots: CatNode[] = [];
+  const nodeMap = new Map<string, CatNode>();
+
+  const ensure = (path: string): CatNode => {
+    const existing = nodeMap.get(path);
+    if (existing) return existing;
+    const name = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
+    const node: CatNode = { name, path, children: [], docs: [], count: 0 };
+    nodeMap.set(path, node);
+    if (path.includes("/")) {
+      ensure(path.slice(0, path.lastIndexOf("/"))).children.push(node);
+    } else {
+      roots.push(node);
+    }
+    return node;
+  };
+
+  for (const c of customCats) ensure(c);
+  for (const d of docs) ensure(d.category || UNCATEGORIZED).docs.push(d);
+
+  const fill = (n: CatNode): number => {
+    n.children.sort((a, b) => a.name.localeCompare(b.name, "zh"));
+    n.count = n.docs.length + n.children.reduce((s, c) => s + fill(c), 0);
+    return n.count;
+  };
+  roots.forEach(fill);
+  roots.sort((a, b) => {
+    if (a.path === UNCATEGORIZED) return 1;
+    if (b.path === UNCATEGORIZED) return -1;
+    return a.name.localeCompare(b.name, "zh");
+  });
+  return roots;
+}
+
 export function Home() {
   const { data: session, status } = useSession();
   const loggedIn = status === "authenticated";
@@ -137,11 +185,21 @@ export function Home() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [creating, setCreating] = useState(false);
   const [activeCat, setActiveCat] = useState<string>(ALL);
+  const [readingId, setReadingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [menuDocId, setMenuDocId] = useState<string | null>(null);
   const [customCats, setCustomCats] = useState<string[]>([]);
   const [catMenu, setCatMenu] = useState<string | null>(null);
   const [trashDocs, setTrashDocs] = useState<DocMeta[] | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = localStorage.getItem("xedit-cat-expanded");
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
   const migratedRef = useRef(false);
 
   useEffect(() => {
@@ -227,28 +285,15 @@ export function Home() {
     };
   }, [activeCat, loggedIn]);
 
-  // 分类 → 数量（含自建空分类；按中文排序，未分类置底）
-  const categories = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of customCats) map.set(c, 0);
-    for (const d of docs ?? []) {
-      const c = d.category || UNCATEGORIZED;
-      map.set(c, (map.get(c) ?? 0) + 1);
-    }
-    return Array.from(map.entries()).sort((a, b) => {
-      if (a[0] === UNCATEGORIZED) return 1;
-      if (b[0] === UNCATEGORIZED) return -1;
-      return a[0].localeCompare(b[0], "zh");
-    });
-  }, [docs, customCats]);
-
+  const tree = useMemo(() => buildTree(docs ?? [], customCats), [docs, customCats]);
   const isTrash = activeCat === TRASH;
 
   const filtered = useMemo(() => {
     const source = isTrash ? trashDocs : docs;
     return (source ?? []).filter((d) => {
       const cat = d.category || UNCATEGORIZED;
-      if (!isTrash && activeCat !== ALL && cat !== activeCat) return false;
+      if (!isTrash && activeCat !== ALL && cat !== activeCat && !cat.startsWith(`${activeCat}/`))
+        return false;
       if (search.trim()) {
         const q = search.trim().toLowerCase();
         return (
@@ -259,6 +304,40 @@ export function Home() {
     });
   }, [docs, trashDocs, isTrash, activeCat, search]);
 
+  const persistExpanded = (next: Set<string>) => {
+    setExpanded(next);
+    try {
+      localStorage.setItem("xedit-cat-expanded", JSON.stringify(Array.from(next)));
+    } catch {
+      // 忽略
+    }
+  };
+
+  const toggleExpand = (path: string) => {
+    const next = new Set(expanded);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    persistExpanded(next);
+  };
+
+  const openCategory = (path: string) => {
+    setActiveCat(path);
+    setReadingId(null);
+    setSearch("");
+    if (path !== ALL && path !== TRASH) {
+      // 展开路径上的所有节点
+      const next = new Set(expanded);
+      const parts = path.split("/");
+      for (let i = 1; i <= parts.length; i++) next.add(parts.slice(0, i).join("/"));
+      persistExpanded(next);
+    }
+  };
+
+  const openDoc = (id: string) => {
+    setReadingId(id);
+    setMenuDocId(null);
+  };
+
   const createDoc = async (category?: string) => {
     setCreating(true);
     try {
@@ -268,7 +347,8 @@ export function Home() {
         body: JSON.stringify({
           title: "未命名文章",
           content: "",
-          category: category ?? (activeCat === ALL ? UNCATEGORIZED : activeCat),
+          category:
+            category ?? (activeCat === ALL || activeCat === TRASH ? UNCATEGORIZED : activeCat),
         }),
       });
       if (!res.ok) throw new Error();
@@ -291,7 +371,8 @@ export function Home() {
     const res = await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
     if (res.ok) {
       setDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      toast("已删除", "success");
+      if (readingId === doc.id) setReadingId(null);
+      toast("已移入回收站", "success");
     } else {
       toast("删除失败", "error");
     }
@@ -305,7 +386,6 @@ export function Home() {
     });
     if (res.ok) {
       setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      // 重新拉主列表
       void fetch("/api/documents")
         .then((r) => (r.ok ? r.json() : null))
         .then((list) => {
@@ -341,9 +421,7 @@ export function Home() {
       body: JSON.stringify({ category }),
     });
     if (res.ok) {
-      setDocs((prev) =>
-        prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null
-      );
+      setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null);
       toast(`已移动到「${category}」`, "success");
     } else {
       toast("移动失败", "error");
@@ -351,9 +429,11 @@ export function Home() {
   };
 
   const moveToNewCategory = async (doc: DocMeta) => {
-    const name = (await askInput({ title: "新建分类并移入", placeholder: "分类名称" }))?.trim();
+    const name = (
+      await askInput({ title: "新建分类并移入", placeholder: "分类名称，可用 / 建子分类" })
+    )?.trim();
     if (!name) return;
-    void moveDoc(doc, name.slice(0, 50));
+    void moveDoc(doc, name.slice(0, 100));
   };
 
   const persistCustomCats = (next: string[]) => {
@@ -365,59 +445,77 @@ export function Home() {
     });
   };
 
-  const createCategory = async () => {
-    const name = (await askInput({ title: "新建分类", placeholder: "分类名称" }))
-      ?.trim()
-      .slice(0, 50);
+  const validNewPath = (path: string): boolean => {
+    const parts = path.split("/").map((p) => p.trim());
+    if (parts.some((p) => !p)) {
+      toast("分类名不能为空", "error");
+      return false;
+    }
+    if (parts.length > MAX_DEPTH) {
+      toast(`最多支持 ${MAX_DEPTH} 级分类`, "error");
+      return false;
+    }
+    return true;
+  };
+
+  const createCategory = async (parentPath?: string) => {
+    const name = (
+      await askInput({
+        title: parentPath ? `在「${parentPath}」下新建子分类` : "新建分类",
+        placeholder: parentPath ? "子分类名称" : "分类名称，可用 / 建子分类",
+      })
+    )?.trim();
     if (!name) return;
-    if (name === UNCATEGORIZED || categories.some(([c]) => c === name)) {
+    const path = parentPath ? `${parentPath}/${name.replace(/\//g, "")}` : name;
+    if (!validNewPath(path)) return;
+    if (path === UNCATEGORIZED || customCats.includes(path)) {
       toast("分类已存在", "error");
       return;
     }
-    persistCustomCats([...customCats, name]);
-    setActiveCat(name);
+    persistCustomCats([...customCats, path]);
+    openCategory(path);
   };
 
-  const renameCategory = async (cat: string) => {
+  const renameCategory = async (path: string) => {
+    const oldName = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
     const name = (
-      await askInput({ title: `重命名「${cat}」`, defaultValue: cat, confirmText: "重命名" })
+      await askInput({ title: `重命名「${oldName}」`, defaultValue: oldName, confirmText: "重命名" })
     )
       ?.trim()
-      .slice(0, 50);
-    if (!name || name === cat) return;
-    if (name === UNCATEGORIZED || categories.some(([c]) => c === name)) {
+      .replace(/\//g, "");
+    if (!name || name === oldName) return;
+    const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    const to = parent ? `${parent}/${name}` : name;
+    if (to === UNCATEGORIZED) {
       toast("分类已存在", "error");
       return;
     }
-    void (async () => {
-      const res = await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "rename", from: cat, to: name }),
-      });
-      if (!res.ok) {
-        toast("重命名失败", "error");
-        return;
-      }
-      setDocs(
-        (prev) =>
-          prev?.map((d) =>
-            (d.category || UNCATEGORIZED) === cat ? { ...d, category: name } : d
-          ) ?? null
-      );
-      setCustomCats((prev) => {
-        const next = prev.filter((c) => c !== cat);
-        return next.includes(name) ? next : [...next, name];
-      });
-      if (activeCat === cat) setActiveCat(name);
-      toast("已重命名", "success");
-    })();
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "rename", from: path, to }),
+    });
+    if (!res.ok) {
+      toast("重命名失败", "error");
+      return;
+    }
+    const remap = (c: string) =>
+      c === path ? to : c.startsWith(`${path}/`) ? to + c.slice(path.length) : c;
+    setDocs(
+      (prev) =>
+        prev?.map((d) => ({ ...d, category: remap(d.category || UNCATEGORIZED) })) ?? null
+    );
+    setCustomCats((prev) => Array.from(new Set([...prev.map(remap), to])));
+    if (activeCat === path || activeCat.startsWith(`${path}/`)) {
+      setActiveCat(remap(activeCat));
+    }
+    toast("已重命名", "success");
   };
 
-  const removeCategory = async (cat: string) => {
+  const removeCategory = async (path: string) => {
     const ok = await askConfirm({
       title: "删除分类",
-      message: `删除分类「${cat}」？该分类下的文章会移入「未分类」。`,
+      message: `删除分类「${path}」及其子分类？其中的文章会移入「未分类」。`,
       confirmText: "删除",
       danger: true,
     });
@@ -425,20 +523,21 @@ export function Home() {
     const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "remove", from: cat }),
+      body: JSON.stringify({ action: "remove", from: path }),
     });
     if (!res.ok) {
       toast("删除失败", "error");
       return;
     }
+    const inSub = (c: string) => c === path || c.startsWith(`${path}/`);
     setDocs(
       (prev) =>
         prev?.map((d) =>
-          (d.category || UNCATEGORIZED) === cat ? { ...d, category: UNCATEGORIZED } : d
+          inSub(d.category || UNCATEGORIZED) ? { ...d, category: UNCATEGORIZED } : d
         ) ?? null
     );
-    setCustomCats((prev) => prev.filter((c) => c !== cat));
-    if (activeCat === cat) setActiveCat(ALL);
+    setCustomCats((prev) => prev.filter((c) => !inSub(c)));
+    if (inSub(activeCat)) setActiveCat(ALL);
     toast("已删除分类", "success");
   };
 
@@ -453,40 +552,117 @@ export function Home() {
   const localDraft = useStore((s) => s.content);
   const hasLocalDraft = Boolean(localDraft.trim()) && localDraft !== DEFAULT_MARKDOWN;
 
-  const railItem = (key: string, label: string, count: number, icon: React.ReactNode) => {
-    const active = activeCat === key;
-    const isCategory = key !== ALL && key !== TRASH;
-    const canManage = isCategory && key !== UNCATEGORIZED;
+  /* —— 侧栏 —— */
+
+  const simpleRow = (
+    key: string,
+    label: string,
+    count: number | null,
+    icon: React.ReactNode
+  ) => {
+    const active = activeCat === key && !readingId;
     return (
-      <div key={key} className="group/cat relative">
-        <button
-          className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13.5px] transition-colors ${
-            active
-              ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
-              : "text-[var(--ink-soft)] hover:bg-white hover:text-[var(--ink)]"
-          }`}
-          onClick={() => setActiveCat(key)}
-        >
-          <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>
-            {icon}
-          </span>
-          <span className="min-w-0 flex-1 truncate">{label}</span>
+      <button
+        key={key}
+        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-[13.5px] transition-colors ${
+          active
+            ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
+            : "text-[var(--ink-soft)] hover:bg-white hover:text-[var(--ink)]"
+        }`}
+        onClick={() => openCategory(key)}
+      >
+        <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {count !== null ? (
           <span
             className={`rounded-full px-1.5 text-[11px] ${
               active ? "bg-white/70 text-[var(--accent-deep)]" : "text-[var(--ink-faint)]"
-            } ${isCategory ? "group-hover/cat:hidden" : ""}`}
+            }`}
           >
             {count}
           </span>
-        </button>
-        {isCategory ? (
+        ) : null}
+      </button>
+    );
+  };
+
+  const renderDocRow = (doc: DocMeta, depth: number) => {
+    const active = readingId === doc.id;
+    return (
+      <button
+        key={doc.id}
+        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-2 text-left text-[12.5px] transition-colors ${
+          active
+            ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
+            : "text-[var(--ink-soft)] hover:bg-white hover:text-[var(--ink)]"
+        }`}
+        style={{ paddingLeft: `${26 + depth * 14}px` }}
+        onClick={() => openDoc(doc.id)}
+        title={doc.title}
+      >
+        <FileText
+          size={12}
+          className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}`}
+        />
+        <span className="min-w-0 flex-1 truncate">{doc.title || "未命名文章"}</span>
+      </button>
+    );
+  };
+
+  const renderCatNode = (node: CatNode, depth: number): React.ReactNode => {
+    const isOpen = expanded.has(node.path);
+    const active = activeCat === node.path && !readingId;
+    const hasChildren = node.children.length > 0 || node.docs.length > 0;
+    const canManage = node.path !== UNCATEGORIZED;
+    const canAddChild = node.path.split("/").length < MAX_DEPTH && node.path !== UNCATEGORIZED;
+
+    return (
+      <div key={node.path}>
+        <div className="group/cat relative">
+          <div
+            className={`flex w-full cursor-pointer items-center gap-1 rounded-lg py-1.5 pr-2 text-left text-[13px] transition-colors ${
+              active
+                ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
+                : "text-[var(--ink-soft)] hover:bg-white hover:text-[var(--ink)]"
+            }`}
+            style={{ paddingLeft: `${6 + depth * 14}px` }}
+            onClick={() => openCategory(node.path)}
+          >
+            <span
+              className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] hover:bg-[var(--hairline)]"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpand(node.path);
+              }}
+            >
+              {hasChildren ? (
+                <ChevronRight
+                  size={12}
+                  className={`transition-transform ${isOpen ? "rotate-90" : ""}`}
+                />
+              ) : null}
+            </span>
+            <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>
+              {isOpen ? <FolderOpen size={14} /> : <Folder size={14} />}
+            </span>
+            <span className="ml-1 min-w-0 flex-1 truncate">{node.name}</span>
+            <span
+              className={`rounded-full px-1.5 text-[11px] group-hover/cat:hidden ${
+                active ? "bg-white/70 text-[var(--accent-deep)]" : "text-[var(--ink-faint)]"
+              }`}
+            >
+              {node.count}
+            </span>
+          </div>
           <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
             <button
               className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--accent)]"
-              title={`在「${label}」新建文章`}
+              title={`在「${node.name}」新建文章`}
               onClick={(e) => {
                 e.stopPropagation();
-                void createDoc(key);
+                void createDoc(node.path);
               }}
             >
               <FilePlus2 size={13} />
@@ -497,40 +673,58 @@ export function Home() {
                 title="管理分类"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setCatMenu(catMenu === key ? null : key);
+                  setCatMenu(catMenu === node.path ? null : node.path);
                 }}
               >
                 <MoreHorizontal size={13} />
               </button>
             ) : null}
           </span>
-        ) : null}
-        {catMenu === key ? (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setCatMenu(null)} />
-            <div className="absolute left-2/3 top-full z-40 w-36 rounded-lg border border-[var(--hairline)] bg-white py-1.5 shadow-[0_10px_36px_rgba(40,30,10,0.16)]">
-              <button
-                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                onClick={() => {
-                  setCatMenu(null);
-                  void renameCategory(key);
-                }}
-              >
-                <PenLine size={13} className="text-[var(--ink-faint)]" />
-                重命名
-              </button>
-              <button
-                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50"
-                onClick={() => {
-                  setCatMenu(null);
-                  void removeCategory(key);
-                }}
-              >
-                <Trash2 size={13} />
-                删除分类
-              </button>
-            </div>
-          </>
+          {catMenu === node.path ? (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setCatMenu(null)} />
+              <div className="absolute left-2/3 top-full z-40 w-40 rounded-lg border border-[var(--hairline)] bg-white py-1.5 shadow-[0_10px_36px_rgba(40,30,10,0.16)]">
+                {canAddChild ? (
+                  <button
+                    className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                    onClick={() => {
+                      setCatMenu(null);
+                      void createCategory(node.path);
+                    }}
+                  >
+                    <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+                    新建子分类
+                  </button>
+                ) : null}
+                <button
+                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                  onClick={() => {
+                    setCatMenu(null);
+                    void renameCategory(node.path);
+                  }}
+                >
+                  <PenLine size={13} className="text-[var(--ink-faint)]" />
+                  重命名
+                </button>
+                <button
+                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50"
+                  onClick={() => {
+                    setCatMenu(null);
+                    void removeCategory(node.path);
+                  }}
+                >
+                  <Trash2 size={13} />
+                  删除分类
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+        {isOpen ? (
+          <div>
+            {node.children.map((c) => renderCatNode(c, depth + 1))}
+            {node.docs.map((d) => renderDocRow(d, depth + 1))}
+          </div>
         ) : null}
       </div>
     );
@@ -589,230 +783,252 @@ export function Home() {
 
       <main className="relative mx-auto max-w-6xl px-6 pb-24">
         {loggedIn ? (
-          /* ———— 已登录：写作数据 + 分类 + 文章工作台 ———— */
+          /* ———— 已登录：写作数据 + 文档树 + 内容区 ———— */
           <div className="pt-8">
             <WritingStats />
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr]">
-            {/* 左：分类栏 */}
-            <aside className="rise md:sticky md:top-[76px] md:self-start">
-              <p className="px-3 text-[11px] tracking-[0.35em] text-[var(--ink-faint)]">
-                WORKSPACE
-              </p>
-              <h1 className="mt-1.5 px-3 text-[22px] font-semibold leading-none [font-family:var(--serif)]">
-                我的文章
-              </h1>
-              <nav className="mt-5 flex flex-col gap-0.5">
-                {railItem(ALL, "全部文章", docs?.length ?? 0, <Inbox size={15} />)}
-                {categories.map(([cat, count]) =>
-                  railItem(
-                    cat,
-                    cat,
-                    count,
-                    activeCat === cat ? <FolderOpen size={15} /> : <Folder size={15} />
-                  )
-                )}
-              </nav>
-              <button
-                className="mt-2 flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-dashed border-[var(--hairline-strong)] px-3 py-2 text-left text-[13px] text-[var(--ink-faint)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-wash)]/40 hover:text-[var(--accent)]"
-                onClick={createCategory}
-              >
-                <FolderPlus size={14} />
-                新建分类
-              </button>
-              <div className="mt-3 border-t border-[var(--hairline)] pt-2">
-                {railItem(TRASH, "回收站", trashDocs?.length ?? 0, <Trash2 size={15} />)}
-              </div>
-              <p className="mt-4 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
-                悬停分类可快速新建文章或管理分类
-              </p>
-            </aside>
-
-            {/* 右：文章区 */}
-            <section className="min-w-0">
-              <div className="rise flex items-center gap-3" style={{ animationDelay: "0.05s" }}>
-                <div className="relative flex-1">
-                  <Search
-                    size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
-                  />
-                  <input
-                    className="h-9 w-full rounded-lg border border-[var(--hairline)] bg-white pl-9 pr-3 text-[13px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
-                    placeholder={
-                      isTrash
-                        ? "搜索回收站…"
-                        : `搜索${activeCat === ALL ? "全部" : "「" + activeCat + "」"}文章…`
-                    }
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-[240px_1fr]">
+              {/* 左：文档树 */}
+              <aside className="rise md:sticky md:top-[76px] md:self-start">
+                <p className="px-3 text-[11px] tracking-[0.35em] text-[var(--ink-faint)]">
+                  WORKSPACE
+                </p>
+                <h1 className="mt-1.5 px-3 text-[22px] font-semibold leading-none [font-family:var(--serif)]">
+                  我的文章
+                </h1>
+                <nav className="mt-5 flex flex-col gap-0.5">
+                  {simpleRow(ALL, "全部文章", docs?.length ?? 0, <Inbox size={15} />)}
+                  {tree.map((n) => renderCatNode(n, 0))}
+                </nav>
                 <button
-                  className={`flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)] disabled:opacity-60 ${isTrash ? "hidden" : ""}`}
-                  onClick={() => void createDoc()}
-                  disabled={creating}
+                  className="mt-2 flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-dashed border-[var(--hairline-strong)] px-3 py-2 text-left text-[13px] text-[var(--ink-faint)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-wash)]/40 hover:text-[var(--accent)]"
+                  onClick={() => void createCategory()}
                 >
-                  {creating ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <FilePlus2 size={14} />
-                  )}
-                  新建文章
+                  <FolderPlus size={14} />
+                  新建分类
                 </button>
-              </div>
+                <div className="mt-3 border-t border-[var(--hairline)] pt-2">
+                  {simpleRow(TRASH, "回收站", trashDocs?.length ?? 0, <Trash2 size={15} />)}
+                </div>
+                <p className="mt-4 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
+                  点分类看列表，点文章看排版效果；悬停分类可新建
+                </p>
+              </aside>
 
-              {(isTrash ? trashDocs : docs) === null ? (
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {Array.from({ length: 4 }).map((_, i) => (
+              {/* 右：阅读视图 / 文章列表 */}
+              <section className="min-w-0">
+                {readingId && !isTrash ? (
+                  <ArticleReader docId={readingId} onOpenCategory={openCategory} />
+                ) : (
+                  <>
                     <div
-                      key={i}
-                      className="h-[136px] animate-pulse rounded-xl border border-[var(--hairline)] bg-white/70"
-                    />
-                  ))}
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--hairline-strong)] py-16">
-                  <Inbox size={24} className="text-[var(--ink-faint)]" />
-                  <p className="text-[13px] text-[var(--ink-faint)]">
-                    {search
-                      ? "没有匹配的文章"
-                      : isTrash
-                        ? "回收站是空的"
-                        : activeCat === ALL
-                          ? "还没有文章，点「新建文章」开始"
-                          : `「${activeCat}」还没有文章`}
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {filtered.map((doc, i) => {
-                    const cat = doc.category || UNCATEGORIZED;
-                    return (
-                      <div
-                        key={doc.id}
-                        className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-white p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_14px_36px_-12px_rgba(60,45,20,0.22)]"
-                        style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
-                        onClick={() => {
-                          if (!isTrash) router.push(`/edit/${doc.id}`);
-                        }}
+                      className="rise flex items-center gap-3"
+                      style={{ animationDelay: "0.05s" }}
+                    >
+                      <div className="relative flex-1">
+                        <Search
+                          size={14}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
+                        />
+                        <input
+                          className="h-9 w-full rounded-lg border border-[var(--hairline)] bg-white pl-9 pr-3 text-[13px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
+                          placeholder={
+                            isTrash
+                              ? "搜索回收站…"
+                              : `搜索${activeCat === ALL ? "全部" : "「" + activeCat + "」"}文章…`
+                          }
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        className={`flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)] disabled:opacity-60 ${isTrash ? "hidden" : ""}`}
+                        onClick={() => void createDoc()}
+                        disabled={creating}
                       >
-                        <span className="absolute bottom-5 left-0 top-5 w-[3px] rounded-r-full bg-transparent transition-colors group-hover:bg-[var(--accent)]" />
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1.5 rounded-md bg-[var(--paper)] px-2 py-0.5 text-[11px] text-[var(--ink-soft)]">
-                            <Folder size={11} />
-                            {cat}
-                          </span>
-                          <span className="flex-1" />
-                          <span className="text-[11.5px] text-[var(--ink-faint)]">
-                            {formatTime(doc.updatedAt)}
-                          </span>
-                          {isTrash ? null : (
-                            <button
-                              className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMenuDocId(menuDocId === doc.id ? null : doc.id);
-                              }}
-                            >
-                              <MoreHorizontal size={15} />
-                            </button>
-                          )}
-                        </div>
-                        <p className="mt-2.5 truncate text-[15px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
-                          {doc.title || "未命名文章"}
-                        </p>
-                        <p className="mt-1 line-clamp-2 h-10 text-[12.5px] leading-5 text-[var(--ink-soft)]">
-                          {doc.excerpt || "（暂无内容）"}
-                        </p>
-                        {isTrash ? (
-                          <div className="mt-2.5 flex gap-2">
-                            <button
-                              className="cursor-pointer rounded-md border border-[var(--hairline-strong)] px-2.5 py-1 text-[12px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void restoreDoc(doc);
-                              }}
-                            >
-                              恢复
-                            </button>
-                            <button
-                              className="cursor-pointer rounded-md px-2.5 py-1 text-[12px] text-red-600 hover:bg-red-50"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void hardDeleteDoc(doc);
-                              }}
-                            >
-                              彻底删除
-                            </button>
-                          </div>
+                        {creating ? (
+                          <Loader2 size={14} className="animate-spin" />
                         ) : (
-                          <p className="mt-2 text-[11.5px] text-[var(--ink-faint)]">
-                            {typeof doc.chars === "number" ? `${doc.chars} 字` : ""}
-                          </p>
+                          <FilePlus2 size={14} />
                         )}
+                        新建文章
+                      </button>
+                    </div>
 
-                        {/* 卡片菜单 */}
-                        {menuDocId === doc.id ? (
-                          <>
+                    {(isTrash ? trashDocs : docs) === null ? (
+                      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="h-[136px] animate-pulse rounded-xl border border-[var(--hairline)] bg-white/70"
+                          />
+                        ))}
+                      </div>
+                    ) : filtered.length === 0 ? (
+                      <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--hairline-strong)] py-16">
+                        <Inbox size={24} className="text-[var(--ink-faint)]" />
+                        <p className="text-[13px] text-[var(--ink-faint)]">
+                          {search
+                            ? "没有匹配的文章"
+                            : isTrash
+                              ? "回收站是空的"
+                              : activeCat === ALL
+                                ? "还没有文章，点「新建文章」开始"
+                                : `「${activeCat}」还没有文章`}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {filtered.map((doc, i) => {
+                          const cat = doc.category || UNCATEGORIZED;
+                          return (
                             <div
-                              className="fixed inset-0 z-30"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMenuDocId(null);
+                              key={doc.id}
+                              className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-white p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_14px_36px_-12px_rgba(60,45,20,0.22)]"
+                              style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
+                              onClick={() => {
+                                if (!isTrash) openDoc(doc.id);
                               }}
-                            />
-                            <div
-                              className="absolute right-3 top-10 z-40 w-44 rounded-lg border border-[var(--hairline)] bg-white py-1.5 shadow-[0_10px_36px_rgba(40,30,10,0.16)]"
-                              onClick={(e) => e.stopPropagation()}
                             >
-                              <p className="px-3.5 pb-1 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
-                                移动到分类
-                              </p>
-                              {categories
-                                .filter(([c]) => c !== cat)
-                                .map(([c]) => (
+                              <span className="absolute bottom-5 left-0 top-5 w-[3px] rounded-r-full bg-transparent transition-colors group-hover:bg-[var(--accent)]" />
+                              <div className="flex items-center gap-2">
+                                <span className="flex items-center gap-1.5 rounded-md bg-[var(--paper)] px-2 py-0.5 text-[11px] text-[var(--ink-soft)]">
+                                  <Folder size={11} />
+                                  {cat}
+                                </span>
+                                <span className="flex-1" />
+                                <span className="text-[11.5px] text-[var(--ink-faint)]">
+                                  {formatTime(doc.updatedAt)}
+                                </span>
+                                {isTrash ? null : (
                                   <button
-                                    key={c}
-                                    className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                                    onClick={() => {
-                                      setMenuDocId(null);
-                                      void moveDoc(doc, c);
+                                    className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMenuDocId(menuDocId === doc.id ? null : doc.id);
                                     }}
                                   >
-                                    <Folder size={13} className="text-[var(--ink-faint)]" />
-                                    <span className="truncate">{c}</span>
+                                    <MoreHorizontal size={15} />
                                   </button>
-                                ))}
-                              <button
-                                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                                onClick={() => {
-                                  setMenuDocId(null);
-                                  void moveToNewCategory(doc);
-                                }}
-                              >
-                                <FolderPlus size={13} className="text-[var(--ink-faint)]" />
-                                新建分类…
-                              </button>
-                              <div className="my-1 border-t border-[var(--hairline)]" />
-                              <button
-                                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50"
-                                onClick={() => {
-                                  setMenuDocId(null);
-                                  void removeDoc(doc);
-                                }}
-                              >
-                                <Trash2 size={13} />
-                                删除文章
-                              </button>
+                                )}
+                              </div>
+                              <p className="mt-2.5 truncate pr-6 text-[15px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
+                                {doc.title || "未命名文章"}
+                              </p>
+                              <p className="mt-1 line-clamp-2 h-10 text-[12.5px] leading-5 text-[var(--ink-soft)]">
+                                {doc.excerpt || "（暂无内容）"}
+                              </p>
+                              {isTrash ? (
+                                <div className="mt-2.5 flex gap-2">
+                                  <button
+                                    className="cursor-pointer rounded-md border border-[var(--hairline-strong)] px-2.5 py-1 text-[12px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void restoreDoc(doc);
+                                    }}
+                                  >
+                                    恢复
+                                  </button>
+                                  <button
+                                    className="cursor-pointer rounded-md px-2.5 py-1 text-[12px] text-red-600 hover:bg-red-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void hardDeleteDoc(doc);
+                                    }}
+                                  >
+                                    彻底删除
+                                  </button>
+                                </div>
+                              ) : (
+                                <p className="mt-2 text-[11.5px] text-[var(--ink-faint)]">
+                                  {typeof doc.chars === "number" ? `${doc.chars} 字` : ""}
+                                </p>
+                              )}
+
+                              {/* 卡片菜单 */}
+                              {menuDocId === doc.id ? (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-30"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMenuDocId(null);
+                                    }}
+                                  />
+                                  <div
+                                    className="absolute right-3 top-10 z-40 w-48 rounded-lg border border-[var(--hairline)] bg-white py-1.5 shadow-[0_10px_36px_rgba(40,30,10,0.16)]"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                                      onClick={() => {
+                                        setMenuDocId(null);
+                                        router.push(`/edit/${doc.id}`);
+                                      }}
+                                    >
+                                      <PenLine size={13} className="text-[var(--ink-faint)]" />
+                                      编辑
+                                    </button>
+                                    <p className="px-3.5 pb-1 pt-1.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
+                                      移动到分类
+                                    </p>
+                                    {Array.from(
+                                      new Set([
+                                        ...customCats,
+                                        ...(docs ?? []).map((d) => d.category || UNCATEGORIZED),
+                                      ])
+                                    )
+                                      .filter((c) => c !== cat)
+                                      .sort((a, b) => a.localeCompare(b, "zh"))
+                                      .slice(0, 12)
+                                      .map((c) => (
+                                        <button
+                                          key={c}
+                                          className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                                          onClick={() => {
+                                            setMenuDocId(null);
+                                            void moveDoc(doc, c);
+                                          }}
+                                        >
+                                          <Folder
+                                            size={13}
+                                            className="shrink-0 text-[var(--ink-faint)]"
+                                          />
+                                          <span className="truncate">{c}</span>
+                                        </button>
+                                      ))}
+                                    <button
+                                      className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                                      onClick={() => {
+                                        setMenuDocId(null);
+                                        void moveToNewCategory(doc);
+                                      }}
+                                    >
+                                      <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+                                      新建分类…
+                                    </button>
+                                    <div className="my-1 border-t border-[var(--hairline)]" />
+                                    <button
+                                      className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50"
+                                      onClick={() => {
+                                        setMenuDocId(null);
+                                        void removeDoc(doc);
+                                      }}
+                                    >
+                                      <Trash2 size={13} />
+                                      删除文章
+                                    </button>
+                                  </div>
+                                </>
+                              ) : null}
                             </div>
-                          </>
-                        ) : null}
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </div>
+                    )}
+                  </>
+                )}
+              </section>
+            </div>
           </div>
         ) : (
           /* ———— 未登录：产品首页 ———— */
