@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { X, History, Loader2, ArchiveRestore, BookmarkPlus, Trash2 } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { toast } from "./Toast";
+import { askConfirm } from "./PromptDialog";
 
 export interface VersionMeta {
   id: string;
@@ -129,9 +130,12 @@ function VersionList({
   };
 
   const restore = async (v: VersionMeta) => {
-    if (!confirm(`回滚到 ${formatTime(v.createdAt)} 的版本？\n当前内容会先自动备份为一个新版本。`)) {
-      return;
-    }
+    const ok = await askConfirm({
+      title: "回滚到该版本",
+      message: `回滚到 ${formatTime(v.createdAt)} 的版本？\n当前内容会先自动备份为一个新版本。`,
+      confirmText: "回滚",
+    });
+    if (!ok) return;
     setBusyId(v.id);
     try {
       const res = await fetch(`/api/documents/${docId}/versions/${v.id}`, { method: "POST" });
@@ -147,7 +151,13 @@ function VersionList({
   };
 
   const remove = async (v: VersionMeta) => {
-    if (!confirm("删除该版本快照？")) return;
+    const ok = await askConfirm({
+      title: "删除版本",
+      message: "删除该版本快照？",
+      confirmText: "删除",
+      danger: true,
+    });
+    if (!ok) return;
     const res = await fetch(`/api/documents/${docId}/versions/${v.id}`, { method: "DELETE" });
     if (res.ok) await refresh();
     else toast("删除失败", "error");

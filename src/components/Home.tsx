@@ -19,6 +19,7 @@ import {
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
 import { toast, Toaster } from "./Toast";
+import { askInput, askConfirm } from "./PromptDialog";
 import { GithubMark } from "./Topbar";
 
 interface DocMeta {
@@ -257,7 +258,13 @@ export function Home() {
   };
 
   const removeDoc = async (doc: DocMeta) => {
-    if (!confirm(`确定删除「${doc.title}」？该操作不可恢复。`)) return;
+    const ok = await askConfirm({
+      title: "删除文章",
+      message: `确定删除「${doc.title || "未命名文章"}」？该操作不可恢复。`,
+      confirmText: "删除",
+      danger: true,
+    });
+    if (!ok) return;
     const res = await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
     if (res.ok) {
       setDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
@@ -283,8 +290,8 @@ export function Home() {
     }
   };
 
-  const moveToNewCategory = (doc: DocMeta) => {
-    const name = prompt("新分类名称：")?.trim();
+  const moveToNewCategory = async (doc: DocMeta) => {
+    const name = (await askInput({ title: "新建分类并移入", placeholder: "分类名称" }))?.trim();
     if (!name) return;
     void moveDoc(doc, name.slice(0, 50));
   };
@@ -298,8 +305,10 @@ export function Home() {
     });
   };
 
-  const createCategory = () => {
-    const name = prompt("新分类名称：")?.trim().slice(0, 50);
+  const createCategory = async () => {
+    const name = (await askInput({ title: "新建分类", placeholder: "分类名称" }))
+      ?.trim()
+      .slice(0, 50);
     if (!name) return;
     if (name === UNCATEGORIZED || categories.some(([c]) => c === name)) {
       toast("分类已存在", "error");
@@ -309,8 +318,12 @@ export function Home() {
     setActiveCat(name);
   };
 
-  const renameCategory = (cat: string) => {
-    const name = prompt(`把「${cat}」重命名为：`, cat)?.trim().slice(0, 50);
+  const renameCategory = async (cat: string) => {
+    const name = (
+      await askInput({ title: `重命名「${cat}」`, defaultValue: cat, confirmText: "重命名" })
+    )
+      ?.trim()
+      .slice(0, 50);
     if (!name || name === cat) return;
     if (name === UNCATEGORIZED || categories.some(([c]) => c === name)) {
       toast("分类已存在", "error");
@@ -342,7 +355,13 @@ export function Home() {
   };
 
   const removeCategory = async (cat: string) => {
-    if (!confirm(`删除分类「${cat}」？该分类下的文章会移入「未分类」。`)) return;
+    const ok = await askConfirm({
+      title: "删除分类",
+      message: `删除分类「${cat}」？该分类下的文章会移入「未分类」。`,
+      confirmText: "删除",
+      danger: true,
+    });
+    if (!ok) return;
     const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -434,7 +453,7 @@ export function Home() {
                 className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
                 onClick={() => {
                   setCatMenu(null);
-                  renameCategory(key);
+                  void renameCategory(key);
                 }}
               >
                 <PenLine size={13} className="text-[var(--ink-faint)]" />
@@ -669,7 +688,7 @@ export function Home() {
                                 className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
                                 onClick={() => {
                                   setMenuDocId(null);
-                                  moveToNewCategory(doc);
+                                  void moveToNewCategory(doc);
                                 }}
                               >
                                 <FolderPlus size={13} className="text-[var(--ink-faint)]" />
