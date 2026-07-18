@@ -18,15 +18,27 @@ export function LevelSkin() {
   const [ceremony, setCeremony] = useState<WritingLevel | null>(null);
   const previewRef = useRef(false);
 
-  // 预览入口：临时套上对应皮肤一起看，关闭时还原
+  // 预览入口：URL ?evo=N，或养成面板进化节点派发的事件；临时套上对应皮肤，关闭时还原
   useEffect(() => {
+    const preview = (lv: WritingLevel) => {
+      previewRef.current = true;
+      if (lv.lv >= 2) document.documentElement.dataset.level = String(lv.lv);
+      else delete document.documentElement.dataset.level;
+      setCeremony(lv);
+    };
+    const onEvent = (e: Event) => {
+      const lv = LEVELS.find((l) => l.lv === (e as CustomEvent<number>).detail);
+      if (lv) preview(lv);
+    };
+    window.addEventListener("xedit-evo-preview", onEvent);
     const v = Number(new URLSearchParams(window.location.search).get("evo"));
-    const lv = LEVELS.find((l) => l.lv === v && v >= 2);
-    if (!lv) return;
-    previewRef.current = true;
-    document.documentElement.dataset.level = String(lv.lv);
-    const t = setTimeout(() => setCeremony(lv), 300);
-    return () => clearTimeout(t);
+    const fromUrl = LEVELS.find((l) => l.lv === v && v >= 2);
+    let t: ReturnType<typeof setTimeout> | undefined;
+    if (fromUrl) t = setTimeout(() => preview(fromUrl), 300);
+    return () => {
+      window.removeEventListener("xedit-evo-preview", onEvent);
+      if (t) clearTimeout(t);
+    };
   }, []);
 
   useEffect(() => {
@@ -46,7 +58,10 @@ export function LevelSkin() {
     }
     if (lv.lv >= 2 && lv.lv > seen) {
       // 升级（或退化后夺回）：进化仪式
-      const t = setTimeout(() => setCeremony(lv), 600);
+      const t = setTimeout(() => {
+        previewRef.current = false;
+        setCeremony(lv);
+      }, 600);
       return () => clearTimeout(t);
     }
     if (lv.lv !== seen) {
@@ -84,6 +99,7 @@ export function LevelSkin() {
             // 忽略
           }
         }
+        previewRef.current = false;
         setCeremony(null);
       }}
     />
