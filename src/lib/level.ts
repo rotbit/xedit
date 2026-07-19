@@ -1,7 +1,5 @@
 /**
- * 墨灵养成体系：累计字数驱动进化。
- * 编辑器界面主题（皮肤）不可手动设置，随等级自动进化——
- * data-level 挂在 <html> 上，配色由 globals.css 按等级覆盖。
+ * 墨灵养成体系：累计字数（扣除怠惰流失后的墨力）驱动进化。
  */
 
 export interface WritingLevel {
@@ -11,8 +9,6 @@ export interface WritingLevel {
   minChars: number;
   mascot: string;
   motto: string;
-  /** 该等级的界面纸张（材质逐级升贵） */
-  skin: string;
 }
 
 export const LEVELS: WritingLevel[] = [
@@ -22,7 +18,6 @@ export const LEVELS: WritingLevel[] = [
     minChars: 0,
     mascot: "/mascot/stage-1.png",
     motto: "一滴墨，落在纸上",
-    skin: "素笺",
   },
   {
     lv: 2,
@@ -30,7 +25,6 @@ export const LEVELS: WritingLevel[] = [
     minChars: 5_000,
     mascot: "/mascot/stage-2.png",
     motto: "字里行间，冒出新芽",
-    skin: "竹纸",
   },
   {
     lv: 3,
@@ -38,7 +32,6 @@ export const LEVELS: WritingLevel[] = [
     minChars: 20_000,
     mascot: "/mascot/stage-3.png",
     motto: "握住笔，就不想放下",
-    skin: "玉版宣",
   },
   {
     lv: 4,
@@ -46,7 +39,6 @@ export const LEVELS: WritingLevel[] = [
     minChars: 60_000,
     mascot: "/mascot/stage-4.png",
     motto: "伏案疾书，自有章法",
-    skin: "蜡笺",
   },
   {
     lv: 5,
@@ -54,7 +46,6 @@ export const LEVELS: WritingLevel[] = [
     minChars: 150_000,
     mascot: "/mascot/stage-5.png",
     motto: "落笔从容，气象渐成",
-    skin: "洒金笺",
   },
   {
     lv: 6,
@@ -62,7 +53,6 @@ export const LEVELS: WritingLevel[] = [
     minChars: 400_000,
     mascot: "/mascot/stage-6.png",
     motto: "笔落惊风雨",
-    skin: "泥金笺",
   },
 ];
 
@@ -85,15 +75,4 @@ export function getLevel(totalChars: number): WritingLevel {
 export function getNextLevel(totalChars: number): WritingLevel | null {
   const cur = getLevel(totalChars);
   return LEVELS.find((l) => l.lv === cur.lv + 1) ?? null;
-}
-
-/** 把等级皮肤应用到 <html>，并缓存供下次首帧恢复 */
-export function applyLevelSkin(lv: number): void {
-  if (lv <= 1) delete document.documentElement.dataset.level;
-  else document.documentElement.dataset.level = String(lv);
-  try {
-    localStorage.setItem("xedit-ui-level", String(lv));
-  } catch {
-    // 忽略
-  }
 }

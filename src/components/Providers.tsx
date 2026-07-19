@@ -2,12 +2,12 @@
 
 import { SessionProvider } from "next-auth/react";
 import { PromptHost, ConfirmHost } from "./PromptDialog";
-import { LevelSkin } from "./LevelSkin";
+import { EvolutionWatcher } from "./EvolutionWatcher";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <LevelSkin />
+      <EvolutionWatcher />
       {children}
       <PromptHost />
       <ConfirmHost />
