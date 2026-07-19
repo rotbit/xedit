@@ -46,7 +46,7 @@ export function VersionsPanel({
   return (
     <div className="fixed inset-0 z-[80]" onClick={onClose}>
       <aside
-        className="absolute bottom-7 right-0 top-12 flex w-[340px] flex-col border-l border-[var(--hairline)] bg-[var(--panel)] shadow-[-8px_0_30px_rgba(40,30,10,0.08)]"
+        className="absolute bottom-7 right-0 top-12 flex w-[340px] flex-col border-l border-[var(--hairline)] bg-[var(--panel)] shadow-[-8px_0_30px_rgba(0,0,0,0.08)]"
         onClick={(e) => e.stopPropagation()}
       >
         {loggedIn && docId ? (

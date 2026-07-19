@@ -12,7 +12,7 @@ const titleCls = "flex items-center gap-2 text-[14px] font-medium [font-family:v
 const closeBtnCls =
   "flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)]";
 const primaryBtn =
-  "flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)] disabled:opacity-50";
+  "flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)] disabled:opacity-50";
 const ghostBtn9 =
   "flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] text-[var(--ink-soft)] hover:bg-[var(--paper)] hover:text-[var(--ink)] disabled:opacity-50";
 

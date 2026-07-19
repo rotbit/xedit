@@ -70,7 +70,7 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
             key={mode}
             className={`flex h-7 w-8 cursor-pointer items-center justify-center ${
               previewMode === mode
-                ? "bg-[var(--accent)] text-white"
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                 : "text-[var(--ink-soft)] hover:bg-[var(--paper)]"
             }`}
             title={label}
@@ -90,7 +90,7 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
           className={
             phone
               ? "light-lock mx-auto w-[375px] rounded-[38px] border-[10px] border-[#1f1f1f] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.18)] overflow-hidden"
-              : "light-lock mx-auto max-w-[720px] rounded-sm bg-white shadow-[0_2px_16px_rgba(60,50,30,0.08)] ring-1 ring-[var(--hairline)]"
+              : "light-lock mx-auto max-w-[720px] rounded-sm bg-white shadow-[0_2px_16px_rgba(0,0,0,0.08)] ring-1 ring-[var(--hairline)]"
           }
         >
           {phone ? (

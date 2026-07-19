@@ -67,7 +67,7 @@ export function Toaster() {
       {items.map((t) => (
         <div
           key={t.id}
-          className={`${t.leaving ? "toast-out" : "toast-in"} pointer-events-auto group flex max-w-[calc(100vw-48px)] cursor-pointer items-center gap-2.5 rounded-full bg-[#26241f]/95 py-2.5 pl-4 pr-3.5 shadow-[0_10px_36px_-8px_rgba(30,20,5,0.45)] ring-1 ring-white/10 backdrop-blur`}
+          className={`${t.leaving ? "toast-out" : "toast-in"} pointer-events-auto group flex max-w-[calc(100vw-48px)] cursor-pointer items-center gap-2.5 rounded-full bg-[#262626]/95 py-2.5 pl-4 pr-3.5 shadow-[0_10px_36px_-8px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur`}
           onClick={() => dismissNow(t.id)}
           role="status"
         >

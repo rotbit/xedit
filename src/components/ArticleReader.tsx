@@ -103,7 +103,7 @@ export function ArticleReader({
         </span>
         <span className="shrink-0 text-[11.5px] text-[var(--ink-faint)]">{chars} 字</span>
         <button
-          className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)]"
+          className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
           onClick={() => router.push(`/edit/${doc.id}`)}
         >
           <PenLine size={13} />
@@ -112,7 +112,7 @@ export function ArticleReader({
       </div>
 
       {/* 渲染内容（已消毒） */}
-      <div className="light-lock overflow-hidden rounded-xl bg-white shadow-[0_2px_16px_rgba(60,50,30,0.08)] ring-1 ring-[var(--hairline)]">
+      <div className="light-lock overflow-hidden rounded-xl bg-white shadow-[0_2px_16px_rgba(0,0,0,0.08)] ring-1 ring-[var(--hairline)]">
         <style>{BASE_CSS}</style>
         <style>{codeCss}</style>
         <style>{theme.css}</style>

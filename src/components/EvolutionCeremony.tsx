@@ -31,7 +31,7 @@ export function EvolutionCeremony({
       onClick={onClose}
     >
       {/* 墨晕爆发 */}
-      <span className="evo-burst absolute h-44 w-44 rounded-full bg-[var(--accent)] opacity-40 blur-2xl" />
+      <span className="evo-burst absolute h-44 w-44 rounded-full bg-[var(--seal)] opacity-40 blur-2xl" />
       <span
         className="evo-burst absolute h-44 w-44 rounded-full bg-white opacity-10 blur-3xl"
         style={{ animationDelay: "0.5s" }}
@@ -40,7 +40,7 @@ export function EvolutionCeremony({
       {drops.map((d, i) => (
         <span
           key={i}
-          className="evo-drop absolute rounded-full bg-[var(--accent)]"
+          className="evo-drop absolute rounded-full bg-[var(--seal)]"
           style={
             {
               width: d.size,
@@ -60,7 +60,7 @@ export function EvolutionCeremony({
         <p className="evo-item text-[11px] tracking-[0.55em] text-white/50" style={{ animationDelay: "0.9s" }}>
           EVOLUTION
         </p>
-        <div className="evo-mascot light-lock mt-5 h-40 w-40 overflow-hidden rounded-full bg-white shadow-[0_0_90px_var(--accent)] ring-4 ring-[var(--accent)]">
+        <div className="evo-mascot light-lock mt-5 h-40 w-40 overflow-hidden rounded-full bg-white shadow-[0_0_90px_var(--seal)] ring-4 ring-[var(--seal)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={level.mascot} alt={level.name} className="h-full w-full object-cover" />
         </div>
@@ -77,7 +77,7 @@ export function EvolutionCeremony({
           {level.motto}
         </p>
         <button
-          className="evo-item mt-9 cursor-pointer rounded-full bg-[var(--accent)] px-7 py-2.5 text-[14px] font-medium text-white shadow-[0_4px_18px_var(--accent)] transition-transform hover:-translate-y-0.5"
+          className="evo-item mt-9 cursor-pointer rounded-full bg-[var(--seal)] px-7 py-2.5 text-[14px] font-medium text-white shadow-[0_4px_18px_var(--seal)] transition-transform hover:-translate-y-0.5"
           style={{ animationDelay: "1.6s" }}
           onClick={onClose}
         >
