@@ -106,6 +106,18 @@ export function ArticleReader({
     };
   }, [docId]);
 
+  // ⌘E / Ctrl+E 快速进入编辑（capture 阶段，优先于页面内其他监听）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        if (doc) router.push(`/edit/${doc.id}`);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [doc, router]);
+
   const theme = getTheme(themeId);
   void codeThemeId;
 
@@ -210,6 +222,7 @@ export function ArticleReader({
         </div>
         <button
           className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
+          title="编辑此文（⌘E）"
           onClick={() => router.push(`/edit/${doc.id}`)}
         >
           <PenLine size={13} />

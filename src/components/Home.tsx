@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
 import {
   FilePlus2,
@@ -203,6 +203,7 @@ export function Home() {
   const { data: session, status } = useSession();
   const loggedIn = status === "authenticated";
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [docs, setDocs] = useState<DocMeta[] | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -267,12 +268,17 @@ export function Home() {
       .catch(() => setConfig(null));
   }, []);
 
-  // 清理地址栏上的 ?doc 参数，刷新后回到常规工作台
+  // 编辑器返回时带 ?doc=<id>：客户端导航下 window.location 有时序竞态，
+  // 从 useSearchParams 读取；渲染期间带守卫地调整状态（React 推荐模式），地址栏清理放 effect
+  const urlDoc = searchParams.get("doc");
+  const [consumedUrlDoc, setConsumedUrlDoc] = useState<string | null>(null);
+  if (urlDoc && urlDoc !== consumedUrlDoc) {
+    setConsumedUrlDoc(urlDoc);
+    setReadingId(urlDoc);
+  }
   useEffect(() => {
-    if (window.location.search.includes("doc=")) {
-      window.history.replaceState(null, "", "/");
-    }
-  }, []);
+    if (urlDoc) window.history.replaceState(null, "", "/");
+  }, [urlDoc]);
 
   // 自建分类（允许空分类存在）
   useEffect(() => {
