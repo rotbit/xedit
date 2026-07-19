@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type SaveState = "local" | "saving" | "saved" | "error";
-export type PreviewMode = "pc" | "phone";
 
 export const DEFAULT_MARKDOWN = `# 欢迎使用 xEdit
 
@@ -45,7 +44,6 @@ interface SettingsSlice {
   customCss: string;
   macCode: boolean;
   linkFootnote: boolean;
-  previewMode: PreviewMode;
   syncScroll: boolean;
   /** 编辑区占编辑+预览总宽的比例 */
   splitRatio: number;
@@ -82,7 +80,6 @@ interface EditorState extends SettingsSlice {
   setCustomCss: (css: string) => void;
   setMacCode: (v: boolean) => void;
   setLinkFootnote: (v: boolean) => void;
-  setPreviewMode: (m: PreviewMode) => void;
   setSyncScroll: (v: boolean) => void;
   setCssDialogOpen: (v: boolean) => void;
   setSplitRatio: (r: number) => void;
@@ -105,7 +102,6 @@ export const useStore = create<EditorState>()(
       customCss: "",
       macCode: true,
       linkFootnote: true,
-      previewMode: "pc",
       syncScroll: true,
       splitRatio: 0.5,
       focusMode: false,
@@ -133,7 +129,6 @@ export const useStore = create<EditorState>()(
       setCustomCss: (customCss) => set({ customCss }),
       setMacCode: (macCode) => set({ macCode }),
       setLinkFootnote: (linkFootnote) => set({ linkFootnote }),
-      setPreviewMode: (previewMode) => set({ previewMode }),
       setSyncScroll: (syncScroll) => set({ syncScroll }),
       setCssDialogOpen: (cssDialogOpen) => set({ cssDialogOpen }),
       setSplitRatio: (splitRatio) =>
@@ -145,13 +140,14 @@ export const useStore = create<EditorState>()(
     }),
     {
       name: "xedit-store",
-      version: 1,
-      // v1 起代码主题固定 VS 2015、Mac 风格固定开启，清掉历史持久化值
+      version: 2,
+      // v1 起代码主题固定 VS 2015、Mac 风格固定开启；v2 起移除手机预览模式，清掉历史持久化值
       migrate: (persisted) => {
         const state = persisted as Record<string, unknown> | undefined;
         if (state) {
           delete state.codeThemeId;
           delete state.macCode;
+          delete state.previewMode;
         }
         return state as never;
       },
@@ -159,7 +155,6 @@ export const useStore = create<EditorState>()(
         themeId: state.themeId,
         customCss: state.customCss,
         linkFootnote: state.linkFootnote,
-        previewMode: state.previewMode,
         syncScroll: state.syncScroll,
         splitRatio: state.splitRatio,
         focusMode: state.focusMode,
