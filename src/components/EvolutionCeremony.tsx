@@ -76,12 +76,6 @@ export function EvolutionCeremony({
         <p className="evo-item mt-2.5 text-[13px] text-white/55" style={{ animationDelay: "1.3s" }}>
           {level.motto}
         </p>
-        <p
-          className="evo-item mt-4 rounded-full border border-white/15 px-4 py-1.5 text-[12.5px] text-white/80"
-          style={{ animationDelay: "1.45s" }}
-        >
-          整个编辑器已换上「{level.skin}」新装
-        </p>
         <button
           className="evo-item mt-9 cursor-pointer rounded-full bg-[var(--accent)] px-7 py-2.5 text-[14px] font-medium text-white shadow-[0_4px_18px_var(--accent)] transition-transform hover:-translate-y-0.5"
           style={{ animationDelay: "1.6s" }}
