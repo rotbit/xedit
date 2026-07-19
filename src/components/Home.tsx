@@ -1250,7 +1250,14 @@ export function Home() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-[960px] px-8 pb-24 pt-6">
               {readingId && !isTrash ? (
-                <ArticleReader docId={readingId} onOpenCategory={openCategory} />
+                <ArticleReader
+                  docId={readingId}
+                  onOpenCategory={openCategory}
+                  onDelete={() => {
+                    const d = (docs ?? []).find((x) => x.id === readingId);
+                    if (d) void removeDoc(d);
+                  }}
+                />
               ) : activeCat === STATS ? (
                 <WritingStats />
               ) : activeCat === ASSETS ? (
