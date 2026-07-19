@@ -30,6 +30,22 @@ interface Doc {
   updatedAt: string;
 }
 
+/** 正文 Markdown 若以与文档标题同名的 #/## 标题开头，阅读态跳过该行：页面已有大标题，避免上下双标题 */
+function stripLeadingTitle(md: string, title: string): string {
+  const t = title.trim();
+  if (!t) return md;
+  const lines = md.split("\n");
+  const i = lines.findIndex((l) => l.trim() !== "");
+  if (i >= 0) {
+    const h = lines[i].match(/^#{1,2}\s+(.*?)\s*#*\s*$/);
+    if (h && h[1].trim() === t) {
+      lines.splice(i, 1);
+      return lines.join("\n");
+    }
+  }
+  return md;
+}
+
 /** 首页右侧的文章阅读视图：按当前主题渲染，只读 */
 export function ArticleReader({
   docId,
@@ -74,7 +90,13 @@ export function ArticleReader({
       const d: Doc = await res.json();
       if (cancelled) return;
       setDoc(d);
-      setHtml(sanitizeHtml(renderMarkdown(d.content, { macCode: useStore.getState().macCode })));
+      setHtml(
+        sanitizeHtml(
+          renderMarkdown(stripLeadingTitle(d.content, d.title), {
+            macCode: useStore.getState().macCode,
+          })
+        )
+      );
     })();
     return () => {
       cancelled = true;
@@ -125,8 +147,9 @@ export function ArticleReader({
   const chars = doc.content.replace(/\s/g, "").length;
 
   return (
-    <div className="rise">
-      {/* 操作栏：sticky 顶置，滚动时保持可达；面包屑只保留内容区顶栏一处 */}
+    <div>
+      {/* 操作栏：sticky 顶置，滚动时保持可达；面包屑只保留内容区顶栏一处。
+          不加入场动画：内部 ··· 菜单的 fixed 遮罩需以视口为参照 */}
       <div className="sticky top-0 z-10 -mx-8 mb-2 flex items-center justify-end gap-2 bg-[var(--paper)]/85 px-8 py-2 backdrop-blur">
         <button
           className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[12.5px] text-[var(--ink)] hover:bg-[var(--paper)] disabled:cursor-default disabled:opacity-45"
@@ -190,12 +213,12 @@ export function ArticleReader({
         </div>
       </div>
 
-      {/* 标题 + 元信息 */}
-      <div className="mx-auto max-w-[720px] pt-2">
-        <h1 className="text-[30px] font-semibold leading-[1.3] text-[var(--ink)] [font-family:var(--serif)]">
+      {/* 标题 + 元信息：px-4 与正文 #nice 的 16px 内边距共线 */}
+      <div className="rise mx-auto max-w-[720px] px-4 pt-4">
+        <h1 className="text-[32px] font-bold leading-[1.25] tracking-tight text-[var(--ink)] [font-family:var(--serif)]">
           {doc.title || "未命名文章"}
         </h1>
-        <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] text-[var(--ink-faint)]">
+        <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
           <button
             className="flex cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
             onClick={() => onOpenCategory(doc.category || "未分类")}
@@ -221,12 +244,12 @@ export function ArticleReader({
             </>
           ) : null}
         </div>
-        <div className="mb-8 mt-6 border-t border-[var(--hairline)]" />
+        <div className="mb-4 mt-8 h-px w-10 bg-[var(--hairline-strong)]" />
       </div>
 
       {/* 空文章：不渲染空白稿纸，给一个引导写作的空状态 */}
       {chars === 0 ? (
-        <div className="mx-auto flex max-w-[720px] flex-col items-center gap-4 rounded-xl border border-dashed border-[var(--hairline-strong)] bg-[var(--panel)]/50 py-20">
+        <div className="rise mx-auto flex max-w-[720px] flex-col items-center gap-4 rounded-xl border border-dashed border-[var(--hairline-strong)] bg-[var(--panel)]/50 py-20">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-wash)] text-[var(--ink-soft)]">
             <PenLine size={20} />
           </span>
@@ -243,9 +266,14 @@ export function ArticleReader({
           </button>
         </div>
       ) : (
-      /* 渲染内容（已消毒）：无卡片框，窄列白底直接铺开 */
-      <div className="light-lock mx-auto max-w-[720px] bg-white">
+      /* 渲染内容（已消毒）：日间与页面同底无缝，夜间成一张白纸卡片 */
+      <div
+        className="rise light-lock mx-auto max-w-[720px] dark:overflow-hidden dark:rounded-2xl dark:bg-white"
+        style={{ animationDelay: "90ms" }}
+      >
         <style>{BASE_CSS}</style>
+        {/* 阅读态与页面同底：打透 BASE_CSS 的白底；主题自带的底色在后面仍可覆盖 */}
+        <style>{"#nice{background-color:transparent}"}</style>
         <style>{codeCss}</style>
         <style>{theme.css}</style>
         <style>{buildTuneCss({ tuneFontSize, tuneLineHeight, tuneParaSpacing })}</style>
