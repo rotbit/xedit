@@ -98,7 +98,7 @@ function Dropdown({
       <div onClick={() => setOpen((v) => !v)}>{trigger}</div>
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+6px)] z-50 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(40,30,10,0.12)]"
+          className="absolute right-0 top-[calc(100%+6px)] z-50 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]"
           style={{ width }}
           onClick={() => setOpen(false)}
         >
@@ -342,7 +342,7 @@ export function Topbar({
         <ArrowLeft size={16} />
       </button>
       <div className="flex select-none items-center gap-2 pr-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-[var(--accent)] text-[13px] font-bold text-white [font-family:var(--serif)]">
+        <span className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-[var(--seal)] text-[13px] font-bold text-white [font-family:var(--serif)]">
           稿
         </span>
         <span className="text-[15px] font-semibold tracking-wide [font-family:var(--serif)]">
@@ -610,7 +610,7 @@ export function Topbar({
         width={172}
         trigger={
           <button
-            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)]"
+            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-3.5 text-[13px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
             disabled={copying !== null}
           >
             {copying !== null ? (

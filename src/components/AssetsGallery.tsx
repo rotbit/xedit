@@ -154,7 +154,7 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
           同步 OSS 历史
         </button>
         <button
-          className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
+          className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading || !ossConfigured}
         >
@@ -199,7 +199,7 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
           {assets.map((asset, i) => (
             <div
               key={asset.id}
-              className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(60,50,30,0.05)] transition-shadow hover:shadow-[0_10px_30px_-8px_rgba(60,45,20,0.25)]"
+              className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_10px_30px_-8px_rgba(0,0,0,0.25)]"
               onClick={() => setLightbox(i)}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}

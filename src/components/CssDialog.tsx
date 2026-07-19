@@ -61,7 +61,7 @@ function CssDialogInner() {
               清空
             </button>
             <button
-              className="cursor-pointer rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[var(--accent-deep)]"
+              className="cursor-pointer rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)]"
               onClick={() => {
                 setCustomCss(draft);
                 setOpen(false);

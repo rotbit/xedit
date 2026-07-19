@@ -235,10 +235,10 @@ export function WritingStats() {
       <div className="rise grid grid-cols-1 gap-4 lg:grid-cols-[1fr_264px]">
         {/* 墨灵与进化 */}
         <div
-          className="relative overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-6 shadow-[0_1px_3px_rgba(60,50,30,0.04)]"
+          className="relative overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
           style={{
             backgroundImage:
-              "radial-gradient(120% 180% at 88% -30%, var(--accent-wash), transparent 55%)",
+              "radial-gradient(120% 180% at 88% -30%, var(--seal-wash), transparent 55%)",
           }}
         >
           <div className="flex items-center gap-5">
@@ -255,7 +255,7 @@ export function WritingStats() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-[11.5px] font-medium text-white">
+                <span className="rounded-full bg-[var(--seal)] px-2.5 py-0.5 text-[11.5px] font-medium text-white">
                   Lv{level.lv} · {level.name}
                 </span>
                 <span className="text-[12px] text-[var(--ink-faint)]">{level.motto}</span>
@@ -275,7 +275,7 @@ export function WritingStats() {
               <div className="mt-3.5">
                 <div className="h-2 overflow-hidden rounded-full bg-[var(--hairline)]">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--accent)] to-[#e07a5f] transition-[width] duration-700"
+                    className="h-full rounded-full bg-gradient-to-r from-[var(--seal)] to-[#e07a5f] transition-[width] duration-700"
                     style={{ width: `${expPct}%` }}
                   />
                 </div>
@@ -292,9 +292,9 @@ export function WritingStats() {
                         title={`预览 Lv${l.lv}「${l.name}」· ${formatNumber(l.minChars)} 字`}
                         className={`h-2 w-2 cursor-pointer rounded-full transition-transform hover:scale-150 ${
                           exp >= l.minChars
-                            ? "bg-[var(--accent)]"
+                            ? "bg-[var(--seal)]"
                             : "bg-[var(--hairline-strong)]"
-                        } ${l.lv === level.lv ? "ring-2 ring-[var(--accent-wash)]" : ""}`}
+                        } ${l.lv === level.lv ? "ring-2 ring-[var(--seal-wash)]" : ""}`}
                         onClick={() =>
                           window.dispatchEvent(
                             new CustomEvent("xedit-evo-preview", { detail: l.lv })
@@ -306,7 +306,7 @@ export function WritingStats() {
                 </div>
               </div>
               {decay > 0 ? (
-                <p className="mt-2 flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--accent-deep)]">
+                <p className="mt-2 flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--seal-deep)]">
                   <Leaf size={11} />
                   已 {stats.daysSinceActive} 天未动笔，墨力流失 {formatNumber(decay)} 字
                   {degraded
@@ -317,7 +317,7 @@ export function WritingStats() {
                 </p>
               ) : next ? (
                 <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[var(--ink-soft)]">
-                  <Sparkles size={11} className="text-[var(--accent)]" />
+                  <Sparkles size={11} className="text-[var(--seal)]" />
                   进化为「{next.name}」后，墨灵将迎来全新形态
                 </p>
               ) : null}
@@ -326,7 +326,7 @@ export function WritingStats() {
         </div>
 
         {/* 今日修行 */}
-        <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)]">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <div className="relative h-[104px] w-[104px]">
             <svg width={104} height={104} className="-rotate-90">
               <circle
@@ -342,7 +342,7 @@ export function WritingStats() {
                 cy={52}
                 r={RING_R}
                 fill="none"
-                stroke="var(--accent)"
+                stroke="var(--seal)"
                 strokeWidth={8}
                 strokeLinecap="round"
                 strokeDasharray={RING_C}
@@ -352,7 +352,7 @@ export function WritingStats() {
             </svg>
             <span className="absolute inset-0 flex flex-col items-center justify-center">
               {goalDone ? (
-                <span className="rotate-[-8deg] rounded-md bg-[var(--accent)] px-1.5 py-0.5 text-[12px] font-bold text-white [font-family:var(--serif)]">
+                <span className="rotate-[-8deg] rounded-md bg-[var(--seal)] px-1.5 py-0.5 text-[12px] font-bold text-white [font-family:var(--serif)]">
                   达标
                 </span>
               ) : (
@@ -365,7 +365,7 @@ export function WritingStats() {
           <p className="mt-2.5 text-[13px] text-[var(--ink)]">
             今日 {formatNumber(todayChars)} /{" "}
             <button
-              className="cursor-pointer rounded px-0.5 font-medium text-[var(--accent)] underline decoration-dotted underline-offset-2 hover:bg-[var(--accent-wash)]"
+              className="cursor-pointer rounded px-0.5 font-medium text-[var(--seal)] underline decoration-dotted underline-offset-2 hover:bg-[var(--seal-wash)]"
               onClick={cycleGoal}
               title="点击切换每日目标"
             >
@@ -376,7 +376,7 @@ export function WritingStats() {
           <div
             className={`mt-2.5 flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] ${
               stats.streak >= 3
-                ? "bg-[var(--accent)] text-white shadow-[0_2px_8px_rgba(192,57,43,0.3)]"
+                ? "bg-[var(--seal)] text-white shadow-[0_2px_8px_rgba(192,57,43,0.3)]"
                 : "border border-[var(--hairline-strong)] text-[var(--ink-soft)]"
             }`}
           >
@@ -397,7 +397,7 @@ export function WritingStats() {
         {tiles.map((t) => (
           <div
             key={t.label}
-            className="rounded-xl border border-[var(--hairline)] bg-[var(--panel)] px-4 py-3.5 shadow-[0_1px_3px_rgba(60,50,30,0.04)]"
+            className="rounded-xl border border-[var(--hairline)] bg-[var(--panel)] px-4 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
           >
             <p className="flex items-center gap-1.5 text-[11.5px] text-[var(--ink-faint)]">
               <t.icon size={12} />
@@ -417,7 +417,7 @@ export function WritingStats() {
 
       {/* 热力图 */}
       <div
-        className="rise mt-4 rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)]"
+        className="rise mt-4 rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
         style={{ animationDelay: "0.15s" }}
       >
         <p className="text-[11px] tracking-[0.3em] text-[var(--ink-faint)]">ACTIVITY</p>
@@ -432,7 +432,7 @@ export function WritingStats() {
       {/* 分类分布 + 洞察 */}
       {stats.categories.length > 0 || insights.length > 0 ? (
         <div
-          className="rise mt-4 rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)]"
+          className="rise mt-4 rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
           style={{ animationDelay: "0.2s" }}
         >
           {stats.categories.length > 0 ? (

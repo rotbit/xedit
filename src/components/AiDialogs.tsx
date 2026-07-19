@@ -87,7 +87,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
             Key 只存在本地浏览器，调用经本站中转，不会上传数据库
           </p>
           <button
-            className="cursor-pointer rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[var(--accent-deep)]"
+            className="cursor-pointer rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)]"
             onClick={() => {
               setAiConfig({
                 aiBaseUrl: baseUrl.trim(),
@@ -204,7 +204,7 @@ export function AiImageDialog({
             ))}
           </div>
           <button
-            className="flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[var(--accent-deep)] disabled:opacity-60"
+            className="flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
             onClick={() => void generate()}
             disabled={busy || !prompt.trim()}
           >
