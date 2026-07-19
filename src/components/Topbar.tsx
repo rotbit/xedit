@@ -76,10 +76,13 @@ function Dropdown({
   trigger,
   children,
   width = 220,
+  align = "right",
 }: {
   trigger: React.ReactNode;
   children: React.ReactNode;
   width?: number;
+  /** 菜单与触发器的对齐边：靠视口左缘的触发器用 left，避免菜单伸出屏幕 */
+  align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -98,7 +101,7 @@ function Dropdown({
       <div onClick={() => setOpen((v) => !v)}>{trigger}</div>
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+6px)] z-50 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]"
+          className={`absolute ${align === "left" ? "left-0" : "right-0"} top-[calc(100%+6px)] z-50 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]`}
           style={{ width }}
           onClick={() => setOpen(false)}
         >
@@ -136,7 +139,6 @@ export function Topbar({
   const setLinkFootnote = useStore((s) => s.setLinkFootnote);
   const syncScroll = useStore((s) => s.syncScroll);
   const setSyncScroll = useStore((s) => s.setSyncScroll);
-  const setCssDialogOpen = useStore((s) => s.setCssDialogOpen);
   const tuneFontSize = useStore((s) => s.tuneFontSize);
   const tuneLineHeight = useStore((s) => s.tuneLineHeight);
   const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
@@ -345,6 +347,7 @@ export function Topbar({
       {docId && status === "authenticated" ? (
         <Dropdown
           width={200}
+          align="left"
           trigger={
             <button
               className="flex h-8 max-w-40 cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2 text-[12.5px] text-[var(--ink-faint)] hover:border-[var(--hairline)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
@@ -415,7 +418,7 @@ export function Topbar({
 
       {/* 设置 */}
       <Dropdown
-        width={230}
+        width={264}
         trigger={
           <button className={ghostBtn} title="设置">
             <Settings2 size={15} />
@@ -465,7 +468,7 @@ export function Topbar({
             <span className="w-7 shrink-0 text-[12px] text-[var(--ink-soft)]">{label}</span>
             <input
               type="range"
-              className="h-1 flex-1 cursor-pointer accent-[var(--accent)]"
+              className="h-1 min-w-0 flex-1 cursor-pointer accent-[var(--accent)]"
               min={min}
               max={max}
               step={step}
@@ -486,10 +489,6 @@ export function Topbar({
           }}
         >
           重置排版微调
-        </button>
-        <div className="my-1.5 border-t border-[var(--hairline)]" />
-        <button className={itemCls} onClick={() => setCssDialogOpen(true)}>
-          自定义 CSS…
         </button>
       </Dropdown>
 

@@ -11,7 +11,6 @@ import { OutlinePanel } from "./OutlinePanel";
 import { Preview } from "./Preview";
 import { Topbar } from "./Topbar";
 import { StatusBar } from "./StatusBar";
-import { CssDialog } from "./CssDialog";
 import { VersionsPanel } from "./VersionsPanel";
 import { Toaster } from "./Toast";
 
@@ -132,7 +131,6 @@ export function EditorApp({ docId }: { docId: string | null }) {
         )}
       </div>
       <StatusBar />
-      <CssDialog />
       <VersionsPanel
         open={versionsOpen}
         onClose={() => setVersionsOpen(false)}
