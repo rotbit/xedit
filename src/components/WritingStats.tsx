@@ -141,6 +141,70 @@ function Heatmap({ data }: { data: Stats["heatmap"] }) {
   );
 }
 
+/** 近 12 周字数趋势：与热力图同口径（自然周，周一起算）聚合成条形图 */
+function TrendChart({ data }: { data: Stats["heatmap"] }) {
+  const first = new Date(data[0].date);
+  const firstOffset = (first.getDay() + 6) % 7;
+  const weeks: { chars: number; days: number; start: string; end: string }[] = [];
+  data.forEach((d, i) => {
+    const w = Math.floor((firstOffset + i) / 7);
+    if (!weeks[w]) weeks[w] = { chars: 0, days: 0, start: d.date, end: d.date };
+    weeks[w].chars += d.chars;
+    if (d.active) weeks[w].days += 1;
+    weeks[w].end = d.date;
+  });
+  const max = Math.max(...weeks.map((w) => w.chars), 1);
+  const H = 128;
+  const TOP = 16; // 与热力图月份标签行对齐
+  const BASE = H - 3;
+  const n = weeks.length;
+  const slot = 100 / n;
+  const barPct = slot * 0.62;
+
+  const thisWeek = weeks[n - 1]?.chars ?? 0;
+  const lastWeek = weeks[n - 2]?.chars ?? 0;
+  const delta = lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : null;
+  const summary =
+    delta === null
+      ? thisWeek > 0 && lastWeek === 0
+        ? "，上周未动笔"
+        : ""
+      : delta === 0
+        ? "，与上周持平"
+        : `，较上周${delta > 0 ? "多" : "少"} ${Math.abs(delta)}%`;
+  const fmtDay = (s: string) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
+
+  return (
+    <>
+      <svg className="w-full" height={H} role="img" aria-label="每周字数趋势">
+        <line x1="0" y1={BASE + 0.5} x2="100%" y2={BASE + 0.5} stroke="var(--hairline)" />
+        {weeks.map((w, i) => {
+          const h = w.chars > 0 ? Math.max(4, Math.round(((BASE - TOP) * w.chars) / max)) : 3;
+          return (
+            <rect
+              key={w.start}
+              x={`${i * slot + (slot - barPct) / 2}%`}
+              y={BASE - h}
+              width={`${barPct}%`}
+              height={h}
+              rx={2.5}
+              fill={w.chars > 0 ? "var(--heat-4)" : "var(--heat-0)"}
+            >
+              <title>
+                {fmtDay(w.start)} – {fmtDay(w.end)} ·{" "}
+                {w.chars > 0 ? `${w.chars} 字 · 动笔 ${w.days} 天` : "未写作"}
+              </title>
+            </rect>
+          );
+        })}
+      </svg>
+      <p className="mt-1.5 text-[11px] text-[var(--ink-faint)]">
+        每周字数 · 本周 {formatNumber(thisWeek)} 字{summary}
+      </p>
+    </>
+  );
+}
+
 const DAILY_GOALS = [100, 300, 500, 1000, 2000];
 
 export function WritingStats() {
@@ -420,13 +484,23 @@ export function WritingStats() {
         className="rise mt-4 rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
         style={{ animationDelay: "0.15s" }}
       >
-        <p className="text-[11px] tracking-[0.3em] text-[var(--ink-faint)]">ACTIVITY</p>
-        <div className="mt-3 overflow-x-auto">
-          <Heatmap data={stats.heatmap} />
+        <div className="flex flex-col gap-5 lg:flex-row">
+          <div className="shrink-0">
+            <p className="text-[11px] tracking-[0.3em] text-[var(--ink-faint)]">ACTIVITY</p>
+            <div className="mt-3 overflow-x-auto">
+              <Heatmap data={stats.heatmap} />
+            </div>
+            <p className="mt-1.5 text-[11px] text-[var(--ink-faint)]">
+              最近 12 周 · 颜色越深当天写得越多
+            </p>
+          </div>
+          <div className="min-w-0 flex-1 border-t border-[var(--hairline)] pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+            <p className="text-[11px] tracking-[0.3em] text-[var(--ink-faint)]">TREND</p>
+            <div className="mt-3">
+              <TrendChart data={stats.heatmap} />
+            </div>
+          </div>
         </div>
-        <p className="mt-1.5 text-[11px] text-[var(--ink-faint)]">
-          最近 12 周 · 颜色越深当天写得越多
-        </p>
       </div>
 
       {/* 分类分布 + 洞察 */}
