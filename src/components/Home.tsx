@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
 import {
@@ -21,6 +22,8 @@ import {
   Footprints,
   LayoutGrid,
   List,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
@@ -211,9 +214,22 @@ export function Home() {
     return new URLSearchParams(window.location.search).get("doc");
   });
   const [search, setSearch] = useState("");
-  const [menuDocId, setMenuDocId] = useState<string | null>(null);
+  /** 文档操作菜单：记录触发按钮的视口锚点，菜单用 fixed 定位避免被列表容器 overflow-hidden 裁剪 */
+  const [docMenu, setDocMenu] = useState<{ id: string; top: number; right: number } | null>(null);
   const [customCats, setCustomCats] = useState<string[]>([]);
-  const [catMenu, setCatMenu] = useState<string | null>(null);
+  /** 分类操作菜单：侧栏可滚动，菜单用 fixed 定位记录触发按钮的视口锚点 */
+  const [catMenu, setCatMenu] = useState<{ path: string; top: number; left: number } | null>(
+    null
+  );
+  // Notion 式侧栏：可折叠，状态本地记忆
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return localStorage.getItem("xedit-sidebar-open") !== "0";
+    } catch {
+      return true;
+    }
+  });
   const [trashDocs, setTrashDocs] = useState<DocMeta[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -393,6 +409,25 @@ export function Home() {
     }
   };
 
+  const toggleSidebar = () => {
+    setSidebarOpen((v) => {
+      try {
+        localStorage.setItem("xedit-sidebar-open", v ? "0" : "1");
+      } catch {
+        // 忽略
+      }
+      return !v;
+    });
+  };
+
+  /** 侧栏全局搜索：在阅读/足迹/图片库视图里输入时先切回文章列表 */
+  const onSearch = (v: string) => {
+    setSearch(v);
+    if (!v) return;
+    if (readingId) setReadingId(null);
+    if (activeCat === STATS || activeCat === ASSETS) setActiveCat(ALL);
+  };
+
   const openCategory = (path: string) => {
     setActiveCat(path);
     setReadingId(null);
@@ -410,7 +445,7 @@ export function Home() {
     // 回收站视图渲染不了阅读器，切回常规视图再打开
     if (activeCat === TRASH) setActiveCat(ALL);
     setReadingId(id);
-    setMenuDocId(null);
+    setDocMenu(null);
   };
 
   const createDoc = async (category?: string) => {
@@ -644,8 +679,8 @@ export function Home() {
         key={key}
         className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${
           active
-            ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
-            : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+            ? "bg-[var(--sidebar-active)] font-medium text-[var(--accent-deep)]"
+            : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
         }`}
         style={{ paddingLeft: "6px" }}
         onClick={() => openCategory(key)}
@@ -675,8 +710,8 @@ export function Home() {
         <button
           className={`flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${
             active
-              ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
-              : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+              ? "bg-[var(--sidebar-active)] font-medium text-[var(--accent-deep)]"
+              : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
           }`}
           style={{ paddingLeft: `${30 + depth * 14}px` }}
           onClick={() => openDoc(doc.id)}
@@ -712,8 +747,8 @@ export function Home() {
           <div
             className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${
               active
-                ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
-                : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+                ? "bg-[var(--sidebar-active)] font-medium text-[var(--accent-deep)]"
+                : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
             }`}
             style={{ paddingLeft: `${6 + depth * 14}px` }}
             onClick={() => openCategory(node.path)}
@@ -746,7 +781,7 @@ export function Home() {
           </div>
           <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
             <button
-              className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--accent)]"
+              className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)] hover:text-[var(--accent)]"
               title={`在「${node.name}」新建文章`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -757,7 +792,7 @@ export function Home() {
             </button>
             {canAddChild ? (
               <button
-                className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--accent)]"
+                className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)] hover:text-[var(--accent)]"
                 title={`在「${node.name}」下新建子分类`}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -769,21 +804,34 @@ export function Home() {
             ) : null}
             {canManage ? (
               <button
-                className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+                className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)] hover:text-[var(--ink)]"
                 title="管理分类"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setCatMenu(catMenu === node.path ? null : node.path);
+                  if (catMenu?.path === node.path) {
+                    setCatMenu(null);
+                    return;
+                  }
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setCatMenu({ path: node.path, top: r.bottom + 4, left: r.left });
                 }}
               >
                 <MoreHorizontal size={13} />
               </button>
             ) : null}
           </span>
-          {catMenu === node.path ? (
+          {catMenu?.path === node.path ? (
+            createPortal(
             <>
-              <div className="fixed inset-0 z-30" onClick={() => setCatMenu(null)} />
-              <div className="absolute left-2/3 top-full z-40 w-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]">
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setCatMenu(null)}
+                onWheel={() => setCatMenu(null)}
+              />
+              <div
+                className="fixed z-40 w-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]"
+                style={{ top: catMenu.top, left: catMenu.left }}
+              >
                 <button
                   className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
                   onClick={() => {
@@ -805,7 +853,9 @@ export function Home() {
                   删除分类
                 </button>
               </div>
-            </>
+            </>,
+            document.body
+            )
           ) : null}
         </div>
         {isOpen ? (
@@ -818,25 +868,34 @@ export function Home() {
     );
   };
 
-  /** 文档操作菜单（卡片与列表共用） */
-  const renderDocMenu = (doc: DocMeta, cat: string, pos = "right-3 top-10") =>
-    menuDocId === doc.id ? (
-      <>
+  /** 文档操作菜单（卡片与列表共用）。portal 到 body：卡片的 rise/hover transform 会劫持
+   *  fixed 定位的 containing block，导致菜单被 overflow-hidden 裁剪 */
+  const renderDocMenu = (doc: DocMeta, cat: string) =>
+    docMenu?.id === doc.id ? (
+      createPortal(
+        <>
         <div
           className="fixed inset-0 z-30"
           onClick={(e) => {
             e.stopPropagation();
-            setMenuDocId(null);
+            setDocMenu(null);
           }}
+          onWheel={() => setDocMenu(null)}
+          onTouchMove={() => setDocMenu(null)}
         />
         <div
-          className={`absolute ${pos} z-40 w-48 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]`}
+          className="fixed z-40 w-48 overflow-y-auto rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]"
+          style={{
+            top: docMenu.top,
+            right: docMenu.right,
+            maxHeight: `calc(100vh - ${docMenu.top + 12}px)`,
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
             onClick={() => {
-              setMenuDocId(null);
+              setDocMenu(null);
               router.push(`/edit/${doc.id}`);
             }}
           >
@@ -857,7 +916,7 @@ export function Home() {
                 key={c}
                 className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
                 onClick={() => {
-                  setMenuDocId(null);
+                  setDocMenu(null);
                   void moveDoc(doc, c);
                 }}
               >
@@ -868,7 +927,7 @@ export function Home() {
           <button
             className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
             onClick={() => {
-              setMenuDocId(null);
+              setDocMenu(null);
               void moveToNewCategory(doc);
             }}
           >
@@ -879,7 +938,7 @@ export function Home() {
           <button
             className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
             onClick={() => {
-              setMenuDocId(null);
+              setDocMenu(null);
               void removeDoc(doc);
             }}
           >
@@ -887,98 +946,90 @@ export function Home() {
             删除文章
           </button>
         </div>
-      </>
+        </>,
+        document.body
+      )
     ) : null;
 
-  return (
-    <div className="desk relative h-full overflow-y-auto">
-      <div className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(0,0,0,0.035),transparent)]" />
+  // 会话状态确认前不渲染，避免闪现营销首页
+  if (status === "loading") {
+    return <div className="h-full bg-[var(--paper)]" />;
+  }
 
-      {/* 顶栏 */}
-      <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[var(--panel)]/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2.5 px-6">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--seal)] text-[14px] font-bold text-white shadow-[0_2px_6px_rgba(192,57,43,0.4)] [font-family:var(--serif)]">
-            稿
-          </span>
-          <span className="text-[17px] font-semibold tracking-wide [font-family:var(--serif)]">
-            xEdit
-          </span>
-          <span className="mt-0.5 hidden text-[12px] text-[var(--ink-faint)] sm:inline">
-            Markdown 公众号排版
-          </span>
-          <span className="flex-1" />
-          <DarkToggle />
-          {loggedIn && session?.user ? (
-            <div className="flex items-center gap-3">
-              <span className="text-[13px] text-[var(--ink-soft)]">
-                {session.user.name ?? session.user.email}
+  if (loggedIn) {
+    /* ———— 已登录：Notion 式应用框架 —— 全高灰色侧栏 + 面包屑顶栏 + 独立滚动内容区 ———— */
+    const readingDoc = readingId ? ((docs ?? []).find((d) => d.id === readingId) ?? null) : null;
+    const crumbCls =
+      "max-w-[220px] cursor-pointer truncate rounded-md px-1.5 py-0.5 text-[13px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
+    const crumbNow = "truncate px-1.5 py-0.5 text-[13px] font-medium text-[var(--ink)]";
+    const crumbSep = <ChevronRight size={12} className="shrink-0 text-[var(--ink-faint)]" />;
+    const catParts = activeCat.split("/");
+    const inList = !readingId && activeCat !== STATS && activeCat !== ASSETS;
+
+    return (
+      <div className="flex h-full overflow-hidden bg-[var(--paper)]">
+        {sidebarOpen ? (
+          <aside className="flex w-[248px] shrink-0 flex-col border-r border-[var(--hairline)] bg-[var(--sidebar)]">
+            {/* 工作区头 */}
+            <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-[var(--seal)] text-[13px] font-bold text-white [font-family:var(--serif)]">
+                稿
               </span>
-              {session.user.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={session.user.image}
-                  alt="avatar"
-                  className="h-7 w-7 rounded-full ring-1 ring-[var(--hairline-strong)]"
-                />
-              ) : null}
+              <span className="text-[14px] font-semibold tracking-wide [font-family:var(--serif)]">
+                xEdit
+              </span>
+              <span className="flex-1" />
               <button
-                className="flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-[12px] text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
-                onClick={() => void signOut()}
-                title="退出登录"
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
+                title="收起侧栏"
+                onClick={toggleSidebar}
               >
-                <LogOut size={14} />
+                <PanelLeftClose size={15} />
               </button>
             </div>
-          ) : (
-            <button
-              className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] hover:bg-[var(--paper)]"
-              onClick={handleLogin}
-              disabled={status === "loading"}
-            >
-              <GithubMark size={14} />
-              GitHub 登录
-            </button>
-          )}
-        </div>
-      </header>
-
-      <main className="relative mx-auto max-w-6xl px-6 pb-24">
-        {loggedIn ? (
-          /* ———— 已登录：文档树 + 内容区 ———— */
-          <div className="pt-8">
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-[240px_1fr]">
-              {/* 左：文档树 */}
-              <aside className="rise md:sticky md:top-[76px] md:self-start">
-                <div className="flex items-center justify-between pl-3 pr-1">
-                  <h1 className="text-[16px] font-semibold leading-none [font-family:var(--serif)]">
-                    我的文章
-                  </h1>
-                  <button
-                    className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--accent-deep)] disabled:opacity-60"
-                    title="新建文章"
-                    onClick={() => void createDoc()}
-                    disabled={creating}
-                  >
-                    {creating ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <FilePlus2 size={14} />
-                    )}
-                  </button>
-                </div>
-                <p className="mt-1.5 px-3 text-[11.5px] text-[var(--ink-faint)]">
-                  {docs === null
-                    ? "同步中…"
-                    : `${docs.length} 篇文章${totalChars > 0 ? ` · 共 ${totalChars.toLocaleString()} 字` : ""}`}
-                </p>
-                <nav className="mt-4 flex flex-col gap-0.5">
+            {/* 全局搜索 */}
+            <div className="shrink-0 px-3 pb-2 pt-0.5">
+              <div className="relative">
+                <Search
+                  size={13}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
+                />
+                <input
+                  className="h-8 w-full rounded-md border border-[var(--hairline)] bg-[var(--panel)] pl-8 pr-2.5 text-[12.5px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--hairline-strong)]"
+                  placeholder={isTrash ? "搜索回收站…" : "搜索文章…"}
+                  value={search}
+                  onChange={(e) => onSearch(e.target.value)}
+                />
+              </div>
+            </div>
+            {/* 文档树 */}
+            <div className="flex shrink-0 items-center justify-between pl-4 pr-2.5">
+              <span className="text-[11px] text-[var(--ink-faint)]">
+                {docs === null
+                  ? "同步中…"
+                  : `${docs.length} 篇文章${totalChars > 0 ? ` · ${totalChars.toLocaleString()} 字` : ""}`}
+              </span>
+              <button
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-active)] hover:text-[var(--accent-deep)] disabled:opacity-60"
+                title="新建文章"
+                onClick={() => void createDoc()}
+                disabled={creating}
+              >
+                {creating ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <FilePlus2 size={13} />
+                )}
+              </button>
+            </div>
+            <nav className="mt-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
                   {/* 根节点：全部文章，其余分类挂在它下面 */}
                   <div className="group/cat relative">
                     <div
                       className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${
                         activeCat === ALL && !readingId
-                          ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
-                          : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+                          ? "bg-[var(--sidebar-active)] font-medium text-[var(--accent-deep)]"
+                          : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
                       }`}
                       style={{ paddingLeft: "6px" }}
                       onClick={() => {
@@ -1020,7 +1071,7 @@ export function Home() {
                     </div>
                     <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
                       <button
-                        className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--accent)]"
+                        className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)] hover:text-[var(--accent)]"
                         title="新建文章"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1030,7 +1081,7 @@ export function Home() {
                         <FilePlus2 size={13} />
                       </button>
                       <button
-                        className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+                        className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)] hover:text-[var(--ink)]"
                         title="新建分类"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1045,7 +1096,7 @@ export function Home() {
                     <>
                       {tree.map((n) => renderCatNode(n, 1))}
                       <button
-                        className="flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+                        className="flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
                         style={{ paddingLeft: "20px" }}
                         onClick={() => void createCategory()}
                       >
@@ -1055,90 +1106,158 @@ export function Home() {
                       </button>
                     </>
                   ) : null}
-                </nav>
-                <div className="mt-4 border-t border-[var(--hairline)] pt-3">
-                  <p className="mb-1 px-3 text-[11px] tracking-[0.2em] text-[var(--ink-faint)]">
-                    工具
-                  </p>
-                  {simpleRow(STATS, "写作足迹", null, <Footprints size={14} />)}
-                  {simpleRow(ASSETS, "图片库", null, <Images size={14} />)}
-                  {simpleRow(
-                    TRASH,
-                    "回收站",
-                    trashDocs?.length ? trashDocs.length : null,
-                    <Trash2 size={14} />
-                  )}
-                </div>
-              </aside>
-
-              {/* 右：阅读视图 / 文章列表 */}
-              <section className="min-w-0">
-                {readingId && !isTrash ? (
-                  <ArticleReader docId={readingId} onOpenCategory={openCategory} />
-                ) : activeCat === STATS ? (
-                  <WritingStats />
-                ) : activeCat === ASSETS ? (
-                  <AssetsGallery ossConfigured={config?.oss ?? false} />
+            </nav>
+            {/* 工具 + 账户 */}
+            <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
+              {simpleRow(STATS, "写作足迹", null, <Footprints size={14} />)}
+              {simpleRow(ASSETS, "图片库", null, <Images size={14} />)}
+              {simpleRow(
+                TRASH,
+                "回收站",
+                trashDocs?.length ? trashDocs.length : null,
+                <Trash2 size={14} />
+              )}
+              <div className="mt-1.5 flex items-center gap-2 border-t border-[var(--hairline)] px-1.5 pt-2">
+                {session?.user?.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={session.user.image}
+                    alt="avatar"
+                    className="h-6 w-6 rounded-full ring-1 ring-[var(--hairline-strong)]"
+                  />
                 ) : (
-                  <>
-                    <div
-                      className="rise flex items-center gap-3"
-                      style={{ animationDelay: "0.05s" }}
-                    >
-                      <div className="relative flex-1">
-                        <Search
-                          size={14}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
-                        />
-                        <input
-                          className="h-9 w-full rounded-lg border border-[var(--hairline)] bg-[var(--panel)] pl-9 pr-3 text-[13px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
-                          placeholder={
-                            isTrash
-                              ? "搜索回收站…"
-                              : `搜索${activeCat === ALL ? "全部" : "「" + activeCat + "」"}文章…`
-                          }
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                        />
-                      </div>
-                      {!isTrash ? (
-                        <div className="flex h-9 shrink-0 items-center gap-0.5 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] p-1">
-                          {(
-                            [
-                              ["card", LayoutGrid, "卡片视图"],
-                              ["list", List, "列表视图"],
-                            ] as const
-                          ).map(([mode, Icon, label]) => (
-                            <button
-                              key={mode}
-                              className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors ${
-                                docView === mode
-                                  ? "bg-[var(--accent-wash)] text-[var(--accent)]"
-                                  : "text-[var(--ink-faint)] hover:text-[var(--ink)]"
-                              }`}
-                              title={label}
-                              onClick={() => switchDocView(mode)}
-                            >
-                              <Icon size={14} />
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                      <button
-                        className={`flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)] disabled:opacity-60 ${isTrash ? "hidden" : ""}`}
-                        onClick={() => void createDoc()}
-                        disabled={creating}
-                      >
-                        {creating ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <FilePlus2 size={14} />
-                        )}
-                        新建文章
-                      </button>
-                    </div>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--sidebar-active)] text-[11px] text-[var(--ink)]">
+                    {(session?.user?.name ?? "U").slice(0, 1)}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--ink-soft)]">
+                  {session?.user?.name ?? session?.user?.email}
+                </span>
+                <DarkToggle />
+                <button
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
+                  title="退出登录"
+                  onClick={() => void signOut()}
+                >
+                  <LogOut size={14} />
+                </button>
+              </div>
+            </div>
+          </aside>
+        ) : null}
 
-                    {(isTrash ? trashDocs : docs) === null ? (
+        {/* 内容区：面包屑顶栏 + 独立滚动 */}
+        <main className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-12 shrink-0 items-center gap-1 border-b border-[var(--hairline)] px-4">
+            {!sidebarOpen ? (
+              <button
+                className="mr-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+                title="展开侧栏"
+                onClick={toggleSidebar}
+              >
+                <PanelLeftOpen size={15} />
+              </button>
+            ) : null}
+            {readingDoc ? (
+              <>
+                <button className={crumbCls} onClick={() => openCategory(ALL)}>
+                  全部文章
+                </button>
+                {readingDoc.category ? (
+                  <>
+                    {crumbSep}
+                    <button
+                      className={crumbCls}
+                      onClick={() => openCategory(readingDoc.category!)}
+                    >
+                      {readingDoc.category}
+                    </button>
+                  </>
+                ) : null}
+                {crumbSep}
+                <span className={crumbNow}>{readingDoc.title || "未命名文章"}</span>
+              </>
+            ) : activeCat === STATS ? (
+              <span className={crumbNow}>写作足迹</span>
+            ) : activeCat === ASSETS ? (
+              <span className={crumbNow}>图片库</span>
+            ) : isTrash ? (
+              <span className={crumbNow}>回收站</span>
+            ) : activeCat === ALL || readingId ? (
+              <span className={crumbNow}>全部文章</span>
+            ) : (
+              <>
+                <button className={crumbCls} onClick={() => openCategory(ALL)}>
+                  全部文章
+                </button>
+                {catParts.map((p, i) => {
+                  const path = catParts.slice(0, i + 1).join("/");
+                  const last = i === catParts.length - 1;
+                  return (
+                    <span key={path} className="flex min-w-0 items-center gap-1">
+                      {crumbSep}
+                      {last ? (
+                        <span className={crumbNow}>{p}</span>
+                      ) : (
+                        <button className={crumbCls} onClick={() => openCategory(path)}>
+                          {p}
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
+              </>
+            )}
+            <span className="flex-1" />
+            {inList && !isTrash ? (
+              <>
+                <div className="flex h-8 shrink-0 items-center gap-0.5 rounded-md border border-[var(--hairline)] bg-[var(--panel)] p-0.5">
+                  {(
+                    [
+                      ["card", LayoutGrid, "卡片视图"],
+                      ["list", List, "列表视图"],
+                    ] as const
+                  ).map(([mode, Icon, label]) => (
+                    <button
+                      key={mode}
+                      className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded transition-colors ${
+                        docView === mode
+                          ? "bg-[var(--accent-wash)] text-[var(--accent)]"
+                          : "text-[var(--ink-faint)] hover:text-[var(--ink)]"
+                      }`}
+                      title={label}
+                      onClick={() => switchDocView(mode)}
+                    >
+                      <Icon size={13} />
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="ml-2 flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 text-[12.5px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
+                  onClick={() => void createDoc()}
+                  disabled={creating}
+                >
+                  {creating ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <FilePlus2 size={13} />
+                  )}
+                  新建文章
+                </button>
+              </>
+            ) : null}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-[960px] px-8 pb-24 pt-6">
+              {readingId && !isTrash ? (
+                <ArticleReader docId={readingId} onOpenCategory={openCategory} />
+              ) : activeCat === STATS ? (
+                <WritingStats />
+              ) : activeCat === ASSETS ? (
+                <AssetsGallery ossConfigured={config?.oss ?? false} />
+              ) : (
+                <>
+                  {(isTrash ? trashDocs : docs) === null ? (
                       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         {Array.from({ length: 4 }).map((_, i) => (
                           <div
@@ -1191,12 +1310,21 @@ export function Home() {
                                 className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)] group-hover:visible"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setMenuDocId(menuDocId === doc.id ? null : doc.id);
+                                  if (docMenu?.id === doc.id) {
+                                    setDocMenu(null);
+                                    return;
+                                  }
+                                  const r = e.currentTarget.getBoundingClientRect();
+                                  setDocMenu({
+                                    id: doc.id,
+                                    top: r.bottom + 4,
+                                    right: window.innerWidth - r.right,
+                                  });
                                 }}
                               >
                                 <MoreHorizontal size={15} />
                               </button>
-                              {renderDocMenu(doc, cat, "right-3 top-9")}
+                              {renderDocMenu(doc, cat)}
                             </div>
                           );
                         })}
@@ -1208,7 +1336,7 @@ export function Home() {
                           return (
                             <div
                               key={doc.id}
-                              className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_14px_36px_-12px_rgba(0,0,0,0.22)]"
+                              className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all hover:border-[var(--hairline-strong)] hover:shadow-[0_6px_20px_-10px_rgba(0,0,0,0.16)]"
                               style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
                               onClick={() => {
                                 if (!isTrash) openDoc(doc.id);
@@ -1229,7 +1357,16 @@ export function Home() {
                                     className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setMenuDocId(menuDocId === doc.id ? null : doc.id);
+                                      if (docMenu?.id === doc.id) {
+                                        setDocMenu(null);
+                                        return;
+                                      }
+                                      const r = e.currentTarget.getBoundingClientRect();
+                                      setDocMenu({
+                                        id: doc.id,
+                                        top: r.bottom + 4,
+                                        right: window.innerWidth - r.right,
+                                      });
                                     }}
                                   >
                                     <MoreHorizontal size={15} />
@@ -1275,15 +1412,48 @@ export function Home() {
                         })}
                       </div>
                     )}
-                  </>
-                )}
-              </section>
+                </>
+              )}
             </div>
           </div>
-        ) : (
-          /* ———— 未登录：产品首页 ———— */
-          <>
-            <div className="pt-20 text-center">
+        </main>
+        <Toaster />
+      </div>
+    );
+  }
+
+  /* ———— 未登录：产品首页 ———— */
+  return (
+    <div className="desk relative h-full overflow-y-auto">
+      <div className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(0,0,0,0.035),transparent)]" />
+
+      {/* 顶栏 */}
+      <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[var(--panel)]/85 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2.5 px-6">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--seal)] text-[14px] font-bold text-white shadow-[0_2px_6px_rgba(192,57,43,0.4)] [font-family:var(--serif)]">
+            稿
+          </span>
+          <span className="text-[17px] font-semibold tracking-wide [font-family:var(--serif)]">
+            xEdit
+          </span>
+          <span className="mt-0.5 hidden text-[12px] text-[var(--ink-faint)] sm:inline">
+            Markdown 公众号排版
+          </span>
+          <span className="flex-1" />
+          <DarkToggle />
+          <button
+            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] hover:bg-[var(--paper)]"
+            onClick={handleLogin}
+          >
+            <GithubMark size={14} />
+            GitHub 登录
+          </button>
+        </div>
+      </header>
+
+      <main className="relative mx-auto max-w-6xl px-6 pb-24">
+        <>
+          <div className="pt-20 text-center">
               <p className="rise text-[11px] tracking-[0.4em] text-[var(--ink-faint)]">
                 XEDIT · 微信公众号排版工具
               </p>
@@ -1359,8 +1529,7 @@ export function Home() {
             <p className="mt-24 text-center text-[11px] tracking-[0.25em] text-[var(--ink-faint)]">
               XEDIT — 写好内容，排好版面
             </p>
-          </>
-        )}
+        </>
       </main>
       <Toaster />
     </div>
