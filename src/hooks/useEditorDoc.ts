@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
+import { isLocalId, listLocalDocs, getLocalDocContent, updateLocalDoc } from "@/lib/localDocs";
 
 /**
  * 编辑页的文档装载与自动保存。
@@ -52,6 +53,23 @@ export function useEditorDoc(routeDocId: string | null) {
   useEffect(() => {
     saveNowRef.current = async () => {
     const s = useStore.getState();
+    if (isLocalId(s.docId)) {
+      try {
+        updateLocalDoc(s.docId!, { title: s.title, content: s.content, category: s.category });
+        lastSavedRef.current = {
+          docId: s.docId,
+          title: s.title,
+          content: s.content,
+          category: s.category,
+        };
+        s.setSaveState("local");
+        toast("已保存到本地", "success");
+      } catch {
+        s.setSaveState("error");
+        toast("保存失败：浏览器存储空间不足", "error");
+      }
+      return;
+    }
     if (!loggedIn || !s.docId) {
       toast("本地文稿已实时保存", "success");
       return;
@@ -99,6 +117,33 @@ export function useEditorDoc(routeDocId: string | null) {
       s.setDoc({ id: null, title: s.title, content: s.content });
       s.setCategory("未分类");
       s.setSaveState("local");
+      return;
+    }
+    if (isLocalId(routeDocId)) {
+      // 本地文档：不依赖会话状态，直接从本地库装载；
+      // 会话状态从 loading 落定时 effect 会重跑，靠 lastSavedRef 防止重复装载打断输入
+      if (lastSavedRef.current.docId === routeDocId) return;
+      const meta = listLocalDocs().find((d) => d.id === routeDocId);
+      const content = getLocalDocContent(routeDocId);
+      if (!meta || content === null) {
+        toast("本地文章不存在", "error");
+        router.replace("/");
+        return;
+      }
+      lastSavedRef.current = {
+        docId: routeDocId,
+        title: meta.title,
+        content,
+        category: meta.category ?? "未分类",
+      };
+      const s = useStore.getState();
+      s.setDoc({ id: routeDocId, title: meta.title, content });
+      s.setCategory(meta.category ?? "未分类");
+      s.setSaveState("local");
+      queueMicrotask(() => {
+        setDocVersion((v) => v + 1);
+        setLoading(false);
+      });
       return;
     }
     if (status === "loading") return;
@@ -160,6 +205,26 @@ export function useEditorDoc(routeDocId: string | null) {
   const docId = useStore((s) => s.docId);
 
   useEffect(() => {
+    if (isLocalId(docId)) {
+      const last = lastSavedRef.current;
+      if (
+        last.docId === docId &&
+        last.title === title &&
+        last.content === content &&
+        last.category === category
+      )
+        return;
+      const timer = setTimeout(() => {
+        try {
+          updateLocalDoc(docId!, { title, content, category });
+          lastSavedRef.current = { docId, title, content, category };
+          useStore.getState().setSaveState("local");
+        } catch {
+          useStore.getState().setSaveState("error");
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
     if (!loggedIn || !docId) {
       useStore.getState().setSaveState("local");
       return;

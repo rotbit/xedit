@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
 import {
@@ -26,14 +27,38 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
-import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
+import {
+  listLocalDocs,
+  getLocalDocContent,
+  createLocalDoc,
+  updateLocalDoc,
+  deleteLocalDoc,
+  listLocalCats,
+  saveLocalCats,
+} from "@/lib/localDocs";
 import { toast, Toaster } from "./Toast";
 import { askInput, askConfirm } from "./PromptDialog";
-import { WritingStats } from "./WritingStats";
-import { AssetsGallery } from "./AssetsGallery";
-import { ArticleReader } from "./ArticleReader";
-import { GithubMark } from "./Topbar";
+import { GithubMark } from "./GithubMark";
 import { DarkToggle } from "./DarkToggle";
+
+/** 重型视图按需加载：阅读器连带 markdown 渲染/主题/复制管线，不该进首屏包 */
+const viewLoading = () => (
+  <div className="flex justify-center pt-24">
+    <Loader2 size={20} className="animate-spin text-[var(--ink-faint)]" />
+  </div>
+);
+const ArticleReader = dynamic(
+  () => import("./ArticleReader").then((m) => m.ArticleReader),
+  { ssr: false, loading: viewLoading }
+);
+const WritingStats = dynamic(
+  () => import("./WritingStats").then((m) => m.WritingStats),
+  { ssr: false, loading: viewLoading }
+);
+const AssetsGallery = dynamic(
+  () => import("./AssetsGallery").then((m) => m.AssetsGallery),
+  { ssr: false, loading: viewLoading }
+);
 
 interface DocMeta {
   id: string;
@@ -63,96 +88,6 @@ function formatTime(iso: string): string {
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`;
   return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-const FEATURES = [
-  { title: "一键复制", desc: "样式全部内联，公众号 / 知乎直接粘贴，代码、公式、表格都不走样" },
-  { title: "十三套主题", desc: "缩略图即见即所得，标注适用内容类型，支持自定义 CSS 叠加" },
-  { title: "AI 助手", desc: "翻译、润色、AI 配图，发文前按公众号加热规则做内容审查" },
-  { title: "云端同步", desc: "GitHub 登录后多篇分类管理、自动保存、版本定格与一键回滚" },
-];
-
-/** 样机轮播的主题：以朱砂中国红开场，与整站基调一致 */
-const HERO_THEME_IDS = ["chinese-red", "wechat-green", "ink", "magazine"];
-
-/** 主视觉：左 Markdown 源码、右真实主题渲染的双栏编辑器样机，主题定时轮换 */
-function HeroMock() {
-  const [heroIdx, setHeroIdx] = useState(0);
-  useEffect(() => {
-    const t = setInterval(
-      () => setHeroIdx((i) => (i + 1) % HERO_THEME_IDS.length),
-      3800
-    );
-    return () => clearInterval(t);
-  }, []);
-  const theme =
-    THEME_PRESETS.find((t) => t.id === HERO_THEME_IDS[heroIdx]) ?? THEME_PRESETS[0];
-  const css = useMemo(
-    () => (BASE_CSS + theme.css).replaceAll("#nice", ".hero-demo"),
-    [theme]
-  );
-
-  return (
-    <div
-      className="light-lock rise mx-auto mt-14 max-w-[840px] overflow-hidden rounded-2xl border border-[var(--hairline)] bg-white shadow-[0_30px_80px_-24px_rgba(0,0,0,0.28)]"
-      style={{ animationDelay: "0.2s" }}
-    >
-      <div className="flex h-9 items-center border-b border-[var(--hairline)] bg-[var(--paper)] px-4">
-        <span className="flex gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#fc625d]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#fdbc40]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#35cd4b]" />
-        </span>
-        <span className="mx-auto -translate-x-4 text-[11px] tracking-wider text-[var(--ink-faint)]">
-          xEdit — 我的第一篇推文 · {theme.name}
-        </span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2">
-        <div
-          className="hidden border-r border-[var(--hairline)] p-6 text-left text-[13px] leading-[2.1] sm:block"
-          style={{ fontFamily: "var(--mono)" }}
-        >
-          <p>
-            <span style={{ color: "var(--accent)" }}>##</span> 它能做什么
-          </p>
-          <p>
-            <span style={{ color: "var(--accent)" }}>**</span>一键复制
-            <span style={{ color: "var(--accent)" }}>**</span>到公众号
-          </p>
-          <p>
-            <span style={{ color: "var(--ink-faint)" }}>-</span> 十三套排版主题
-          </p>
-          <p>
-            <span style={{ color: "var(--ink-faint)" }}>-</span> AI 翻译、润色与配图
-          </p>
-          <p>
-            <span style={{ color: "var(--accent)" }}>&gt;</span>{" "}
-            <span style={{ color: "var(--ink-soft)" }}>云端同步，版本可回滚</span>
-          </p>
-        </div>
-        <div className="p-3 text-left">
-          <style>{css}</style>
-          <div key={theme.id} className="hero-demo rise" style={{ padding: "10px 20px 18px" }}>
-            <h2 style={{ marginTop: 8, marginBottom: 14 }}>
-              <span className="prefix" />
-              <span className="content">它能做什么</span>
-              <span className="suffix" />
-            </h2>
-            <p style={{ margin: "10px 0" }}>
-              <strong>一键复制</strong>到公众号
-            </p>
-            <ul style={{ margin: "10px 0" }}>
-              <li>十三套排版主题</li>
-              <li>AI 翻译、润色与配图</li>
-            </ul>
-            <blockquote style={{ margin: "12px 0" }}>
-              <p style={{ margin: "6px 0" }}>云端同步，版本可回滚</p>
-            </blockquote>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 interface CatNode {
@@ -202,6 +137,8 @@ function buildTree(docs: DocMeta[], customCats: string[]): CatNode[] {
 export function Home() {
   const { data: session, status } = useSession();
   const loggedIn = status === "authenticated";
+  /** 本地模式：未登录时工作台照常可用，数据存在浏览器本地（Obsidian 式本地优先） */
+  const localMode = status === "unauthenticated";
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -260,6 +197,15 @@ export function Home() {
     }
   });
   const migratedRef = useRef(false);
+  const syncedRef = useRef(false);
+
+  // 本地模式：文章与分类都从本地库读；渲染期间带守卫地装载（React 推荐模式）
+  const [localLoaded, setLocalLoaded] = useState(false);
+  if (localMode && !localLoaded) {
+    setLocalLoaded(true);
+    setDocs(listLocalDocs());
+    setCustomCats(listLocalCats());
+  }
 
   useEffect(() => {
     void fetch("/api/config")
@@ -303,7 +249,7 @@ export function Home() {
     };
   }, [loggedIn]);
 
-  // 登录后拉取文章列表；云端为空时把本地文稿自动迁移上去
+  // 登录后拉取文章列表；先把本地库的文章批量同步上云，云端为空时再兜底迁移单篇旧草稿
   useEffect(() => {
     if (!loggedIn) return;
     let cancelled = false;
@@ -314,6 +260,33 @@ export function Home() {
       };
       let list = await load();
       if (cancelled) return;
+      const locals = listLocalDocs();
+      if (locals.length > 0 && !syncedRef.current) {
+        syncedRef.current = true;
+        let ok = 0;
+        for (const meta of locals) {
+          const res = await fetch("/api/documents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: meta.title,
+              content: getLocalDocContent(meta.id) ?? "",
+              category: meta.category,
+            }),
+          });
+          // 上传成功才删本地副本，失败的留在本地下次再试
+          if (res.ok) {
+            deleteLocalDoc(meta.id);
+            ok++;
+          }
+        }
+        if (ok > 0) {
+          saveLocalCats([]);
+          toast(`${ok} 篇本地文章已同步到云端`, "success");
+          list = await load();
+          if (cancelled) return;
+        }
+      }
       if (list.length === 0 && !migratedRef.current) {
         migratedRef.current = true;
         const s = useStore.getState();
@@ -448,6 +421,11 @@ export function Home() {
   };
 
   const openDoc = (id: string) => {
+    // 本地文档没有云端阅读视图，直接进编辑器
+    if (localMode) {
+      router.push(`/edit/${id}`);
+      return;
+    }
     // 回收站视图渲染不了阅读器，切回常规视图再打开
     if (activeCat === TRASH) setActiveCat(ALL);
     setReadingId(id);
@@ -455,20 +433,26 @@ export function Home() {
   };
 
   const createDoc = async (category?: string) => {
+    const cat =
+      category ??
+      (activeCat === ALL || activeCat === TRASH || activeCat === ASSETS || activeCat === STATS
+        ? UNCATEGORIZED
+        : activeCat);
+    if (localMode) {
+      try {
+        const doc = createLocalDoc({ category: cat });
+        router.push(`/edit/${doc.id}`);
+      } catch {
+        toast("新建失败：浏览器存储空间不足", "error");
+      }
+      return;
+    }
     setCreating(true);
     try {
       const res = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: "未命名文章",
-          content: "",
-          category:
-            category ??
-            (activeCat === ALL || activeCat === TRASH || activeCat === ASSETS || activeCat === STATS
-              ? UNCATEGORIZED
-              : activeCat),
-        }),
+        body: JSON.stringify({ title: "未命名文章", content: "", category: cat }),
       });
       if (!res.ok) throw new Error();
       const doc = await res.json();
@@ -480,6 +464,19 @@ export function Home() {
   };
 
   const removeDoc = async (doc: DocMeta) => {
+    if (localMode) {
+      const ok = await askConfirm({
+        title: "删除文章",
+        message: `删除「${doc.title || "未命名文章"}」？本地文章删除后无法找回。`,
+        confirmText: "删除",
+        danger: true,
+      });
+      if (!ok) return;
+      deleteLocalDoc(doc.id);
+      setDocs(listLocalDocs());
+      toast("已删除", "success");
+      return;
+    }
     const ok = await askConfirm({
       title: "删除文章",
       message: `把「${doc.title || "未命名文章"}」移入回收站？可随时恢复。`,
@@ -534,6 +531,12 @@ export function Home() {
   };
 
   const moveDoc = async (doc: DocMeta, category: string) => {
+    if (localMode) {
+      updateLocalDoc(doc.id, { category });
+      setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null);
+      toast(`已移动到「${category}」`, "success");
+      return;
+    }
     const res = await fetch(`/api/documents/${doc.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -557,6 +560,10 @@ export function Home() {
 
   const persistCustomCats = (next: string[]) => {
     setCustomCats(next);
+    if (localMode) {
+      saveLocalCats(next);
+      return;
+    }
     void fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -609,17 +616,25 @@ export function Home() {
       toast("分类已存在", "error");
       return;
     }
-    const res = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "rename", from: path, to }),
-    });
-    if (!res.ok) {
-      toast("重命名失败", "error");
-      return;
-    }
     const remap = (c: string) =>
       c === path ? to : c.startsWith(`${path}/`) ? to + c.slice(path.length) : c;
+    if (localMode) {
+      for (const d of listLocalDocs()) {
+        const cat = d.category || UNCATEGORIZED;
+        if (remap(cat) !== cat) updateLocalDoc(d.id, { category: remap(cat) });
+      }
+      saveLocalCats(Array.from(new Set([...customCats.map(remap), to])));
+    } else {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rename", from: path, to }),
+      });
+      if (!res.ok) {
+        toast("重命名失败", "error");
+        return;
+      }
+    }
     setDocs(
       (prev) =>
         prev?.map((d) => ({ ...d, category: remap(d.category || UNCATEGORIZED) })) ?? null
@@ -639,16 +654,23 @@ export function Home() {
       danger: true,
     });
     if (!ok) return;
-    const res = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "remove", from: path }),
-    });
-    if (!res.ok) {
-      toast("删除失败", "error");
-      return;
-    }
     const inSub = (c: string) => c === path || c.startsWith(`${path}/`);
+    if (localMode) {
+      for (const d of listLocalDocs()) {
+        if (inSub(d.category || UNCATEGORIZED)) updateLocalDoc(d.id, { category: UNCATEGORIZED });
+      }
+      saveLocalCats(customCats.filter((c) => !inSub(c)));
+    } else {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove", from: path }),
+      });
+      if (!res.ok) {
+        toast("删除失败", "error");
+        return;
+      }
+    }
     setDocs(
       (prev) =>
         prev?.map((d) =>
@@ -670,6 +692,24 @@ export function Home() {
 
   const localDraft = useStore((s) => s.content);
   const hasLocalDraft = Boolean(localDraft.trim()) && localDraft !== DEFAULT_MARKDOWN;
+
+  /** 未登录直接写作：把旧版单篇草稿收编进本地文档库，否则新建一篇欢迎文档 */
+  const startLocalWriting = () => {
+    const s = useStore.getState();
+    const hasDraft =
+      s.docId === null && Boolean(s.content.trim()) && s.content !== DEFAULT_MARKDOWN;
+    try {
+      const doc = hasDraft
+        ? createLocalDoc({ title: s.title, content: s.content })
+        : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN });
+      // 草稿已入库，清空旧缓冲，避免登录后被旧迁移逻辑重复上传
+      if (hasDraft) s.setDoc({ id: null, title: "未命名文章", content: DEFAULT_MARKDOWN });
+      router.push(`/edit/${doc.id}`);
+    } catch {
+      // 本地存储不可用时退回旧的单稿模式
+      router.push("/edit");
+    }
+  };
 
   /* —— 侧栏 —— */
 
@@ -957,13 +997,13 @@ export function Home() {
       )
     ) : null;
 
-  // 会话状态确认前不渲染，避免闪现营销首页
-  if (status === "loading") {
+  // 会话状态确认前（及本地文章列表读取前）不渲染，避免闪现登录页
+  if (status === "loading" || (localMode && docs === null)) {
     return <div className="h-full bg-[var(--paper)]" />;
   }
 
-  if (loggedIn) {
-    /* ———— 已登录：Notion 式应用框架 —— 全高灰色侧栏 + 面包屑顶栏 + 独立滚动内容区 ———— */
+  if (loggedIn || (localMode && (docs?.length ?? 0) > 0)) {
+    /* ———— 工作台（云端或本地模式）：Notion 式应用框架 —— 全高灰色侧栏 + 面包屑顶栏 + 独立滚动内容区 ———— */
     const readingDoc = readingId ? ((docs ?? []).find((d) => d.id === readingId) ?? null) : null;
     const crumbCls =
       "max-w-[220px] cursor-pointer truncate rounded-md px-1.5 py-0.5 text-[13px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
@@ -1102,39 +1142,60 @@ export function Home() {
             </nav>
             {/* 工具 + 账户 */}
             <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
-              {simpleRow(STATS, "写作足迹", null, <Footprints size={14} />)}
-              {simpleRow(ASSETS, "图片库", null, <Images size={14} />)}
-              {simpleRow(
-                TRASH,
-                "回收站",
-                trashDocs?.length ? trashDocs.length : null,
-                <Trash2 size={14} />
+              {loggedIn ? (
+                <>
+                  {simpleRow(STATS, "写作足迹", null, <Footprints size={14} />)}
+                  {simpleRow(ASSETS, "图片库", null, <Images size={14} />)}
+                  {simpleRow(
+                    TRASH,
+                    "回收站",
+                    trashDocs?.length ? trashDocs.length : null,
+                    <Trash2 size={14} />
+                  )}
+                  <div className="mt-1.5 flex items-center gap-2 border-t border-[var(--hairline)] px-1.5 pt-2">
+                    {session?.user?.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={session.user.image}
+                        alt="avatar"
+                        className="h-6 w-6 rounded-full ring-1 ring-[var(--hairline-strong)]"
+                      />
+                    ) : (
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--sidebar-active)] text-[11px] text-[var(--ink)]">
+                        {(session?.user?.name ?? "U").slice(0, 1)}
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--ink-soft)]">
+                      {session?.user?.name ?? session?.user?.email}
+                    </span>
+                    <DarkToggle />
+                    <button
+                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
+                      title="退出登录"
+                      onClick={() => void signOut()}
+                    >
+                      <LogOut size={14} />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* 本地模式：文章保存在本设备，登录后自动同步上云 */}
+                  <button
+                    className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-[12.5px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
+                    onClick={handleLogin}
+                  >
+                    <GithubMark size={13} />
+                    登录同步到云端
+                  </button>
+                  <div className="mt-2 flex items-center justify-between border-t border-[var(--hairline)] px-1.5 pt-2">
+                    <span className="text-[11px] text-[var(--ink-faint)]">
+                      本地模式 · 数据保存在本设备
+                    </span>
+                    <DarkToggle />
+                  </div>
+                </>
               )}
-              <div className="mt-1.5 flex items-center gap-2 border-t border-[var(--hairline)] px-1.5 pt-2">
-                {session?.user?.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={session.user.image}
-                    alt="avatar"
-                    className="h-6 w-6 rounded-full ring-1 ring-[var(--hairline-strong)]"
-                  />
-                ) : (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--sidebar-active)] text-[11px] text-[var(--ink)]">
-                    {(session?.user?.name ?? "U").slice(0, 1)}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--ink-soft)]">
-                  {session?.user?.name ?? session?.user?.email}
-                </span>
-                <DarkToggle />
-                <button
-                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
-                  title="退出登录"
-                  onClick={() => void signOut()}
-                >
-                  <LogOut size={14} />
-                </button>
-              </div>
             </div>
           </aside>
         ) : null}
@@ -1242,7 +1303,7 @@ export function Home() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-[960px] px-8 pb-24 pt-6">
-              {readingId && !isTrash ? (
+              {readingId && !isTrash && !localMode ? (
                 <ArticleReader
                   docId={readingId}
                   onOpenCategory={openCategory}
@@ -1422,114 +1483,43 @@ export function Home() {
     );
   }
 
-  /* ———— 未登录：产品首页 ———— */
+  /* ———— 未登录：简洁登录页 ———— */
   return (
     <div className="desk relative h-full overflow-y-auto">
-      <div className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(0,0,0,0.035),transparent)]" />
-
-      {/* 顶栏 */}
-      <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[var(--panel)]/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2.5 px-6">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--seal)] text-[14px] font-bold text-white shadow-[0_2px_6px_rgba(192,57,43,0.4)] [font-family:var(--serif)]">
+      <div className="absolute right-4 top-4 z-10">
+        <DarkToggle />
+      </div>
+      <main className="flex h-full min-h-[520px] items-center justify-center px-6">
+        <div className="rise w-full max-w-[340px] -translate-y-8 text-center">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--seal)] text-[26px] font-bold text-white shadow-[0_6px_18px_rgba(192,57,43,0.35)] [font-family:var(--serif)]">
             稿
           </span>
-          <span className="text-[17px] font-semibold tracking-wide [font-family:var(--serif)]">
+          <h1 className="mt-5 text-[26px] font-semibold tracking-wide [font-family:var(--serif)]">
             xEdit
-          </span>
-          <span className="mt-0.5 hidden text-[12px] text-[var(--ink-faint)] sm:inline">
-            Markdown 公众号排版
-          </span>
-          <span className="flex-1" />
-          <DarkToggle />
-          <button
-            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] hover:bg-[var(--paper)]"
-            onClick={handleLogin}
-          >
-            <GithubMark size={14} />
-            GitHub 登录
-          </button>
-        </div>
-      </header>
-
-      <main className="relative mx-auto max-w-6xl px-6 pb-24">
-        <>
-          <div className="pt-20 text-center">
-              <p className="rise text-[11px] tracking-[0.4em] text-[var(--ink-faint)]">
-                XEDIT · 微信公众号排版工具
-              </p>
-              <h1
-                className="rise mt-5 text-[44px] font-bold leading-tight [font-family:var(--serif)]"
-                style={{ animationDelay: "0.06s" }}
-              >
-                Markdown 写作
-                <span className="text-[var(--seal)]">，</span>
-                公众号排版
-                <span className="ml-4 inline-flex h-11 w-11 rotate-6 items-center justify-center rounded-lg bg-[var(--seal)] align-[6px] text-[22px] text-white shadow-[0_4px_12px_rgba(192,57,43,0.4)]">
-                  稿
-                </span>
-              </h1>
-              <p
-                className="rise mx-auto mt-5 max-w-xl text-[15px] leading-7 text-[var(--ink-soft)]"
-                style={{ animationDelay: "0.12s" }}
-              >
-                左侧写 Markdown，右侧实时预览，一键复制到微信公众号或知乎，样式不丢。
-                主题、公式、AI 助手与云端同步，一站配齐。
-              </p>
-              <div
-                className="rise mt-9 flex items-center justify-center gap-3"
-                style={{ animationDelay: "0.16s" }}
-              >
-                <button
-                  className="flex h-11 cursor-pointer items-center gap-2 rounded-lg bg-[var(--accent)] px-6 text-[15px] font-medium text-[var(--accent-fg)] shadow-[0_4px_14px_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 hover:bg-[var(--accent-deep)]"
-                  onClick={() => router.push("/edit")}
-                >
-                  <PenLine size={16} />
-                  {hasLocalDraft ? "继续编辑本地文稿" : "开始写作"}
-                </button>
-                <button
-                  className="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-6 text-[15px] transition-transform hover:-translate-y-0.5 hover:bg-[var(--paper)]"
-                  onClick={handleLogin}
-                >
-                  <GithubMark size={15} />
-                  GitHub 登录
-                </button>
-              </div>
-              <p
-                className="rise mt-3.5 text-[12px] text-[var(--ink-faint)]"
-                style={{ animationDelay: "0.2s" }}
-              >
-                无需登录即可使用全部排版功能；登录后解锁云端多篇管理与版本历史
-              </p>
-            </div>
-
-            <HeroMock />
-
-            <div
-              className="rise mt-20 grid grid-cols-2 gap-x-0 gap-y-10 border-t-2 border-[var(--ink)] pt-9 lg:grid-cols-4"
-              style={{ animationDelay: "0.3s" }}
+          </h1>
+          <p className="mt-2 text-[13px] text-[var(--ink-soft)]">
+            Markdown 写作，公众号排版
+          </p>
+          <div className="mt-9 flex flex-col gap-3">
+            <button
+              className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--accent)] text-[14px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
+              onClick={handleLogin}
             >
-              {FEATURES.map((f, i) => (
-                <div
-                  key={f.title}
-                  className={`px-6 ${i % 2 === 0 ? "pl-0" : ""} lg:border-l lg:border-[var(--hairline)] lg:pl-6 lg:first:border-l-0 lg:first:pl-0`}
-                >
-                  <p className="text-[12px] font-medium tracking-widest text-[var(--accent)] [font-family:var(--mono)]">
-                    0{i + 1}
-                  </p>
-                  <p className="mt-2.5 text-[16px] font-semibold [font-family:var(--serif)]">
-                    {f.title}
-                  </p>
-                  <p className="mt-2 text-[12.5px] leading-[1.7] text-[var(--ink-soft)]">
-                    {f.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <p className="mt-24 text-center text-[11px] tracking-[0.25em] text-[var(--ink-faint)]">
-              XEDIT — 写好内容，排好版面
-            </p>
-        </>
+              <GithubMark size={15} />
+              使用 GitHub 登录
+            </button>
+            <button
+              className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] text-[14px] text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
+              onClick={startLocalWriting}
+            >
+              <PenLine size={14} />
+              {hasLocalDraft ? "继续编辑本地文稿" : "暂不登录，直接写作"}
+            </button>
+          </div>
+          <p className="mt-6 text-[12px] leading-5 text-[var(--ink-faint)]">
+            文章保存在本设备，随时可写；登录后自动同步云端并解锁版本历史
+          </p>
+        </div>
       </main>
       <Toaster />
     </div>
