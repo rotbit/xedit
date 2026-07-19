@@ -7,6 +7,7 @@ import {
   PenLine,
   Folder,
   Copy,
+  ChevronDown,
   MoreHorizontal,
   Download,
   Trash2,
@@ -15,6 +16,7 @@ import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { buildWechatHtml } from "@/lib/copy/wechat";
+import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { exportMarkdown } from "@/lib/export";
 import { toast } from "./Toast";
@@ -69,7 +71,8 @@ export function ArticleReader({
   const [html, setHtml] = useState("");
   const [codeCss, setCodeCss] = useState("");
   const [error, setError] = useState("");
-  const [copying, setCopying] = useState(false);
+  const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -109,7 +112,7 @@ export function ArticleReader({
   /** 阅读态直接复制到公众号，与编辑器的复制管线一致 */
   const copyWechat = async () => {
     if (!doc || copying) return;
-    setCopying(true);
+    setCopying("wechat");
     try {
       const s = useStore.getState();
       const html2 = await buildWechatHtml(doc.content, {
@@ -124,7 +127,20 @@ export function ArticleReader({
     } catch (e) {
       toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
     } finally {
-      setCopying(false);
+      setCopying(null);
+    }
+  };
+
+  const copyZhihu = async () => {
+    if (!doc || copying) return;
+    setCopying("zhihu");
+    try {
+      await copyRichHtml(await buildZhihuHtml(doc.content), doc.content);
+      toast("已复制！打开知乎编辑器直接粘贴", "success");
+    } catch (e) {
+      toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
+    } finally {
+      setCopying(null);
     }
   };
 
@@ -151,18 +167,47 @@ export function ArticleReader({
       {/* 操作栏：sticky 顶置，滚动时保持可达；面包屑只保留内容区顶栏一处。
           不加入场动画：内部 ··· 菜单的 fixed 遮罩需以视口为参照 */}
       <div className="sticky top-0 z-10 -mx-8 mb-2 flex items-center justify-end gap-2 bg-[var(--paper)]/85 px-8 py-2 backdrop-blur">
-        <button
-          className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[12.5px] text-[var(--ink)] hover:bg-[var(--paper)] disabled:cursor-default disabled:opacity-45"
-          onClick={() => void copyWechat()}
-          disabled={chars === 0 || copying}
-        >
-          {copying ? (
-            <Loader2 size={13} className="animate-spin" />
-          ) : (
-            <Copy size={13} />
-          )}
-          复制到公众号
-        </button>
+        {/* 一键复制：与编辑页同款，点开选择平台 */}
+        <div className="relative">
+          <button
+            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[12.5px] text-[var(--ink)] hover:bg-[var(--paper)] disabled:cursor-default disabled:opacity-45"
+            onClick={() => setCopyMenuOpen((v) => !v)}
+            disabled={chars === 0 || copying !== null}
+          >
+            {copying !== null ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Copy size={13} />
+            )}
+            一键复制
+            <ChevronDown size={12} className="opacity-70" />
+          </button>
+          {copyMenuOpen ? (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setCopyMenuOpen(false)} />
+              <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <button
+                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                  onClick={() => {
+                    setCopyMenuOpen(false);
+                    void copyWechat();
+                  }}
+                >
+                  复制到公众号
+                </button>
+                <button
+                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                  onClick={() => {
+                    setCopyMenuOpen(false);
+                    void copyZhihu();
+                  }}
+                >
+                  复制到知乎
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
         <button
           className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
           onClick={() => router.push(`/edit/${doc.id}`)}
