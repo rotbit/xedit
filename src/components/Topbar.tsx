@@ -21,6 +21,8 @@ import {
   Folder,
   FolderPlus,
   Check,
+  FileText,
+  ChevronsUpDown,
 } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
@@ -146,6 +148,7 @@ export function Topbar({
 
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [catList, setCatList] = useState<string[]>([]);
+  const [docList, setDocList] = useState<{ id: string; title: string }[]>([]);
 
   useEffect(() => {
     if (status !== "authenticated" || !docId) return;
@@ -160,6 +163,8 @@ export function Topbar({
       if (docsRes.ok) {
         const list = await docsRes.json();
         for (const d of list) if (d.category) set.add(d.category);
+        if (!cancelled)
+          setDocList(list.map((d: { id: string; title: string }) => ({ id: d.id, title: d.title })));
       }
       if (settingsRes.ok) {
         const st = await settingsRes.json();
@@ -176,6 +181,21 @@ export function Topbar({
       cancelled = true;
     };
   }, [status, docId]);
+
+  // ⌘E / Ctrl+E 返回阅读态（与阅读态的 ⌘E 互为往返；capture 抢在 CodeMirror 之前）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        router.push(docId && status === "authenticated" ? `/?doc=${docId}` : "/");
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [status, docId, router]);
+
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [aiImageOpen, setAiImageOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -339,7 +359,7 @@ export function Topbar({
             docId && status === "authenticated" ? `/?doc=${docId}` : "/"
           )
         }
-        title={docId ? "返回文章阅读" : "返回文章列表"}
+        title={docId ? "返回文章阅读（⌘E）" : "返回文章列表（⌘E）"}
       >
         <ArrowLeft size={16} />
       </button>
@@ -399,6 +419,43 @@ export function Topbar({
         onChange={(e) => setTitle(e.target.value)}
         placeholder="文章标题"
       />
+
+      {/* 切换文章：最近列表，小改多篇时免回工作台 */}
+      {docId && status === "authenticated" && docList.length > 1 ? (
+        <Dropdown
+          width={260}
+          align="left"
+          trigger={
+            <button
+              className="flex h-8 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+              title="切换文章"
+            >
+              <ChevronsUpDown size={13} />
+            </button>
+          }
+        >
+          <p className="px-3.5 pb-1 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
+            最近文章
+          </p>
+          {docList.slice(0, 10).map((d) => (
+            <button
+              key={d.id}
+              className={itemCls}
+              onClick={() => {
+                if (d.id !== docId) router.push(`/edit/${d.id}`);
+              }}
+            >
+              <FileText size={13} className="shrink-0 text-[var(--ink-faint)]" />
+              <span className="min-w-0 flex-1 truncate text-left">
+                {d.title || "未命名文章"}
+              </span>
+              {d.id === docId ? (
+                <Check size={13} className="shrink-0 text-[var(--accent)]" />
+              ) : null}
+            </button>
+          ))}
+        </Dropdown>
+      ) : null}
 
       <div className="flex-1" />
 
