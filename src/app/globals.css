@@ -276,6 +276,36 @@ body {
   animation: evo-drop 1s ease-out both;
 }
 
+/* —— 落地页：刊物式展示排版 —— */
+.landing-display {
+  font-family: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC",
+    var(--serif);
+}
+.landing-vertical {
+  writing-mode: vertical-rl;
+}
+/* 印章落款：从高处压下、微回弹，落定在 6° */
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(2.4) rotate(18deg);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.92) rotate(2deg);
+  }
+  75% {
+    transform: scale(1.08) rotate(8deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(6deg);
+  }
+}
+.stamp-in {
+  animation: stamp-in 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) 0.55s both;
+}
+
 /* —— 入场动画（首页用） —— */
 @keyframes rise {
   from {
