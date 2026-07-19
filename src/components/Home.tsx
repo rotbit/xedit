@@ -59,6 +59,11 @@ const AssetsGallery = dynamic(
   () => import("./AssetsGallery").then((m) => m.AssetsGallery),
   { ssr: false, loading: viewLoading }
 );
+/* 落地页连带 13 套主题 CSS，只有首访未登录才需要，不进工作台首屏包 */
+const Landing = dynamic(() => import("./Landing").then((m) => m.Landing), {
+  ssr: false,
+  loading: () => <div className="h-full bg-[var(--paper)]" />,
+});
 
 interface DocMeta {
   id: string;
@@ -1483,45 +1488,11 @@ export function Home() {
     );
   }
 
-  /* ———— 未登录：简洁登录页 ———— */
+  /* ———— 未登录首访：产品落地页 ———— */
   return (
-    <div className="desk relative h-full overflow-y-auto">
-      <div className="absolute right-4 top-4 z-10">
-        <DarkToggle />
-      </div>
-      <main className="flex h-full min-h-[520px] items-center justify-center px-6">
-        <div className="rise w-full max-w-[340px] -translate-y-8 text-center">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--seal)] text-[26px] font-bold text-white shadow-[0_6px_18px_rgba(192,57,43,0.35)] [font-family:var(--serif)]">
-            稿
-          </span>
-          <h1 className="mt-5 text-[26px] font-semibold tracking-wide [font-family:var(--serif)]">
-            xEdit
-          </h1>
-          <p className="mt-2 text-[13px] text-[var(--ink-soft)]">
-            Markdown 写作，公众号排版
-          </p>
-          <div className="mt-9 flex flex-col gap-3">
-            <button
-              className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--accent)] text-[14px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
-              onClick={handleLogin}
-            >
-              <GithubMark size={15} />
-              使用 GitHub 登录
-            </button>
-            <button
-              className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] text-[14px] text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
-              onClick={startLocalWriting}
-            >
-              <PenLine size={14} />
-              {hasLocalDraft ? "继续编辑本地文稿" : "暂不登录，直接写作"}
-            </button>
-          </div>
-          <p className="mt-6 text-[12px] leading-5 text-[var(--ink-faint)]">
-            文章保存在本设备，随时可写；登录后自动同步云端并解锁版本历史
-          </p>
-        </div>
-      </main>
+    <>
+      <Landing onLogin={handleLogin} onStart={startLocalWriting} hasLocalDraft={hasLocalDraft} />
       <Toaster />
-    </div>
+    </>
   );
 }
