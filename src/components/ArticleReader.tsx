@@ -111,7 +111,26 @@ export function ArticleReader({
         </button>
       </div>
 
-      {/* 渲染内容（已消毒） */}
+      {/* 空文章：不渲染空白稿纸，给一个引导写作的空状态 */}
+      {chars === 0 ? (
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-[var(--hairline-strong)] bg-[var(--panel)]/50 py-20">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-wash)] text-[var(--ink-soft)]">
+            <PenLine size={20} />
+          </span>
+          <div className="text-center">
+            <p className="text-[14px] font-medium text-[var(--ink)]">这篇文章还没有内容</p>
+            <p className="mt-1 text-[12.5px] text-[var(--ink-faint)]">从一个想法、一句话开始</p>
+          </div>
+          <button
+            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
+            onClick={() => router.push(`/edit/${doc.id}`)}
+          >
+            <PenLine size={13} />
+            开始写作
+          </button>
+        </div>
+      ) : (
+      /* 渲染内容（已消毒） */
       <div className="light-lock overflow-hidden rounded-xl bg-white shadow-[0_2px_16px_rgba(0,0,0,0.08)] ring-1 ring-[var(--hairline)]">
         <style>{BASE_CSS}</style>
         <style>{codeCss}</style>
@@ -120,6 +139,7 @@ export function ArticleReader({
         {customCss ? <style>{customCss}</style> : null}
         <section id="nice" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
+      )}
     </div>
   );
 }

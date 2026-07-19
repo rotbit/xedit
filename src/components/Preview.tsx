@@ -94,15 +94,21 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
           }
         >
           {phone ? (
-            <div className="flex h-7 items-center justify-center bg-[#1f1f1f]">
-              <div className="h-4 w-24 rounded-b-xl bg-[#1f1f1f]" />
+            <div className="relative h-8 bg-white">
+              <div className="absolute left-1/2 top-0 h-5 w-28 -translate-x-1/2 rounded-b-2xl bg-[#1f1f1f]" />
             </div>
           ) : null}
           <section
             id="nice"
             data-tool="xedit"
+            style={phone ? { minHeight: 560 } : undefined}
             dangerouslySetInnerHTML={{ __html: html }}
           />
+          {phone ? (
+            <div className="flex h-6 items-center justify-center bg-white">
+              <div className="h-1 w-28 rounded-full bg-[#1f1f1f]/25" />
+            </div>
+          ) : null}
         </div>
         <div className="h-[40vh]" />
       </div>
