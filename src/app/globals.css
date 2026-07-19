@@ -16,6 +16,10 @@
   --accent-deep: #000000;
   --accent-fg: #ffffff;
   --accent-wash: #efefee;
+  /* Notion 式双色层次：侧栏灰、内容白 */
+  --sidebar: #f4f4f2;
+  --sidebar-hover: #ebebe9;
+  --sidebar-active: #e6e6e3;
   /* 朱砂只留给墨灵：成就体系专用色（吉祥物/火焰/进化仪式/经验条） */
   --seal: #c0392b;
   --seal-deep: #a53125;
@@ -74,6 +78,9 @@
   --accent-deep: #ffffff;
   --accent-fg: #161616;
   --accent-wash: #2b2b2b;
+  --sidebar: #111112;
+  --sidebar-hover: #1d1d1f;
+  --sidebar-active: #29292c;
   --seal: #d95441;
   --seal-deep: #ea7f6d;
   --seal-wash: #3b211b;

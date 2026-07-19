@@ -341,24 +341,7 @@ export function Topbar({
       >
         <ArrowLeft size={16} />
       </button>
-      <div className="flex select-none items-center gap-2 pr-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-[var(--seal)] text-[13px] font-bold text-white [font-family:var(--serif)]">
-          稿
-        </span>
-        <span className="text-[15px] font-semibold tracking-wide [font-family:var(--serif)]">
-          xEdit
-        </span>
-      </div>
-
-      {/* 文档标题 */}
-      <input
-        className="h-8 w-52 rounded-md border border-transparent bg-transparent px-2 text-[13px] text-[var(--ink)] outline-none transition-colors hover:border-[var(--hairline)] focus:border-[var(--hairline-strong)] focus:bg-[var(--panel)]"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="文章标题"
-      />
-
-      {/* 分类（云端文档） */}
+      {/* 面包屑：分类 / 标题 */}
       {docId && status === "authenticated" ? (
         <Dropdown
           width={200}
@@ -402,6 +385,17 @@ export function Topbar({
           </button>
         </Dropdown>
       ) : null}
+      {docId && status === "authenticated" ? (
+        <span className="select-none text-[12px] text-[var(--ink-faint)]">/</span>
+      ) : null}
+
+      {/* 文档标题 */}
+      <input
+        className="h-8 w-52 rounded-md border border-transparent bg-transparent px-2 text-[13px] font-medium text-[var(--ink)] outline-none transition-colors hover:border-[var(--hairline)] focus:border-[var(--hairline-strong)] focus:bg-[var(--panel)]"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="文章标题"
+      />
 
       <div className="flex-1" />
 
