@@ -258,9 +258,6 @@ export function WritingStats() {
                 <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-[11.5px] font-medium text-white">
                   Lv{level.lv} · {level.name}
                 </span>
-                <span className="rounded-full border border-[var(--hairline-strong)] px-2 py-0.5 text-[11px] text-[var(--ink-soft)]">
-                  界面 · {level.skin}
-                </span>
                 <span className="text-[12px] text-[var(--ink-faint)]">{level.motto}</span>
               </div>
               <p className="mt-2.5 flex items-baseline gap-1.5">
@@ -321,7 +318,7 @@ export function WritingStats() {
               ) : next ? (
                 <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[var(--ink-soft)]">
                   <Sparkles size={11} className="text-[var(--accent)]" />
-                  进化为「{next.name}」后，整个编辑器将换上「{next.skin}」新装
+                  进化为「{next.name}」后，墨灵将迎来全新形态
                 </p>
               ) : null}
             </div>
