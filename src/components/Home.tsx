@@ -1092,20 +1092,7 @@ export function Home() {
                       </button>
                     </span>
                   </div>
-                  {rootOpen ? (
-                    <>
-                      {tree.map((n) => renderCatNode(n, 1))}
-                      <button
-                        className="flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
-                        style={{ paddingLeft: "20px" }}
-                        onClick={() => void createCategory()}
-                      >
-                        <span className="h-5 w-5 shrink-0" />
-                        <FolderPlus size={14} />
-                        <span className="ml-1 min-w-0 flex-1 truncate">新建分类</span>
-                      </button>
-                    </>
-                  ) : null}
+                  {rootOpen ? tree.map((n) => renderCatNode(n, 1)) : null}
             </nav>
             {/* 工具 + 账户 */}
             <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
