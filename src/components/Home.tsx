@@ -18,7 +18,7 @@ import {
   ChevronRight,
   FileText,
   Images,
-  BarChart3,
+  Footprints,
   LayoutGrid,
   List,
 } from "lucide-react";
@@ -1050,7 +1050,7 @@ export function Home() {
                   <p className="mb-1 px-3 text-[11px] tracking-[0.2em] text-[var(--ink-faint)]">
                     工具
                   </p>
-                  {simpleRow(STATS, "写作数据", null, <BarChart3 size={14} />)}
+                  {simpleRow(STATS, "写作足迹", null, <Footprints size={14} />)}
                   {simpleRow(ASSETS, "图片库", null, <Images size={14} />)}
                   {simpleRow(
                     TRASH,
