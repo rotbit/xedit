@@ -335,6 +335,10 @@ export function Home() {
   }, [activeCat, loggedIn]);
 
   const tree = useMemo(() => buildTree(docs ?? [], customCats), [docs, customCats]);
+  const totalChars = useMemo(
+    () => (docs ?? []).reduce((s, d) => s + (d.chars ?? 0), 0),
+    [docs]
+  );
   const isTrash = activeCat === TRASH;
 
   const filtered = useMemo(() => {
@@ -636,17 +640,19 @@ export function Home() {
     return (
       <button
         key={key}
-        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-[13.5px] transition-colors ${
+        className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${
           active
             ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
             : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
         }`}
+        style={{ paddingLeft: "6px" }}
         onClick={() => openCategory(key)}
       >
+        <span className="h-5 w-5 shrink-0" />
         <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>
           {icon}
         </span>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="ml-1 min-w-0 flex-1 truncate">{label}</span>
         {count !== null ? (
           <span
             className={`rounded-full px-1.5 text-[11px] ${
@@ -665,12 +671,12 @@ export function Home() {
     return (
       <button
         key={doc.id}
-        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-2 text-left text-[12.5px] transition-colors ${
+        className={`flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors ${
           active
             ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
             : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
         }`}
-        style={{ paddingLeft: `${26 + depth * 14}px` }}
+        style={{ paddingLeft: `${30 + depth * 14}px` }}
         onClick={() => openDoc(doc.id)}
         title={doc.title}
       >
@@ -694,7 +700,7 @@ export function Home() {
       <div key={node.path}>
         <div className="group/cat relative">
           <div
-            className={`flex w-full cursor-pointer items-center gap-1 rounded-lg py-1.5 pr-2 text-left text-[13px] transition-colors ${
+            className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${
               active
                 ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
                 : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
@@ -933,17 +939,33 @@ export function Home() {
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[240px_1fr]">
               {/* 左：文档树 */}
               <aside className="rise md:sticky md:top-[76px] md:self-start">
-                <p className="px-3 text-[11px] tracking-[0.35em] text-[var(--ink-faint)]">
-                  WORKSPACE
+                <div className="flex items-center justify-between pl-3 pr-1">
+                  <h1 className="text-[16px] font-semibold leading-none [font-family:var(--serif)]">
+                    我的文章
+                  </h1>
+                  <button
+                    className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--accent-deep)] disabled:opacity-60"
+                    title="新建文章"
+                    onClick={() => void createDoc()}
+                    disabled={creating}
+                  >
+                    {creating ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <FilePlus2 size={14} />
+                    )}
+                  </button>
+                </div>
+                <p className="mt-1.5 px-3 text-[11.5px] text-[var(--ink-faint)]">
+                  {docs === null
+                    ? "同步中…"
+                    : `${docs.length} 篇文章${totalChars > 0 ? ` · 共 ${totalChars.toLocaleString()} 字` : ""}`}
                 </p>
-                <h1 className="mt-1.5 px-3 text-[22px] font-semibold leading-none [font-family:var(--serif)]">
-                  我的文章
-                </h1>
-                <nav className="mt-5 flex flex-col gap-0.5">
+                <nav className="mt-4 flex flex-col gap-0.5">
                   {/* 根节点：全部文章，其余分类挂在它下面 */}
                   <div className="group/cat relative">
                     <div
-                      className={`flex w-full cursor-pointer items-center gap-1 rounded-lg py-1.5 pr-2 text-left text-[13px] transition-colors ${
+                      className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${
                         activeCat === ALL && !readingId
                           ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
                           : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
@@ -1009,16 +1031,34 @@ export function Home() {
                       </button>
                     </span>
                   </div>
-                  {rootOpen ? tree.map((n) => renderCatNode(n, 1)) : null}
+                  {rootOpen ? (
+                    <>
+                      {tree.map((n) => renderCatNode(n, 1))}
+                      <button
+                        className="flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+                        style={{ paddingLeft: "20px" }}
+                        onClick={() => void createCategory()}
+                      >
+                        <span className="h-5 w-5 shrink-0" />
+                        <FolderPlus size={14} />
+                        <span className="ml-1 min-w-0 flex-1 truncate">新建分类</span>
+                      </button>
+                    </>
+                  ) : null}
                 </nav>
-                <div className="mt-3 border-t border-[var(--hairline)] pt-2">
-                  {simpleRow(STATS, "写作数据", null, <BarChart3 size={15} />)}
-                  {simpleRow(ASSETS, "图片库", null, <Images size={15} />)}
-                  {simpleRow(TRASH, "回收站", trashDocs?.length ?? 0, <Trash2 size={15} />)}
+                <div className="mt-4 border-t border-[var(--hairline)] pt-3">
+                  <p className="mb-1 px-3 text-[11px] tracking-[0.2em] text-[var(--ink-faint)]">
+                    工具
+                  </p>
+                  {simpleRow(STATS, "写作数据", null, <BarChart3 size={14} />)}
+                  {simpleRow(ASSETS, "图片库", null, <Images size={14} />)}
+                  {simpleRow(
+                    TRASH,
+                    "回收站",
+                    trashDocs?.length ? trashDocs.length : null,
+                    <Trash2 size={14} />
+                  )}
                 </div>
-                <p className="mt-4 px-3 text-[11.5px] leading-5 text-[var(--ink-faint)]">
-                  点分类看列表，点文章看排版效果；悬停行尾可新建文章、分类
-                </p>
               </aside>
 
               {/* 右：阅读视图 / 文章列表 */}
