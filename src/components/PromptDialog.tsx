@@ -118,7 +118,7 @@ export function PromptHost() {
             取消
           </button>
           <button
-            className="h-9 cursor-pointer rounded-lg bg-[var(--accent)] px-5 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] transition-colors hover:bg-[var(--accent-deep)] disabled:opacity-50"
+            className="h-9 cursor-pointer rounded-lg bg-[var(--accent)] px-5 text-[13px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] transition-colors hover:bg-[var(--accent-deep)] disabled:opacity-50"
             onClick={submit}
             disabled={!value.trim()}
           >
@@ -177,10 +177,10 @@ export function ConfirmHost() {
             {state.cancelText ?? "取消"}
           </button>
           <button
-            className={`h-9 cursor-pointer rounded-lg px-5 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(0,0,0,0.15)] transition-colors ${
+            className={`h-9 cursor-pointer rounded-lg px-5 text-[13px] font-medium shadow-[0_1px_4px_rgba(0,0,0,0.15)] transition-colors ${
               state.danger
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-[var(--accent)] hover:bg-[var(--accent-deep)]"
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-[var(--accent)] text-[var(--accent-fg)] hover:bg-[var(--accent-deep)]"
             }`}
             onClick={() => close(true)}
           >

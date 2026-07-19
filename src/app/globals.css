@@ -4,19 +4,24 @@
 @custom-variant dark ([data-theme="dark"] &);
 
 :root {
-  /* 稿纸 + 朱砂 设计基调 */
-  --paper: #f7f5f1;
-  --panel: #fffefc;
-  --ink: #232323;
-  --ink-soft: #6b6b6b;
-  --ink-faint: #85817a;
-  --hairline: #e8e4dc;
-  --hairline-strong: #d8d3c8;
-  --accent: #c0392b; /* 朱砂红 */
-  --accent-deep: #a53125;
-  --accent-wash: #faeae7;
-  --cm-selection: #f3d9d4;
-  --cm-active-line: #faf8f4;
+  /* 极简冷白：界面全中性，颜色只属于内容 */
+  --paper: #fafafa;
+  --panel: #ffffff;
+  --ink: #191919;
+  --ink-soft: #565656;
+  --ink-faint: #8c8c8c;
+  --hairline: #e8e8e8;
+  --hairline-strong: #d4d4d4;
+  --accent: #171717;
+  --accent-deep: #000000;
+  --accent-fg: #ffffff;
+  --accent-wash: #efefee;
+  /* 朱砂只留给墨灵：成就体系专用色（吉祥物/火焰/进化仪式/经验条） */
+  --seal: #c0392b;
+  --seal-deep: #a53125;
+  --seal-wash: #faeae7;
+  --cm-selection: #e4e4e4;
+  --cm-active-line: #f5f5f5;
   /* 热力图色阶：未活跃 → 高产 */
   --heat-0: #efe9e2;
   --heat-1: #f3d9d4;
@@ -35,7 +40,8 @@
   --md-link: #1e6bb8;
   --md-code: #7c5cbf;
   --md-code-bg: #f5f2fa;
-  --serif: "Songti SC", "Noto Serif SC", "STSong", serif;
+  --serif: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
   --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", sans-serif;
   --mono: "SF Mono", Menlo, Monaco, "JetBrains Mono", Consolas, monospace;
@@ -43,32 +49,36 @@
 
 /* 纸面子树（预览稿纸、主题缩略图、样机）在夜间模式下仍按日间变量渲染 */
 .light-lock {
-  --paper: #f7f5f1;
-  --panel: #fffefc;
-  --ink: #232323;
-  --ink-soft: #6b6b6b;
-  --ink-faint: #85817a;
-  --hairline: #e8e4dc;
-  --hairline-strong: #d8d3c8;
-  --accent: #c0392b;
-  --accent-deep: #a53125;
-  --accent-wash: #faeae7;
+  --paper: #fafafa;
+  --panel: #ffffff;
+  --ink: #191919;
+  --ink-soft: #565656;
+  --ink-faint: #8c8c8c;
+  --hairline: #e8e8e8;
+  --hairline-strong: #d4d4d4;
+  --accent: #171717;
+  --accent-deep: #000000;
+  --accent-wash: #efefee;
 }
 
-/* —— 夜间：墨色书房 —— */
+/* —— 夜间：中性炭黑 —— */
 [data-theme="dark"] {
-  --paper: #16140f;
-  --panel: #211e18;
-  --ink: #ece7dd;
-  --ink-soft: #b3ada1;
-  --ink-faint: #8a8478;
-  --hairline: #322e26;
-  --hairline-strong: #46402f;
-  --accent: #d95441;
-  --accent-deep: #ea7f6d;
-  --accent-wash: #3b211b;
-  --cm-selection: #4a2820;
-  --cm-active-line: #1c1913;
+  --paper: #161616;
+  --panel: #1e1e1e;
+  --ink: #ededed;
+  --ink-soft: #a6a6a6;
+  --ink-faint: #8a8a8a;
+  --hairline: #2a2a2a;
+  --hairline-strong: #3d3d3d;
+  --accent: #ececec;
+  --accent-deep: #ffffff;
+  --accent-fg: #161616;
+  --accent-wash: #2b2b2b;
+  --seal: #d95441;
+  --seal-deep: #ea7f6d;
+  --seal-wash: #3b211b;
+  --cm-selection: #3a3a3a;
+  --cm-active-line: #222222;
   --heat-0: #292520;
   --heat-1: #43261f;
   --heat-2: #6b3527;
@@ -115,11 +125,9 @@ body {
   background: transparent;
 }
 
-/* —— 工作台点阵背景（书桌质感） —— */
+/* —— 工作台背景：Notion 式素面 —— */
 .desk {
   background-color: var(--paper);
-  background-image: radial-gradient(var(--hairline-strong) 1px, transparent 1px);
-  background-size: 22px 22px;
 }
 
 /* —— CodeMirror 编辑器外观 —— */

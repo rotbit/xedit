@@ -91,7 +91,7 @@ function HeroMock() {
 
   return (
     <div
-      className="light-lock rise mx-auto mt-14 max-w-[840px] overflow-hidden rounded-2xl border border-[var(--hairline)] bg-white shadow-[0_30px_80px_-24px_rgba(70,45,20,0.28)]"
+      className="light-lock rise mx-auto mt-14 max-w-[840px] overflow-hidden rounded-2xl border border-[var(--hairline)] bg-white shadow-[0_30px_80px_-24px_rgba(0,0,0,0.28)]"
       style={{ animationDelay: "0.2s" }}
     >
       <div className="flex h-9 items-center border-b border-[var(--hairline)] bg-[var(--paper)] px-4">
@@ -767,7 +767,7 @@ export function Home() {
           {catMenu === node.path ? (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setCatMenu(null)} />
-              <div className="absolute left-2/3 top-full z-40 w-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(40,30,10,0.16)]">
+              <div className="absolute left-2/3 top-full z-40 w-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]">
                 <button
                   className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
                   onClick={() => {
@@ -814,7 +814,7 @@ export function Home() {
           }}
         />
         <div
-          className={`absolute ${pos} z-40 w-48 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(40,30,10,0.16)]`}
+          className={`absolute ${pos} z-40 w-48 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]`}
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -876,12 +876,12 @@ export function Home() {
 
   return (
     <div className="desk relative h-full overflow-y-auto">
-      <div className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(192,57,43,0.07),transparent)]" />
+      <div className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(0,0,0,0.035),transparent)]" />
 
       {/* 顶栏 */}
       <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[var(--panel)]/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-2.5 px-6">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--accent)] text-[14px] font-bold text-white shadow-[0_2px_6px_rgba(192,57,43,0.4)] [font-family:var(--serif)]">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--seal)] text-[14px] font-bold text-white shadow-[0_2px_6px_rgba(192,57,43,0.4)] [font-family:var(--serif)]">
             稿
           </span>
           <span className="text-[17px] font-semibold tracking-wide [font-family:var(--serif)]">
@@ -1075,7 +1075,7 @@ export function Home() {
                         </div>
                       ) : null}
                       <button
-                        className={`flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white shadow-[0_1px_4px_rgba(192,57,43,0.35)] hover:bg-[var(--accent-deep)] disabled:opacity-60 ${isTrash ? "hidden" : ""}`}
+                        className={`flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)] disabled:opacity-60 ${isTrash ? "hidden" : ""}`}
                         onClick={() => void createDoc()}
                         disabled={creating}
                       >
@@ -1111,7 +1111,7 @@ export function Home() {
                         </p>
                       </div>
                     ) : docView === "list" && !isTrash ? (
-                      <div className="rise mt-4 overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(60,50,30,0.04)]">
+                      <div className="rise mt-4 overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                         {filtered.map((doc) => {
                           const cat = doc.category || UNCATEGORIZED;
                           return (
@@ -1158,7 +1158,7 @@ export function Home() {
                           return (
                             <div
                               key={doc.id}
-                              className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(60,50,30,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_14px_36px_-12px_rgba(60,45,20,0.22)]"
+                              className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_14px_36px_-12px_rgba(0,0,0,0.22)]"
                               style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
                               onClick={() => {
                                 if (!isTrash) openDoc(doc.id);
@@ -1242,9 +1242,9 @@ export function Home() {
                 style={{ animationDelay: "0.06s" }}
               >
                 Markdown 写作
-                <span className="text-[var(--accent)]">，</span>
+                <span className="text-[var(--seal)]">，</span>
                 公众号排版
-                <span className="ml-4 inline-flex h-11 w-11 rotate-6 items-center justify-center rounded-lg bg-[var(--accent)] align-[6px] text-[22px] text-white shadow-[0_4px_12px_rgba(192,57,43,0.4)]">
+                <span className="ml-4 inline-flex h-11 w-11 rotate-6 items-center justify-center rounded-lg bg-[var(--seal)] align-[6px] text-[22px] text-white shadow-[0_4px_12px_rgba(192,57,43,0.4)]">
                   稿
                 </span>
               </h1>
@@ -1260,7 +1260,7 @@ export function Home() {
                 style={{ animationDelay: "0.16s" }}
               >
                 <button
-                  className="flex h-11 cursor-pointer items-center gap-2 rounded-lg bg-[var(--accent)] px-6 text-[15px] font-medium text-white shadow-[0_4px_14px_rgba(192,57,43,0.35)] transition-transform hover:-translate-y-0.5 hover:bg-[var(--accent-deep)]"
+                  className="flex h-11 cursor-pointer items-center gap-2 rounded-lg bg-[var(--accent)] px-6 text-[15px] font-medium text-[var(--accent-fg)] shadow-[0_4px_14px_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 hover:bg-[var(--accent-deep)]"
                   onClick={() => router.push("/edit")}
                 >
                   <PenLine size={16} />
