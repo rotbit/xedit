@@ -407,6 +407,8 @@ export function Home() {
   };
 
   const openDoc = (id: string) => {
+    // 回收站视图渲染不了阅读器，切回常规视图再打开
+    if (activeCat === TRASH) setActiveCat(ALL);
     setReadingId(id);
     setMenuDocId(null);
   };
@@ -669,23 +671,31 @@ export function Home() {
   const renderDocRow = (doc: DocMeta, depth: number) => {
     const active = readingId === doc.id;
     return (
-      <button
-        key={doc.id}
-        className={`flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors ${
-          active
-            ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
-            : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
-        }`}
-        style={{ paddingLeft: `${30 + depth * 14}px` }}
-        onClick={() => openDoc(doc.id)}
-        title={doc.title}
-      >
-        <FileText
-          size={12}
-          className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}`}
-        />
-        <span className="min-w-0 flex-1 truncate">{doc.title || "未命名文章"}</span>
-      </button>
+      <div key={doc.id} className="group/doc relative">
+        <button
+          className={`flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${
+            active
+              ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
+              : "text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
+          }`}
+          style={{ paddingLeft: `${30 + depth * 14}px` }}
+          onClick={() => openDoc(doc.id)}
+          title={doc.title}
+        >
+          <FileText
+            size={12}
+            className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}`}
+          />
+          <span className="min-w-0 flex-1 truncate">{doc.title || "未命名文章"}</span>
+        </button>
+        <button
+          className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-red-50 hover:text-red-600 group-hover/doc:block dark:hover:bg-red-950/40 dark:hover:text-red-400"
+          title={`把「${doc.title || "未命名文章"}」移入回收站`}
+          onClick={() => void removeDoc(doc)}
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
     );
   };
 
@@ -1063,12 +1073,12 @@ export function Home() {
 
               {/* 右：阅读视图 / 文章列表 */}
               <section className="min-w-0">
-                {activeCat === STATS ? (
+                {readingId && !isTrash ? (
+                  <ArticleReader docId={readingId} onOpenCategory={openCategory} />
+                ) : activeCat === STATS ? (
                   <WritingStats />
                 ) : activeCat === ASSETS ? (
                   <AssetsGallery ossConfigured={config?.oss ?? false} />
-                ) : readingId && !isTrash ? (
-                  <ArticleReader docId={readingId} onOpenCategory={openCategory} />
                 ) : (
                   <>
                     <div
