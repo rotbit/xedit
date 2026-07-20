@@ -6,13 +6,13 @@ import {
   ClipboardCopy,
   History,
   ImageUp,
+  LogIn,
   Palette,
   PenLine,
   Sigma,
   Sparkles,
 } from "lucide-react";
 import { THEME_PRESETS, BASE_CSS, type ThemePreset } from "@/lib/themes";
-import { GithubMark } from "./GithubMark";
 import { DarkToggle } from "./DarkToggle";
 
 interface LandingProps {
@@ -292,8 +292,7 @@ export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
             className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[12.5px] text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
             onClick={onLogin}
           >
-            <GithubMark size={13} />
-            登录
+            登录 / 注册
           </button>
         </div>
       </header>
@@ -349,8 +348,8 @@ export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
               className="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-6 text-[15px] transition-transform hover:-translate-y-0.5 hover:bg-[var(--paper)]"
               onClick={onLogin}
             >
-              <GithubMark size={15} />
-              GitHub 登录
+              <LogIn size={15} />
+              登录 / 注册
             </button>
           </div>
           <p

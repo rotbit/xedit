@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import {
   FilePlus2,
   Trash2,
   Loader2,
   PenLine,
   LogOut,
+  LogIn,
   Search,
   MoreHorizontal,
   FolderOpen,
@@ -49,7 +50,7 @@ import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
 import { useOnline } from "@/hooks/useOnline";
 import { toast, Toaster } from "./Toast";
 import { askInput, askConfirm } from "./PromptDialog";
-import { GithubMark } from "./GithubMark";
+import { openAuth } from "./AuthDialog";
 import { DarkToggle } from "./DarkToggle";
 
 /** 重型视图按需加载：阅读器连带 markdown 渲染/主题/复制管线，不该进首屏包 */
@@ -94,6 +95,7 @@ function mergedCloudList(): DocMeta[] {
 
 interface AppConfig {
   github: boolean;
+  google: boolean;
   oss: boolean;
 }
 
@@ -713,13 +715,7 @@ export function Home() {
     toast("已删除分类", "success");
   };
 
-  const handleLogin = () => {
-    if (config && !config.github) {
-      toast("尚未配置 GitHub OAuth，请在 .env 中填写 AUTH_GITHUB_ID/SECRET", "error");
-      return;
-    }
-    void signIn("github");
-  };
+  const handleLogin = () => openAuth("login");
 
   const localDraft = useStore((s) => s.content);
   const hasLocalDraft = Boolean(localDraft.trim()) && localDraft !== DEFAULT_MARKDOWN;
@@ -1238,7 +1234,7 @@ export function Home() {
                     className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-[12.5px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
                     onClick={handleLogin}
                   >
-                    <GithubMark size={13} />
+                    <LogIn size={13} />
                     登录同步到云端
                   </button>
                   <div className="mt-2 flex items-center justify-between border-t border-[var(--hairline)] px-1.5 pt-2">

@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react";
 import { PromptHost, ConfirmHost } from "./PromptDialog";
+import { AuthHost } from "./AuthDialog";
 import { EvolutionWatcher } from "./EvolutionWatcher";
 import { SwRegister } from "./SwRegister";
 
@@ -13,6 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       {children}
       <PromptHost />
       <ConfirmHost />
+      <AuthHost />
     </SessionProvider>
   );
 }
