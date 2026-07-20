@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import {
   ArrowLeft,
   Palette,
@@ -10,6 +10,7 @@ import {
   Download,
   History,
   LogOut,
+  LogIn,
   ChevronDown,
   Loader2,
   Copy,
@@ -33,8 +34,8 @@ import { copyRichHtml } from "@/lib/copy/clipboard";
 import { exportMarkdown, exportHtml, exportPdf, exportImage } from "@/lib/export";
 import { toast } from "./Toast";
 import { askInput } from "./PromptDialog";
+import { openAuth } from "./AuthDialog";
 import { DarkToggle } from "./DarkToggle";
-import { GithubMark } from "./GithubMark";
 import { ThemePickerPanel } from "./ThemePicker";
 import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
 import { ReviewDialog } from "./ReviewDialog";
@@ -62,11 +63,6 @@ const AI_TITLES: Record<keyof typeof AI_PROMPTS, string> = {
   condense: "缩写",
   format: "智能排版",
 };
-
-interface AppConfig {
-  github: boolean;
-  oss: boolean;
-}
 
 
 function Dropdown({
@@ -120,11 +116,9 @@ const ghostBtn =
   "flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2.5 text-[13px] text-[var(--ink-soft)] hover:border-[var(--hairline)] hover:bg-[var(--paper)] hover:text-[var(--ink)]";
 
 export function Topbar({
-  config,
   editorRef,
   onOpenVersions,
 }: {
-  config: AppConfig | null;
   editorRef: RefObject<EditorHandle | null>;
   onOpenVersions: () => void;
 }) {
@@ -339,13 +333,7 @@ export function Topbar({
     }
   };
 
-  const handleLogin = () => {
-    if (config && !config.github) {
-      toast("尚未配置 GitHub OAuth，请在 .env 中填写 AUTH_GITHUB_ID/SECRET", "error");
-      return;
-    }
-    void signIn("github");
-  };
+  const handleLogin = () => openAuth("login");
 
   return (
     <>
@@ -731,7 +719,7 @@ export function Topbar({
           onClick={handleLogin}
           disabled={status === "loading"}
         >
-          <GithubMark size={14} />
+          <LogIn size={14} />
           登录
         </button>
       )}
