@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { Loader2 } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { useEditorDoc } from "@/hooks/useEditorDoc";
@@ -14,11 +14,6 @@ import { StatusBar } from "./StatusBar";
 import { VersionsPanel } from "./VersionsPanel";
 import { Toaster } from "./Toast";
 
-interface AppConfig {
-  github: boolean;
-  oss: boolean;
-}
-
 export function EditorApp({ docId }: { docId: string | null }) {
   // 等 zustand persist 从 localStorage 恢复完成再挂编辑器，避免闪烁默认文案
   const hydrated = useSyncExternalStore(
@@ -30,7 +25,6 @@ export function EditorApp({ docId }: { docId: string | null }) {
   const [outlineOpen, setOutlineOpen] = useState(false);
   // 窄屏不分屏，编辑/预览二选一切换（≥md 恒为分屏，此状态不生效）
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
-  const [config, setConfig] = useState<AppConfig | null>(null);
 
   const setContent = useStore((s) => s.setContent);
   const splitRatio = useStore((s) => s.splitRatio);
@@ -44,13 +38,6 @@ export function EditorApp({ docId }: { docId: string | null }) {
     editorRef,
     previewRef
   );
-
-  useEffect(() => {
-    void fetch("/api/config")
-      .then((r) => r.json())
-      .then(setConfig)
-      .catch(() => setConfig(null));
-  }, []);
 
   const onDividerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -82,7 +69,6 @@ export function EditorApp({ docId }: { docId: string | null }) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Topbar
-        config={config}
         editorRef={editorRef}
         onOpenVersions={() => setVersionsOpen(true)}
       />

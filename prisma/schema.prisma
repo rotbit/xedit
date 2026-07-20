@@ -13,6 +13,8 @@ model User {
   email         String?           @unique
   emailVerified DateTime?
   image         String?
+  /// 邮箱注册用户的 scrypt 密码散列；OAuth 用户为空
+  passwordHash  String?
   accounts      Account[]
   sessions      Session[]
   documents     Document[]
