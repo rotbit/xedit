@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Loader2, RefreshCw, Sparkles, Copy as CopyIcon, Check } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { chatOnce, streamChat } from "@/lib/ai";
+import { useEscape } from "@/hooks/useEscape";
 import { toast } from "./Toast";
 
 const headerCls =
@@ -35,6 +36,8 @@ export function AiDiffDialog({
   const [error, setError] = useState("");
   const [round, setRound] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
+  // 流式生成中禁止 Esc 误关
+  useEscape(onClose, !running);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -81,8 +84,8 @@ export function AiDiffDialog({
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-2">
-          <div className="flex min-h-0 flex-col border-r border-[var(--hairline)]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto sm:grid-cols-2">
+          <div className="flex min-h-0 flex-col border-b border-[var(--hairline)] sm:border-b-0 sm:border-r">
             <p className="shrink-0 px-4 pb-1 pt-2.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
               原文
             </p>
@@ -147,6 +150,8 @@ export function AiTitlesDialog({ onClose }: { onClose: () => void }) {
   const [titles, setTitles] = useState<string[] | null>(null);
   const [error, setError] = useState("");
   const [round, setRound] = useState(0);
+  // 生成中（无结果无报错）禁止 Esc 误关
+  useEscape(onClose, Boolean(titles || error));
 
   useEffect(() => {
     let cancelled = false;
@@ -252,6 +257,8 @@ export function AiSummaryDialog({ onClose }: { onClose: () => void }) {
   const [running, setRunning] = useState(true);
   const [copied, setCopied] = useState(false);
   const [round, setRound] = useState(0);
+  // 生成中禁止 Esc 误关
+  useEscape(onClose, !running);
 
   useEffect(() => {
     let cancelled = false;

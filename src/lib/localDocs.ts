@@ -35,7 +35,7 @@ function writeIndex(list: LocalDocMeta[]) {
 }
 
 /** 摘要与字数口径与服务端列表接口保持一致 */
-function summarize(content: string): { excerpt: string; chars: number } {
+export function summarize(content: string): { excerpt: string; chars: number } {
   const plain = content
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")

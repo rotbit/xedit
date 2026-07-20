@@ -170,10 +170,75 @@ body {
   overflow: auto;
 }
 
-/* —— 专注模式：正文居中限宽 —— */
-.focus-mode .cm-content {
-  max-width: 780px;
-  margin: 0 auto;
+/* —— 首页文章视图的即时渲染编辑器：随内容自然增高、透明底、跟随页面滚动 —— */
+.reader-live .cm-editor {
+  height: auto;
+  background: transparent;
+}
+.reader-live .cm-scroller {
+  overflow: visible;
+}
+.reader-live .cm-content {
+  padding: 4px 0 25vh;
+}
+.reader-live .cm-line {
+  padding: 0 16px;
+}
+
+/* —— 即时渲染（类 Obsidian Live Preview）：编辑区内直接呈现排版 —— */
+.cm-live-preview .cm-content {
+  font-family: var(--sans);
+  font-size: 15px;
+}
+/* 引用块：左侧竖线 */
+.cm-live-preview .cm-lp-quote {
+  border-left: 3px solid var(--hairline-strong);
+  color: var(--ink-soft);
+}
+/* 代码块：等宽字体 + 底色 */
+.cm-live-preview .cm-lp-code {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--cm-active-line);
+}
+.cm-live-preview .cm-lp-code-first {
+  border-radius: 6px 6px 0 0;
+}
+.cm-live-preview .cm-lp-code-last {
+  border-radius: 0 0 6px 6px;
+}
+/* 行内渲染的图片 */
+.cm-live-preview .cm-lp-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  margin: 6px 0;
+  border-radius: 6px;
+}
+/* 分割线 */
+.cm-live-preview .cm-lp-hr {
+  display: inline-block;
+  width: 100%;
+  height: 0;
+  border-top: 1px solid var(--hairline-strong);
+  vertical-align: middle;
+}
+/* 无序列表圆点 */
+.cm-live-preview .cm-lp-bullet {
+  display: inline-block;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+/* 任务清单复选框（可点击勾选） */
+.cm-live-preview .cm-lp-checkbox {
+  margin: 0 2px 0 0;
+  vertical-align: middle;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+/* 链接文字：Cmd+点击打开 */
+.cm-live-preview .cm-lp-link {
+  cursor: pointer;
 }
 
 /* —— Toast 出入场 —— */

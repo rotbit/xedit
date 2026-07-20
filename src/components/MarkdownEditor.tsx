@@ -6,7 +6,7 @@ import {
   useImperativeHandle,
   useRef,
 } from "react";
-import { EditorState, EditorSelection } from "@codemirror/state";
+import { EditorState, EditorSelection, Compartment } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -20,6 +20,7 @@ import { languages } from "@codemirror/language-data";
 import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { searchKeymap } from "@codemirror/search";
+import { livePreview } from "@/lib/livePreview";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import { toast } from "./Toast";
@@ -69,6 +70,8 @@ interface Props {
   /** 文档切换时变化，触发编辑器内容重置 */
   docKey: string;
   initialContent: string;
+  /** 即时渲染模式（类 Obsidian）：编辑区内直接呈现排版 */
+  live?: boolean;
   onChange: (content: string) => void;
   onScrollLine?: (line: number, ratio: number) => void;
 }
@@ -83,7 +86,13 @@ const mdHighlight = HighlightStyle.define([
   { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--ink-faint)" },
   { tag: tags.link, color: "var(--md-link)" },
   { tag: tags.url, color: "var(--md-link)" },
-  { tag: tags.monospace, color: "var(--md-code)", background: "var(--md-code-bg)" },
+  {
+    tag: tags.monospace,
+    color: "var(--md-code)",
+    background: "var(--md-code-bg)",
+    fontFamily: "var(--mono)",
+    borderRadius: "3px",
+  },
   { tag: tags.quote, color: "var(--ink-soft)" },
   { tag: tags.meta, color: "var(--ink-faint)" },
   { tag: tags.processingInstruction, color: "var(--accent)" },
@@ -176,15 +185,18 @@ function handleImageFiles(view: EditorView, files: FileList | File[]): boolean {
 }
 
 export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownEditor(
-  { docKey, initialContent, onChange, onScrollLine },
+  { docKey, initialContent, live = false, onChange, onScrollLine },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onScrollLineRef = useRef(onScrollLine);
+  const liveCompartment = useRef(new Compartment());
+  const liveRef = useRef(live);
   onChangeRef.current = onChange;
   onScrollLineRef.current = onScrollLine;
+  liveRef.current = live;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -199,6 +211,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         placeholder("在这里输入 Markdown …"),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(mdHighlight),
+        liveCompartment.current.of(liveRef.current ? livePreview : []),
         keymap.of([
           {
             key: "Mod-b",
@@ -304,6 +317,13 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     // docKey 变化时整体重建编辑器（切换文档）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docKey]);
+
+  // 切换视图模式时热插拔即时渲染扩展，保留光标与撤销历史
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: liveCompartment.current.reconfigure(live ? livePreview : []),
+    });
+  }, [live]);
 
   useImperativeHandle(ref, () => ({
     view: () => viewRef.current,

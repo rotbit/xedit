@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type SaveState = "local" | "saving" | "saved" | "error";
+/** pending：已存本地镜像、等待联网后同步云端 */
+export type SaveState = "local" | "saving" | "saved" | "pending" | "error";
 
 export const DEFAULT_MARKDOWN = `# 欢迎使用 xEdit
 
@@ -47,8 +48,6 @@ interface SettingsSlice {
   syncScroll: boolean;
   /** 编辑区占编辑+预览总宽的比例 */
   splitRatio: number;
-  /** 专注模式：收起预览，正文居中限宽 */
-  focusMode: boolean;
   /** 排版微调：正文字号(px)/行高/段间距(px) */
   tuneFontSize: number;
   tuneLineHeight: number;
@@ -83,7 +82,6 @@ interface EditorState extends SettingsSlice {
   setSyncScroll: (v: boolean) => void;
   setCssDialogOpen: (v: boolean) => void;
   setSplitRatio: (r: number) => void;
-  setFocusMode: (v: boolean) => void;
   setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
   setCategory: (c: string) => void;
   setAiConfig: (c: {
@@ -104,7 +102,6 @@ export const useStore = create<EditorState>()(
       linkFootnote: true,
       syncScroll: true,
       splitRatio: 0.5,
-      focusMode: false,
       tuneFontSize: 16,
       tuneLineHeight: 1.75,
       tuneParaSpacing: 16,
@@ -133,21 +130,22 @@ export const useStore = create<EditorState>()(
       setCssDialogOpen: (cssDialogOpen) => set({ cssDialogOpen }),
       setSplitRatio: (splitRatio) =>
         set({ splitRatio: Math.min(0.75, Math.max(0.25, splitRatio)) }),
-      setFocusMode: (focusMode) => set({ focusMode }),
       setTune: (t) => set(t),
       setCategory: (category) => set({ category }),
       setAiConfig: (c) => set(c),
     }),
     {
       name: "xedit-store",
-      version: 2,
-      // v1 起代码主题固定 VS 2015、Mac 风格固定开启；v2 起移除手机预览模式，清掉历史持久化值
+      version: 3,
+      // v1 起代码主题固定 VS 2015、Mac 风格固定开启；v2 起移除手机预览模式，清掉历史持久化值；
+      // v3 起专注模式下线：即时渲染并入首页文章视图，编辑页固定分屏
       migrate: (persisted) => {
         const state = persisted as Record<string, unknown> | undefined;
         if (state) {
           delete state.codeThemeId;
           delete state.macCode;
           delete state.previewMode;
+          delete state.focusMode;
         }
         return state as never;
       },
@@ -157,7 +155,6 @@ export const useStore = create<EditorState>()(
         linkFootnote: state.linkFootnote,
         syncScroll: state.syncScroll,
         splitRatio: state.splitRatio,
-        focusMode: state.focusMode,
         tuneFontSize: state.tuneFontSize,
         tuneLineHeight: state.tuneLineHeight,
         tuneParaSpacing: state.tuneParaSpacing,

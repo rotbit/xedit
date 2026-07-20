@@ -339,7 +339,7 @@ export function WritingStats() {
               <div className="mt-3.5">
                 <div className="h-2 overflow-hidden rounded-full bg-[var(--hairline)]">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--seal)] to-[#e07a5f] transition-[width] duration-700"
+                    className="h-full rounded-full bg-gradient-to-r from-[var(--seal)] to-[var(--seal-deep)] transition-[width] duration-700"
                     style={{ width: `${expPct}%` }}
                   />
                 </div>
@@ -354,17 +354,21 @@ export function WritingStats() {
                       <button
                         key={l.lv}
                         title={`预览 Lv${l.lv}「${l.name}」· ${formatNumber(l.minChars)} 字`}
-                        className={`h-2 w-2 cursor-pointer rounded-full transition-transform hover:scale-150 ${
-                          exp >= l.minChars
-                            ? "bg-[var(--seal)]"
-                            : "bg-[var(--hairline-strong)]"
-                        } ${l.lv === level.lv ? "ring-2 ring-[var(--seal-wash)]" : ""}`}
+                        className="group/dot -m-1.5 cursor-pointer p-1.5"
                         onClick={() =>
                           window.dispatchEvent(
                             new CustomEvent("xedit-evo-preview", { detail: l.lv })
                           )
                         }
-                      />
+                      >
+                        <span
+                          className={`block h-2 w-2 rounded-full transition-transform group-hover/dot:scale-150 ${
+                            exp >= l.minChars
+                              ? "bg-[var(--seal)]"
+                              : "bg-[var(--hairline-strong)]"
+                          } ${l.lv === level.lv ? "ring-2 ring-[var(--seal-wash)]" : ""}`}
+                        />
+                      </button>
                     ))}
                   </span>
                 </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Loader2, Sparkles } from "lucide-react";
 import { useStore } from "@/store/useStore";
+import { useEscape } from "@/hooks/useEscape";
 import { toast } from "./Toast";
 
 const fieldCls =
@@ -16,6 +17,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   const [apiKey, setApiKey] = useState(store.aiApiKey);
   const [model, setModel] = useState(store.aiModel);
   const [imageModel, setImageModel] = useState(store.aiImageModel);
+  useEscape(onClose);
 
   return (
     <div
@@ -123,6 +125,8 @@ export function AiImageDialog({
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState(IMAGE_SIZES[0].value);
   const [busy, setBusy] = useState(false);
+  // 生成中禁止 Esc 误关
+  useEscape(onClose, !busy);
 
   const generate = async () => {
     const s = useStore.getState();

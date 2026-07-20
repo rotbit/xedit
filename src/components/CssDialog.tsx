@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { useStore } from "@/store/useStore";
+import { useEscape } from "@/hooks/useEscape";
 
 const PLACEHOLDER = `/* 自定义 CSS，作用于预览与复制结果，选择器需以 #nice 开头，例如： */
 #nice p {
@@ -23,6 +24,7 @@ function CssDialogInner() {
   const setCustomCss = useStore((s) => s.setCustomCss);
   // 弹窗打开（组件挂载）时以当前值初始化草稿
   const [draft, setDraft] = useState(() => useStore.getState().customCss);
+  useEscape(() => setOpen(false));
 
   return (
     <div
@@ -30,7 +32,7 @@ function CssDialogInner() {
       onClick={() => setOpen(false)}
     >
       <div
-        className="flex h-[520px] w-[640px] max-w-[92vw] flex-col overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
+        className="flex h-[520px] max-h-[90vh] w-[640px] max-w-[92vw] flex-col overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--hairline)] px-4">

@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PenLine } from "lucide-react";
-import { THEME_PRESETS, BASE_CSS } from "@/lib/themes";
+import {
+  ArrowRight,
+  ClipboardCopy,
+  History,
+  ImageUp,
+  Palette,
+  PenLine,
+  Sigma,
+  Sparkles,
+} from "lucide-react";
+import { THEME_PRESETS, BASE_CSS, type ThemePreset } from "@/lib/themes";
 import { GithubMark } from "./GithubMark";
 import { DarkToggle } from "./DarkToggle";
 
@@ -13,10 +22,36 @@ interface LandingProps {
 }
 
 const FEATURES = [
-  { title: "一键复制", desc: "样式全部内联，公众号 / 知乎直接粘贴，代码、公式、表格都不走样" },
-  { title: "十三套主题", desc: "缩略图即见即所得，标注适用内容类型，支持自定义 CSS 叠加" },
-  { title: "AI 助手", desc: "翻译、润色、AI 配图，发文前按公众号加热规则做内容审查" },
-  { title: "本地优先", desc: "不登录也能写，文章保存在本设备；登录后自动同步云端、版本可回滚" },
+  {
+    icon: ClipboardCopy,
+    title: "一键复制",
+    desc: "样式全部内联，公众号、知乎直接粘贴，代码、公式、表格都不走样",
+  },
+  {
+    icon: Palette,
+    title: "十三套主题",
+    desc: "缩略图即见即所得，标注适用内容类型，支持自定义 CSS 叠加",
+  },
+  {
+    icon: Sparkles,
+    title: "AI 助手",
+    desc: "翻译、润色、起标题、生成配图；自带 Key 即用，Key 只存浏览器本地",
+  },
+  {
+    icon: Sigma,
+    title: "数学公式",
+    desc: "行内与块级公式由 MathJax 渲染为 SVG，粘贴到公众号不变形",
+  },
+  {
+    icon: ImageUp,
+    title: "图床上传",
+    desc: "编辑器内粘贴、拖拽图片自动上传图床，链接就地插入正文",
+  },
+  {
+    icon: History,
+    title: "版本历史",
+    desc: "自动快照与手动存档并存，随时一键回滚，回滚前自动备份当前内容",
+  },
 ];
 
 const STEPS = [
@@ -151,9 +186,93 @@ function SectionHead({ title, note }: { title: string; note?: string }) {
   );
 }
 
+/** 功能卡片：朱砂洗底图标 + 宋体小标题 + 一句说明 */
+function FeatureCard({
+  icon: Icon,
+  title,
+  desc,
+  index,
+}: {
+  icon: typeof ClipboardCopy;
+  title: string;
+  desc: string;
+  index: number;
+}) {
+  return (
+    <div
+      className="rise rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+      style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+    >
+      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--seal-wash)] text-[var(--seal)]">
+        <Icon size={17} />
+      </span>
+      <p className="landing-display mt-3.5 text-[15.5px] font-semibold tracking-wide">
+        {title}
+      </p>
+      <p className="mt-1.5 text-[12.5px] leading-[1.7] text-[var(--ink-soft)]">{desc}</p>
+    </div>
+  );
+}
+
+/**
+ * 主题墙卡片：与 ThemePicker 同一思路，用主题真实 CSS 渲染迷你样张
+ * （#nice 换成本卡片独立 class 隔离，整体缩放），下附主题名与适用内容。
+ */
+function ThemeWallCard({ theme, index }: { theme: ThemePreset; index: number }) {
+  const cls = `tw-${theme.id}`;
+  const css = useMemo(
+    () => (BASE_CSS + theme.css).replaceAll("#nice", `.${cls}`),
+    [theme, cls]
+  );
+
+  return (
+    <div
+      className="rise w-[calc(50%-7px)] overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_2px_rgba(0,0,0,0.03)] sm:w-[calc(33.333%-10px)] xl:w-[calc(25%-11px)]"
+      style={{ animationDelay: `${Math.min(index * 40, 480)}ms` }}
+    >
+      <div className="light-lock pointer-events-none h-[92px] overflow-hidden border-b border-[var(--hairline)] bg-white">
+        <style>{css}</style>
+        <div
+          className={cls}
+          style={{
+            transform: "scale(0.5)",
+            transformOrigin: "top left",
+            width: "200%",
+            padding: "14px 18px",
+          }}
+        >
+          <h2 style={{ marginTop: 0, marginBottom: 10 }}>
+            <span className="prefix" />
+            <span className="content">标题样式</span>
+            <span className="suffix" />
+          </h2>
+          <p style={{ margin: "8px 0" }}>
+            正文文字，<strong>重点强调</strong>的样子。
+          </p>
+          <blockquote style={{ margin: "10px 0" }}>
+            <p style={{ margin: "6px 0" }}>引用内容的样式</p>
+          </blockquote>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ background: theme.color }}
+        />
+        <span className="landing-display shrink-0 text-[13px] font-semibold">
+          {theme.name}
+        </span>
+        <span className="ml-auto truncate text-[10.5px] text-[var(--ink-faint)]">
+          {theme.tag}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
   return (
-    <div className="desk relative h-full overflow-y-auto">
+    <div className="desk relative h-full overflow-y-auto overflow-x-hidden">
       {/* 顶部朱砂晕染 */}
       <div className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(192,57,43,0.07),transparent)]" />
 
@@ -262,43 +381,27 @@ export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
           ))}
         </section>
 
-        {/* ———— 核心能力 ———— */}
+        {/* ———— 它能做什么 ———— */}
         <section className="mt-20">
-          <SectionHead title="从写作到发布，一站配齐" note="不止排版" />
-          <div className="mt-9 grid grid-cols-2 gap-x-0 gap-y-10 lg:grid-cols-4">
+          <SectionHead title="它能做什么" note="从写作到发布，一站配齐" />
+          <div className="mt-9 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f, i) => (
-              <div
-                key={f.title}
-                className={`px-6 ${i % 2 === 0 ? "pl-0" : ""} lg:border-l lg:border-[var(--hairline)] lg:pl-6 lg:first:border-l-0 lg:first:pl-0`}
-              >
-                <p className="text-[12px] font-medium tracking-widest text-[var(--seal)] [font-family:var(--mono)]">
-                  0{i + 1}
-                </p>
-                <p className="landing-display mt-2.5 text-[16px] font-semibold">{f.title}</p>
-                <p className="mt-2 text-[12.5px] leading-[1.7] text-[var(--ink-soft)]">{f.desc}</p>
-              </div>
+              <FeatureCard key={f.title} icon={f.icon} title={f.title} desc={f.desc} index={i} />
             ))}
           </div>
         </section>
 
-        {/* ———— 主题一览 ———— */}
+        {/* ———— 十三套排版主题 ———— */}
         <section className="mt-20">
-          <SectionHead title="一套内容，十三种面貌" note="每套主题标注适用内容类型" />
-          <div className="mt-8 flex flex-wrap gap-2.5">
+          <SectionHead title="十三套排版主题" note="一套内容，十三种面貌，即点即换" />
+          <div className="mt-9 flex flex-wrap justify-center gap-3.5">
             {THEME_PRESETS.map((t, i) => (
-              <span
-                key={t.id}
-                className="rise flex items-center gap-2 rounded-full border border-[var(--hairline)] bg-[var(--panel)] py-1.5 pl-3 pr-3.5 text-[12.5px] shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
-                style={{ animationDelay: `${Math.min(i * 35, 450)}ms` }}
-              >
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: t.color }} />
-                <span className="font-medium text-[var(--ink)]">{t.name}</span>
-                <span className="hidden text-[11px] text-[var(--ink-faint)] sm:inline">
-                  {t.tag}
-                </span>
-              </span>
+              <ThemeWallCard key={t.id} theme={t} index={i} />
             ))}
           </div>
+          <p className="mt-6 text-center text-[12px] text-[var(--ink-faint)]">
+            主题之外还可叠加自定义 CSS，复制时一并内联
+          </p>
         </section>
 
         {/* ———— 收束 ———— */}
@@ -324,16 +427,30 @@ export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
 
       {/* 页脚 */}
       <footer className="border-t border-[var(--hairline)]">
-        <div className="mx-auto flex max-w-[1080px] flex-wrap items-center justify-between gap-2 px-6 py-6">
-          <span className="flex items-center gap-2 text-[11px] tracking-[0.25em] text-[var(--ink-faint)]">
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-[var(--seal)] text-[10px] font-bold text-white">
+        <div className="mx-auto flex max-w-[1080px] flex-wrap items-center justify-between gap-x-8 gap-y-4 px-6 py-8">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 rotate-[-4deg] items-center justify-center rounded-md bg-[var(--seal)] text-[14px] font-bold text-white shadow-[0_2px_6px_rgba(192,57,43,0.35)] [font-family:var(--serif)]">
               稿
             </span>
-            XEDIT — 写好内容，排好版面
-          </span>
-          <span className="text-[11px] text-[var(--ink-faint)]">
-            本地优先 · 登录后云端同步
-          </span>
+            <div>
+              <p className="landing-display text-[13.5px] font-semibold tracking-wide">
+                xEdit · Markdown 公众号排版
+              </p>
+              <p className="mt-0.5 text-[11.5px] text-[var(--ink-faint)]">
+                本地优先 · 登录后云端同步 · 排版样式不丢
+              </p>
+            </div>
+          </div>
+          <button
+            className="group flex cursor-pointer items-center gap-1.5 text-[13px] text-[var(--ink-soft)] transition-colors hover:text-[var(--seal)]"
+            onClick={onStart}
+          >
+            {hasLocalDraft ? "继续编辑本地文稿" : "开始写作"}
+            <ArrowRight
+              size={14}
+              className="transition-transform group-hover:translate-x-0.5"
+            />
+          </button>
         </div>
       </footer>
     </div>
