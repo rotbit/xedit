@@ -7,12 +7,18 @@ export async function GET(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
-  const trash = new URL(req.url).searchParams.get("trash") === "1";
+  const params = new URL(req.url).searchParams;
+  const trash = params.get("trash") === "1";
+  // full=1：附带正文，供本地优先的同步引擎一次拉全量镜像
+  const full = params.get("full") === "1";
   const docs = await prisma.document.findMany({
     where: { userId: session.user.id, deletedAt: trash ? { not: null } : null },
     orderBy: { updatedAt: "desc" },
     select: { id: true, title: true, updatedAt: true, content: true, category: true },
   });
+  if (full) {
+    return NextResponse.json(docs);
+  }
   // 列表附带纯文本摘要与字数，正文本身不下发
   return NextResponse.json(
     docs.map((d) => {

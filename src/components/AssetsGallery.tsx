@@ -205,7 +205,7 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={asset.url} alt={asset.key} loading="lazy" className="w-full" />
               {/* 悬停信息层 */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/70 to-black/0 px-3 pb-2 pt-8 transition-transform group-hover:translate-y-0">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/70 to-black/0 px-3 pb-2 pt-8 transition-transform group-hover:translate-y-0 [@media(hover:none)]:translate-y-0">
                 <div className="pointer-events-auto flex items-center gap-1">
                   {asset.source === "ai" ? (
                     <span className="flex items-center gap-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px] text-white">

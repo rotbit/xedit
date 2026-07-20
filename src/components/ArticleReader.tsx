@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2,
-  PenLine,
+  Columns2,
   Folder,
   Copy,
   ChevronDown,
@@ -12,43 +12,29 @@ import {
   Download,
   Trash2,
 } from "lucide-react";
-import { renderMarkdown } from "@/lib/markdown/renderer";
-import { ensureMathJax } from "@/lib/markdown/mathjax";
-import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { exportMarkdown } from "@/lib/export";
 import { toast } from "./Toast";
-import { BASE_CSS } from "@/lib/themes/base";
 import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 import { useStore } from "@/store/useStore";
+import { useEditorDoc } from "@/hooks/useEditorDoc";
+import { MarkdownEditor } from "./MarkdownEditor";
 
-interface Doc {
-  id: string;
-  title: string;
-  category: string;
-  content: string;
-  updatedAt: string;
-}
+const SAVE_LABEL: Record<string, string> = {
+  local: "已存本地",
+  saving: "保存中…",
+  saved: "已保存",
+  pending: "已存本地，联网后同步",
+  error: "保存失败",
+};
 
-/** 正文 Markdown 若以与文档标题同名的 #/## 标题开头，阅读态跳过该行：页面已有大标题，避免上下双标题 */
-function stripLeadingTitle(md: string, title: string): string {
-  const t = title.trim();
-  if (!t) return md;
-  const lines = md.split("\n");
-  const i = lines.findIndex((l) => l.trim() !== "");
-  if (i >= 0) {
-    const h = lines[i].match(/^#{1,2}\s+(.*?)\s*#*\s*$/);
-    if (h && h[1].trim() === t) {
-      lines.splice(i, 1);
-      return lines.join("\n");
-    }
-  }
-  return md;
-}
-
-/** 首页右侧的文章阅读视图：按当前主题渲染，只读 */
+/**
+ * 首页右侧的文章视图：打开即是即时渲染编辑态（类 Obsidian Live Preview）——
+ * 在页面内直接呈现排版并可编辑，光标所在行还原源码；
+ * 公众号真实主题效果与左右分屏在编辑页（分屏编辑）查看。
+ */
 export function ArticleReader({
   docId,
   onOpenCategory,
@@ -59,82 +45,55 @@ export function ArticleReader({
   onDelete?: () => void;
 }) {
   const router = useRouter();
-  const themeId = useStore((s) => s.themeId);
-  const codeThemeId = useStore((s) => s.codeThemeId);
-  const customCss = useStore((s) => s.customCss);
-  const tuneFontSize = useStore((s) => s.tuneFontSize);
-  const tuneLineHeight = useStore((s) => s.tuneLineHeight);
-  const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
+  // 装载 + 自动保存复用编辑页管线（本地/云端文档皆可）
+  const { docVersion, loading } = useEditorDoc(docId);
 
-  const [doc, setDoc] = useState<Doc | null>(null);
-  // html 由 renderMarkdown 产出并统一经 sanitizeHtml（DOMPurify）消毒
-  const [html, setHtml] = useState("");
-  const [codeCss, setCodeCss] = useState("");
-  const [error, setError] = useState("");
+  const title = useStore((s) => s.title);
+  const content = useStore((s) => s.content);
+  const category = useStore((s) => s.category);
+  const saveState = useStore((s) => s.saveState);
+  const setTitle = useStore((s) => s.setTitle);
+  const setContent = useStore((s) => s.setContent);
+
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const [res] = await Promise.all([
-        fetch(`/api/documents/${docId}`),
-        ensureMathJax(),
-        getCodeThemeCss(useStore.getState().codeThemeId).then((css) => {
-          if (!cancelled) setCodeCss(css);
-        }),
-      ]);
-      if (cancelled) return;
-      if (!res.ok) {
-        setError("文章加载失败");
-        return;
-      }
-      const d: Doc = await res.json();
-      if (cancelled) return;
-      setDoc(d);
-      setHtml(
-        sanitizeHtml(
-          renderMarkdown(stripLeadingTitle(d.content, d.title), {
-            macCode: useStore.getState().macCode,
-          })
-        )
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [docId]);
+  /** 进入分屏编辑；离线时编辑页可能未缓存，留在本页即时渲染编辑 */
+  const goSplitEdit = useCallback(() => {
+    if (!navigator.onLine) {
+      toast("离线时分屏编辑暂不可用，可在此页直接编辑", "error");
+      return;
+    }
+    router.push(`/edit/${docId}`);
+  }, [docId, router]);
 
-  // ⌘E / Ctrl+E 快速进入编辑（capture 阶段，优先于页面内其他监听）
+  // ⌘E / Ctrl+E 进入分屏编辑（capture 阶段，优先于页面内其他监听）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
         e.preventDefault();
-        if (doc) router.push(`/edit/${doc.id}`);
+        goSplitEdit();
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [doc, router]);
+  }, [goSplitEdit]);
 
-  const theme = getTheme(themeId);
-  void codeThemeId;
-
-  /** 阅读态直接复制到公众号，与编辑器的复制管线一致 */
+  /** 直接复制到公众号，与编辑页的复制管线一致 */
   const copyWechat = async () => {
-    if (!doc || copying) return;
+    if (copying) return;
     setCopying("wechat");
     try {
       const s = useStore.getState();
-      const html2 = await buildWechatHtml(doc.content, {
+      const html = await buildWechatHtml(s.content, {
         themeCss: getTheme(s.themeId).css,
         codeCss: await getCodeThemeCss(s.codeThemeId),
         customCss: `${buildTuneCss(s)}\n${s.customCss}`.trim(),
         macCode: s.macCode,
         linkFootnote: s.linkFootnote,
       });
-      await copyRichHtml(html2, doc.content);
+      await copyRichHtml(html, s.content);
       toast("已复制！打开公众号后台编辑器直接粘贴", "success");
     } catch (e) {
       toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
@@ -144,10 +103,11 @@ export function ArticleReader({
   };
 
   const copyZhihu = async () => {
-    if (!doc || copying) return;
+    if (copying) return;
     setCopying("zhihu");
     try {
-      await copyRichHtml(await buildZhihuHtml(doc.content), doc.content);
+      const s = useStore.getState();
+      await copyRichHtml(await buildZhihuHtml(s.content), s.content);
       toast("已复制！打开知乎编辑器直接粘贴", "success");
     } catch (e) {
       toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
@@ -156,15 +116,7 @@ export function ArticleReader({
     }
   };
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--hairline-strong)] py-16 text-[13px] text-[var(--ink-faint)]">
-        {error}
-      </div>
-    );
-  }
-
-  if (!doc) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-[13px] text-[var(--ink-faint)]">
         <Loader2 size={16} className="animate-spin" /> 加载中…
@@ -172,13 +124,14 @@ export function ArticleReader({
     );
   }
 
-  const chars = doc.content.replace(/\s/g, "").length;
+  const chars = content.replace(/\s/g, "").length;
+  const docKey = `${docId}:${docVersion}`;
 
   return (
     <div>
       {/* 操作栏：sticky 顶置，滚动时保持可达；面包屑只保留内容区顶栏一处。
           不加入场动画：内部 ··· 菜单的 fixed 遮罩需以视口为参照 */}
-      <div className="sticky top-0 z-10 -mx-8 mb-2 flex items-center justify-end gap-2 bg-[var(--paper)]/85 px-8 py-2 backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-4 mb-2 flex items-center justify-end gap-2 bg-[var(--paper)]/85 px-4 py-2 backdrop-blur sm:-mx-8 sm:px-8">
         {/* 一键复制：与编辑页同款，点开选择平台 */}
         <div className="relative">
           <button
@@ -222,11 +175,11 @@ export function ArticleReader({
         </div>
         <button
           className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
-          title="编辑此文（⌘E）"
-          onClick={() => router.push(`/edit/${doc.id}`)}
+          title="左侧源码、右侧公众号真实效果（⌘E）"
+          onClick={goSplitEdit}
         >
-          <PenLine size={13} />
-          编辑此文
+          <Columns2 size={13} />
+          分屏编辑
         </button>
         <div className="relative">
           <button
@@ -244,7 +197,7 @@ export function ArticleReader({
                   className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
                   onClick={() => {
                     setMenuOpen(false);
-                    exportMarkdown(doc.title || "未命名文章", doc.content);
+                    exportMarkdown(title || "未命名文章", useStore.getState().content);
                   }}
                 >
                   <Download size={13} className="text-[var(--ink-faint)]" />
@@ -271,28 +224,24 @@ export function ArticleReader({
         </div>
       </div>
 
-      {/* 标题 + 元信息：px-4 与正文 #nice 的 16px 内边距共线 */}
+      {/* 标题（可直接改）+ 元信息：px-4 与正文编辑区的行内边距共线 */}
       <div className="rise mx-auto max-w-[720px] px-4 pt-4">
-        <h1 className="text-[32px] font-bold leading-[1.25] tracking-tight text-[var(--ink)] [font-family:var(--serif)]">
-          {doc.title || "未命名文章"}
-        </h1>
+        <input
+          className="w-full bg-transparent text-2xl font-bold leading-[1.25] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] [font-family:var(--serif)] sm:text-[32px]"
+          value={title}
+          placeholder="未命名文章"
+          onChange={(e) => setTitle(e.target.value)}
+        />
         <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
           <button
             className="flex cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
-            onClick={() => onOpenCategory(doc.category || "未分类")}
+            onClick={() => onOpenCategory(category || "未分类")}
           >
             <Folder size={12} />
-            {doc.category || "未分类"}
+            {category || "未分类"}
           </button>
           <span>·</span>
-          <span>
-            {new Date(doc.updatedAt).toLocaleString("zh-CN", {
-              month: "long",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
+          <span>{SAVE_LABEL[saveState] ?? saveState}</span>
           <span>·</span>
           <span>{chars} 字</span>
           {chars > 0 ? (
@@ -302,43 +251,19 @@ export function ArticleReader({
             </>
           ) : null}
         </div>
-        <div className="mb-4 mt-8 h-px w-10 bg-[var(--hairline-strong)]" />
+        <div className="mb-2 mt-8 h-px w-10 bg-[var(--hairline-strong)]" />
       </div>
 
-      {/* 空文章：不渲染空白稿纸，给一个引导写作的空状态 */}
-      {chars === 0 ? (
-        <div className="rise mx-auto flex max-w-[720px] flex-col items-center gap-4 rounded-xl border border-dashed border-[var(--hairline-strong)] bg-[var(--panel)]/50 py-20">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-wash)] text-[var(--ink-soft)]">
-            <PenLine size={20} />
-          </span>
-          <div className="text-center">
-            <p className="text-[14px] font-medium text-[var(--ink)]">这篇文章还没有内容</p>
-            <p className="mt-1 text-[12.5px] text-[var(--ink-faint)]">从一个想法、一句话开始</p>
-          </div>
-          <button
-            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
-            onClick={() => router.push(`/edit/${doc.id}`)}
-          >
-            <PenLine size={13} />
-            开始写作
-          </button>
-        </div>
-      ) : (
-      /* 渲染内容（已消毒）：日间与页面同底无缝，夜间成一张白纸卡片 */
-      <div
-        className="rise light-lock mx-auto max-w-[720px] dark:overflow-hidden dark:rounded-2xl dark:bg-white"
-        style={{ animationDelay: "90ms" }}
-      >
-        <style>{BASE_CSS}</style>
-        {/* 阅读态与页面同底：打透 BASE_CSS 的白底；主题自带的底色在后面仍可覆盖 */}
-        <style>{"#nice{background-color:transparent}"}</style>
-        <style>{codeCss}</style>
-        <style>{theme.css}</style>
-        <style>{buildTuneCss({ tuneFontSize, tuneLineHeight, tuneParaSpacing })}</style>
-        {customCss ? <style>{customCss}</style> : null}
-        <section id="nice" dangerouslySetInnerHTML={{ __html: html }} />
+      {/* 正文：即时渲染编辑器，随内容自然增高、跟随页面滚动 */}
+      <div className="rise reader-live mx-auto max-w-[720px]" style={{ animationDelay: "90ms" }}>
+        <MarkdownEditor
+          key={docKey}
+          docKey={docKey}
+          initialContent={useStore.getState().content}
+          live
+          onChange={setContent}
+        />
       </div>
-      )}
     </div>
   );
 }

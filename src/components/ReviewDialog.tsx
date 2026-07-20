@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Loader2, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import { useStore } from "@/store/useStore";
+import { useEscape } from "@/hooks/useEscape";
 
 const REVIEW_PROMPT = `你是资深的微信公众号内容合规与流量推荐（加热）审查专家，熟悉《微信公众平台运营规范》、公众号推荐/加热机制与广告法。
 审查用户提供的文章，找出会影响平台推荐、加热资格或有违规风险的内容，审查维度：
@@ -38,7 +39,7 @@ interface Report {
 
 const LEVEL_STYLE: Record<Issue["level"], { text: string; cls: string }> = {
   high: { text: "高风险", cls: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900" },
-  mid: { text: "中风险", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  mid: { text: "中风险", cls: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900" },
   low: { text: "建议", cls: "bg-[var(--paper)] text-[var(--ink-soft)] border-[var(--hairline-strong)]" },
 };
 
@@ -93,6 +94,7 @@ export function ReviewDialog({ onClose }: { onClose: () => void }) {
   const [report, setReport] = useState<Report | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [round, setRound] = useState(0);
+  useEscape(onClose);
 
   useEffect(() => {
     let cancelled = false;
@@ -215,7 +217,7 @@ export function ReviewDialog({ onClose }: { onClose: () => void }) {
                         {issue.reason}
                       </p>
                       {issue.suggestion ? (
-                        <p className="mt-1.5 text-[12.5px] leading-5 text-emerald-700">
+                        <p className="mt-1.5 text-[12.5px] leading-5 text-emerald-700 dark:text-emerald-400">
                           建议：{issue.suggestion}
                         </p>
                       ) : null}

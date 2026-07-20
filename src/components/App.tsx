@@ -28,12 +28,13 @@ export function EditorApp({ docId }: { docId: string | null }) {
   );
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  // 窄屏不分屏，编辑/预览二选一切换（≥md 恒为分屏，此状态不生效）
+  const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [config, setConfig] = useState<AppConfig | null>(null);
 
   const setContent = useStore((s) => s.setContent);
   const splitRatio = useStore((s) => s.splitRatio);
   const setSplitRatio = useStore((s) => s.setSplitRatio);
-  const focusMode = useStore((s) => s.focusMode);
   const { loggedIn, docVersion, loading, reload } = useEditorDoc(docId);
 
   const editorRef = useRef<EditorHandle>(null);
@@ -85,11 +86,27 @@ export function EditorApp({ docId }: { docId: string | null }) {
         editorRef={editorRef}
         onOpenVersions={() => setVersionsOpen(true)}
       />
+      {/* 窄屏编辑/预览切换条（≥md 分屏时隐藏） */}
+      <div className="flex h-9 shrink-0 items-center justify-center gap-1 border-b border-[var(--hairline)] bg-[var(--panel)] md:hidden">
+        {(["edit", "preview"] as const).map((v) => (
+          <button
+            key={v}
+            className={`h-7 cursor-pointer rounded-md px-5 text-[12.5px] ${
+              mobileView === v
+                ? "bg-[var(--accent-wash)] font-medium text-[var(--accent)]"
+                : "text-[var(--ink-soft)]"
+            }`}
+            onClick={() => setMobileView(v)}
+          >
+            {v === "edit" ? "编辑" : "预览"}
+          </button>
+        ))}
+      </div>
       <div ref={splitAreaRef} className="flex min-h-0 min-w-0 flex-1">
         {/* 编辑区 */}
         <div
-          className="flex min-w-0 flex-col"
-          style={{ width: focusMode ? "100%" : `${splitRatio * 100}%` }}
+          className={`${mobileView === "edit" ? "flex" : "hidden"} min-w-0 flex-col max-md:w-full! md:flex`}
+          style={{ width: `${splitRatio * 100}%` }}
           onPointerEnter={() => setActive("editor")}
         >
           <EditorToolbar
@@ -101,7 +118,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
             {outlineOpen ? (
               <OutlinePanel onJump={(line) => editorRef.current?.scrollToLine(line)} />
             ) : null}
-            <div className={`min-h-0 min-w-0 flex-1 ${focusMode ? "focus-mode" : ""}`}>
+            <div className="min-h-0 min-w-0 flex-1">
               <MarkdownEditor
                 key={docKey}
                 ref={editorRef}
@@ -113,22 +130,21 @@ export function EditorApp({ docId }: { docId: string | null }) {
             </div>
           </div>
         </div>
-        {focusMode ? null : (
-          <>
-            {/* 可拖拽分隔条 */}
-            <div
-              className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-transparent hover:bg-[var(--accent-wash)]"
-              onPointerDown={onDividerPointerDown}
-              title="拖动调整编辑/预览宽度"
-            >
-              <span className="absolute left-1/2 top-1/2 h-8 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--hairline-strong)] group-hover:bg-[var(--accent)]" />
-            </div>
-            {/* 预览区 */}
-            <div className="min-w-0 flex-1" onPointerEnter={() => setActive("preview")}>
-              <Preview ref={previewRef} onScroll={onPreviewScroll} />
-            </div>
-          </>
-        )}
+        {/* 可拖拽分隔条（窄屏单栏时隐藏） */}
+        <div
+          className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-transparent hover:bg-[var(--accent-wash)] max-md:hidden"
+          onPointerDown={onDividerPointerDown}
+          title="拖动调整编辑/预览宽度"
+        >
+          <span className="absolute left-1/2 top-1/2 h-8 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--hairline-strong)] group-hover:bg-[var(--accent)]" />
+        </div>
+        {/* 预览区：编辑页固定分屏，单屏即时渲染在首页文章视图内 */}
+        <div
+          className={`min-w-0 flex-1 ${mobileView === "preview" ? "block" : "hidden"} md:block`}
+          onPointerEnter={() => setActive("preview")}
+        >
+          <Preview ref={previewRef} onScroll={onPreviewScroll} />
+        </div>
       </div>
       <StatusBar />
       <VersionsPanel
