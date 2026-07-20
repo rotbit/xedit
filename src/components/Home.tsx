@@ -28,14 +28,25 @@ import {
 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import {
+  isLocalId,
   listLocalDocs,
-  getLocalDocContent,
   createLocalDoc,
   updateLocalDoc,
   deleteLocalDoc,
   listLocalCats,
   saveLocalCats,
 } from "@/lib/localDocs";
+import {
+  listMirrorDocs,
+  saveMirrorLocal,
+  removeMirrorDoc,
+  applyServerDoc,
+  clearMirror,
+  wasAuthed,
+  setWasAuthed,
+} from "@/lib/docStore";
+import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
+import { useOnline } from "@/hooks/useOnline";
 import { toast, Toaster } from "./Toast";
 import { askInput, askConfirm } from "./PromptDialog";
 import { GithubMark } from "./GithubMark";
@@ -72,6 +83,13 @@ interface DocMeta {
   updatedAt: string;
   excerpt?: string;
   chars?: number;
+}
+
+/** 登录态的文章列表 = 云端镜像 + 未上云的本地文档，全部来自本地存储（离线可用） */
+function mergedCloudList(): DocMeta[] {
+  return [...listLocalDocs(), ...listMirrorDocs()].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
 }
 
 interface AppConfig {
@@ -142,8 +160,11 @@ function buildTree(docs: DocMeta[], customCats: string[]): CatNode[] {
 export function Home() {
   const { data: session, status } = useSession();
   const loggedIn = status === "authenticated";
+  const online = useOnline();
+  /** 曾登录 + 离线：拿不到会话，但本地镜像数据齐全，按离线工作区处理而非落回本地模式 */
+  const offlineAuthed = status === "unauthenticated" && !online && wasAuthed();
   /** 本地模式：未登录时工作台照常可用，数据存在浏览器本地（Obsidian 式本地优先） */
-  const localMode = status === "unauthenticated";
+  const localMode = status === "unauthenticated" && !offlineAuthed;
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -164,9 +185,10 @@ export function Home() {
   const [catMenu, setCatMenu] = useState<{ path: string; top: number; left: number } | null>(
     null
   );
-  // Notion 式侧栏：可折叠，状态本地记忆
+  // Notion 式侧栏：可折叠，状态本地记忆；窄屏为抽屉模式，默认收起
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return true;
+    if (window.innerWidth < 768) return false;
     try {
       return localStorage.getItem("xedit-sidebar-open") !== "0";
     } catch {
@@ -202,7 +224,6 @@ export function Home() {
     }
   });
   const migratedRef = useRef(false);
-  const syncedRef = useRef(false);
 
   // 本地模式：文章与分类都从本地库读；渲染期间带守卫地装载（React 推荐模式）
   const [localLoaded, setLocalLoaded] = useState(false);
@@ -254,50 +275,31 @@ export function Home() {
     };
   }, [loggedIn]);
 
-  // 登录后拉取文章列表；先把本地库的文章批量同步上云，云端为空时再兜底迁移单篇旧草稿
+  // 完全本地优先：登录态列表先从本地镜像（+待上云的本地文档）秒出——
+  // 渲染期间带守卫地装载（React 推荐模式），同步引擎每轮完成后再刷新
+  const [cloudLoaded, setCloudLoaded] = useState(false);
+  if ((loggedIn || offlineAuthed) && !cloudLoaded) {
+    setCloudLoaded(true);
+    setDocs(mergedCloudList());
+  }
+
   useEffect(() => {
-    if (!loggedIn) return;
-    let cancelled = false;
-    void (async () => {
-      const load = async (): Promise<DocMeta[]> => {
-        const res = await fetch("/api/documents");
-        return res.ok ? res.json() : [];
-      };
-      let list = await load();
-      if (cancelled) return;
-      const locals = listLocalDocs();
-      if (locals.length > 0 && !syncedRef.current) {
-        syncedRef.current = true;
-        let ok = 0;
-        for (const meta of locals) {
-          const res = await fetch("/api/documents", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: meta.title,
-              content: getLocalDocContent(meta.id) ?? "",
-              category: meta.category,
-            }),
-          });
-          // 上传成功才删本地副本，失败的留在本地下次再试
-          if (res.ok) {
-            deleteLocalDoc(meta.id);
-            ok++;
-          }
-        }
-        if (ok > 0) {
-          saveLocalCats([]);
-          toast(`${ok} 篇本地文章已同步到云端`, "success");
-          list = await load();
-          if (cancelled) return;
-        }
-      }
-      if (list.length === 0 && !migratedRef.current) {
+    if (!loggedIn && !offlineAuthed) return;
+    if (loggedIn) setWasAuthed();
+    const refresh = () => {
+      setDocs(mergedCloudList());
+      // 首次登录且云端为空：迁移旧的单篇本地草稿（或播种欢迎文档）
+      if (
+        loggedIn &&
+        !migratedRef.current &&
+        listMirrorDocs().length === 0 &&
+        listLocalDocs().length === 0
+      ) {
         migratedRef.current = true;
         const s = useStore.getState();
         const hasLocalWork =
           s.docId === null && s.content.trim() && s.content !== DEFAULT_MARKDOWN;
-        await fetch("/api/documents", {
+        void fetch("/api/documents", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
@@ -305,17 +307,23 @@ export function Home() {
               ? { title: s.title, content: s.content }
               : { title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN }
           ),
-        });
-        if (hasLocalWork) toast("本地文稿已同步到云端", "success");
-        list = await load();
-        if (cancelled) return;
+        })
+          .then((res) => {
+            if (res.ok) {
+              if (hasLocalWork) toast("本地文稿已同步到云端", "success");
+              void syncNow();
+            }
+          })
+          .catch(() => undefined);
       }
-      setDocs(list);
-    })();
-    return () => {
-      cancelled = true;
     };
-  }, [loggedIn]);
+    window.addEventListener(SYNC_DONE_EVENT, refresh);
+    const stop = startSync();
+    return () => {
+      window.removeEventListener(SYNC_DONE_EVENT, refresh);
+      stop();
+    };
+  }, [loggedIn, offlineAuthed]);
 
   // 回收站列表（进入回收站时拉取）
   useEffect(() => {
@@ -404,6 +412,11 @@ export function Home() {
     });
   };
 
+  /** 窄屏抽屉：选定分类/文章后自动收起（桌面侧栏常驻，不受影响） */
+  const closeDrawerOnMobile = () => {
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
   /** 侧栏全局搜索：在阅读/足迹/图片库视图里输入时先切回文章列表 */
   const onSearch = (v: string) => {
     setSearch(v);
@@ -416,6 +429,7 @@ export function Home() {
     setActiveCat(path);
     setReadingId(null);
     setSearch("");
+    closeDrawerOnMobile();
     if (path !== ALL && path !== TRASH && path !== ASSETS && path !== STATS) {
       // 展开路径上的所有节点
       const next = new Set(expanded);
@@ -426,15 +440,11 @@ export function Home() {
   };
 
   const openDoc = (id: string) => {
-    // 本地文档没有云端阅读视图，直接进编辑器
-    if (localMode) {
-      router.push(`/edit/${id}`);
-      return;
-    }
     // 回收站视图渲染不了阅读器，切回常规视图再打开
     if (activeCat === TRASH) setActiveCat(ALL);
     setReadingId(id);
     setDocMenu(null);
+    closeDrawerOnMobile();
   };
 
   const createDoc = async (category?: string) => {
@@ -452,6 +462,17 @@ export function Home() {
       }
       return;
     }
+    // 登录但离线：先建成本地文档直接开写，联网后由同步引擎自动上云
+    if (!online) {
+      try {
+        const doc = createLocalDoc({ category: cat });
+        setDocs(mergedCloudList());
+        openDoc(doc.id);
+      } catch {
+        toast("新建失败：浏览器存储空间不足", "error");
+      }
+      return;
+    }
     setCreating(true);
     try {
       const res = await fetch("/api/documents", {
@@ -461,6 +482,7 @@ export function Home() {
       });
       if (!res.ok) throw new Error();
       const doc = await res.json();
+      applyServerDoc(doc); // 新文档立即入镜像，编辑页/离线随时可用
       router.push(`/edit/${doc.id}`);
     } catch {
       toast("新建失败", "error");
@@ -482,6 +504,10 @@ export function Home() {
       toast("已删除", "success");
       return;
     }
+    if (!online) {
+      toast("离线时无法删除云端文章，联网后再试", "error");
+      return;
+    }
     const ok = await askConfirm({
       title: "删除文章",
       message: `把「${doc.title || "未命名文章"}」移入回收站？可随时恢复。`,
@@ -491,6 +517,7 @@ export function Home() {
     if (!ok) return;
     const res = await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
     if (res.ok) {
+      removeMirrorDoc(doc.id);
       setDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
       if (readingId === doc.id) setReadingId(null);
       toast("已移入回收站", "success");
@@ -507,11 +534,8 @@ export function Home() {
     });
     if (res.ok) {
       setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      void fetch("/api/documents")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((list) => {
-          if (list) setDocs(list);
-        });
+      // 恢复的文章由同步引擎拉回镜像并刷新列表
+      void syncNow();
       toast("已恢复", "success");
     } else {
       toast("恢复失败", "error");
@@ -536,23 +560,17 @@ export function Home() {
   };
 
   const moveDoc = async (doc: DocMeta, category: string) => {
-    if (localMode) {
+    if (localMode || isLocalId(doc.id)) {
       updateLocalDoc(doc.id, { category });
       setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null);
       toast(`已移动到「${category}」`, "success");
       return;
     }
-    const res = await fetch(`/api/documents/${doc.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category }),
-    });
-    if (res.ok) {
-      setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null);
-      toast(`已移动到「${category}」`, "success");
-    } else {
-      toast("移动失败", "error");
-    }
+    // 本地优先：先落镜像（离线同样生效），由同步引擎推送云端
+    saveMirrorLocal(doc.id, { category });
+    setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null);
+    toast(`已移动到「${category}」`, "success");
+    void syncNow();
   };
 
   const moveToNewCategory = async (doc: DocMeta) => {
@@ -630,6 +648,10 @@ export function Home() {
       }
       saveLocalCats(Array.from(new Set([...customCats.map(remap), to])));
     } else {
+      if (!online) {
+        toast("离线时分类操作暂不可用，联网后再试", "error");
+        return;
+      }
       const res = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -666,6 +688,10 @@ export function Home() {
       }
       saveLocalCats(customCats.filter((c) => !inSub(c)));
     } else {
+      if (!online) {
+        toast("离线时分类操作暂不可用，联网后再试", "error");
+        return;
+      }
       const res = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1007,7 +1033,7 @@ export function Home() {
     return <div className="h-full bg-[var(--paper)]" />;
   }
 
-  if (loggedIn || (localMode && (docs?.length ?? 0) > 0)) {
+  if (loggedIn || offlineAuthed || (localMode && (docs?.length ?? 0) > 0)) {
     /* ———— 工作台（云端或本地模式）：Notion 式应用框架 —— 全高灰色侧栏 + 面包屑顶栏 + 独立滚动内容区 ———— */
     const readingDoc = readingId ? ((docs ?? []).find((d) => d.id === readingId) ?? null) : null;
     const crumbCls =
@@ -1019,8 +1045,19 @@ export function Home() {
 
     return (
       <div className="flex h-full overflow-hidden bg-[var(--paper)]">
+        {/* 窄屏抽屉的背板：点击关闭 */}
         {sidebarOpen ? (
-          <aside className="flex w-[248px] shrink-0 flex-col border-r border-[var(--hairline)] bg-[var(--sidebar)]">
+          <div
+            className="fixed inset-0 z-30 bg-black/30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        ) : null}
+        {/* 侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕 */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 flex w-[248px] shrink-0 flex-col border-r border-[var(--hairline)] bg-[var(--sidebar)] transition-transform duration-200 md:static md:translate-x-0 ${
+            sidebarOpen ? "" : "-translate-x-full md:hidden"
+          }`}
+        >
             {/* 工作区头 */}
             <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-[var(--seal)] text-[13px] font-bold text-white [font-family:var(--serif)]">
@@ -1177,12 +1214,23 @@ export function Home() {
                     <button
                       className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
                       title="退出登录"
-                      onClick={() => void signOut()}
+                      onClick={() => {
+                        // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章
+                        clearMirror();
+                        void signOut();
+                      }}
                     >
                       <LogOut size={14} />
                     </button>
                   </div>
                 </>
+              ) : offlineAuthed ? (
+                <div className="mt-1.5 flex items-center justify-between px-1.5 pt-1">
+                  <span className="text-[11px] text-[var(--ink-faint)]">
+                    离线中 · 联网后自动同步
+                  </span>
+                  <DarkToggle />
+                </div>
               ) : (
                 <>
                   {/* 本地模式：文章保存在本设备，登录后自动同步上云 */}
@@ -1202,20 +1250,29 @@ export function Home() {
                 </>
               )}
             </div>
-          </aside>
-        ) : null}
+        </aside>
 
         {/* 内容区：面包屑顶栏 + 独立滚动 */}
         <main className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-12 shrink-0 items-center gap-1 border-b border-[var(--hairline)] px-4">
             {!sidebarOpen ? (
-              <button
-                className="mr-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-                title="展开侧栏"
-                onClick={toggleSidebar}
-              >
-                <PanelLeftOpen size={15} />
-              </button>
+              <>
+                {/* 窄屏：抽屉式打开，不改动桌面记忆的折叠状态 */}
+                <button
+                  className="mr-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] md:hidden"
+                  title="打开侧栏"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <PanelLeftOpen size={15} />
+                </button>
+                <button
+                  className="mr-1 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] md:flex"
+                  title="展开侧栏"
+                  onClick={toggleSidebar}
+                >
+                  <PanelLeftOpen size={15} />
+                </button>
+              </>
             ) : null}
             {readingDoc ? (
               <>
@@ -1307,8 +1364,8 @@ export function Home() {
             ) : null}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-[960px] px-8 pb-24 pt-6">
-              {readingId && !isTrash && !localMode ? (
+            <div className="mx-auto w-full max-w-[960px] px-4 pb-24 pt-6 sm:px-8">
+              {readingId && !isTrash ? (
                 <ArticleReader
                   docId={readingId}
                   onOpenCategory={openCategory}
@@ -1328,7 +1385,7 @@ export function Home() {
                         {Array.from({ length: 4 }).map((_, i) => (
                           <div
                             key={i}
-                            className="h-[136px] animate-pulse rounded-xl border border-[var(--hairline)] bg-[var(--panel)]/70"
+                            className="h-[164px] animate-pulse rounded-xl border border-[var(--hairline)] bg-[var(--panel)]/70"
                           />
                         ))}
                       </div>
@@ -1373,7 +1430,7 @@ export function Home() {
                                 {formatTime(doc.updatedAt)}
                               </span>
                               <button
-                                className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)] group-hover:visible"
+                                className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)] group-hover:visible [@media(hover:none)]:visible"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (docMenu?.id === doc.id) {
@@ -1420,7 +1477,7 @@ export function Home() {
                                 </span>
                                 {isTrash ? null : (
                                   <button
-                                    className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible"
+                                    className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible [@media(hover:none)]:visible"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (docMenu?.id === doc.id) {
@@ -1483,6 +1540,12 @@ export function Home() {
             </div>
           </div>
         </main>
+        {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
+        {!online && !localMode ? (
+          <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-[var(--hairline)] bg-[var(--panel)] px-3.5 py-1.5 text-[12px] text-[var(--ink-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+            已离线 · 改动保存在本地，联网后自动同步
+          </div>
+        ) : null}
         <Toaster />
       </div>
     );

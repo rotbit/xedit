@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useEscape } from "@/hooks/useEscape";
 
 export interface PromptOptions {
   title: string;
@@ -70,12 +71,14 @@ export function PromptHost() {
     }
   }, [state]);
 
-  if (!state) return null;
-
   const close = (result: string | null) => {
-    state.resolve(result);
+    state?.resolve(result);
     setState(null);
   };
+  // 输入框外的场景（如焦点丢失）也能 Esc 关闭；输入框内已有 Esc 处理，close 幂等不冲突
+  useEscape(() => close(null), state !== null);
+
+  if (!state) return null;
 
   const submit = () => {
     const v = value.trim();
@@ -143,12 +146,13 @@ export function ConfirmHost() {
     };
   }, []);
 
-  if (!state) return null;
-
   const close = (ok: boolean) => {
-    state.resolve(ok);
+    state?.resolve(ok);
     setState(null);
   };
+  useEscape(() => close(false), state !== null);
+
+  if (!state) return null;
 
   return (
     <div

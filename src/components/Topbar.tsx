@@ -25,6 +25,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { useStore } from "@/store/useStore";
+import { clearMirror } from "@/lib/docStore";
 import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
@@ -93,12 +94,16 @@ function Dropdown({
   }, [open]);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative shrink-0" ref={ref}>
       <div onClick={() => setOpen((v) => !v)}>{trigger}</div>
       {open ? (
         <div
-          className={`absolute ${align === "left" ? "left-0" : "right-0"} top-[calc(100%+6px)] z-50 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]`}
-          style={{ width }}
+          className={`absolute ${align === "left" ? "left-0" : "right-0"} top-[calc(100%+6px)] z-50 overflow-y-auto rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] max-md:fixed max-md:inset-x-2 max-md:top-[52px] max-md:w-auto!`}
+          style={{
+            width,
+            maxWidth: "calc(100vw - 16px)",
+            maxHeight: "calc(100vh - 64px)",
+          }}
           onClick={() => setOpen(false)}
         >
           {children}
@@ -347,7 +352,7 @@ export function Topbar({
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--hairline)] bg-[var(--panel)] px-3">
       {/* 返回首页 */}
       <button
-        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
         onClick={() =>
           router.push(
             docId && status === "authenticated" ? `/?doc=${docId}` : "/"
@@ -408,7 +413,7 @@ export function Topbar({
 
       {/* 文档标题 */}
       <input
-        className="h-8 w-52 rounded-md border border-transparent bg-transparent px-2 text-[13px] font-medium text-[var(--ink)] outline-none transition-colors hover:border-[var(--hairline)] focus:border-[var(--hairline-strong)] focus:bg-[var(--panel)]"
+        className="h-8 w-24 min-w-0 rounded-md border border-transparent bg-transparent px-2 text-[13px] font-medium text-[var(--ink)] outline-none transition-colors hover:border-[var(--hairline)] focus:border-[var(--hairline-strong)] focus:bg-[var(--panel)] sm:w-52"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="文章标题"
@@ -459,7 +464,7 @@ export function Topbar({
         trigger={
           <button className={ghostBtn}>
             <Palette size={15} />
-            <span>{getTheme(themeId).name}</span>
+            <span className="hidden sm:inline">{getTheme(themeId).name}</span>
             <ChevronDown size={13} className="text-[var(--ink-faint)]" />
           </button>
         }
@@ -616,8 +621,8 @@ export function Topbar({
         </button>
       </Dropdown>
 
-      {/* 版本历史 */}
-      <button className={ghostBtn} onClick={onOpenVersions} title="版本历史">
+      {/* 版本历史（窄屏隐藏，保证顶栏不溢出） */}
+      <button className={`${ghostBtn} hidden shrink-0 md:flex`} onClick={onOpenVersions} title="版本历史">
         <History size={15} />
       </button>
 
@@ -625,7 +630,7 @@ export function Topbar({
       <Dropdown
         width={180}
         trigger={
-          <button className={ghostBtn} title="导出">
+          <button className={`${ghostBtn} hidden md:flex`} title="导出">
             <Download size={15} />
           </button>
         }
@@ -644,10 +649,12 @@ export function Topbar({
         </button>
       </Dropdown>
 
-      {/* 夜间模式 */}
-      <DarkToggle />
+      {/* 夜间模式（窄屏隐藏，腾出顶栏空间） */}
+      <div className="hidden shrink-0 sm:block">
+        <DarkToggle />
+      </div>
 
-      <div className="mx-1 h-5 w-px bg-[var(--hairline)]" />
+      <div className="mx-1 hidden h-5 w-px bg-[var(--hairline)] sm:block" />
 
       {/* 一键复制（选择平台） */}
       <Dropdown
@@ -662,7 +669,7 @@ export function Topbar({
             ) : (
               <Copy size={14} />
             )}
-            一键复制
+            <span className="hidden min-[400px]:inline">一键复制</span>
             <ChevronDown size={13} className="opacity-80" />
           </button>
         }
@@ -675,7 +682,7 @@ export function Topbar({
         </button>
       </Dropdown>
 
-      <div className="mx-1 h-5 w-px bg-[var(--hairline)]" />
+      <div className="mx-1 hidden h-5 w-px bg-[var(--hairline)] sm:block" />
 
       {/* 登录态 */}
       {status === "authenticated" && session?.user ? (
@@ -706,14 +713,21 @@ export function Topbar({
             AI 设置…
           </button>
           <div className="my-1 border-t border-[var(--hairline)]" />
-          <button className={itemCls} onClick={() => void signOut()}>
+          <button
+            className={itemCls}
+            onClick={() => {
+              // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章
+              clearMirror();
+              void signOut();
+            }}
+          >
             <LogOut size={14} />
             退出登录
           </button>
         </Dropdown>
       ) : (
         <button
-          className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline-strong)] px-3 text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+          className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline-strong)] px-3 text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
           onClick={handleLogin}
           disabled={status === "loading"}
         >

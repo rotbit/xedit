@@ -7,6 +7,7 @@ const SAVE_LABEL: Record<SaveState, { text: string; cls: string }> = {
   local: { text: "仅保存在本地", cls: "text-[var(--ink-faint)]" },
   saving: { text: "同步中…", cls: "text-amber-600" },
   saved: { text: "已同步云端", cls: "text-emerald-600" },
+  pending: { text: "已存本地，联网后同步", cls: "text-amber-600" },
   error: { text: "同步失败", cls: "text-red-600 dark:text-red-400" },
 };
 

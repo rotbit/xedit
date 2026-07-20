@@ -6,6 +6,14 @@ import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
 import { isLocalId, listLocalDocs, getLocalDocContent, updateLocalDoc } from "@/lib/localDocs";
+import {
+  getMirrorMeta,
+  getMirrorContent,
+  saveMirrorLocal,
+  applyServerDoc,
+  removeMirrorDoc,
+} from "@/lib/docStore";
+import { pushMirrorDoc } from "@/lib/sync";
 
 /**
  * 编辑页的文档装载与自动保存。
@@ -22,6 +30,8 @@ export function useEditorDoc(routeDocId: string | null) {
   const [reloadTick, setReloadTick] = useState(0);
 
   const settingsLoadedRef = useRef(false);
+  /** 已直接沿用 store 内容的文档，防止 effect 重跑时重复装载打断输入 */
+  const adoptedRef = useRef<string | null>(null);
   const idleVersionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<{
     docId: string | null;
@@ -38,7 +48,7 @@ export function useEditorDoc(routeDocId: string | null) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "auto" }),
-      });
+      }).catch(() => undefined);
     }, 5 * 60_000);
   };
 
@@ -70,35 +80,42 @@ export function useEditorDoc(routeDocId: string | null) {
       }
       return;
     }
-    if (!loggedIn || !s.docId) {
+    if (!s.docId) {
       toast("本地文稿已实时保存", "success");
       return;
     }
+    // 云端文档：先落本地镜像（离线也保得住），再尝试推送
+    saveMirrorLocal(s.docId, { title: s.title, content: s.content, category: s.category });
+    lastSavedRef.current = {
+      docId: s.docId,
+      title: s.title,
+      content: s.content,
+      category: s.category,
+    };
+    if (!navigator.onLine) {
+      s.setSaveState("pending");
+      toast("已存本地，联网后自动同步", "success");
+      return;
+    }
     s.setSaveState("saving");
+    const pushed = await pushMirrorDoc(s.docId);
+    if (!pushed) {
+      useStore.getState().setSaveState("pending");
+      toast("云端暂不可达，已存本地稍后自动同步", "error");
+      return;
+    }
     try {
-      const res = await fetch(`/api/documents/${s.docId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: s.title, content: s.content, category: s.category }),
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      lastSavedRef.current = {
-        docId: s.docId,
-        title: s.title,
-        content: s.content,
-        category: s.category,
-      };
       const ver = await fetch(`/api/documents/${s.docId}/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "manual" }),
       });
       const data = await ver.json().catch(() => ({}));
-      s.setSaveState("saved");
+      useStore.getState().setSaveState("saved");
       toast(data.created ? "已保存并存档版本" : "已保存（内容与最近版本相同）", "success");
       } catch {
-        useStore.getState().setSaveState("error");
-        toast("保存失败，请检查网络或登录状态", "error");
+        useStore.getState().setSaveState("saved");
+        toast("已同步云端，版本存档失败", "error");
       }
     };
   });
@@ -117,6 +134,18 @@ export function useEditorDoc(routeDocId: string | null) {
       s.setDoc({ id: null, title: s.title, content: s.content });
       s.setCategory("未分类");
       s.setSaveState("local");
+      return;
+    }
+    // 会话状态落定等原因导致 effect 重跑时，已装载的文档不重复装载（防止打断输入）
+    if (reloadTick === 0 && adoptedRef.current === routeDocId) return;
+    // 阅读视图 ↔ 编辑页互切时 store 已持有该文档的最新内容（含未落盘的防抖编辑），
+    // 直接沿用避免旧数据覆盖；lastSavedRef 留空，随后的自动保存会把待存内容刷下去
+    if (reloadTick === 0 && useStore.getState().docId === routeDocId) {
+      adoptedRef.current = routeDocId;
+      queueMicrotask(() => {
+        setDocVersion((v) => v + 1);
+        setLoading(false);
+      });
       return;
     }
     if (isLocalId(routeDocId)) {
@@ -146,24 +175,92 @@ export function useEditorDoc(routeDocId: string | null) {
       });
       return;
     }
+    // —— 云端文档：镜像优先 ——
+    // 有镜像立即装载（秒开、离线可用、无需会话），联网时后台校新
+    let cancelled = false;
+    const mirrorMeta = reloadTick === 0 ? getMirrorMeta(routeDocId) : null;
+    const mirrorContent = mirrorMeta ? getMirrorContent(routeDocId) : null;
+    if (mirrorMeta && mirrorContent !== null) {
+      adoptedRef.current = routeDocId;
+      lastSavedRef.current = {
+        docId: routeDocId,
+        title: mirrorMeta.title,
+        content: mirrorContent,
+        category: mirrorMeta.category ?? "未分类",
+      };
+      const s = useStore.getState();
+      s.setDoc({ id: routeDocId, title: mirrorMeta.title, content: mirrorContent });
+      s.setCategory(mirrorMeta.category ?? "未分类");
+      s.setSaveState(mirrorMeta.dirty ? "pending" : "saved");
+      queueMicrotask(() => {
+        setDocVersion((v) => v + 1);
+        setLoading(false);
+      });
+      // 后台校新：服务端更新、且用户尚未开始编辑时才替换（本地优先）
+      if (navigator.onLine && !mirrorMeta.dirty) {
+        void (async () => {
+          try {
+            const res = await fetch(`/api/documents/${routeDocId}`);
+            if (cancelled || !res.ok) return;
+            const doc = await res.json();
+            if (cancelled) return;
+            if (new Date(doc.updatedAt).getTime() <= new Date(mirrorMeta.updatedAt).getTime())
+              return;
+            const cur = useStore.getState();
+            if (
+              cur.docId !== routeDocId ||
+              cur.content !== mirrorContent ||
+              cur.title !== mirrorMeta.title
+            )
+              return;
+            applyServerDoc(doc);
+            lastSavedRef.current = {
+              docId: doc.id,
+              title: doc.title,
+              content: doc.content,
+              category: doc.category ?? "未分类",
+            };
+            cur.setDoc({ id: doc.id, title: doc.title, content: doc.content });
+            cur.setCategory(doc.category ?? "未分类");
+            cur.setSaveState("saved");
+            setDocVersion((v) => v + 1);
+          } catch {
+            // 网络抖动等，保持镜像内容即可
+          }
+        })();
+      }
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // 无镜像：需要网络与登录（首次打开该文档，顺手落镜像供之后离线用）
     if (status === "loading") return;
     if (status === "unauthenticated") {
       toast("请先登录后再打开云端文章", "error");
       router.replace("/");
       return;
     }
+    if (!navigator.onLine) {
+      toast("此文章尚未离线缓存，联网后打开一次即可离线使用", "error");
+      router.replace("/");
+      return;
+    }
 
-    let cancelled = false;
     void (async () => {
-      const res = await fetch(`/api/documents/${routeDocId}`);
+      const res = await fetch(`/api/documents/${routeDocId}`).catch(() => null);
       if (cancelled) return;
-      if (!res.ok) {
+      if (!res || !res.ok) {
         toast("文章不存在或无权限", "error");
         router.replace("/");
         return;
       }
       const doc = await res.json();
       if (cancelled) return;
+      // 版本回滚等强制重拉的场景：先清镜像 dirty 再落库，避免旧的待推内容覆盖回滚结果
+      removeMirrorDoc(doc.id);
+      applyServerDoc(doc);
+      adoptedRef.current = doc.id;
       lastSavedRef.current = {
         docId: doc.id,
         title: doc.title,
@@ -225,7 +322,7 @@ export function useEditorDoc(routeDocId: string | null) {
       }, 500);
       return () => clearTimeout(timer);
     }
-    if (!loggedIn || !docId) {
+    if (!docId) {
       useStore.getState().setSaveState("local");
       return;
     }
@@ -238,24 +335,25 @@ export function useEditorDoc(routeDocId: string | null) {
     )
       return;
 
+    // 云端文档：先落本地镜像，再尝试推送；离线/失败时保持 dirty 由同步引擎兜底
     const timer = setTimeout(async () => {
+      saveMirrorLocal(docId, { title, content, category });
+      lastSavedRef.current = { docId, title, content, category };
+      if (!navigator.onLine) {
+        useStore.getState().setSaveState("pending");
+        return;
+      }
       useStore.getState().setSaveState("saving");
-      try {
-        const res = await fetch(`/api/documents/${docId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, content, category }),
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        lastSavedRef.current = { docId, title, content, category };
+      const pushed = await pushMirrorDoc(docId);
+      if (pushed) {
         useStore.getState().setSaveState("saved");
         scheduleIdleVersion(docId);
-      } catch {
-        useStore.getState().setSaveState("error");
+      } else {
+        useStore.getState().setSaveState(navigator.onLine ? "error" : "pending");
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [loggedIn, docId, title, content, category]);
+  }, [docId, title, content, category]);
 
   // —— 偏好设置自动同步（防抖 1s） ——
   const themeId = useStore((s) => s.themeId);

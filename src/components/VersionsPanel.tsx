@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { X, History, Loader2, ArchiveRestore, BookmarkPlus, Trash2 } from "lucide-react";
 import { useStore } from "@/store/useStore";
+import { useEscape } from "@/hooks/useEscape";
 import { toast } from "./Toast";
 import { askConfirm } from "./PromptDialog";
 
@@ -41,6 +42,7 @@ export function VersionsPanel({
   onRestored: (docId: string) => void;
 }) {
   const docId = useStore((s) => s.docId);
+  useEscape(onClose, open);
   if (!open) return null;
 
   return (
@@ -206,14 +208,14 @@ function VersionList({
                 {i === 0 ? <span className="text-[10px] text-[var(--ink-faint)]">最新</span> : null}
                 <span className="flex-1" />
                 <button
-                  className="invisible cursor-pointer rounded p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-red-600 dark:hover:text-red-400 group-hover:visible"
+                  className="invisible cursor-pointer rounded p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-red-600 dark:hover:text-red-400 group-hover:visible [@media(hover:none)]:visible"
                   title="删除该版本"
                   onClick={() => void remove(v)}
                 >
                   <Trash2 size={12} />
                 </button>
                 <button
-                  className="invisible flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[11px] text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--accent)] group-hover:visible"
+                  className="invisible flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[11px] text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--accent)] group-hover:visible [@media(hover:none)]:visible"
                   title="回滚到该版本"
                   onClick={() => void restore(v)}
                   disabled={busyId !== null}
