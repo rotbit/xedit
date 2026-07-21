@@ -163,9 +163,6 @@ body {
 .cm-editor.cm-focused .cm-selectionBackground {
   background: var(--cm-selection) !important;
 }
-.cm-editor .cm-activeLine {
-  background: var(--cm-active-line);
-}
 .cm-editor .cm-scroller {
   overflow: auto;
 }

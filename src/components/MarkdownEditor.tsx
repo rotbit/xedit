@@ -12,7 +12,6 @@ import {
   keymap,
   placeholder,
   drawSelection,
-  highlightActiveLine,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -206,7 +205,6 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       extensions: [
         history(),
         drawSelection(),
-        highlightActiveLine(),
         EditorView.lineWrapping,
         placeholder("在这里输入 Markdown …"),
         markdown({ base: markdownLanguage, codeLanguages: languages }),

@@ -1,5 +1,5 @@
 import { syntaxTree } from "@codemirror/language";
-import type { EditorState, Extension, Range } from "@codemirror/state";
+import { StateEffect, type EditorState, type Extension, type Range } from "@codemirror/state";
 import {
   Decoration,
   DecorationSet,
@@ -95,21 +95,30 @@ class CheckboxWidget extends WidgetType {
   }
 }
 
-/** 选区覆盖的整行区间：落在这些行上的语法标记还原为源码 */
-function selectionLineRanges(state: EditorState): { from: number; to: number }[] {
-  return state.selection.ranges.map((r) => ({
-    from: state.doc.lineAt(r.from).from,
-    to: state.doc.lineAt(r.to).to,
-  }));
+interface LineRange {
+  from: number;
+  to: number;
 }
 
-function revealed(ranges: { from: number; to: number }[], from: number, to: number) {
+/** 只为单光标还原所在行；非空选区保持当前排版，避免拖选时文本重排。 */
+function caretLineRanges(state: EditorState): LineRange[] {
+  return state.selection.ranges.flatMap((range) => {
+    if (!range.empty) return [];
+    const line = state.doc.lineAt(range.head);
+    return [{ from: line.from, to: line.to }];
+  });
+}
+
+function hasTextSelection(state: EditorState) {
+  return state.selection.ranges.some((range) => !range.empty);
+}
+
+function revealed(ranges: LineRange[], from: number, to: number) {
   return ranges.some((r) => from <= r.to && to >= r.from);
 }
 
-function buildDecorations(view: EditorView): DecorationSet {
+function buildDecorations(view: EditorView, reveal: LineRange[]): DecorationSet {
   const { state } = view;
-  const reveal = selectionLineRanges(state);
   const decos: Range<Decoration>[] = [];
   const hide = (from: number, to: number) => {
     if (from < to) decos.push(Decoration.replace({}).range(from, to));
@@ -239,19 +248,93 @@ function buildDecorations(view: EditorView): DecorationSet {
   return Decoration.set(decos, true);
 }
 
+/** 用轻量 effect 触发一次装饰重算（鼠标点击结束并收回为单光标时使用）。 */
+const refreshLivePreview = StateEffect.define<null>();
+
 const livePreviewPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
+    private reveal: LineRange[];
+    private selectingWithMouse = false;
+    private removeMouseListeners: (() => void) | null = null;
+
     constructor(view: EditorView) {
-      this.decorations = buildDecorations(view);
+      this.reveal = caretLineRanges(view.state);
+      this.decorations = buildDecorations(view, this.reveal);
     }
+
     update(update: ViewUpdate) {
-      if (update.docChanged || update.selectionSet || update.viewportChanged) {
-        this.decorations = buildDecorations(update.view);
+      const forced = update.transactions.some((transaction) =>
+        transaction.effects.some((effect) => effect.is(refreshLivePreview))
+      );
+
+      // 文档变化会让旧位置失效；单光标移动则切换需要显示源码的行。
+      if (
+        update.docChanged ||
+        (update.selectionSet && !this.selectingWithMouse && !hasTextSelection(update.state))
+      ) {
+        this.reveal = caretLineRanges(update.state);
+      }
+
+      // 鼠标拖选和非空选区调整期间不因 selectionSet 重建装饰。
+      // viewport 变化仍按冻结的 reveal 范围补齐新进入视口的装饰。
+      const selectionNeedsRebuild =
+        update.selectionSet && !this.selectingWithMouse && !hasTextSelection(update.state);
+      if (update.docChanged || update.viewportChanged || selectionNeedsRebuild || forced) {
+        this.decorations = buildDecorations(update.view, this.reveal);
       }
     }
+
+    beginMouseSelection(view: EditorView) {
+      if (this.selectingWithMouse) return;
+      const win = view.dom.ownerDocument.defaultView;
+      if (!win) return;
+
+      this.selectingWithMouse = true;
+      const finish = () => this.finishMouseSelection(view);
+      win.addEventListener("mouseup", finish, true);
+      win.addEventListener("blur", finish, true);
+      this.removeMouseListeners = () => {
+        win.removeEventListener("mouseup", finish, true);
+        win.removeEventListener("blur", finish, true);
+      };
+    }
+
+    private finishMouseSelection(view: EditorView) {
+      if (!this.selectingWithMouse) return;
+      this.selectingWithMouse = false;
+      this.removeMouseListeners?.();
+      this.removeMouseListeners = null;
+
+      // 单击定位光标后再显示该行源码；真正的拖选沿用按下前的稳定布局。
+      if (!hasTextSelection(view.state)) {
+        this.reveal = caretLineRanges(view.state);
+        view.dispatch({ effects: refreshLivePreview.of(null) });
+      }
+    }
+
+    destroy() {
+      this.removeMouseListeners?.();
+      this.removeMouseListeners = null;
+    }
   },
-  { decorations: (v) => v.decorations }
+  {
+    decorations: (v) => v.decorations,
+    eventHandlers: {
+      mousedown(event, view) {
+        const target = event.target as Element | null;
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          target?.closest?.(".cm-lp-checkbox")
+        ) {
+          return;
+        }
+        this.beginMouseSelection(view);
+      },
+    },
+  }
 );
 
 export const livePreview: Extension = [
