@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Loader2,
   Columns2,
@@ -9,18 +9,22 @@ import {
   Copy,
   ChevronDown,
   MoreHorizontal,
-  Download,
   Trash2,
 } from "lucide-react";
 import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
-import { exportMarkdown } from "@/lib/export";
 import { toast } from "./Toast";
 import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 import { useStore } from "@/store/useStore";
 import { useEditorDoc } from "@/hooks/useEditorDoc";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { useSyncScroll } from "@/hooks/useSyncScroll";
+import { MarkdownEditor, type EditorHandle } from "./MarkdownEditor";
+import { EditorToolbar } from "./EditorToolbar";
+import { EditorTools } from "./EditorTools";
+import { OutlinePanel } from "./OutlinePanel";
+import { Preview } from "./Preview";
+import { VersionsPanel } from "./VersionsPanel";
 
 const SAVE_LABEL: Record<string, string> = {
   local: "已存本地",
@@ -31,22 +35,24 @@ const SAVE_LABEL: Record<string, string> = {
 };
 
 /**
- * 首页右侧的文章视图：打开即是即时渲染编辑态（类 Obsidian Live Preview）——
- * 在页面内直接呈现排版并可编辑，光标所在行还原源码；
- * 公众号真实主题效果与左右分屏在编辑页（分屏编辑）查看。
+ * 首页右侧的文章视图：默认是纯 Markdown 源码编辑器（不做即时渲染）；
+ * 点「双屏」在同一窗口内切出右侧公众号真实主题预览（左源码 / 右效果），再点收起，
+ * 不再跳转到独立编辑页。
  */
 export function ArticleReader({
   docId,
+  actionSlot,
   onOpenCategory,
   onDelete,
 }: {
   docId: string;
+  /** 面包屑顶栏右侧的挂载点：操作按钮 portal 到这里，与面包屑共用一行 */
+  actionSlot?: HTMLElement | null;
   onOpenCategory: (path: string) => void;
   onDelete?: () => void;
 }) {
-  const router = useRouter();
   // 装载 + 自动保存复用编辑页管线（本地/云端文档皆可）
-  const { docVersion, loading } = useEditorDoc(docId);
+  const { docVersion, loading, loggedIn, reload } = useEditorDoc(docId);
 
   const title = useStore((s) => s.title);
   const content = useStore((s) => s.content);
@@ -54,31 +60,54 @@ export function ArticleReader({
   const saveState = useStore((s) => s.saveState);
   const setTitle = useStore((s) => s.setTitle);
   const setContent = useStore((s) => s.setContent);
+  const splitRatio = useStore((s) => s.splitRatio);
+  const setSplitRatio = useStore((s) => s.setSplitRatio);
 
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  // 默认单屏 Markdown 编辑；开启后右侧切出真实主题预览
+  const [split, setSplit] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
 
-  /** 进入分屏编辑；离线时编辑页可能未缓存，留在本页即时渲染编辑 */
-  const goSplitEdit = useCallback(() => {
-    if (!navigator.onLine) {
-      toast("离线时分屏编辑暂不可用，可在此页直接编辑", "error");
-      return;
-    }
-    router.push(`/edit/${docId}`);
-  }, [docId, router]);
+  const editorRef = useRef<EditorHandle>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const splitAreaRef = useRef<HTMLDivElement>(null);
+  const { setActive, onEditorScrollLine, onPreviewScroll } = useSyncScroll(
+    editorRef,
+    previewRef
+  );
 
-  // ⌘E / Ctrl+E 进入分屏编辑（capture 阶段，优先于页面内其他监听）
+  const toggleSplit = useCallback(() => setSplit((v) => !v), []);
+
+  // ⌘E / Ctrl+E 切换双屏预览（capture 阶段，优先于页面内其他监听）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
         e.preventDefault();
-        goSplitEdit();
+        toggleSplit();
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [goSplitEdit]);
+  }, [toggleSplit]);
+
+  const onDividerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const divider = e.currentTarget;
+    divider.setPointerCapture(e.pointerId);
+    const onMove = (ev: PointerEvent) => {
+      const rect = splitAreaRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0) return;
+      setSplitRatio((ev.clientX - rect.left) / rect.width);
+    };
+    const onUp = () => {
+      divider.removeEventListener("pointermove", onMove);
+    };
+    divider.addEventListener("pointermove", onMove);
+    divider.addEventListener("pointerup", onUp, { once: true });
+  };
 
   /** 直接复制到公众号，与编辑页的复制管线一致 */
   const copyWechat = async () => {
@@ -118,7 +147,7 @@ export function ArticleReader({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-24 text-[13px] text-[var(--ink-faint)]">
+      <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-[13px] text-[var(--ink-faint)]">
         <Loader2 size={16} className="animate-spin" /> 加载中…
       </div>
     );
@@ -128,24 +157,28 @@ export function ArticleReader({
   const docKey = `${docId}:${docVersion}`;
 
   return (
-    <div>
-      {/* 操作栏：sticky 顶置，滚动时保持可达；面包屑只保留内容区顶栏一处。
-          不加入场动画：内部 ··· 菜单的 fixed 遮罩需以视口为参照 */}
-      <div className="sticky top-0 z-10 -mx-4 mb-2 flex items-center justify-end gap-2 bg-[var(--paper)]/85 px-4 py-2 backdrop-blur sm:-mx-8 sm:px-8">
-        {/* 一键复制：与编辑页同款，点开选择平台 */}
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* 顶部操作栏：一键复制 / 双屏 / 更多 —— portal 到面包屑顶栏右侧，与之共用一行，省掉一整条横栏 */}
+      {actionSlot
+        ? createPortal(
+            <>
+        {/* 排版主题 / 设置 / AI / 版本 / 导出 —— 从老编辑页搬来的功能簇 */}
+        <EditorTools editorRef={editorRef} onOpenVersions={() => setVersionsOpen(true)} />
+        <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
+        {/* 一键复制：点开选择平台（纯图标） */}
         <div className="relative">
           <button
-            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[12.5px] text-[var(--ink)] hover:bg-[var(--paper)] disabled:cursor-default disabled:opacity-45"
+            className="flex h-8 cursor-pointer items-center gap-0.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] pl-2 pr-1.5 text-[var(--ink)] hover:bg-[var(--paper)] disabled:cursor-default disabled:opacity-45"
             onClick={() => setCopyMenuOpen((v) => !v)}
             disabled={chars === 0 || copying !== null}
+            title="一键复制"
           >
             {copying !== null ? (
-              <Loader2 size={13} className="animate-spin" />
+              <Loader2 size={15} className="animate-spin" />
             ) : (
-              <Copy size={13} />
+              <Copy size={15} />
             )}
-            一键复制
-            <ChevronDown size={12} className="opacity-70" />
+            <ChevronDown size={13} className="opacity-70" />
           </button>
           {copyMenuOpen ? (
             <>
@@ -174,12 +207,15 @@ export function ArticleReader({
           ) : null}
         </div>
         <button
-          className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
-          title="左侧源码、右侧公众号真实效果（⌘E）"
-          onClick={goSplitEdit}
+          className={`flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors ${
+            split
+              ? "bg-[var(--accent)] text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
+              : "border border-[var(--hairline-strong)] bg-[var(--panel)] text-[var(--ink)] hover:bg-[var(--paper)]"
+          }`}
+          title="双屏：左源码、右公众号真实效果（⌘E）"
+          onClick={toggleSplit}
         >
-          <Columns2 size={13} />
-          分屏编辑
+          <Columns2 size={15} />
         </button>
         <div className="relative">
           <button
@@ -193,77 +229,120 @@ export function ArticleReader({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-44 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                <button
-                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    exportMarkdown(title || "未命名文章", useStore.getState().content);
-                  }}
-                >
-                  <Download size={13} className="text-[var(--ink-faint)]" />
-                  导出 Markdown
-                </button>
                 {onDelete ? (
-                  <>
-                    <div className="my-1 border-t border-[var(--hairline)]" />
-                    <button
-                      className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onDelete();
-                      }}
-                    >
-                      <Trash2 size={13} />
-                      删除文章
-                    </button>
-                  </>
+                  <button
+                    className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete();
+                    }}
+                  >
+                    <Trash2 size={13} />
+                    删除文章
+                  </button>
                 ) : null}
               </div>
             </>
           ) : null}
         </div>
-      </div>
+            </>,
+            actionSlot
+          )
+        : null}
 
-      {/* 标题（可直接改）+ 元信息：px-4 与正文编辑区的行内边距共线 */}
-      <div className="rise mx-auto max-w-[720px] px-4 pt-4">
-        <input
-          className="w-full bg-transparent text-2xl font-bold leading-[1.25] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] [font-family:var(--serif)] sm:text-[32px]"
-          value={title}
-          placeholder="未命名文章"
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
-          <button
-            className="flex cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
-            onClick={() => onOpenCategory(category || "未分类")}
-          >
-            <Folder size={12} />
-            {category || "未分类"}
-          </button>
-          <span>·</span>
-          <span>{SAVE_LABEL[saveState] ?? saveState}</span>
-          <span>·</span>
-          <span>{chars} 字</span>
-          {chars > 0 ? (
-            <>
-              <span>·</span>
-              <span>约 {Math.max(1, Math.ceil(chars / 400))} 分钟读完</span>
-            </>
-          ) : null}
+      {/* 编辑区（默认单屏）/ 双屏（左源码 + 右预览） */}
+      <div ref={splitAreaRef} className="flex min-h-0 min-w-0 flex-1">
+        {/* 源码编辑列 */}
+        <div
+          className="flex min-w-0 flex-col bg-[var(--panel)]"
+          style={{ width: split ? `${splitRatio * 100}%` : "100%" }}
+          onPointerEnter={() => setActive("editor")}
+        >
+          <EditorToolbar
+            onCommand={(cmd) => editorRef.current?.applyFormat(cmd)}
+            outlineOpen={outlineOpen}
+            onToggleOutline={() => setOutlineOpen((v) => !v)}
+          />
+          <div className="flex min-h-0 flex-1">
+            {outlineOpen ? (
+              <OutlinePanel onJump={(line) => editorRef.current?.scrollToLine(line)} />
+            ) : null}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {/* 标题 + 元信息（固定于源码上方） */}
+              <div className="shrink-0">
+                <div className="mx-auto w-full max-w-[820px] px-4 pt-5">
+                  <input
+                    className="w-full bg-transparent text-2xl font-bold leading-[1.25] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] [font-family:var(--serif)]"
+                    value={title}
+                    placeholder="未命名文章"
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                  <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
+                    <button
+                      className="flex cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
+                      onClick={() => onOpenCategory(category || "未分类")}
+                    >
+                      <Folder size={12} />
+                      {category || "未分类"}
+                    </button>
+                    <span>·</span>
+                    <span>{SAVE_LABEL[saveState] ?? saveState}</span>
+                    <span>·</span>
+                    <span>{chars} 字</span>
+                    {chars > 0 ? (
+                      <>
+                        <span>·</span>
+                        <span>约 {Math.max(1, Math.ceil(chars / 400))} 分钟读完</span>
+                      </>
+                    ) : null}
+                  </div>
+                  <div className="mb-1 mt-4 h-px w-10 bg-[var(--hairline-strong)]" />
+                </div>
+              </div>
+              {/* Markdown 源码编辑器：填满剩余高度，内部滚动 */}
+              <div className="min-h-0 flex-1">
+                <div className="mx-auto h-full w-full max-w-[820px]">
+                  <MarkdownEditor
+                    key={docKey}
+                    ref={editorRef}
+                    docKey={docKey}
+                    initialContent={useStore.getState().content}
+                    onChange={setContent}
+                    onScrollLine={onEditorScrollLine}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="mb-2 mt-8 h-px w-10 bg-[var(--hairline-strong)]" />
+
+        {/* 可拖拽分隔条 + 右侧预览（仅双屏时） */}
+        {split ? (
+          <>
+            <div
+              className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-transparent hover:bg-[var(--accent-wash)]"
+              onPointerDown={onDividerPointerDown}
+              title="拖动调整源码/预览宽度"
+            >
+              <span className="absolute left-1/2 top-1/2 h-8 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--hairline-strong)] group-hover:bg-[var(--accent)]" />
+            </div>
+            <div
+              className="min-w-0 flex-1"
+              onPointerEnter={() => setActive("preview")}
+            >
+              <Preview ref={previewRef} onScroll={onPreviewScroll} />
+            </div>
+          </>
+        ) : null}
       </div>
 
-      {/* 正文：即时渲染编辑器，随内容自然增高、跟随页面滚动 */}
-      <div className="rise reader-live mx-auto max-w-[720px]" style={{ animationDelay: "90ms" }}>
-        <MarkdownEditor
-          key={docKey}
-          docKey={docKey}
-          initialContent={useStore.getState().content}
-          live
-          onChange={setContent}
-        />
-      </div>
+      {/* 版本历史抽屉：由功能簇里的「版本」按钮唤起 */}
+      <VersionsPanel
+        open={versionsOpen}
+        onClose={() => setVersionsOpen(false)}
+        loggedIn={loggedIn}
+        onRestored={reload}
+      />
     </div>
   );
 }
