@@ -180,6 +180,8 @@ export function Home() {
     return new URLSearchParams(window.location.search).get("doc");
   });
   const [search, setSearch] = useState("");
+  /** 阅读视图下，ArticleReader 的操作按钮通过 portal 挂进面包屑顶栏右侧，省掉一整条横栏 */
+  const [actionSlot, setActionSlot] = useState<HTMLDivElement | null>(null);
   /** 文档操作菜单：记录触发按钮的视口锚点，菜单用 fixed 定位避免被列表容器 overflow-hidden 裁剪 */
   const [docMenu, setDocMenu] = useState<{ id: string; top: number; right: number } | null>(null);
   const [customCats, setCustomCats] = useState<string[]>([]);
@@ -458,7 +460,8 @@ export function Home() {
     if (localMode) {
       try {
         const doc = createLocalDoc({ category: cat });
-        router.push(`/edit/${doc.id}`);
+        setDocs(listLocalDocs());
+        openDoc(doc.id);
       } catch {
         toast("新建失败：浏览器存储空间不足", "error");
       }
@@ -485,7 +488,9 @@ export function Home() {
       if (!res.ok) throw new Error();
       const doc = await res.json();
       applyServerDoc(doc); // 新文档立即入镜像，编辑页/离线随时可用
-      router.push(`/edit/${doc.id}`);
+      setDocs(mergedCloudList());
+      openDoc(doc.id);
+      setCreating(false);
     } catch {
       toast("新建失败", "error");
       setCreating(false);
@@ -503,6 +508,7 @@ export function Home() {
       if (!ok) return;
       deleteLocalDoc(doc.id);
       setDocs(listLocalDocs());
+      if (readingId === doc.id) setReadingId(null); // 删的是正打开的文章：退回列表，避免残留空白阅读器
       toast("已删除", "success");
       return;
     }
@@ -731,7 +737,8 @@ export function Home() {
         : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN });
       // 草稿已入库，清空旧缓冲，避免登录后被旧迁移逻辑重复上传
       if (hasDraft) s.setDoc({ id: null, title: "未命名文章", content: DEFAULT_MARKDOWN });
-      router.push(`/edit/${doc.id}`);
+      setDocs(listLocalDocs());
+      openDoc(doc.id);
     } catch {
       // 本地存储不可用时退回旧的单稿模式
       router.push("/edit");
@@ -969,7 +976,7 @@ export function Home() {
             className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
             onClick={() => {
               setDocMenu(null);
-              router.push(`/edit/${doc.id}`);
+              openDoc(doc.id);
             }}
           >
             <PenLine size={13} className="text-[var(--ink-faint)]" />
@@ -1358,19 +1365,26 @@ export function Home() {
                 </button>
               </>
             ) : null}
+            {readingId && !isTrash ? (
+              // ArticleReader 的操作按钮 portal 到此处，与面包屑同处一行
+              <div ref={setActionSlot} className="flex shrink-0 items-center gap-2" />
+            ) : null}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          {readingId && !isTrash ? (
+            // 文章视图占满内容区高度：便于「双屏」左右各自独立滚动
+            <ArticleReader
+              docId={readingId}
+              actionSlot={actionSlot}
+              onOpenCategory={openCategory}
+              onDelete={() => {
+                const d = (docs ?? []).find((x) => x.id === readingId);
+                if (d) void removeDoc(d);
+              }}
+            />
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-[960px] px-4 pb-24 pt-6 sm:px-8">
-              {readingId && !isTrash ? (
-                <ArticleReader
-                  docId={readingId}
-                  onOpenCategory={openCategory}
-                  onDelete={() => {
-                    const d = (docs ?? []).find((x) => x.id === readingId);
-                    if (d) void removeDoc(d);
-                  }}
-                />
-              ) : activeCat === STATS ? (
+              {activeCat === STATS ? (
                 <WritingStats />
               ) : activeCat === ASSETS ? (
                 <AssetsGallery ossConfigured={config?.oss ?? false} />
@@ -1535,6 +1549,7 @@ export function Home() {
               )}
             </div>
           </div>
+          )}
         </main>
         {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
         {!online && !localMode ? (
