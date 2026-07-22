@@ -71,6 +71,14 @@ export function ArticleReader({
   // 默认单屏 Markdown 编辑；开启后右侧切出真实主题预览
   const [split, setSplit] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  // 预览列延迟卸载：收起时先让宽度动画走完再卸载，避免右栏瞬间消失
+  const [previewMounted, setPreviewMounted] = useState(false);
+  // 拖拽分隔条期间关闭宽度过渡，否则拖动会"追帧"发飘
+  const [draggingSplit, setDraggingSplit] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
 
   const editorRef = useRef<EditorHandle>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -80,7 +88,19 @@ export function ArticleReader({
     previewRef
   );
 
-  const toggleSplit = useCallback(() => setSplit((v) => !v), []);
+  const toggleSplit = useCallback(() => {
+    const next = !split;
+    setSplit(next);
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    if (next) {
+      setPreviewMounted(true);
+    } else {
+      closeTimer.current = setTimeout(() => setPreviewMounted(false), 300);
+    }
+  }, [split]);
 
   // ⌘E 切换双屏预览、⌘/ 切换源码模式（capture 阶段，优先于页面内其他监听）
   useEffect(() => {
@@ -103,6 +123,7 @@ export function ArticleReader({
     e.preventDefault();
     const divider = e.currentTarget;
     divider.setPointerCapture(e.pointerId);
+    setDraggingSplit(true);
     const onMove = (ev: PointerEvent) => {
       const rect = splitAreaRef.current?.getBoundingClientRect();
       if (!rect || rect.width === 0) return;
@@ -110,6 +131,7 @@ export function ArticleReader({
     };
     const onUp = () => {
       divider.removeEventListener("pointermove", onMove);
+      setDraggingSplit(false);
     };
     divider.addEventListener("pointermove", onMove);
     divider.addEventListener("pointerup", onUp, { once: true });
@@ -260,7 +282,11 @@ export function ArticleReader({
       <div ref={splitAreaRef} className="flex min-h-0 min-w-0 flex-1">
         {/* 源码编辑列 */}
         <div
-          className="flex min-w-0 flex-col bg-[var(--panel)]"
+          className={`flex min-w-0 flex-col bg-[var(--panel)] ${
+            draggingSplit
+              ? ""
+              : "transition-[width] duration-300 ease-[cubic-bezier(0.22,0.9,0.26,1)]"
+          }`}
           style={{ width: split ? `${splitRatio * 100}%` : "100%" }}
           onPointerEnter={() => setActive("editor")}
         >
@@ -271,9 +297,14 @@ export function ArticleReader({
             centered={!split}
           />
           <div className="flex min-h-0 flex-1">
-            {outlineOpen ? (
+            {/* 大纲面板：宽度过渡开合，面板本体定宽避免文字随宽度挤压 */}
+            <div
+              className={`shrink-0 overflow-hidden transition-[width] duration-[260ms] ease-[cubic-bezier(0.22,0.9,0.26,1)] ${
+                outlineOpen ? "w-52" : "w-0"
+              }`}
+            >
               <OutlinePanel onJump={(line) => editorRef.current?.scrollToLine(line)} />
-            ) : null}
+            </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {/* 标题 + 元信息（固定于源码上方）：左缘与正文文字对齐
                   （单屏 16px = .cm-doc 行内缩，双屏 24px = .cm-split 行内缩） */}
@@ -327,8 +358,8 @@ export function ArticleReader({
           </div>
         </div>
 
-        {/* 可拖拽分隔条 + 右侧预览（仅双屏时） */}
-        {split ? (
+        {/* 可拖拽分隔条 + 右侧预览：收起时先走完宽度动画再卸载 */}
+        {previewMounted ? (
           <>
             <div
               className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-[var(--panel)] hover:bg-[var(--accent-wash)]"
@@ -338,7 +369,9 @@ export function ArticleReader({
               <span className="absolute left-1/2 top-1/2 h-8 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--hairline-strong)] group-hover:bg-[var(--accent)]" />
             </div>
             <div
-              className="min-w-0 flex-1"
+              className={`min-w-0 flex-1 transition-opacity duration-200 ${
+                split ? "opacity-100" : "opacity-0"
+              }`}
               onPointerEnter={() => setActive("preview")}
             >
               <Preview ref={previewRef} onScroll={onPreviewScroll} />
