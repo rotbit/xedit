@@ -186,8 +186,8 @@ function VersionList({
         </div>
       ) : versions.length === 0 ? (
         <p className="px-6 py-10 text-center text-[12px] leading-6 text-[var(--ink-faint)]">
-          还没有版本。编辑会实时自动保存，停止编辑 5 分钟后
-          自动定格为一个版本；也可以点右上角「存档」立即保存。
+          还没有版本。编辑会实时自动保存，首次保存先留个底，之后每写满 10 分钟
+          定格一版，停笔或关页面时再补一版；也可以点右上角「存档」立即保存。
         </p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto py-1.5">

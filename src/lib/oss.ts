@@ -1,5 +1,17 @@
 import OSS from "ali-oss";
 
+/** 允许上传的图片类型 → 扩展名 */
+export const IMAGE_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/svg+xml": "svg",
+};
+
+/** 单张图片大小上限 */
+export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+
 export function ossConfigured(): boolean {
   return Boolean(
     process.env.OSS_REGION &&
@@ -26,17 +38,48 @@ export function ossUrlOf(key: string, fallback?: string): string {
   return `https://${process.env.OSS_BUCKET}.${process.env.OSS_REGION}.aliyuncs.com/${key}`;
 }
 
+/** 生成对象 key：xedit/年月/uuid.ext */
+export function ossObjectKey(ext: string): string {
+  const date = new Date();
+  const dir = `xedit/${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}`;
+  return `${dir}/${crypto.randomUUID()}.${ext}`;
+}
+
+/** 只有本服务签发的 key 才允许登记入库 */
+export const OSS_KEY_PATTERN = /^xedit\/\d{6}\/[0-9a-f-]{36}\.[a-z0-9]{1,5}$/;
+
 /** 上传 Buffer 到 OSS，返回可访问 URL 与对象 key */
 export async function ossPut(
   buffer: Buffer,
   ext: string,
   contentType: string
 ): Promise<{ url: string; key: string }> {
-  const date = new Date();
-  const dir = `xedit/${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}`;
-  const key = `${dir}/${crypto.randomUUID()}.${ext}`;
+  const key = ossObjectKey(ext);
   const result = await client().put(key, buffer, { headers: { "Content-Type": contentType } });
   return { url: ossUrlOf(key, result.url), key };
+}
+
+/** 签一个限时的 PUT 直传地址，浏览器凭它把文件直接发给 OSS（不经本服务中转） */
+export function ossSignedPutUrl(key: string, contentType: string): string {
+  return client().signatureUrl(key, {
+    method: "PUT",
+    "Content-Type": contentType,
+    expires: 600,
+  });
+}
+
+/** 读对象元信息；对象不存在返回 null（用来确认直传是否真的成功） */
+export async function ossStat(key: string): Promise<{ size: number; mime: string } | null> {
+  try {
+    const res = await client().head(key);
+    const headers = (res.res.headers ?? {}) as Record<string, string>;
+    return {
+      size: Number(headers["content-length"] ?? 0) || 0,
+      mime: headers["content-type"] ?? "",
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** 列出 xedit/ 前缀下的对象（最多 1000 个） */

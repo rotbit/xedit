@@ -24,6 +24,8 @@ import {
   Check,
   FileText,
   ChevronsUpDown,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { clearMirror } from "@/lib/docStore";
@@ -35,7 +37,7 @@ import { exportMarkdown, exportHtml, exportPdf, exportImage } from "@/lib/export
 import { toast } from "./Toast";
 import { askInput } from "./PromptDialog";
 import { openAuth } from "./AuthDialog";
-import { DarkToggle } from "./DarkToggle";
+import { DarkToggle, toggleDark } from "./DarkToggle";
 import { ThemePickerPanel } from "./ThemePicker";
 import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
 import { ReviewDialog } from "./ReviewDialog";
@@ -696,9 +698,15 @@ export function Topbar({
           <p className="truncate px-3.5 py-1.5 text-[12px] text-[var(--ink-faint)]">
             {session.user.name ?? session.user.email}
           </p>
+          <button className={itemCls} onClick={toggleDark}>
+            <Moon size={14} className="dark:hidden" />
+            <Sun size={14} className="hidden dark:block" />
+            <span className="dark:hidden">夜间模式</span>
+            <span className="hidden dark:block">日间模式</span>
+          </button>
           <button className={itemCls} onClick={() => setAiSettingsOpen(true)}>
-            <Sparkles size={14} />
-            AI 设置…
+            <Settings2 size={14} />
+            设置…
           </button>
           <div className="my-1 border-t border-[var(--hairline)]" />
           <button

@@ -33,6 +33,8 @@ export function useEditorDoc(routeDocId: string | null) {
   /** 已直接沿用 store 内容的文档，防止 effect 重跑时重复装载打断输入 */
   const adoptedRef = useRef<string | null>(null);
   const idleVersionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 本次会话是否有过成功的云端保存——没有就不必在关页面时请求存档 */
+  const savedThisSessionRef = useRef(false);
   const lastSavedRef = useRef<{
     docId: string | null;
     title: string;
@@ -56,6 +58,23 @@ export function useEditorDoc(routeDocId: string | null) {
     return () => {
       if (idleVersionTimerRef.current) clearTimeout(idleVersionTimerRef.current);
     };
+  }, []);
+
+  // 关闭 / 离开页面：空闲定时器等不到就被销毁了，用 beacon 补一次存档请求
+  // （服务端对 auto 有 1 分钟节流与改动量门槛，来回切页不会刷出一堆版本）
+  useEffect(() => {
+    const flush = () => {
+      const id = useStore.getState().docId;
+      if (!id || isLocalId(id) || !savedThisSessionRef.current) return;
+      if (!navigator.onLine || !navigator.sendBeacon) return;
+      navigator.sendBeacon(
+        `/api/documents/${id}/versions`,
+        new Blob([JSON.stringify({ kind: "auto" })], { type: "application/json" })
+      );
+      savedThisSessionRef.current = false;
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
   }, []);
 
   // Cmd+S：立即保存并手动存档一个版本
@@ -347,6 +366,7 @@ export function useEditorDoc(routeDocId: string | null) {
       const pushed = await pushMirrorDoc(docId);
       if (pushed) {
         useStore.getState().setSaveState("saved");
+        savedThisSessionRef.current = true;
         scheduleIdleVersion(docId);
       } else {
         useStore.getState().setSaveState(navigator.onLine ? "error" : "pending");
