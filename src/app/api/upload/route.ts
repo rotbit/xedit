@@ -1,17 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { ossConfigured, ossPut } from "@/lib/oss";
+import { ossConfigured, ossPut, IMAGE_EXT, MAX_IMAGE_SIZE } from "@/lib/oss";
 import { prisma } from "@/lib/prisma";
 
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_TYPES: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/gif": "gif",
-  "image/webp": "webp",
-  "image/svg+xml": "svg",
-};
-
+/** 服务端中转上传：直传不可用（如 Bucket 未配 CORS）时的兜底通道 */
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -29,10 +21,10 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "缺少文件" }, { status: 400 });
   }
-  if (file.size > MAX_SIZE) {
+  if (file.size > MAX_IMAGE_SIZE) {
     return NextResponse.json({ error: "图片不能超过 10MB" }, { status: 413 });
   }
-  const ext = ALLOWED_TYPES[file.type];
+  const ext = IMAGE_EXT[file.type];
   if (!ext) {
     return NextResponse.json({ error: `不支持的图片类型: ${file.type}` }, { status: 415 });
   }
