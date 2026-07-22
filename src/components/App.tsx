@@ -27,6 +27,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
 
   const setContent = useStore((s) => s.setContent);
+  const sourceMode = useStore((s) => s.sourceMode);
   const splitRatio = useStore((s) => s.splitRatio);
   const setSplitRatio = useStore((s) => s.setSplitRatio);
   const { loggedIn, docVersion, loading, reload } = useEditorDoc(docId);
@@ -110,6 +111,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
                 ref={editorRef}
                 docKey={docKey}
                 initialContent={useStore.getState().content}
+                live={!sourceMode}
                 onChange={setContent}
                 onScrollLine={onEditorScrollLine}
               />
@@ -118,7 +120,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
         </div>
         {/* 可拖拽分隔条（窄屏单栏时隐藏） */}
         <div
-          className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-transparent hover:bg-[var(--accent-wash)] max-md:hidden"
+          className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-[var(--panel)] hover:bg-[var(--accent-wash)] max-md:hidden"
           onPointerDown={onDividerPointerDown}
           title="拖动调整编辑/预览宽度"
         >

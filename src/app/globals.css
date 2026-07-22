@@ -44,8 +44,9 @@
   --md-link: #1e6bb8;
   --md-code: #7c5cbf;
   --md-code-bg: #f5f2fa;
-  --serif: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", sans-serif;
+  /* 刊物体：标题、报头、卡片名走真正的宋体，透出"稿/刊物"的编辑气质 */
+  --serif: "Songti SC", "Source Han Serif SC", "Noto Serif SC", "STSong",
+    "SimSun", Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", sans-serif;
   --mono: "SF Mono", Menlo, Monaco, "JetBrains Mono", Consolas, monospace;
@@ -152,6 +153,24 @@ body {
   padding: 20px 4px 45vh 4px;
   caret-color: var(--accent);
 }
+/* 首页阅读态：正文居中约束在可读宽度内，滚动容器仍铺满整列，
+   于是滚动条落到列最右缘（贴面板边），右侧留白变成对称的正常边距 */
+.cm-doc .cm-editor .cm-content {
+  max-width: 760px;
+  margin-inline: auto;
+}
+/* 标题区到正文的空隙收紧（仅首页文章视图，不影响 /edit 老编辑页） */
+.cm-reader .cm-editor .cm-content {
+  padding-top: 10px;
+}
+/* 行内缩与标题区对齐：单屏 12+4=16px（标题 px-4）、双屏 20+4=24px（标题 px-6，
+   同时让正文不贴分隔条） */
+.cm-doc .cm-editor .cm-line {
+  padding: 0 12px;
+}
+.cm-split .cm-editor .cm-line {
+  padding: 0 20px;
+}
 .cm-editor .cm-line {
   padding: 0 14px;
 }
@@ -165,6 +184,36 @@ body {
 }
 .cm-editor .cm-scroller {
   overflow: auto;
+  /* Firefox：细滚动条，默认隐藏，进入编辑区/滚动时才浮现 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.cm-editor .cm-scroller:hover,
+.cm-editor .cm-scroller:focus-within {
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+/* WebKit：内缩成一根悬浮胶囊（约 5px），默认透明，避免在正文右侧空白里孤零零地突兀 */
+.cm-editor .cm-scroller::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+.cm-editor .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+.cm-editor .cm-scroller:hover::-webkit-scrollbar-thumb,
+.cm-editor .cm-scroller:focus-within::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  background-clip: padding-box;
+}
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+  background-clip: padding-box;
 }
 
 /* —— 首页文章视图的即时渲染编辑器：随内容自然增高、透明底、跟随页面滚动 —— */
@@ -185,32 +234,101 @@ body {
 /* —— 即时渲染（类 Obsidian Live Preview）：编辑区内直接呈现排版 —— */
 .cm-live-preview .cm-content {
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 16px;
+}
+/* 行首标记（#、>）：永远占位但淡化缩小 —— 光标经过零位移，且保留级别信息 */
+.cm-live-preview .cm-lp-mark {
+  opacity: 0.3;
+  font-size: 12px;
+  font-weight: 400;
+}
+/* 标题：宋体刊物风 + 层级呼吸空间（静态行级类，不随光标变化，零位移）。
+   字号由语法高亮的 em 值控制，这里只负责字体气质与块级节奏 */
+.cm-live-preview .cm-line.cm-lp-h1,
+.cm-live-preview .cm-line.cm-lp-h2,
+.cm-live-preview .cm-line.cm-lp-h3,
+.cm-live-preview .cm-line.cm-lp-h4 {
+  font-family: var(--serif);
+  letter-spacing: 0.01em;
+}
+.cm-live-preview .cm-line.cm-lp-h1 {
+  padding-top: 22px;
+  padding-bottom: 6px;
+}
+.cm-live-preview .cm-line.cm-lp-h2 {
+  padding-top: 18px;
+  padding-bottom: 4px;
+}
+.cm-live-preview .cm-line.cm-lp-h3,
+.cm-live-preview .cm-line.cm-lp-h4 {
+  padding-top: 12px;
+  padding-bottom: 2px;
 }
 /* 引用块：左侧竖线 */
 .cm-live-preview .cm-lp-quote {
-  border-left: 3px solid var(--hairline-strong);
+  border-left: 2px solid var(--hairline-strong);
   color: var(--ink-soft);
 }
-/* 代码块：等宽字体 + 底色 */
-.cm-live-preview .cm-lp-code {
+/* 代码块：等宽字体 + 体系灰底 + 统一内衬 */
+.cm-live-preview .cm-line.cm-lp-code {
   font-family: var(--mono);
   font-size: 13px;
-  background: var(--cm-active-line);
+  background: var(--sidebar);
+  padding-left: 18px;
+  padding-right: 18px;
 }
-.cm-live-preview .cm-lp-code-first {
-  border-radius: 6px 6px 0 0;
+/* 围栏行（``` 与语言标记）弱化成结构注记，不再像裸露的符号 */
+.cm-live-preview .cm-line.cm-lp-code-first,
+.cm-live-preview .cm-line.cm-lp-code-last {
+  font-size: 11px;
+  color: var(--ink-faint);
 }
-.cm-live-preview .cm-lp-code-last {
-  border-radius: 0 0 6px 6px;
+.cm-live-preview .cm-line.cm-lp-code-first {
+  border-radius: 8px 8px 0 0;
+  padding-top: 8px;
+}
+.cm-live-preview .cm-line.cm-lp-code-last {
+  border-radius: 0 0 8px 8px;
+  padding-bottom: 8px;
+}
+/* 行内代码：小胶囊（底色与配色来自语法高亮，这里补内衬与圆角） */
+.cm-live-preview .cm-lp-ic {
+  background: var(--md-code-bg);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin: 0 1px;
+  font-size: 0.92em;
 }
 /* 行内渲染的图片 */
 .cm-live-preview .cm-lp-image img {
   display: block;
   max-width: 100%;
   max-height: 420px;
-  margin: 6px 0;
-  border-radius: 6px;
+  margin: 8px 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+/* 夜间：图片压一点亮度，融入深色环境更护眼 */
+[data-theme="dark"] .cm-live-preview .cm-lp-image img {
+  filter: brightness(0.88);
+}
+/* 图片加载失败：收起破图标，换成虚线占位签 */
+.cm-live-preview .cm-lp-image-fallback {
+  display: none;
+}
+.cm-live-preview .cm-lp-broken img {
+  display: none;
+}
+.cm-live-preview .cm-lp-broken .cm-lp-image-fallback {
+  display: inline-flex;
+  align-items: center;
+  margin: 8px 0;
+  padding: 9px 14px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 8px;
+  color: var(--ink-faint);
+  font-size: 13px;
+  cursor: pointer;
 }
 /* 分割线 */
 .cm-live-preview .cm-lp-hr {
@@ -233,9 +351,15 @@ body {
   accent-color: var(--accent);
   cursor: pointer;
 }
-/* 链接文字：Cmd+点击打开 */
+/* 链接文字：淡下划线示意可交互，Cmd+点击打开 */
 .cm-live-preview .cm-lp-link {
   cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--md-link) 35%, transparent);
+  text-underline-offset: 3px;
+}
+.cm-live-preview .cm-lp-link:hover {
+  text-decoration-color: var(--md-link);
 }
 
 /* —— Toast 出入场 —— */

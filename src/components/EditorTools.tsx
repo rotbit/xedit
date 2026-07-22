@@ -84,7 +84,7 @@ function Dropdown({
 }
 
 const iconBtn =
-  "flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-soft)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]";
+  "flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 
 const itemCls =
   "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]";
@@ -106,6 +106,8 @@ export function EditorTools({
   const setLinkFootnote = useStore((s) => s.setLinkFootnote);
   const syncScroll = useStore((s) => s.syncScroll);
   const setSyncScroll = useStore((s) => s.setSyncScroll);
+  const sourceMode = useStore((s) => s.sourceMode);
+  const setSourceMode = useStore((s) => s.setSourceMode);
   const tuneFontSize = useStore((s) => s.tuneFontSize);
   const tuneLineHeight = useStore((s) => s.tuneLineHeight);
   const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
@@ -217,7 +219,7 @@ export function EditorTools({
         width={430}
         trigger={
           <button className={iconBtn} title={`排版主题：${getTheme(themeId).name}`}>
-            <Palette size={15} strokeWidth={1.75} />
+            <Palette size={16} strokeWidth={1.75} />
           </button>
         }
       >
@@ -229,7 +231,7 @@ export function EditorTools({
         width={264}
         trigger={
           <button className={iconBtn} title="设置">
-            <Settings2 size={15} strokeWidth={1.75} />
+            <Settings2 size={16} strokeWidth={1.75} />
           </button>
         }
       >
@@ -237,6 +239,7 @@ export function EditorTools({
           [
             ["外链转文末引用", linkFootnote, setLinkFootnote],
             ["同步滚动", syncScroll, setSyncScroll],
+            ["源码模式（⌘/）", sourceMode, setSourceMode],
           ] as const
         ).map(([label, value, setter]) => (
           <button
@@ -305,7 +308,7 @@ export function EditorTools({
         width={200}
         trigger={
           <button className={iconBtn} title="AI 助手">
-            <Sparkles size={15} strokeWidth={1.75} />
+            <Sparkles size={16} strokeWidth={1.75} />
           </button>
         }
       >
@@ -375,7 +378,7 @@ export function EditorTools({
 
       {/* 版本历史 */}
       <button className={iconBtn} onClick={onOpenVersions} title="版本历史">
-        <History size={15} strokeWidth={1.75} />
+        <History size={16} strokeWidth={1.75} />
       </button>
 
       {/* 导出 */}
@@ -383,7 +386,7 @@ export function EditorTools({
         width={180}
         trigger={
           <button className={iconBtn} title="导出">
-            <Download size={15} strokeWidth={1.75} />
+            <Download size={16} strokeWidth={1.75} />
           </button>
         }
       >
