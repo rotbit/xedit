@@ -70,7 +70,7 @@ export function EditorToolbar({
   centered?: boolean;
 }) {
   return (
-    <div className="flex h-11 shrink-0 items-center overflow-x-auto border-b border-[var(--hairline)] bg-[var(--panel)]">
+    <div className="flex h-11 shrink-0 items-center overflow-x-auto border-b border-[var(--hairline-soft)] bg-[var(--panel)]">
       <div
         className={`flex items-center gap-0.5 ${
           centered ? "mx-auto w-full min-w-fit max-w-[760px] px-2" : "px-3"

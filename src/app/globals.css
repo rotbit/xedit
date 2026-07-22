@@ -12,6 +12,8 @@
   --ink-faint: #8c8c8c;
   --hairline: #e8e8e8;
   --hairline-strong: #d4d4d4;
+  /* 软发丝线：框架与正文之间保留的唯一分界，存在但不抢眼 */
+  --hairline-soft: #f0f0f0;
   --accent: #171717;
   --accent-deep: #000000;
   --accent-fg: #ffffff;
@@ -75,6 +77,7 @@
   --ink-faint: #8a8a8a;
   --hairline: #2a2a2a;
   --hairline-strong: #3d3d3d;
+  --hairline-soft: #242424;
   --accent: #ececec;
   --accent-deep: #ffffff;
   --accent-fg: #161616;

@@ -25,7 +25,7 @@ export function StatusBar() {
   const save = SAVE_LABEL[saveState];
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-[var(--hairline)] bg-[var(--panel)] px-4 text-[11px] text-[var(--ink-faint)]">
+    <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-[var(--hairline-soft)] bg-[var(--panel)] px-4 text-[11px] text-[var(--ink-faint)]">
       <span>字数 {stats.chars}</span>
       <span>行数 {stats.lines}</span>
       <span>约 {stats.minutes} 分钟读完</span>

@@ -196,7 +196,7 @@ export function ArticleReader({
         {/* 一键复制：点开选择平台（纯图标） */}
         <div className="relative">
           <button
-            className="flex h-8 cursor-pointer items-center gap-0.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] pl-2 pr-1.5 text-[var(--ink)] hover:bg-[var(--paper)] disabled:cursor-default disabled:opacity-45"
+            className="flex h-8 cursor-pointer items-center gap-0.5 rounded-lg pl-2 pr-1.5 text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-45"
             onClick={() => setCopyMenuOpen((v) => !v)}
             disabled={chars === 0 || copying !== null}
             title="一键复制"
@@ -237,8 +237,8 @@ export function ArticleReader({
         <button
           className={`flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors ${
             split
-              ? "bg-[var(--accent)] text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)]"
-              : "border border-[var(--hairline-strong)] bg-[var(--panel)] text-[var(--ink)] hover:bg-[var(--paper)]"
+              ? "bg-[var(--accent-wash)] text-[var(--accent)]"
+              : "text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
           }`}
           title="双屏：左源码、右公众号真实效果（⌘E）"
           onClick={toggleSplit}
@@ -362,7 +362,7 @@ export function ArticleReader({
         {previewMounted ? (
           <>
             <div
-              className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-[var(--panel)] hover:bg-[var(--accent-wash)]"
+              className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline-soft)] bg-[var(--panel)] hover:bg-[var(--accent-wash)]"
               onPointerDown={onDividerPointerDown}
               title="拖动调整源码/预览宽度"
             >

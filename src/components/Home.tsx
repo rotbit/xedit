@@ -1057,7 +1057,7 @@ export function Home() {
         ) : null}
         {/* 侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕 */}
         <aside
-          className={`fixed inset-y-0 left-0 z-40 flex w-[248px] shrink-0 flex-col border-r border-[var(--hairline)] bg-[var(--sidebar)] transition-transform duration-200 md:static md:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-40 flex w-[248px] shrink-0 flex-col bg-[var(--sidebar)] transition-transform duration-200 md:static md:translate-x-0 ${
             sidebarOpen ? "" : "-translate-x-full md:hidden"
           }`}
         >
@@ -1257,7 +1257,7 @@ export function Home() {
 
         {/* 内容区：面包屑顶栏 + 独立滚动 */}
         <main className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-12 shrink-0 items-center gap-1 border-b border-[var(--hairline)] px-4">
+          <div className="flex h-12 shrink-0 items-center gap-1 bg-[var(--panel)] px-4">
             {!sidebarOpen ? (
               <>
                 {/* 窄屏：抽屉式打开，不改动桌面记忆的折叠状态 */}
@@ -1395,7 +1395,7 @@ export function Home() {
                         {Array.from({ length: 4 }).map((_, i) => (
                           <div
                             key={i}
-                            className="h-[164px] animate-pulse rounded-xl border border-[var(--hairline)] bg-[var(--panel)]/70"
+                            className="h-[164px] animate-pulse rounded-xl bg-[var(--panel)]/70 ring-1 ring-black/[0.04] dark:ring-white/10"
                           />
                         ))}
                       </div>
@@ -1413,13 +1413,13 @@ export function Home() {
                         </p>
                       </div>
                     ) : docView === "list" && !isTrash ? (
-                      <div className="rise mt-4 overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <div className="rise mt-4 overflow-hidden rounded-xl bg-[var(--panel)] shadow-[0_1px_3px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.05] dark:ring-white/10">
                         {filtered.map((doc) => {
                           const cat = doc.category || UNCATEGORIZED;
                           return (
                             <div
                               key={doc.id}
-                              className="group relative flex cursor-pointer items-center gap-3 border-b border-[var(--hairline)] px-4 py-3 transition-colors last:border-b-0 hover:bg-[var(--paper)]"
+                              className="group relative flex cursor-pointer items-center gap-3 border-b border-[var(--hairline-soft)] px-4 py-3 transition-colors last:border-b-0 hover:bg-[var(--paper)]"
                               onClick={() => openDoc(doc.id)}
                             >
                               <FileText
@@ -1469,7 +1469,7 @@ export function Home() {
                           return (
                             <div
                               key={doc.id}
-                              className="rise group relative cursor-pointer rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all hover:border-[var(--hairline-strong)] hover:shadow-[0_6px_20px_-10px_rgba(0,0,0,0.16)]"
+                              className="rise group relative cursor-pointer rounded-xl bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.05] transition-all hover:shadow-[0_10px_28px_-12px_rgba(0,0,0,0.18)] hover:ring-black/[0.09] dark:ring-white/10 dark:hover:ring-white/20"
                               style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
                               onClick={() => {
                                 if (!isTrash) openDoc(doc.id);

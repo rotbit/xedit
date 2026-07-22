@@ -337,7 +337,7 @@ export function Topbar({
 
   return (
     <>
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--hairline)] bg-[var(--panel)] px-3">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-3">
       {/* 返回首页 */}
       <button
         className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
