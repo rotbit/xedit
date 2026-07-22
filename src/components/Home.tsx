@@ -26,6 +26,10 @@ import {
   List,
   PanelLeftClose,
   PanelLeftOpen,
+  ChevronsUpDown,
+  Settings2,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import {
@@ -51,7 +55,7 @@ import { useOnline } from "@/hooks/useOnline";
 import { toast, Toaster } from "./Toast";
 import { askInput, askConfirm } from "./PromptDialog";
 import { openAuth } from "./AuthDialog";
-import { DarkToggle } from "./DarkToggle";
+import { DarkToggle, toggleDark } from "./DarkToggle";
 
 /** 重型视图按需加载：阅读器连带 markdown 渲染/主题/复制管线，不该进首屏包 */
 const viewLoading = () => (
@@ -70,6 +74,10 @@ const WritingStats = dynamic(
 const AssetsGallery = dynamic(
   () => import("./AssetsGallery").then((m) => m.AssetsGallery),
   { ssr: false, loading: viewLoading }
+);
+const AiSettingsDialog = dynamic(
+  () => import("./AiDialogs").then((m) => m.AiSettingsDialog),
+  { ssr: false }
 );
 /* 落地页连带 13 套主题 CSS，只有首访未登录才需要，不进工作台首屏包 */
 const Landing = dynamic(() => import("./Landing").then((m) => m.Landing), {
@@ -98,6 +106,10 @@ interface AppConfig {
   google: boolean;
   oss: boolean;
 }
+
+/** 账户菜单项样式 */
+const accountItemCls =
+  "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]";
 
 const ALL = "__all__";
 const TRASH = "__trash__";
@@ -185,6 +197,13 @@ export function Home() {
   /** 文档操作菜单：记录触发按钮的视口锚点，菜单用 fixed 定位避免被列表容器 overflow-hidden 裁剪 */
   const [docMenu, setDocMenu] = useState<{ id: string; top: number; right: number } | null>(null);
   const [customCats, setCustomCats] = useState<string[]>([]);
+  /** 头像账户菜单：贴着侧栏底部的触发行向上弹出 */
+  const [accountMenu, setAccountMenu] = useState<{
+    bottom: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   /** 分类操作菜单：侧栏可滚动，菜单用 fixed 定位记录触发按钮的视口锚点 */
   const [catMenu, setCatMenu] = useState<{ path: string; top: number; left: number } | null>(
     null
@@ -1197,34 +1216,102 @@ export function Home() {
                     trashDocs?.length ? trashDocs.length : null,
                     <Trash2 size={14} />
                   )}
-                  <div className="mt-1.5 flex items-center gap-2 border-t border-[var(--hairline)] px-1.5 pt-2">
-                    {session?.user?.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={session.user.image}
-                        alt="avatar"
-                        className="h-6 w-6 rounded-full ring-1 ring-[var(--hairline-strong)]"
-                      />
-                    ) : (
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--sidebar-active)] text-[11px] text-[var(--ink)]">
-                        {(session?.user?.name ?? "U").slice(0, 1)}
-                      </span>
-                    )}
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--ink-soft)]">
-                      {session?.user?.name ?? session?.user?.email}
-                    </span>
-                    <DarkToggle />
+                  <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
                     <button
-                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
-                      title="退出登录"
-                      onClick={() => {
-                        // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章
-                        clearMirror();
-                        void signOut();
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 hover:bg-[var(--sidebar-hover)]"
+                      title="账户"
+                      onClick={(e) => {
+                        if (accountMenu) {
+                          setAccountMenu(null);
+                          return;
+                        }
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setAccountMenu({
+                          bottom: window.innerHeight - r.top + 6,
+                          left: r.left,
+                          width: r.width,
+                        });
                       }}
                     >
-                      <LogOut size={14} />
+                      {session?.user?.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={session.user.image}
+                          alt="avatar"
+                          className="h-6 w-6 shrink-0 rounded-full ring-1 ring-[var(--hairline-strong)]"
+                        />
+                      ) : (
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--sidebar-active)] text-[11px] text-[var(--ink)]">
+                          {(session?.user?.name ?? "U").slice(0, 1)}
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-left text-[12px] text-[var(--ink-soft)]">
+                        {session?.user?.name ?? session?.user?.email}
+                      </span>
+                      <ChevronsUpDown size={13} className="shrink-0 text-[var(--ink-faint)]" />
                     </button>
+                    {accountMenu
+                      ? createPortal(
+                          <>
+                            <div
+                              className="fixed inset-0 z-30"
+                              onClick={() => setAccountMenu(null)}
+                              onWheel={() => setAccountMenu(null)}
+                            />
+                            <div
+                              className="fixed z-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]"
+                              style={{
+                                bottom: accountMenu.bottom,
+                                left: accountMenu.left,
+                                width: Math.max(accountMenu.width, 186),
+                              }}
+                            >
+                              <p className="truncate px-3.5 pb-1 pt-0.5 text-[11px] text-[var(--ink-faint)]">
+                                {session?.user?.email ?? session?.user?.name}
+                              </p>
+                              <button
+                                className={accountItemCls}
+                                onClick={() => {
+                                  setAccountMenu(null);
+                                  toggleDark();
+                                }}
+                              >
+                                <Moon size={13} className="text-[var(--ink-faint)] dark:hidden" />
+                                <Sun
+                                  size={13}
+                                  className="hidden text-[var(--ink-faint)] dark:block"
+                                />
+                                <span className="dark:hidden">夜间模式</span>
+                                <span className="hidden dark:block">日间模式</span>
+                              </button>
+                              <button
+                                className={accountItemCls}
+                                onClick={() => {
+                                  setAccountMenu(null);
+                                  setSettingsOpen(true);
+                                }}
+                              >
+                                <Settings2 size={13} className="text-[var(--ink-faint)]" />
+                                设置…
+                              </button>
+                              <div className="my-1 border-t border-[var(--hairline)]" />
+                              <button
+                                className={accountItemCls}
+                                onClick={() => {
+                                  setAccountMenu(null);
+                                  // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章
+                                  clearMirror();
+                                  void signOut();
+                                }}
+                              >
+                                <LogOut size={13} className="text-[var(--ink-faint)]" />
+                                退出登录
+                              </button>
+                            </div>
+                          </>,
+                          document.body
+                        )
+                      : null}
                   </div>
                 </>
               ) : offlineAuthed ? (
@@ -1557,6 +1644,7 @@ export function Home() {
             已离线 · 改动保存在本地，联网后自动同步
           </div>
         ) : null}
+        {settingsOpen ? <AiSettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
         <Toaster />
       </div>
     );

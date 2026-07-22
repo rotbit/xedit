@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { snapshot } from "@/lib/versions";
+import { snapshot, autoSnapshot, IDLE_RULE } from "@/lib/versions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -40,7 +40,10 @@ export async function POST(req: Request, { params }: Params) {
   if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const kind = body?.kind === "auto" ? "auto" : "manual";
-  const created = await snapshot(id, doc.title, doc.content, kind);
+  // auto 来自前端的停笔 / 关页面兜底，要节流；manual 是用户明确点了「存档」，只去重
+  const created =
+    body?.kind === "auto"
+      ? await autoSnapshot(id, doc.title, doc.content, IDLE_RULE)
+      : await snapshot(id, doc.title, doc.content, "manual");
   return NextResponse.json({ created });
 }

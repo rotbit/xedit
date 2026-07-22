@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { snapshot, IDLE_VERSION_MS } from "@/lib/versions";
+import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
 
 /** 东八区日期串 YYYY-MM-DD */
 function chinaDate(): string {
@@ -57,13 +57,10 @@ export async function PUT(req: Request, { params }: Params) {
   }
   await prisma.document.update({ where: { id }, data });
 
-  // 距上次保存超过空闲阈值才再次改动，说明上一段编辑已结束——
-  // 把当时的最终内容定格为一个版本（前端定时器的服务端兜底）
+  // 自动保存本身也留版：首存先留个底，之后每隔一段时间把当前内容定格一版
+  // （前端空闲定时器只在页面开着时才有效，这里才是真正的兜底）
   if (typeof data.content === "string" && data.content !== existing.content) {
-    const idleMs = Date.now() - existing.updatedAt.getTime();
-    if (idleMs >= IDLE_VERSION_MS) {
-      await snapshot(id, existing.title, existing.content, "auto");
-    }
+    await autoSnapshot(id, data.title ?? existing.title, data.content, AUTOSAVE_RULE);
     // 每日写作流水：保存次数 + 净增字数（删减不计负）
     const delta = Math.max(
       0,

@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { uploadImageFile } from "@/lib/uploadImage";
 import { toast } from "./Toast";
 import { askConfirm } from "./PromptDialog";
 
@@ -94,13 +95,11 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
     setUploading(true);
     let ok = 0;
     for (const file of Array.from(files)) {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (res.ok) ok += 1;
-      else {
-        const data = await res.json().catch(() => ({}));
-        toast(data.error ?? `「${file.name}」上传失败`, "error");
+      try {
+        await uploadImageFile(file);
+        ok += 1;
+      } catch (e) {
+        toast(e instanceof Error ? e.message : `「${file.name}」上传失败`, "error");
       }
     }
     if (ok > 0) {

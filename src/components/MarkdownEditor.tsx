@@ -20,6 +20,7 @@ import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { searchKeymap } from "@codemirror/search";
 import { livePreview } from "@/lib/livePreview";
+import { uploadImageFile } from "@/lib/uploadImage";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import { toast } from "./Toast";
@@ -154,15 +155,12 @@ const TABLE_TEMPLATE = `| 表头 | 表头 |
 | 内容 | 内容 |`;
 
 async function uploadImage(file: File): Promise<string | null> {
-  const formData = new FormData();
-  formData.append("file", file);
-  const res = await fetch("/api/upload", { method: "POST", body: formData });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    toast(data.error ?? "图片上传失败", "error");
+  try {
+    return await uploadImageFile(file);
+  } catch (e) {
+    toast(e instanceof Error ? e.message : "图片上传失败", "error");
     return null;
   }
-  return data.url as string;
 }
 
 function handleImageFiles(view: EditorView, files: FileList | File[]): boolean {
