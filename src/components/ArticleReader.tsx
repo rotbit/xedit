@@ -62,6 +62,7 @@ export function ArticleReader({
   const setContent = useStore((s) => s.setContent);
   const splitRatio = useStore((s) => s.splitRatio);
   const setSplitRatio = useStore((s) => s.setSplitRatio);
+  const sourceMode = useStore((s) => s.sourceMode);
 
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
@@ -81,12 +82,17 @@ export function ArticleReader({
 
   const toggleSplit = useCallback(() => setSplit((v) => !v), []);
 
-  // ⌘E / Ctrl+E 切换双屏预览（capture 阶段，优先于页面内其他监听）
+  // ⌘E 切换双屏预览、⌘/ 切换源码模式（capture 阶段，优先于页面内其他监听）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key.toLowerCase() === "e") {
         e.preventDefault();
         toggleSplit();
+      } else if (e.key === "/") {
+        e.preventDefault();
+        const s = useStore.getState();
+        s.setSourceMode(!s.sourceMode);
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -262,22 +268,24 @@ export function ArticleReader({
             onCommand={(cmd) => editorRef.current?.applyFormat(cmd)}
             outlineOpen={outlineOpen}
             onToggleOutline={() => setOutlineOpen((v) => !v)}
+            centered={!split}
           />
           <div className="flex min-h-0 flex-1">
             {outlineOpen ? (
               <OutlinePanel onJump={(line) => editorRef.current?.scrollToLine(line)} />
             ) : null}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {/* 标题 + 元信息（固定于源码上方） */}
+              {/* 标题 + 元信息（固定于源码上方）：左缘与正文文字对齐
+                  （单屏 16px = .cm-doc 行内缩，双屏 24px = .cm-split 行内缩） */}
               <div className="shrink-0">
-                <div className="mx-auto w-full max-w-[820px] px-4 pt-5">
+                <div className={`w-full pt-5 ${split ? "px-6" : "mx-auto max-w-[760px] px-4"}`}>
                   <input
-                    className="w-full bg-transparent text-2xl font-bold leading-[1.25] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] [font-family:var(--serif)]"
+                    className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] [font-family:var(--serif)]"
                     value={title}
                     placeholder="未命名文章"
                     onChange={(e) => setTitle(e.target.value)}
                   />
-                  <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
                     <button
                       className="flex cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
                       onClick={() => onOpenCategory(category || "未分类")}
@@ -296,17 +304,20 @@ export function ArticleReader({
                       </>
                     ) : null}
                   </div>
-                  <div className="mb-1 mt-4 h-px w-10 bg-[var(--hairline-strong)]" />
+                  <div className="mt-3 h-px w-10 bg-[var(--hairline-strong)]" />
                 </div>
               </div>
-              {/* Markdown 源码编辑器：填满剩余高度，内部滚动 */}
+              {/* Markdown 编辑器：填满整列宽高，默认即时渲染（设置里可切回源码模式）。
+                  单屏时加 .cm-doc → 正文居中在可读宽度、滚动条落到列最右缘；
+                  双屏时加 .cm-split → 填满左栏但加大行内缩，不贴分隔条 */}
               <div className="min-h-0 flex-1">
-                <div className="mx-auto h-full w-full max-w-[820px]">
+                <div className={`h-full w-full cm-reader ${split ? "cm-split" : "cm-doc"}`}>
                   <MarkdownEditor
                     key={docKey}
                     ref={editorRef}
                     docKey={docKey}
                     initialContent={useStore.getState().content}
+                    live={!sourceMode}
                     onChange={setContent}
                     onScrollLine={onEditorScrollLine}
                   />
@@ -320,7 +331,7 @@ export function ArticleReader({
         {split ? (
           <>
             <div
-              className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-transparent hover:bg-[var(--accent-wash)]"
+              className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-[var(--panel)] hover:bg-[var(--accent-wash)]"
               onPointerDown={onDividerPointerDown}
               title="拖动调整源码/预览宽度"
             >

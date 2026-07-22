@@ -1,5 +1,11 @@
 import { syntaxTree } from "@codemirror/language";
-import { StateEffect, type EditorState, type Extension, type Range } from "@codemirror/state";
+import {
+  RangeSet,
+  StateEffect,
+  type EditorState,
+  type Extension,
+  type Range,
+} from "@codemirror/state";
 import {
   Decoration,
   DecorationSet,
@@ -10,9 +16,12 @@ import {
 } from "@codemirror/view";
 
 /**
- * 即时渲染（类 Obsidian Live Preview）：
- * 在编辑器内直接呈现排版效果——隐藏语法标记、行内渲染图片/引用/任务清单，
- * 光标所在行还原为源码，随写随编。
+ * 即时渲染（类 Obsidian Live Preview）——节点级还原策略：
+ * 隐藏语法标记、行内渲染图片/引用/任务清单，但还原粒度是「语法节点」而非「整行」，
+ * 保证光标的被动移动（上下键路过、点击定位）不引起正文位移：
+ * - 行内标记（**、`、~~、链接）：光标进入该语法范围内才显示标记，位移只发生在焦点处
+ * - 行首标记（#、>）：永远可见但淡化缩小，任何光标移动都零位移
+ * - 图片/分割线：atomicRanges 让光标只停在两侧，路过不还原；点击部件才展开源码
  */
 
 class ImageWidget extends WidgetType {
@@ -22,18 +31,33 @@ class ImageWidget extends WidgetType {
   eq(other: ImageWidget) {
     return other.src === this.src && other.alt === this.alt;
   }
-  toDOM() {
+  toDOM(view: EditorView) {
     const wrap = document.createElement("span");
     wrap.className = "cm-lp-image";
     const img = document.createElement("img");
     img.src = this.src;
     img.alt = this.alt || "图片";
+    img.title = "点击编辑图片地址";
+    // 加载失败时收起破图标，换成占位签（点击同样可编辑）
+    img.addEventListener("error", () => wrap.classList.add("cm-lp-broken"));
+    const fallback = document.createElement("span");
+    fallback.className = "cm-lp-image-fallback";
+    fallback.textContent = this.alt ? `${this.alt}（图片未加载）` : "图片未加载";
     wrap.appendChild(img);
+    wrap.appendChild(fallback);
+    // 点击图片＝有意编辑：把光标放进语法内部，仅此刻还原为源码
+    wrap.addEventListener("mousedown", (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = view.posAtDOM(wrap);
+      view.dispatch({ selection: { anchor: pos + 2 }, scrollIntoView: true });
+      view.focus();
+    });
     return wrap;
   }
-  // 点击图片交给编辑器定位光标 → 该行还原为源码
   ignoreEvent() {
-    return false;
+    return true;
   }
 }
 
@@ -41,13 +65,21 @@ class HrWidget extends WidgetType {
   eq() {
     return true;
   }
-  toDOM() {
+  toDOM(view: EditorView) {
     const el = document.createElement("span");
     el.className = "cm-lp-hr";
+    el.addEventListener("mousedown", (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = view.posAtDOM(el);
+      view.dispatch({ selection: { anchor: pos + 1 }, scrollIntoView: true });
+      view.focus();
+    });
     return el;
   }
   ignoreEvent() {
-    return false;
+    return true;
   }
 }
 
@@ -95,37 +127,43 @@ class CheckboxWidget extends WidgetType {
   }
 }
 
-interface LineRange {
-  from: number;
-  to: number;
-}
-
-/** 只为单光标还原所在行；非空选区保持当前排版，避免拖选时文本重排。 */
-function caretLineRanges(state: EditorState): LineRange[] {
-  return state.selection.ranges.flatMap((range) => {
-    if (!range.empty) return [];
-    const line = state.doc.lineAt(range.head);
-    return [{ from: line.from, to: line.to }];
-  });
+/** 光标位置集合（仅空选区）：节点级还原的判定依据 */
+function caretPositions(state: EditorState): number[] {
+  return state.selection.ranges.filter((r) => r.empty).map((r) => r.head);
 }
 
 function hasTextSelection(state: EditorState) {
   return state.selection.ranges.some((range) => !range.empty);
 }
 
-function revealed(ranges: LineRange[], from: number, to: number) {
-  return ranges.some((r) => from <= r.to && to >= r.from);
+/** 光标落在 [from, to]（含边界）内 —— 行内语法的还原判定 */
+function caretTouches(caret: number[], from: number, to: number) {
+  return caret.some((p) => p >= from && p <= to);
 }
 
-function buildDecorations(view: EditorView, reveal: LineRange[]): DecorationSet {
+/** 光标严格位于 (from, to) 内部 —— 图片/分割线的还原判定。
+    边界不算：上下键路过时光标只会停在边界（atomicRanges 保证），不触发还原 */
+function caretInside(caret: number[], from: number, to: number) {
+  return caret.some((p) => p > from && p < to);
+}
+
+interface Built {
+  decorations: DecorationSet;
+  /** 图片/分割线的替换范围：光标移动按整体跳过，不落入内部 */
+  atomics: DecorationSet;
+}
+
+function buildDecorations(view: EditorView, caret: number[]): Built {
   const { state } = view;
   const decos: Range<Decoration>[] = [];
+  const atomics: Range<Decoration>[] = [];
   const hide = (from: number, to: number) => {
     if (from < to) decos.push(Decoration.replace({}).range(from, to));
   };
-  /** 隐藏标记及其后紧跟的一个空格 */
-  const hideWithSpace = (from: number, to: number) => {
-    hide(from, state.sliceDoc(to, to + 1) === " " ? to + 1 : to);
+  /** 行首标记（#、>）连同其后空格淡化缩小：永远占位，光标经过零位移 */
+  const faintMark = (from: number, to: number) => {
+    const end = state.sliceDoc(to, to + 1) === " " ? to + 1 : to;
+    if (from < end) decos.push(Decoration.mark({ class: "cm-lp-mark" }).range(from, end));
   };
   const eachLine = (from: number, to: number, cls: (n: number, first: number, last: number) => string) => {
     const first = state.doc.lineAt(from).number;
@@ -141,29 +179,51 @@ function buildDecorations(view: EditorView, reveal: LineRange[]): DecorationSet 
       to: range.to,
       enter: (node) => {
         const { name } = node;
-        const show = () => revealed(reveal, node.from, node.to);
 
         if (/^ATXHeading[1-6]$/.test(name)) {
-          if (!show()) {
-            const mark = node.node.getChild("HeaderMark");
-            if (mark) hideWithSpace(mark.from, mark.to);
-          }
+          // 标题行级样式（宋体、层级字号、块级呼吸空间）——静态类，不随光标变化
+          const level = Math.min(4, Number(name.slice(-1)));
+          decos.push(
+            Decoration.line({ class: `cm-lp-h${level}` }).range(state.doc.lineAt(node.from).from)
+          );
+          const mark = node.node.getChild("HeaderMark");
+          if (mark) faintMark(mark.from, mark.to);
+          return;
+        }
+        if (name === "SetextHeading1" || name === "SetextHeading2") {
+          decos.push(
+            Decoration.line({ class: name === "SetextHeading1" ? "cm-lp-h1" : "cm-lp-h2" }).range(
+              state.doc.lineAt(node.from).from
+            )
+          );
+          for (const m of node.node.getChildren("HeaderMark")) faintMark(m.from, m.to);
           return;
         }
         if (name === "Emphasis" || name === "StrongEmphasis") {
-          if (!show()) for (const m of node.node.getChildren("EmphasisMark")) hide(m.from, m.to);
+          if (!caretTouches(caret, node.from, node.to))
+            for (const m of node.node.getChildren("EmphasisMark")) hide(m.from, m.to);
           return;
         }
         if (name === "InlineCode") {
-          if (!show()) for (const m of node.node.getChildren("CodeMark")) hide(m.from, m.to);
+          if (!caretTouches(caret, node.from, node.to)) {
+            const marks = node.node.getChildren("CodeMark");
+            for (const m of marks) hide(m.from, m.to);
+            // 内容打上胶囊样式（内衬 + 圆角），只作用于行内代码，不波及代码块
+            if (marks.length >= 2 && marks[1].from > marks[0].to) {
+              decos.push(
+                Decoration.mark({ class: "cm-lp-ic" }).range(marks[0].to, marks[1].from)
+              );
+            }
+          }
           return;
         }
         if (name === "Strikethrough") {
-          if (!show()) for (const m of node.node.getChildren("StrikethroughMark")) hide(m.from, m.to);
+          if (!caretTouches(caret, node.from, node.to))
+            for (const m of node.node.getChildren("StrikethroughMark")) hide(m.from, m.to);
           return;
         }
         if (name === "Link") {
-          if (!show()) {
+          if (!caretTouches(caret, node.from, node.to)) {
             const n = node.node;
             const marks = n.getChildren("LinkMark");
             const url = n.getChild("URL");
@@ -185,23 +245,28 @@ function buildDecorations(view: EditorView, reveal: LineRange[]): DecorationSet 
           return;
         }
         if (name === "Image") {
-          if (!show()) {
+          if (!caretInside(caret, node.from, node.to)) {
             const n = node.node;
             const url = n.getChild("URL");
             const marks = n.getChildren("LinkMark");
             const src = url ? state.sliceDoc(url.from, url.to) : "";
             const alt = marks.length >= 2 ? state.sliceDoc(marks[0].to, marks[1].from) : "";
             if (src) {
-              decos.push(
-                Decoration.replace({ widget: new ImageWidget(src, alt) }).range(node.from, node.to)
+              const deco = Decoration.replace({ widget: new ImageWidget(src, alt) }).range(
+                node.from,
+                node.to
               );
+              decos.push(deco);
+              atomics.push(deco);
             }
           }
           return false; // 内部标记已整体处理
         }
         if (name === "HorizontalRule") {
-          if (!show()) {
-            decos.push(Decoration.replace({ widget: new HrWidget() }).range(node.from, node.to));
+          if (!caretInside(caret, node.from, node.to)) {
+            const deco = Decoration.replace({ widget: new HrWidget() }).range(node.from, node.to);
+            decos.push(deco);
+            atomics.push(deco);
           }
           return;
         }
@@ -210,7 +275,7 @@ function buildDecorations(view: EditorView, reveal: LineRange[]): DecorationSet 
           return;
         }
         if (name === "QuoteMark") {
-          if (!revealed(reveal, node.from, node.to)) hideWithSpace(node.from, node.to);
+          faintMark(node.from, node.to);
           return;
         }
         if (name === "FencedCode") {
@@ -224,7 +289,7 @@ function buildDecorations(view: EditorView, reveal: LineRange[]): DecorationSet 
           return;
         }
         if (name === "ListMark") {
-          if (revealed(reveal, node.from, node.to)) return;
+          if (caretTouches(caret, node.from, node.to)) return;
           if (node.node.parent?.parent?.name !== "BulletList") return; // 有序列表数字保留
           if (/^ \[[ xX]\]/.test(state.sliceDoc(node.to, node.to + 4))) {
             hide(node.from, node.to + 1); // 任务项只留 checkbox
@@ -234,7 +299,7 @@ function buildDecorations(view: EditorView, reveal: LineRange[]): DecorationSet 
           return;
         }
         if (name === "TaskMarker") {
-          if (!revealed(reveal, node.from, node.to)) {
+          if (!caretTouches(caret, node.from, node.to)) {
             const checked = /x/i.test(state.sliceDoc(node.from, node.to));
             decos.push(
               Decoration.replace({ widget: new CheckboxWidget(checked) }).range(node.from, node.to)
@@ -245,7 +310,10 @@ function buildDecorations(view: EditorView, reveal: LineRange[]): DecorationSet 
       },
     });
   }
-  return Decoration.set(decos, true);
+  return {
+    decorations: Decoration.set(decos, true),
+    atomics: Decoration.set(atomics, true),
+  };
 }
 
 /** 用轻量 effect 触发一次装饰重算（鼠标点击结束并收回为单光标时使用）。 */
@@ -254,13 +322,16 @@ const refreshLivePreview = StateEffect.define<null>();
 const livePreviewPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
-    private reveal: LineRange[];
+    atomics: DecorationSet;
+    private caret: number[];
     private selectingWithMouse = false;
     private removeMouseListeners: (() => void) | null = null;
 
     constructor(view: EditorView) {
-      this.reveal = caretLineRanges(view.state);
-      this.decorations = buildDecorations(view, this.reveal);
+      this.caret = caretPositions(view.state);
+      const built = buildDecorations(view, this.caret);
+      this.decorations = built.decorations;
+      this.atomics = built.atomics;
     }
 
     update(update: ViewUpdate) {
@@ -268,20 +339,22 @@ const livePreviewPlugin = ViewPlugin.fromClass(
         transaction.effects.some((effect) => effect.is(refreshLivePreview))
       );
 
-      // 文档变化会让旧位置失效；单光标移动则切换需要显示源码的行。
+      // 文档变化会让旧位置失效；单光标移动则切换需要还原源码的语法节点。
       if (
         update.docChanged ||
         (update.selectionSet && !this.selectingWithMouse && !hasTextSelection(update.state))
       ) {
-        this.reveal = caretLineRanges(update.state);
+        this.caret = caretPositions(update.state);
       }
 
       // 鼠标拖选和非空选区调整期间不因 selectionSet 重建装饰。
-      // viewport 变化仍按冻结的 reveal 范围补齐新进入视口的装饰。
+      // viewport 变化仍按冻结的光标位置补齐新进入视口的装饰。
       const selectionNeedsRebuild =
         update.selectionSet && !this.selectingWithMouse && !hasTextSelection(update.state);
       if (update.docChanged || update.viewportChanged || selectionNeedsRebuild || forced) {
-        this.decorations = buildDecorations(update.view, this.reveal);
+        const built = buildDecorations(update.view, this.caret);
+        this.decorations = built.decorations;
+        this.atomics = built.atomics;
       }
     }
 
@@ -306,9 +379,9 @@ const livePreviewPlugin = ViewPlugin.fromClass(
       this.removeMouseListeners?.();
       this.removeMouseListeners = null;
 
-      // 单击定位光标后再显示该行源码；真正的拖选沿用按下前的稳定布局。
+      // 单击定位光标后再按节点还原；真正的拖选沿用按下前的稳定布局。
       if (!hasTextSelection(view.state)) {
-        this.reveal = caretLineRanges(view.state);
+        this.caret = caretPositions(view.state);
         view.dispatch({ effects: refreshLivePreview.of(null) });
       }
     }
@@ -339,6 +412,8 @@ const livePreviewPlugin = ViewPlugin.fromClass(
 
 export const livePreview: Extension = [
   livePreviewPlugin,
+  // 图片/分割线按整体跳过：上下键路过时光标停在两侧边界，部件不还原、不跳动
+  EditorView.atomicRanges.of((view) => view.plugin(livePreviewPlugin)?.atomics ?? RangeSet.empty),
   EditorView.editorAttributes.of({ class: "cm-live-preview" }),
   EditorView.domEventHandlers({
     mousedown: (e) => {

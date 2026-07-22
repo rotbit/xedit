@@ -76,8 +76,8 @@ interface Props {
 }
 
 const mdHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.3em", fontWeight: "700", color: "var(--ink)" },
-  { tag: tags.heading2, fontSize: "1.2em", fontWeight: "700", color: "var(--ink)" },
+  { tag: tags.heading1, fontSize: "1.5em", fontWeight: "700", color: "var(--ink)" },
+  { tag: tags.heading2, fontSize: "1.25em", fontWeight: "700", color: "var(--ink)" },
   { tag: tags.heading3, fontSize: "1.1em", fontWeight: "700", color: "var(--ink)" },
   { tag: tags.heading4, fontWeight: "700", color: "var(--ink)" },
   { tag: tags.strong, fontWeight: "700", color: "var(--accent-deep)" },
