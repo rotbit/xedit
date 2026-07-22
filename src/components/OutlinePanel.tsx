@@ -39,7 +39,7 @@ export function OutlinePanel({ onJump }: { onJump: (line: number) => void }) {
   const outline = useMemo(() => parseOutline(content), [content]);
 
   return (
-    <aside className="flex h-full w-52 shrink-0 flex-col border-r border-[var(--hairline)] bg-[var(--panel)]">
+    <aside className="flex h-full w-52 shrink-0 flex-col border-r border-[var(--hairline-soft)] bg-[var(--panel)]">
       <p className="flex shrink-0 items-center gap-1.5 px-4 pb-2 pt-3.5 text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">
         <ListTree size={12} strokeWidth={1.75} />
         大纲

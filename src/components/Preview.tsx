@@ -53,9 +53,9 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
   const theme = getTheme(themeId);
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--sidebar)]">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
       {/* 顶栏：与左侧编辑工具栏同高、同底、同一条下边线，双屏在同一水平线上衔接 */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--hairline)] bg-[var(--panel)] px-4">
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4">
         <span className="text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">公众号效果</span>
         <span className="max-w-[50%] truncate text-[12px] text-[var(--ink-soft)]">
           {theme.name}
@@ -67,7 +67,9 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
         <style>{theme.css}</style>
         <style>{buildTuneCss({ tuneFontSize, tuneLineHeight, tuneParaSpacing })}</style>
         {customCss ? <style>{customCss}</style> : null}
-        <div className="light-lock mx-auto max-w-[720px] rounded-md bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05),0_12px_40px_rgba(0,0,0,0.10)] ring-1 ring-black/5">
+        {/* 手机阅读宽度：公众号文章以读者手机上的真实比例呈现，
+            窄列 + 两侧留白让右栏与宽幅编辑区一眼可辨；夜间模式下文章面依旧保持日间白 */}
+        <div className="light-lock mx-auto max-w-[420px] bg-white">
           <section
             id="nice"
             data-tool="xedit"
