@@ -102,9 +102,14 @@ export function EditorApp({ docId }: { docId: string | null }) {
             onToggleOutline={() => setOutlineOpen((v) => !v)}
           />
           <div className="flex min-h-0 flex-1">
-            {outlineOpen ? (
+            {/* 大纲面板：宽度过渡开合，与首页文章视图一致 */}
+            <div
+              className={`shrink-0 overflow-hidden transition-[width] duration-[260ms] ease-[cubic-bezier(0.22,0.9,0.26,1)] ${
+                outlineOpen ? "w-52" : "w-0"
+              }`}
+            >
               <OutlinePanel onJump={(line) => editorRef.current?.scrollToLine(line)} />
-            ) : null}
+            </div>
             <div className="min-h-0 min-w-0 flex-1">
               <MarkdownEditor
                 key={docKey}

@@ -330,11 +330,13 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       if (!view) return;
       const n = Math.min(view.state.doc.lines, Math.max(1, line + 1));
       const pos = view.state.doc.line(n).from;
-      view.dispatch({
-        selection: { anchor: pos },
-        effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: 12 }),
-      });
       view.focus();
+      view.dispatch({ selection: { anchor: pos } });
+      // 平滑滚动到目标行（rAF 等 CodeMirror 量完几何再取坐标；同步滚动会带预览一起跟过去）
+      requestAnimationFrame(() => {
+        const top = Math.max(0, view.lineBlockAt(pos).top - 12);
+        view.scrollDOM.scrollTo({ top, behavior: "smooth" });
+      });
     },
     applyFormat: (cmd: FormatCommand) => {
       const view = viewRef.current;
