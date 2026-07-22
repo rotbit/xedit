@@ -46,6 +46,8 @@ interface SettingsSlice {
   macCode: boolean;
   linkFootnote: boolean;
   syncScroll: boolean;
+  /** 源码模式：关闭编辑区的即时渲染，显示原始 Markdown（⌘/ 切换） */
+  sourceMode: boolean;
   /** 编辑区占编辑+预览总宽的比例 */
   splitRatio: number;
   /** 排版微调：正文字号(px)/行高/段间距(px) */
@@ -80,6 +82,7 @@ interface EditorState extends SettingsSlice {
   setMacCode: (v: boolean) => void;
   setLinkFootnote: (v: boolean) => void;
   setSyncScroll: (v: boolean) => void;
+  setSourceMode: (v: boolean) => void;
   setCssDialogOpen: (v: boolean) => void;
   setSplitRatio: (r: number) => void;
   setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
@@ -101,6 +104,7 @@ export const useStore = create<EditorState>()(
       macCode: true,
       linkFootnote: true,
       syncScroll: true,
+      sourceMode: false,
       splitRatio: 0.5,
       tuneFontSize: 16,
       tuneLineHeight: 1.75,
@@ -127,6 +131,7 @@ export const useStore = create<EditorState>()(
       setMacCode: (macCode) => set({ macCode }),
       setLinkFootnote: (linkFootnote) => set({ linkFootnote }),
       setSyncScroll: (syncScroll) => set({ syncScroll }),
+      setSourceMode: (sourceMode) => set({ sourceMode }),
       setCssDialogOpen: (cssDialogOpen) => set({ cssDialogOpen }),
       setSplitRatio: (splitRatio) =>
         set({ splitRatio: Math.min(0.75, Math.max(0.25, splitRatio)) }),
@@ -154,6 +159,7 @@ export const useStore = create<EditorState>()(
         customCss: state.customCss,
         linkFootnote: state.linkFootnote,
         syncScroll: state.syncScroll,
+        sourceMode: state.sourceMode,
         splitRatio: state.splitRatio,
         tuneFontSize: state.tuneFontSize,
         tuneLineHeight: state.tuneLineHeight,

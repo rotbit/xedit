@@ -39,14 +39,14 @@ export function OutlinePanel({ onJump }: { onJump: (line: number) => void }) {
   const outline = useMemo(() => parseOutline(content), [content]);
 
   return (
-    <aside className="flex w-48 shrink-0 flex-col border-r border-[var(--hairline)] bg-[var(--panel)]">
-      <p className="flex shrink-0 items-center gap-1.5 border-b border-[var(--hairline)] px-3.5 py-2 text-[11px] tracking-widest text-[var(--ink-faint)]">
-        <ListTree size={12} />
+    <aside className="flex w-52 shrink-0 flex-col border-r border-[var(--hairline)] bg-[var(--panel)]">
+      <p className="flex shrink-0 items-center gap-1.5 px-4 pb-2 pt-3.5 text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">
+        <ListTree size={12} strokeWidth={1.75} />
         大纲
       </p>
-      <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {outline.length === 0 ? (
-          <p className="px-3.5 py-6 text-center text-[11.5px] leading-5 text-[var(--ink-faint)]">
+          <p className="px-2 py-8 text-center text-[11.5px] leading-6 text-[var(--ink-faint)]">
             使用 # 标题
             <br />
             自动生成大纲
@@ -55,8 +55,18 @@ export function OutlinePanel({ onJump }: { onJump: (line: number) => void }) {
           outline.map((h, i) => (
             <button
               key={i}
-              className="block w-full cursor-pointer truncate px-3.5 py-1.5 text-left text-[12.5px] leading-5 text-[var(--ink-soft)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--accent-deep)]"
-              style={{ paddingLeft: `${14 + (h.level - 1) * 14}px` }}
+              className={`block w-full cursor-pointer truncate rounded-md py-[5px] pr-2 text-left leading-5 transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${
+                h.level === 1
+                  ? "text-[13px] font-medium text-[var(--ink)] [font-family:var(--serif)]"
+                  : h.level === 2
+                    ? "text-[12.5px] text-[var(--ink-soft)]"
+                    : "text-[12px] text-[var(--ink-faint)]"
+              }`}
+              style={{
+                paddingLeft: `${8 + (h.level - 1) * 14}px`,
+                // 一级标题之间空开一点，形成章节分组感
+                marginTop: h.level === 1 && i > 0 ? 6 : 0,
+              }}
               title={h.text}
               onClick={() => onJump(h.line)}
             >
