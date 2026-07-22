@@ -125,7 +125,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
         </div>
         {/* 可拖拽分隔条（窄屏单栏时隐藏） */}
         <div
-          className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline)] bg-[var(--panel)] hover:bg-[var(--accent-wash)] max-md:hidden"
+          className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline-soft)] bg-[var(--panel)] hover:bg-[var(--accent-wash)] max-md:hidden"
           onPointerDown={onDividerPointerDown}
           title="拖动调整编辑/预览宽度"
         >
