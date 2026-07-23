@@ -157,9 +157,7 @@ export function AuthHost() {
       >
         {/* 标题 */}
         <div className="px-6 pb-1 pt-6 text-center">
-          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--seal)] text-white shadow-[0_3px_10px_rgba(192,57,43,0.35)]">
-            <LogoMark className="h-[60%] w-[60%]" />
-          </span>
+          <LogoMark className="mx-auto block h-12 w-12 text-[var(--seal)]" />
           <h3 className="mt-3 text-[17px] font-semibold [font-family:var(--serif)]">
             {isLogin ? "登录 xEdit" : "注册 xEdit"}
           </h3>
