@@ -56,6 +56,7 @@ import { toast, Toaster } from "./Toast";
 import { askInput, askConfirm } from "./PromptDialog";
 import { openAuth } from "./AuthDialog";
 import { DarkToggle, toggleDark } from "./DarkToggle";
+import { LogoMark } from "./LogoMark";
 
 /** 重型视图按需加载：阅读器连带 markdown 渲染/主题/复制管线，不该进首屏包 */
 const viewLoading = () => (
@@ -1082,8 +1083,8 @@ export function Home() {
         >
             {/* 工作区头 */}
             <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-[var(--seal)] text-[13px] font-bold text-white [font-family:var(--serif)]">
-                稿
+              <span className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-[var(--seal)] text-white">
+                <LogoMark className="h-[62%] w-[62%]" />
               </span>
               <span className="text-[14px] font-semibold tracking-wide [font-family:var(--serif)]">
                 xEdit
