@@ -280,9 +280,7 @@ export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
       {/* 顶栏 */}
       <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[var(--paper)]/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[1080px] items-center gap-2.5 px-6">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--seal)] text-white shadow-[0_2px_6px_rgba(192,57,43,0.4)]">
-            <LogoMark className="h-[60%] w-[60%]" />
-          </span>
+          <LogoMark className="h-7 w-7 shrink-0 text-[var(--seal)]" />
           <span className="landing-display text-[17px] font-semibold tracking-wide">xEdit</span>
           <span className="mt-0.5 hidden text-[12px] text-[var(--ink-faint)] sm:inline">
             Markdown 公众号排版
@@ -323,8 +321,8 @@ export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
             Markdown 写作
             <span className="text-[var(--seal)]">，</span>
             公众号排版
-            <span className="stamp-in ml-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--seal)] align-[6px] text-white shadow-[0_4px_12px_rgba(192,57,43,0.4)]">
-              <LogoMark className="h-[60%] w-[60%]" />
+            <span className="stamp-in ml-3 inline-flex h-11 w-11 items-center justify-center align-[6px] text-[var(--seal)]">
+              <LogoMark className="h-full w-full" />
             </span>
           </h1>
           <p
@@ -429,9 +427,7 @@ export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
       <footer className="border-t border-[var(--hairline)]">
         <div className="mx-auto flex max-w-[1080px] flex-wrap items-center justify-between gap-x-8 gap-y-4 px-6 py-8">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 rotate-[-4deg] items-center justify-center rounded-md bg-[var(--seal)] text-white shadow-[0_2px_6px_rgba(192,57,43,0.35)]">
-              <LogoMark className="h-[58%] w-[58%]" />
-            </span>
+            <LogoMark className="h-8 w-8 shrink-0 text-[var(--seal)]" />
             <div>
               <p className="landing-display text-[13.5px] font-semibold tracking-wide">
                 xEdit · Markdown 公众号排版
