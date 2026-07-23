@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { Loader2, Mail, Lock } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
 import { GithubMark } from "./GithubMark";
+import { LogoMark } from "./LogoMark";
 
 interface AuthConfig {
   github: boolean;
@@ -156,8 +157,8 @@ export function AuthHost() {
       >
         {/* 标题 */}
         <div className="px-6 pb-1 pt-6 text-center">
-          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--seal)] text-[19px] font-bold text-white shadow-[0_3px_10px_rgba(192,57,43,0.35)] [font-family:var(--serif)]">
-            稿
+          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--seal)] text-white shadow-[0_3px_10px_rgba(192,57,43,0.35)]">
+            <LogoMark className="h-[60%] w-[60%]" />
           </span>
           <h3 className="mt-3 text-[17px] font-semibold [font-family:var(--serif)]">
             {isLogin ? "登录 xEdit" : "注册 xEdit"}
