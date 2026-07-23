@@ -1083,9 +1083,7 @@ export function Home() {
         >
             {/* 工作区头 */}
             <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-[var(--seal)] text-white">
-                <LogoMark className="h-[62%] w-[62%]" />
-              </span>
+              <LogoMark className="h-6 w-6 shrink-0 text-[var(--seal)]" />
               <span className="text-[14px] font-semibold tracking-wide [font-family:var(--serif)]">
                 xEdit
               </span>
