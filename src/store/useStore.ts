@@ -56,17 +56,6 @@ interface SettingsSlice {
   tuneParaSpacing: number;
 }
 
-/** 文本对话可选的一个「平台 + 模型」组合（服务端拉取，仅列已配密钥的平台） */
-export interface ChatModelOption {
-  provider: string;
-  providerLabel: string;
-  model: string;
-  label: string;
-}
-
-/** 编辑器里临时选定的模型；null 表示跟随「AI 设置」里的默认 */
-export type ChatChoice = { provider: string; model: string } | null;
-
 interface EditorState extends SettingsSlice {
   /** 当前文档；docId 为 null 表示未登录的本地文稿 */
   docId: string | null;
@@ -77,15 +66,8 @@ interface EditorState extends SettingsSlice {
   saveState: SaveState;
   /** 由设置抽屉/弹窗使用 */
   cssDialogOpen: boolean;
-  /** AI 是否可用（服务端拉取，不持久化）：文本对话 / 生图各自独立 */
+  /** 文本 AI（内容审查用）是否已配置密钥（服务端拉取，不持久化） */
   aiChatReady: boolean;
-  aiImageReady: boolean;
-  /** 文本对话可选模型列表（服务端拉取，不持久化） */
-  aiChatModels: ChatModelOption[];
-  /** 设置里默认平台的展示名，用于「跟随默认（xxx）」；空表示未设默认 */
-  aiChatDefaultLabel: string;
-  /** 编辑器里临时选定的模型（持久化到本地浏览器） */
-  aiChatChoice: ChatChoice;
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -102,13 +84,7 @@ interface EditorState extends SettingsSlice {
   setSplitRatio: (r: number) => void;
   setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
   setCategory: (c: string) => void;
-  setAiStatus: (s: {
-    aiChatReady: boolean;
-    aiImageReady: boolean;
-    aiChatModels: ChatModelOption[];
-    aiChatDefaultLabel: string;
-  }) => void;
-  setAiChatChoice: (c: ChatChoice) => void;
+  setAiStatus: (s: { aiChatReady: boolean }) => void;
 }
 
 export const useStore = create<EditorState>()(
@@ -133,10 +109,6 @@ export const useStore = create<EditorState>()(
       saveState: "local",
       cssDialogOpen: false,
       aiChatReady: false,
-      aiImageReady: false,
-      aiChatModels: [],
-      aiChatDefaultLabel: "",
-      aiChatChoice: null,
 
       setContent: (content) => set({ content }),
       setTitle: (title) => set({ title }),
@@ -155,14 +127,14 @@ export const useStore = create<EditorState>()(
       setTune: (t) => set(t),
       setCategory: (category) => set({ category }),
       setAiStatus: (s) => set(s),
-      setAiChatChoice: (aiChatChoice) => set({ aiChatChoice }),
     }),
     {
       name: "xedit-store",
       version: 4,
       // v1 起代码主题固定 VS 2015、Mac 风格固定开启；v2 起移除手机预览模式，清掉历史持久化值；
       // v3 起专注模式下线：即时渲染并入首页文章视图，编辑页固定分屏；
-      // v4 起 AI 密钥改为服务端按账号加密存储，清掉本地遗留的接口地址/密钥/模型
+      // v4 起 AI 密钥改为服务端按账号加密存储，清掉本地遗留的接口地址/密钥/模型；
+      // v4 同版补充：AI 写作/生图下线，清掉本地记住的临时模型选择
       migrate: (persisted) => {
         const state = persisted as Record<string, unknown> | undefined;
         if (state) {
@@ -174,6 +146,7 @@ export const useStore = create<EditorState>()(
           delete state.aiApiKey;
           delete state.aiModel;
           delete state.aiImageModel;
+          delete state.aiChatChoice;
         }
         return state as never;
       },
@@ -187,8 +160,6 @@ export const useStore = create<EditorState>()(
         tuneFontSize: state.tuneFontSize,
         tuneLineHeight: state.tuneLineHeight,
         tuneParaSpacing: state.tuneParaSpacing,
-        // 编辑器里临时选的模型，跨刷新保留（失效时由 refreshAiStatus 清掉）
-        aiChatChoice: state.aiChatChoice,
         // 未登录时的本地文稿也持久化，防止刷新丢失
         title: state.title,
         content: state.content,

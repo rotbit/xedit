@@ -36,19 +36,6 @@ function joinOutput(output: unknown): string {
   return "";
 }
 
-/** 从输出里取第一个 URL（生图） */
-function firstUrl(output: unknown): string {
-  if (typeof output === "string") return output;
-  if (Array.isArray(output)) {
-    for (const x of output) if (typeof x === "string" && /^https?:\/\//.test(x)) return x;
-  }
-  if (output && typeof output === "object") {
-    const url = (output as { url?: unknown }).url;
-    if (typeof url === "string") return url;
-  }
-  return "";
-}
-
 class ReplicateError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -240,34 +227,4 @@ export async function replicateChatStream(args: {
       reader.cancel().catch(() => {});
     },
   });
-}
-
-/** 生图，返回图片 URL（Replicate 托管的临时地址，调用方应转存图床） */
-export async function replicateImageUrl(args: {
-  model: string;
-  token: string;
-  prompt: string;
-  aspectRatio?: string;
-  baseUrl?: string;
-  signal?: AbortSignal;
-}): Promise<string> {
-  const extra = args.aspectRatio ? { aspect_ratio: args.aspectRatio } : {};
-  const pred = await createWithFallback(
-    args.model,
-    args.token,
-    "",
-    args.prompt,
-    extra,
-    { wait: true, baseUrl: args.baseUrl, signal: args.signal }
-  );
-  const done =
-    pred.status === "succeeded" || !pred.urls?.get
-      ? pred
-      : await poll(pred.urls.get, args.token, args.signal);
-  if (done.status === "failed" || done.status === "canceled") {
-    throw new Error(done.error || "Replicate 生图失败");
-  }
-  const url = firstUrl(done.output);
-  if (!url) throw new Error("Replicate 未返回图片");
-  return url;
 }

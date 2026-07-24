@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
@@ -15,9 +15,6 @@ import {
   Loader2,
   Copy,
   Sparkles,
-  Languages,
-  Wand2,
-  ImagePlus,
   ShieldCheck,
   Folder,
   FolderPlus,
@@ -40,34 +37,9 @@ import { askInput } from "./PromptDialog";
 import { openAuth } from "./AuthDialog";
 import { DarkToggle, toggleDark } from "./DarkToggle";
 import { ThemePickerPanel } from "./ThemePicker";
-import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
+import { AiSettingsDialog } from "./AiDialogs";
 import { McpDialog } from "./McpDialog";
 import { ReviewDialog } from "./ReviewDialog";
-import { AiDiffDialog, AiTitlesDialog, AiSummaryDialog } from "./AiWriteDialogs";
-import { AiModelPicker } from "./AiModelPicker";
-import type { EditorHandle } from "./MarkdownEditor";
-
-const AI_PROMPTS = {
-  en: "你是专业译者。把用户提供的内容翻译成地道的英文。保留 Markdown 语法结构，代码块内容不翻译。只输出译文，不要任何解释。",
-  zh: "你是专业译者。把用户提供的内容翻译成流畅的简体中文。保留 Markdown 语法结构，代码块内容不翻译。只输出译文，不要任何解释。",
-  polish:
-    "你是资深中文编辑。润色用户提供的文字，使表达更流畅、精炼、有条理。保留 Markdown 语法结构与原文含义。只输出润色后的文本，不要任何解释。",
-  expand:
-    "你是资深中文编辑。在保留原意、语气与 Markdown 结构的前提下扩写内容（约为原文 1.5~2 倍），补充细节、例证与衔接。只输出扩写后的文本。",
-  condense:
-    "你是资深中文编辑。把内容压缩到约一半篇幅，保留关键信息、结论与 Markdown 结构。只输出压缩后的文本。",
-  format:
-    "你是资深微信公众号编辑。重新组织这篇 Markdown 文章的结构：合理分段、拟定或优化小标题（##/###）、为关键句加粗、把并列内容整理为列表、适当用引用块突出金句。不得改变事实内容与作者语气，不删除信息。只输出整理后的完整 Markdown，不要任何解释。",
-} as const;
-
-const AI_TITLES: Record<keyof typeof AI_PROMPTS, string> = {
-  en: "翻译为英文",
-  zh: "翻译为中文",
-  polish: "润色",
-  expand: "扩写",
-  condense: "缩写",
-  format: "智能排版",
-};
 
 
 function Dropdown({
@@ -120,13 +92,7 @@ const itemCls =
 const ghostBtn =
   "flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2.5 text-[13px] text-[var(--ink-soft)] hover:border-[var(--hairline)] hover:bg-[var(--paper)] hover:text-[var(--ink)]";
 
-export function Topbar({
-  editorRef,
-  onOpenVersions,
-}: {
-  editorRef: RefObject<EditorHandle | null>;
-  onOpenVersions: () => void;
-}) {
+export function Topbar({ onOpenVersions }: { onOpenVersions: () => void }) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const title = useStore((s) => s.title);
@@ -196,87 +162,22 @@ export function Topbar({
 
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
-  const [aiImageOpen, setAiImageOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [titlesOpen, setTitlesOpen] = useState(false);
-  const [summaryOpen, setSummaryOpen] = useState(false);
-  const [diffTask, setDiffTask] = useState<{
-    kind: keyof typeof AI_PROMPTS;
-    original: string;
-    from: number;
-    to: number;
-    wholeDoc: boolean;
-  } | null>(null);
 
   const aiConfigured = () => {
     if (useStore.getState().aiChatReady) return true;
-    toast("请先在「AI 设置」中启用文本平台并填写密钥", "error");
+    toast("请先在「AI 设置」中填写文本平台密钥", "error");
     setAiSettingsOpen(true);
     return false;
   };
 
-  const aiImageConfigured = () => {
-    if (useStore.getState().aiImageReady) return true;
-    toast("请先在「AI 设置」中启用生图平台并填写密钥", "error");
-    setAiSettingsOpen(true);
-    return false;
-  };
-
-  /** 选中文本类 AI：打开 diff 对照弹窗 */
-  const startSelectionAi = (kind: keyof typeof AI_PROMPTS) => {
-    const view = editorRef.current?.view();
-    if (!view) return;
-    const sel = view.state.selection.main;
-    if (sel.from === sel.to) {
-      toast("请先在编辑器中选中要处理的文字", "error");
-      return;
-    }
-    if (!aiConfigured()) return;
-    setDiffTask({
-      kind,
-      original: view.state.sliceDoc(sel.from, sel.to),
-      from: sel.from,
-      to: sel.to,
-      wholeDoc: false,
-    });
-  };
-
-  /** 全文类 AI（智能排版） */
-  const startDocAi = (kind: keyof typeof AI_PROMPTS) => {
-    const content = useStore.getState().content;
-    if (!content.trim()) {
-      toast("文章还是空的", "error");
-      return;
-    }
-    if (!aiConfigured()) return;
-    setDiffTask({ kind, original: content, from: 0, to: 0, wholeDoc: true });
-  };
-
-  const applyDiff = (result: string) => {
-    const view = editorRef.current?.view();
-    if (!view || !diffTask) return;
-    if (diffTask.wholeDoc) {
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: result } });
-    } else {
-      view.dispatch({ changes: { from: diffTask.from, to: diffTask.to, insert: result } });
-    }
-    toast("已替换", "success");
-  };
-
-  const requireAiThen = (fn: () => void) => {
-    if (!aiConfigured()) return;
+  const startReview = () => {
     if (!useStore.getState().content.trim()) {
       toast("文章还是空的", "error");
       return;
     }
-    fn();
-  };
-
-  const insertAtCursor = (md: string) => {
-    const view = editorRef.current?.view();
-    if (!view) return;
-    const pos = view.state.selection.main.head;
-    view.dispatch({ changes: { from: pos, insert: md } });
+    if (!aiConfigured()) return;
+    setReviewOpen(true);
   };
 
   const buildOptions = async () => {
@@ -546,79 +447,9 @@ export function Topbar({
         >
           重置排版微调
         </button>
-      </Dropdown>
-
-      {/* AI 助手 */}
-      <Dropdown
-        width={244}
-        trigger={
-          <button className={ghostBtn} title="AI 助手">
-            <Sparkles size={15} />
-          </button>
-        }
-      >
-        <AiModelPicker variant="menu" />
         <div className="my-1 border-t border-[var(--hairline)]" />
-        <p className="px-3.5 pb-0.5 pt-1 text-[11px] tracking-widest text-[var(--ink-faint)]">
-          选中文字
-        </p>
-        <button className={itemCls} onClick={() => startSelectionAi("en")}>
-          <Languages size={14} />
-          翻译为英文
-        </button>
-        <button className={itemCls} onClick={() => startSelectionAi("zh")}>
-          <Languages size={14} />
-          翻译为中文
-        </button>
-        <button className={itemCls} onClick={() => startSelectionAi("polish")}>
-          <Wand2 size={14} />
-          润色
-        </button>
-        <button className={itemCls} onClick={() => startSelectionAi("expand")}>
-          <Wand2 size={14} />
-          扩写
-        </button>
-        <button className={itemCls} onClick={() => startSelectionAi("condense")}>
-          <Wand2 size={14} />
-          缩写
-        </button>
-        <div className="my-1.5 border-t border-[var(--hairline)]" />
-        <p className="px-3.5 pb-0.5 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
-          整篇文章
-        </p>
-        <button className={itemCls} onClick={() => startDocAi("format")}>
-          <Sparkles size={14} />
-          智能排版全文…
-        </button>
-        <button className={itemCls} onClick={() => requireAiThen(() => setTitlesOpen(true))}>
-          <Sparkles size={14} />
-          AI 起标题…
-        </button>
-        <button className={itemCls} onClick={() => requireAiThen(() => setSummaryOpen(true))}>
-          <Sparkles size={14} />
-          AI 摘要…
-        </button>
-        <button
-          className={itemCls}
-          onClick={() => {
-            if (aiConfigured()) setReviewOpen(true);
-          }}
-        >
-          <ShieldCheck size={14} />
-          公众号内容审查…
-        </button>
-        <div className="my-1.5 border-t border-[var(--hairline)]" />
-        <button
-          className={itemCls}
-          onClick={() => {
-            if (aiImageConfigured()) setAiImageOpen(true);
-          }}
-        >
-          <ImagePlus size={14} />
-          AI 生成配图…
-        </button>
         <button className={itemCls} onClick={() => setAiSettingsOpen(true)}>
-          <Settings2 size={14} />
+          <Sparkles size={14} />
           AI 设置…
         </button>
         <button className={itemCls} onClick={() => setMcpOpen(true)}>
@@ -626,6 +457,11 @@ export function Topbar({
           MCP 连接…
         </button>
       </Dropdown>
+
+      {/* 公众号内容审查 */}
+      <button className={ghostBtn} onClick={startReview} title="公众号内容审查">
+        <ShieldCheck size={15} />
+      </button>
 
       {/* 版本历史（窄屏隐藏，保证顶栏不溢出） */}
       <button className={`${ghostBtn} hidden shrink-0 md:flex`} onClick={onOpenVersions} title="版本历史">
@@ -749,22 +585,8 @@ export function Topbar({
       )}
     </header>
     {aiSettingsOpen ? <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} /> : null}
-      {mcpOpen ? <McpDialog onClose={() => setMcpOpen(false)} /> : null}
-    {aiImageOpen ? (
-      <AiImageDialog onClose={() => setAiImageOpen(false)} onInsert={insertAtCursor} />
-    ) : null}
+    {mcpOpen ? <McpDialog onClose={() => setMcpOpen(false)} /> : null}
     {reviewOpen ? <ReviewDialog onClose={() => setReviewOpen(false)} /> : null}
-    {diffTask ? (
-      <AiDiffDialog
-        title={`AI ${AI_TITLES[diffTask.kind]}`}
-        system={AI_PROMPTS[diffTask.kind]}
-        original={diffTask.original}
-        onApply={applyDiff}
-        onClose={() => setDiffTask(null)}
-      />
-    ) : null}
-    {titlesOpen ? <AiTitlesDialog onClose={() => setTitlesOpen(false)} /> : null}
-    {summaryOpen ? <AiSummaryDialog onClose={() => setSummaryOpen(false)} /> : null}
     </>
   );
 }
