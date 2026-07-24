@@ -6,6 +6,7 @@ import { useStore } from "@/store/useStore";
 import { chatOnce, streamChat } from "@/lib/ai";
 import { useEscape } from "@/hooks/useEscape";
 import { toast } from "./Toast";
+import { AiModelPicker } from "./AiModelPicker";
 
 const headerCls =
   "flex h-12 shrink-0 items-center justify-between border-b border-[var(--hairline)] px-4";
@@ -38,6 +39,14 @@ export function AiDiffDialog({
   const resultRef = useRef<HTMLDivElement>(null);
   // 流式生成中禁止 Esc 误关
   useEscape(onClose, !running);
+
+  // 重新生成：中断当前流、清空结果并触发 effect 重跑（切换模型时也走这里）
+  const regenerate = () => {
+    setRunning(true);
+    setError("");
+    setResult("");
+    setRound((r) => r + 1);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -79,9 +88,13 @@ export function AiDiffDialog({
             <Sparkles size={15} className="text-[var(--accent)]" />
             {title}
           </span>
-          <button className={closeBtnCls} onClick={onClose}>
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {/* 换模型即重跑 */}
+            <AiModelPicker variant="chip" onChange={regenerate} />
+            <button className={closeBtnCls} onClick={onClose}>
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto sm:grid-cols-2">
@@ -108,16 +121,7 @@ export function AiDiffDialog({
         </div>
 
         <div className="flex h-14 shrink-0 items-center justify-end gap-2 border-t border-[var(--hairline)] px-4">
-          <button
-            className={ghostBtn9}
-            onClick={() => {
-              setRunning(true);
-              setError("");
-              setResult("");
-              setRound((r) => r + 1);
-            }}
-            disabled={running}
-          >
+          <button className={ghostBtn9} onClick={regenerate} disabled={running}>
             <RefreshCw size={13} />
             重新生成
           </button>

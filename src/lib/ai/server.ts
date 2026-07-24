@@ -16,13 +16,21 @@ export interface ActiveConfig {
 /**
  * 读取某用户在指定用途（文本对话 / AI 生图）下启用的 AI 配置。
  * 两个用途各有一套平台、密钥与模型；未启用/无该平台记录时返回 null。
+ *
+ * override 用于「编辑器里临时切换」：调用方指定本次要用的平台与模型，
+ * 覆盖设置里的默认。为防越权，仍以数据库中该平台自己的密钥/接口地址为准，
+ * 前端只能选模型、不能塞密钥；平台 id 非法时忽略 override 回落默认。
  */
 export async function getActiveConfig(
   userId: string,
-  scope: ProviderScope
+  scope: ProviderScope,
+  override?: { provider?: string; model?: string }
 ): Promise<ActiveConfig | null> {
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
-  const providerId = scope === "chat" ? settings?.aiChatProvider : settings?.aiImageProvider;
+  const defaultProvider = scope === "chat" ? settings?.aiChatProvider : settings?.aiImageProvider;
+  const overrideProvider =
+    override?.provider && getProvider(scope, override.provider) ? override.provider : undefined;
+  const providerId = overrideProvider ?? defaultProvider;
   if (!providerId) return null;
   const meta = getProvider(scope, providerId);
   if (!meta) return null;
@@ -30,11 +38,13 @@ export async function getActiveConfig(
     where: { userId_scope_provider: { userId, scope, provider: providerId } },
   });
   if (!row) return null;
+  // 只有确实切到了这个平台，才采用前端传来的模型；否则用该平台自己存的模型
+  const model = (overrideProvider && override?.model?.trim()) || row.model || meta.defaultModel;
   return {
     meta,
     token: decryptSecret(row.apiKeyEnc),
     baseUrl: resolveBaseUrl(meta, row.baseUrl),
-    model: row.model || meta.defaultModel,
+    model,
   };
 }
 
