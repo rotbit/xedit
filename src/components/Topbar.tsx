@@ -26,6 +26,7 @@ import {
   ChevronsUpDown,
   Moon,
   Sun,
+  Plug,
 } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { clearMirror } from "@/lib/docStore";
@@ -40,6 +41,7 @@ import { openAuth } from "./AuthDialog";
 import { DarkToggle, toggleDark } from "./DarkToggle";
 import { ThemePickerPanel } from "./ThemePicker";
 import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
+import { McpDialog } from "./McpDialog";
 import { ReviewDialog } from "./ReviewDialog";
 import { AiDiffDialog, AiTitlesDialog, AiSummaryDialog } from "./AiWriteDialogs";
 import { AiModelPicker } from "./AiModelPicker";
@@ -193,6 +195,7 @@ export function Topbar({
   }, [status, docId, router]);
 
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
   const [aiImageOpen, setAiImageOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [titlesOpen, setTitlesOpen] = useState(false);
@@ -618,6 +621,10 @@ export function Topbar({
           <Settings2 size={14} />
           AI 设置…
         </button>
+        <button className={itemCls} onClick={() => setMcpOpen(true)}>
+          <Plug size={14} />
+          MCP 连接…
+        </button>
       </Dropdown>
 
       {/* 版本历史（窄屏隐藏，保证顶栏不溢出） */}
@@ -742,6 +749,7 @@ export function Topbar({
       )}
     </header>
     {aiSettingsOpen ? <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} /> : null}
+      {mcpOpen ? <McpDialog onClose={() => setMcpOpen(false)} /> : null}
     {aiImageOpen ? (
       <AiImageDialog onClose={() => setAiImageOpen(false)} onInsert={insertAtCursor} />
     ) : null}
