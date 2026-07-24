@@ -42,6 +42,7 @@ import { ThemePickerPanel } from "./ThemePicker";
 import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
 import { ReviewDialog } from "./ReviewDialog";
 import { AiDiffDialog, AiTitlesDialog, AiSummaryDialog } from "./AiWriteDialogs";
+import { AiModelPicker } from "./AiModelPicker";
 import type { EditorHandle } from "./MarkdownEditor";
 
 const AI_PROMPTS = {
@@ -546,13 +547,15 @@ export function Topbar({
 
       {/* AI 助手 */}
       <Dropdown
-        width={200}
+        width={244}
         trigger={
           <button className={ghostBtn} title="AI 助手">
             <Sparkles size={15} />
           </button>
         }
       >
+        <AiModelPicker variant="menu" />
+        <div className="my-1 border-t border-[var(--hairline)]" />
         <p className="px-3.5 pb-0.5 pt-1 text-[11px] tracking-widest text-[var(--ink-faint)]">
           选中文字
         </p>

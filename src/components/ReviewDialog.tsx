@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Loader2, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import { useStore } from "@/store/useStore";
+import { currentChatChoice } from "@/lib/ai";
 import { useEscape } from "@/hooks/useEscape";
 
 const REVIEW_PROMPT = `你是资深的微信公众号内容合规与流量推荐（加热）审查专家，熟悉《微信公众平台运营规范》、公众号推荐/加热机制与广告法。
@@ -66,12 +67,14 @@ function parseReport(text: string): Report {
 async function runReview(): Promise<{ report: Report; truncated: boolean }> {
   const s = useStore.getState();
   const truncated = s.content.length > MAX_CHARS;
+  const choice = currentChatChoice();
   const res = await fetch("/api/ai/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       system: REVIEW_PROMPT,
       prompt: `文章标题：${s.title}\n\n${s.content.slice(0, MAX_CHARS)}`,
+      ...(choice ? { provider: choice.provider, model: choice.model } : {}),
     }),
   });
   const data = await res.json().catch(() => ({}));

@@ -21,11 +21,16 @@ export async function POST(req: Request) {
   const system: string = typeof body?.system === "string" ? body.system : "";
   const prompt: string = typeof body?.prompt === "string" ? body.prompt : "";
   const wantStream = body?.stream === true;
+  // 本次临时指定的平台/模型（编辑器里切换用）；缺省则走「AI 设置」里的默认
+  const override = {
+    provider: typeof body?.provider === "string" ? body.provider : undefined,
+    model: typeof body?.model === "string" ? body.model : undefined,
+  };
   if (!prompt) {
     return NextResponse.json({ error: "缺少内容" }, { status: 400 });
   }
 
-  const cfg = await getActiveConfig(session.user.id, "chat");
+  const cfg = await getActiveConfig(session.user.id, "chat", override);
   if (!cfg) {
     return NextResponse.json({ error: "尚未启用 AI 平台，请先在「AI 设置」中配置" }, { status: 400 });
   }

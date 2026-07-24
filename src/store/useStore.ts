@@ -56,6 +56,17 @@ interface SettingsSlice {
   tuneParaSpacing: number;
 }
 
+/** 文本对话可选的一个「平台 + 模型」组合（服务端拉取，仅列已配密钥的平台） */
+export interface ChatModelOption {
+  provider: string;
+  providerLabel: string;
+  model: string;
+  label: string;
+}
+
+/** 编辑器里临时选定的模型；null 表示跟随「AI 设置」里的默认 */
+export type ChatChoice = { provider: string; model: string } | null;
+
 interface EditorState extends SettingsSlice {
   /** 当前文档；docId 为 null 表示未登录的本地文稿 */
   docId: string | null;
@@ -69,6 +80,12 @@ interface EditorState extends SettingsSlice {
   /** AI 是否可用（服务端拉取，不持久化）：文本对话 / 生图各自独立 */
   aiChatReady: boolean;
   aiImageReady: boolean;
+  /** 文本对话可选模型列表（服务端拉取，不持久化） */
+  aiChatModels: ChatModelOption[];
+  /** 设置里默认平台的展示名，用于「跟随默认（xxx）」；空表示未设默认 */
+  aiChatDefaultLabel: string;
+  /** 编辑器里临时选定的模型（持久化到本地浏览器） */
+  aiChatChoice: ChatChoice;
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -85,7 +102,13 @@ interface EditorState extends SettingsSlice {
   setSplitRatio: (r: number) => void;
   setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
   setCategory: (c: string) => void;
-  setAiStatus: (s: { aiChatReady: boolean; aiImageReady: boolean }) => void;
+  setAiStatus: (s: {
+    aiChatReady: boolean;
+    aiImageReady: boolean;
+    aiChatModels: ChatModelOption[];
+    aiChatDefaultLabel: string;
+  }) => void;
+  setAiChatChoice: (c: ChatChoice) => void;
 }
 
 export const useStore = create<EditorState>()(
@@ -111,6 +134,9 @@ export const useStore = create<EditorState>()(
       cssDialogOpen: false,
       aiChatReady: false,
       aiImageReady: false,
+      aiChatModels: [],
+      aiChatDefaultLabel: "",
+      aiChatChoice: null,
 
       setContent: (content) => set({ content }),
       setTitle: (title) => set({ title }),
@@ -129,6 +155,7 @@ export const useStore = create<EditorState>()(
       setTune: (t) => set(t),
       setCategory: (category) => set({ category }),
       setAiStatus: (s) => set(s),
+      setAiChatChoice: (aiChatChoice) => set({ aiChatChoice }),
     }),
     {
       name: "xedit-store",
@@ -160,6 +187,8 @@ export const useStore = create<EditorState>()(
         tuneFontSize: state.tuneFontSize,
         tuneLineHeight: state.tuneLineHeight,
         tuneParaSpacing: state.tuneParaSpacing,
+        // 编辑器里临时选的模型，跨刷新保留（失效时由 refreshAiStatus 清掉）
+        aiChatChoice: state.aiChatChoice,
         // 未登录时的本地文稿也持久化，防止刷新丢失
         title: state.title,
         content: state.content,

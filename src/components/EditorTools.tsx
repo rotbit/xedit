@@ -20,6 +20,7 @@ import { ThemePickerPanel } from "./ThemePicker";
 import { AiSettingsDialog, AiImageDialog } from "./AiDialogs";
 import { ReviewDialog } from "./ReviewDialog";
 import { AiDiffDialog, AiTitlesDialog, AiSummaryDialog } from "./AiWriteDialogs";
+import { AiModelPicker } from "./AiModelPicker";
 import type { EditorHandle } from "./MarkdownEditor";
 
 // 与老编辑页 Topbar 一致的一组 AI 提示词；此处独立一份，保证首页阅读态无需依赖 Topbar
@@ -311,13 +312,15 @@ export function EditorTools({
 
       {/* AI 助手 */}
       <Dropdown
-        width={200}
+        width={244}
         trigger={
           <button className={iconBtn} title="AI 助手">
             <Sparkles size={16} strokeWidth={1.75} />
           </button>
         }
       >
+        <AiModelPicker variant="menu" />
+        <div className="my-1 border-t border-[var(--hairline)]" />
         <p className="px-3.5 pb-0.5 pt-1 text-[11px] tracking-widest text-[var(--ink-faint)]">
           选中文字
         </p>
