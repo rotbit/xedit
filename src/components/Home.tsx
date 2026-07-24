@@ -119,6 +119,15 @@ const STATS = "__stats__";
 const UNCATEGORIZED = "未分类";
 const MAX_DEPTH = 3;
 
+/** 分类圆点色：顶级分类名哈希到固定色板（与写作足迹同源），子分类跟随父级；未分类恒为中性灰 */
+function catColorOf(cat: string): string {
+  if (cat === UNCATEGORIZED) return "var(--hairline-strong)";
+  const root = cat.split("/")[0];
+  let h = 0;
+  for (let i = 0; i < root.length; i++) h = (h * 31 + root.charCodeAt(i)) >>> 0;
+  return `var(--cat-${(h % 6) + 1})`;
+}
+
 function formatTime(iso: string): string {
   const date = new Date(iso);
   const diff = Date.now() - date.getTime();
@@ -1480,7 +1489,7 @@ export function Home() {
                         {Array.from({ length: 4 }).map((_, i) => (
                           <div
                             key={i}
-                            className="h-[164px] animate-pulse rounded-xl bg-[var(--panel)]/70 ring-1 ring-black/[0.04] dark:ring-white/10"
+                            className="h-[140px] animate-pulse rounded-xl bg-[var(--panel)]/70 ring-1 ring-black/[0.04] dark:ring-white/10"
                           />
                         ))}
                       </div>
@@ -1514,12 +1523,17 @@ export function Home() {
                               <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-[var(--ink)] [font-family:var(--serif)]">
                                 {doc.title || "未命名文章"}
                               </span>
-                              <span className="hidden items-center gap-1 rounded-md bg-[var(--paper)] px-2 py-0.5 text-[11px] text-[var(--ink-soft)] group-hover:bg-[var(--panel)] sm:flex">
-                                <Folder size={11} />
-                                {cat}
+                              <span className="hidden max-w-[160px] items-center gap-1.5 text-[11.5px] text-[var(--ink-soft)] sm:flex">
+                                <span
+                                  className="h-[7px] w-[7px] shrink-0 rounded-full"
+                                  style={{ background: catColorOf(cat) }}
+                                />
+                                <span className="truncate">{cat}</span>
                               </span>
                               <span className="hidden w-16 shrink-0 text-right text-[11.5px] text-[var(--ink-faint)] sm:block">
-                                {typeof doc.chars === "number" ? `${doc.chars} 字` : ""}
+                                {typeof doc.chars === "number" && doc.chars > 0
+                                  ? `${doc.chars.toLocaleString()} 字`
+                                  : ""}
                               </span>
                               <span className="w-[76px] shrink-0 text-right text-[11.5px] text-[var(--ink-faint)]">
                                 {formatTime(doc.updatedAt)}
@@ -1561,44 +1575,37 @@ export function Home() {
                               }}
                             >
                               <span className="absolute bottom-5 left-0 top-5 w-[3px] rounded-r-full bg-transparent transition-colors group-hover:bg-[var(--accent)]" />
-                              <div className="flex items-center gap-2">
-                                <span className="flex items-center gap-1.5 rounded-md bg-[var(--paper)] px-2 py-0.5 text-[11px] text-[var(--ink-soft)]">
-                                  <Folder size={11} />
-                                  {cat}
-                                </span>
-                                <span className="flex-1" />
-                                <span className="text-[11.5px] text-[var(--ink-faint)]">
-                                  {formatTime(doc.updatedAt)}
-                                </span>
-                                {isTrash ? null : (
-                                  <button
-                                    className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] group-hover:visible [@media(hover:none)]:visible"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (docMenu?.id === doc.id) {
-                                        setDocMenu(null);
-                                        return;
-                                      }
-                                      const r = e.currentTarget.getBoundingClientRect();
-                                      setDocMenu({
-                                        id: doc.id,
-                                        top: r.bottom + 4,
-                                        right: window.innerWidth - r.right,
-                                      });
-                                    }}
-                                  >
-                                    <MoreHorizontal size={15} />
-                                  </button>
-                                )}
-                              </div>
-                              <p className="mt-2.5 truncate pr-6 text-[15px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
+                              <p className="truncate pr-8 text-[15.5px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
                                 {doc.title || "未命名文章"}
                               </p>
-                              <p className="mt-1 line-clamp-2 h-10 text-[12.5px] leading-5 text-[var(--ink-soft)]">
-                                {doc.excerpt || "（暂无内容）"}
+                              <p
+                                className={`mt-1.5 line-clamp-2 h-10 text-[12.5px] leading-5 ${
+                                  doc.excerpt ? "text-[var(--ink-soft)]" : "text-[var(--ink-faint)]"
+                                }`}
+                              >
+                                {doc.excerpt || "尚无内容"}
                               </p>
+                              <div className="mt-3 flex items-center gap-2 text-[11.5px] text-[var(--ink-faint)]">
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  <span
+                                    className="h-[7px] w-[7px] shrink-0 rounded-full"
+                                    style={{ background: catColorOf(cat) }}
+                                  />
+                                  <span className="truncate">{cat}</span>
+                                </span>
+                                <span className="shrink-0">·</span>
+                                <span className="shrink-0">{formatTime(doc.updatedAt)}</span>
+                                {typeof doc.chars === "number" && doc.chars > 0 ? (
+                                  <>
+                                    <span className="shrink-0">·</span>
+                                    <span className="shrink-0">
+                                      {doc.chars.toLocaleString()} 字
+                                    </span>
+                                  </>
+                                ) : null}
+                              </div>
                               {isTrash ? (
-                                <div className="mt-2.5 flex gap-2">
+                                <div className="mt-3 flex gap-2 border-t border-[var(--hairline-soft)] pt-3">
                                   <button
                                     className="cursor-pointer rounded-md border border-[var(--hairline-strong)] px-2.5 py-1 text-[12px] text-[var(--ink)] hover:bg-[var(--paper)]"
                                     onClick={(e) => {
@@ -1619,9 +1626,28 @@ export function Home() {
                                   </button>
                                 </div>
                               ) : (
-                                <p className="mt-2 text-[11.5px] text-[var(--ink-faint)]">
-                                  {typeof doc.chars === "number" ? `${doc.chars} 字` : ""}
-                                </p>
+                                <button
+                                  className={`absolute right-3 top-3.5 cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] [@media(hover:none)]:visible ${
+                                    docMenu?.id === doc.id
+                                      ? "visible"
+                                      : "invisible group-hover:visible"
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (docMenu?.id === doc.id) {
+                                      setDocMenu(null);
+                                      return;
+                                    }
+                                    const r = e.currentTarget.getBoundingClientRect();
+                                    setDocMenu({
+                                      id: doc.id,
+                                      top: r.bottom + 4,
+                                      right: window.innerWidth - r.right,
+                                    });
+                                  }}
+                                >
+                                  <MoreHorizontal size={15} />
+                                </button>
                               )}
 
                               {renderDocMenu(doc, cat)}
