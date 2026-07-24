@@ -38,6 +38,7 @@ export default function Consent({
           <li>· 查看、搜索你的文档</li>
           <li>· 创建、修改文档</li>
           <li>· 把文档移入回收站（可恢复）</li>
+          <li>· 查看、上传、删除图床图片</li>
         </ul>
 
         <form className="mt-7 flex gap-3">
