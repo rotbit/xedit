@@ -22,11 +22,12 @@ export async function refreshAiStatus(): Promise<void> {
       return;
     }
     const data = await res.json();
-    const providers = data?.providers ?? {};
-    const ready = (id: string) => Boolean(id && providers[id]?.hasKey);
+    // 文本对话与生图各一套配置：启用的平台自身填了密钥才算可用
+    const ready = (scope: { active?: string; providers?: Record<string, { hasKey?: boolean }> }) =>
+      Boolean(scope?.active && scope.providers?.[scope.active]?.hasKey);
     useStore.getState().setAiStatus({
-      aiChatReady: ready(data?.activeChat),
-      aiImageReady: ready(data?.activeImage),
+      aiChatReady: ready(data?.chat),
+      aiImageReady: ready(data?.image),
     });
   } catch {
     useStore.getState().setAiStatus({ aiChatReady: false, aiImageReady: false });

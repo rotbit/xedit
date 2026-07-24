@@ -7,16 +7,17 @@ import { toast } from "./Toast";
 import { refreshAiStatus, aiImageReady } from "@/lib/ai";
 import { openAuth } from "./AuthDialog";
 import {
-  PROVIDERS,
-  CHAT_PROVIDERS,
-  IMAGE_PROVIDERS,
+  PROVIDER_SCOPES,
+  providersOf,
   getProvider,
-  type ProviderId,
+  type ProviderScope,
 } from "@/lib/ai/catalog";
 
 const fieldCls =
   "h-9 w-full rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]";
 const labelCls = "mb-1 mt-3 block text-[12px] text-[var(--ink-soft)]";
+
+const SCOPE_LABEL: Record<ProviderScope, string> = { chat: "文本对话", image: "AI 生图" };
 
 interface Draft {
   apiKey: string;
@@ -24,16 +25,21 @@ interface Draft {
   hasKey: boolean;
   keyLast4: string;
   baseUrl: string;
-  chatModel: string;
-  imageModel: string;
+  model: string;
   dirty: boolean;
 }
 
+/** 草稿按「用途 + 平台」存，两个用途互不干扰 */
+const draftKey = (scope: ProviderScope, provider: string) => `${scope}:${provider}`;
+
 export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [activeChat, setActiveChat] = useState("");
-  const [activeImage, setActiveImage] = useState("");
-  const [tab, setTab] = useState<ProviderId>("replicate");
+  const [active, setActive] = useState<Record<ProviderScope, string>>({ chat: "", image: "" });
+  const [scope, setScope] = useState<ProviderScope>("chat");
+  const [tabs, setTabs] = useState<Record<ProviderScope, string>>({
+    chat: "replicate",
+    image: "replicate",
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [needLogin, setNeedLogin] = useState(false);
@@ -54,22 +60,22 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
         const data = await res.json();
         if (cancelled) return;
         const next: Record<string, Draft> = {};
-        for (const meta of PROVIDERS) {
-          const p = data?.providers?.[meta.id];
-          next[meta.id] = {
-            apiKey: "",
-            keyEdited: false,
-            hasKey: Boolean(p?.hasKey),
-            keyLast4: p?.keyLast4 ?? "",
-            baseUrl: p?.baseUrl ?? "",
-            chatModel: p?.chatModel || meta.defaultChatModel,
-            imageModel: p?.imageModel || meta.defaultImageModel,
-            dirty: false,
-          };
+        for (const s of PROVIDER_SCOPES) {
+          for (const meta of providersOf(s)) {
+            const p = data?.[s]?.providers?.[meta.id];
+            next[draftKey(s, meta.id)] = {
+              apiKey: "",
+              keyEdited: false,
+              hasKey: Boolean(p?.hasKey),
+              keyLast4: p?.keyLast4 ?? "",
+              baseUrl: p?.baseUrl ?? "",
+              model: p?.model || meta.defaultModel,
+              dirty: false,
+            };
+          }
         }
         setDrafts(next);
-        setActiveChat(data?.activeChat ?? "");
-        setActiveImage(data?.activeImage ?? "");
+        setActive({ chat: data?.chat?.active ?? "", image: data?.image?.active ?? "" });
         setLoading(false);
       } catch {
         if (!cancelled) {
@@ -83,36 +89,38 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const patch = (id: string, p: Partial<Draft>) =>
-    setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p, dirty: true } }));
+  const patch = (key: string, p: Partial<Draft>) =>
+    setDrafts((d) => ({ ...d, [key]: { ...d[key], ...p, dirty: true } }));
 
   const save = async () => {
     setSaving(true);
     try {
-      for (const meta of PROVIDERS) {
-        const d = drafts[meta.id];
-        if (!d?.dirty) continue;
-        const body: Record<string, string> = {
-          provider: meta.id,
-          baseUrl: d.baseUrl,
-          chatModel: d.chatModel,
-          imageModel: d.imageModel,
-        };
-        if (d.keyEdited) body.apiKey = d.apiKey;
-        const res = await fetch("/api/ai/providers", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}));
-          throw new Error(e.error ?? "保存失败");
+      for (const s of PROVIDER_SCOPES) {
+        for (const meta of providersOf(s)) {
+          const d = drafts[draftKey(s, meta.id)];
+          if (!d?.dirty) continue;
+          const body: Record<string, string> = {
+            scope: s,
+            provider: meta.id,
+            baseUrl: d.baseUrl,
+            model: d.model,
+          };
+          if (d.keyEdited) body.apiKey = d.apiKey;
+          const res = await fetch("/api/ai/providers", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            throw new Error(e.error ?? "保存失败");
+          }
         }
       }
       const res = await fetch("/api/ai/providers", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activeChat, activeImage }),
+        body: JSON.stringify({ activeChat: active.chat, activeImage: active.image }),
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
@@ -128,8 +136,10 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const meta = getProvider(tab)!;
-  const d = drafts[tab];
+  const tab = tabs[scope];
+  const meta = getProvider(scope, tab) ?? providersOf(scope)[0];
+  const key = draftKey(scope, meta.id);
+  const d = drafts[key];
 
   return (
     <div
@@ -176,9 +186,26 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <>
+            {/* 用途切换：文本对话 / AI 生图，两份配置完全独立 */}
+            <div className="flex shrink-0 gap-1 px-4 pt-3">
+              {PROVIDER_SCOPES.map((s) => (
+                <button
+                  key={s}
+                  className={`cursor-pointer rounded-md px-3 py-1 text-[12.5px] transition-colors ${
+                    scope === s
+                      ? "bg-[var(--accent)] font-medium text-[var(--accent-fg)]"
+                      : "text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+                  }`}
+                  onClick={() => setScope(s)}
+                >
+                  {SCOPE_LABEL[s]}
+                </button>
+              ))}
+            </div>
+
             {/* 平台切换 */}
-            <div className="flex gap-1 border-b border-[var(--hairline)] px-3 pt-2">
-              {PROVIDERS.map((p) => (
+            <div className="flex shrink-0 gap-1 border-b border-[var(--hairline)] px-3 pt-2">
+              {providersOf(scope).map((p) => (
                 <button
                   key={p.id}
                   className={`cursor-pointer rounded-t-md px-3 py-1.5 text-[12.5px] transition-colors ${
@@ -186,16 +213,10 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                       ? "bg-[var(--accent-wash)] font-medium text-[var(--accent-deep)]"
                       : "text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
                   }`}
-                  onClick={() => setTab(p.id)}
+                  onClick={() => setTabs((t) => ({ ...t, [scope]: p.id }))}
                 >
-                  {p.id === "replicate"
-                    ? "Replicate"
-                    : p.id === "moonshot"
-                      ? "Kimi"
-                      : p.id === "zhipu"
-                        ? "GLM"
-                        : "DeepSeek"}
-                  {drafts[p.id]?.hasKey ? (
+                  {p.tab}
+                  {drafts[draftKey(scope, p.id)]?.hasKey ? (
                     <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
                   ) : null}
                 </button>
@@ -220,7 +241,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                 className={fieldCls}
                 type="password"
                 value={d?.apiKey ?? ""}
-                onChange={(e) => patch(tab, { apiKey: e.target.value, keyEdited: true })}
+                onChange={(e) => patch(key, { apiKey: e.target.value, keyEdited: true })}
                 placeholder={
                   d?.hasKey ? `已保存 ····${d.keyLast4}（留空则不修改）` : meta.keyHint
                 }
@@ -232,87 +253,45 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                   <input
                     className={fieldCls}
                     value={d?.baseUrl ?? ""}
-                    onChange={(e) => patch(tab, { baseUrl: e.target.value })}
+                    onChange={(e) => patch(key, { baseUrl: e.target.value })}
                     placeholder={meta.defaultBaseUrl}
                   />
                 </>
               ) : null}
 
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className={labelCls}>文本模型</label>
-                  <input
-                    className={fieldCls}
-                    list={`chat-${meta.id}`}
-                    value={d?.chatModel ?? ""}
-                    onChange={(e) => patch(tab, { chatModel: e.target.value })}
-                    placeholder={meta.defaultChatModel}
-                  />
-                  <datalist id={`chat-${meta.id}`}>
-                    {meta.chatModels.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </datalist>
-                </div>
-                {meta.imageModels.length > 0 ? (
-                  <div className="flex-1">
-                    <label className={labelCls}>图片模型</label>
-                    <input
-                      className={fieldCls}
-                      list={`img-${meta.id}`}
-                      value={d?.imageModel ?? ""}
-                      onChange={(e) => patch(tab, { imageModel: e.target.value })}
-                      placeholder={meta.defaultImageModel}
-                    />
-                    <datalist id={`img-${meta.id}`}>
-                      {meta.imageModels.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </datalist>
-                  </div>
-                ) : null}
-              </div>
+              <label className={labelCls}>{scope === "chat" ? "文本模型" : "图片模型"}</label>
+              <input
+                className={fieldCls}
+                list={`model-${scope}-${meta.id}`}
+                value={d?.model ?? ""}
+                onChange={(e) => patch(key, { model: e.target.value })}
+                placeholder={meta.defaultModel}
+              />
+              <datalist id={`model-${scope}-${meta.id}`}>
+                {meta.models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </datalist>
 
-              {/* 启用哪个平台 */}
-              <div className="mt-5 rounded-lg border border-[var(--hairline)] bg-[var(--paper)] p-3">
-                <div className="flex items-center gap-3">
-                  <label className="w-20 shrink-0 text-[12px] text-[var(--ink-soft)]">
-                    文本对话用
-                  </label>
-                  <select
-                    className={fieldCls}
-                    value={activeChat}
-                    onChange={(e) => setActiveChat(e.target.value)}
-                  >
-                    <option value="">未启用</option>
-                    {CHAT_PROVIDERS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="mt-2 flex items-center gap-3">
-                  <label className="w-20 shrink-0 text-[12px] text-[var(--ink-soft)]">
-                    AI 生图用
-                  </label>
-                  <select
-                    className={fieldCls}
-                    value={activeImage}
-                    onChange={(e) => setActiveImage(e.target.value)}
-                  >
-                    <option value="">未启用</option>
-                    {IMAGE_PROVIDERS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* 该用途启用哪个平台 */}
+              <div className="mt-5 flex items-center gap-3 rounded-lg border border-[var(--hairline)] bg-[var(--paper)] p-3">
+                <label className="w-20 shrink-0 text-[12px] text-[var(--ink-soft)]">
+                  {SCOPE_LABEL[scope]}用
+                </label>
+                <select
+                  className={fieldCls}
+                  value={active[scope]}
+                  onChange={(e) => setActive((a) => ({ ...a, [scope]: e.target.value }))}
+                >
+                  <option value="">未启用</option>
+                  {providersOf(scope).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
