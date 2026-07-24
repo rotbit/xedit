@@ -21,6 +21,7 @@ model User {
   settings      UserSettings?
   activities    WritingActivity[]
   assets        Asset[]
+  aiProviders   AiProvider[]
 }
 
 model Account {
@@ -98,6 +99,29 @@ model UserSettings {
   linkFootnote Boolean @default(true)
   /// 用户自建分类（JSON 数组），与文章上的分类取并集展示，保证空分类不消失
   categories   String  @default("[]")
+  /// 当前用于「文本对话」的 AI 平台 id（对应 AiProvider.provider）；为空表示未启用
+  aiChatProvider  String @default("")
+  /// 当前用于「AI 生图」的 AI 平台 id；为空表示未启用
+  aiImageProvider String @default("")
+}
+
+/// 用户配置的 AI 平台凭据（每个平台一行）。apiKeyEnc 为 AES-256-GCM 加密后的密钥，明文绝不落库。
+model AiProvider {
+  userId     String
+  /// 平台 id：replicate | moonshot | zhipu | deepseek
+  provider   String
+  /// 加密后的 API Key（空串表示尚未填写）
+  apiKeyEnc  String   @default("") @db.Text
+  /// 可选的接口地址覆盖；为空时用内置默认
+  baseUrl    String   @default("")
+  /// 该平台选定的文本模型
+  chatModel  String   @default("")
+  /// 该平台选定的图片模型
+  imageModel String   @default("")
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, provider])
 }
 
 /// 每日写作流水（date 为东八区 YYYY-MM-DD）

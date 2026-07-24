@@ -127,9 +127,15 @@ export function EditorTools({
   } | null>(null);
 
   const aiConfigured = () => {
-    const s = useStore.getState();
-    if (s.aiApiKey || s.aiBaseUrl.includes("localhost")) return true;
-    toast("请先在「AI 设置」中配置接口和 Key", "error");
+    if (useStore.getState().aiChatReady) return true;
+    toast("请先在「AI 设置」中启用文本平台并填写密钥", "error");
+    setAiSettingsOpen(true);
+    return false;
+  };
+
+  const aiImageConfigured = () => {
+    if (useStore.getState().aiImageReady) return true;
+    toast("请先在「AI 设置」中启用生图平台并填写密钥", "error");
     setAiSettingsOpen(true);
     return false;
   };
@@ -364,7 +370,7 @@ export function EditorTools({
         <button
           className={itemCls}
           onClick={() => {
-            if (aiConfigured()) setAiImageOpen(true);
+            if (aiImageConfigured()) setAiImageOpen(true);
           }}
         >
           <ImagePlus size={14} />

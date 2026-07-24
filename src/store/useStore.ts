@@ -54,11 +54,6 @@ interface SettingsSlice {
   tuneFontSize: number;
   tuneLineHeight: number;
   tuneParaSpacing: number;
-  /** OpenAI 兼容接口地址，如 https://api.deepseek.com/v1 */
-  aiBaseUrl: string;
-  aiApiKey: string;
-  aiModel: string;
-  aiImageModel: string;
 }
 
 interface EditorState extends SettingsSlice {
@@ -71,6 +66,9 @@ interface EditorState extends SettingsSlice {
   saveState: SaveState;
   /** 由设置抽屉/弹窗使用 */
   cssDialogOpen: boolean;
+  /** AI 是否可用（服务端拉取，不持久化）：文本对话 / 生图各自独立 */
+  aiChatReady: boolean;
+  aiImageReady: boolean;
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -87,12 +85,7 @@ interface EditorState extends SettingsSlice {
   setSplitRatio: (r: number) => void;
   setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
   setCategory: (c: string) => void;
-  setAiConfig: (c: {
-    aiBaseUrl?: string;
-    aiApiKey?: string;
-    aiModel?: string;
-    aiImageModel?: string;
-  }) => void;
+  setAiStatus: (s: { aiChatReady: boolean; aiImageReady: boolean }) => void;
 }
 
 export const useStore = create<EditorState>()(
@@ -109,10 +102,6 @@ export const useStore = create<EditorState>()(
       tuneFontSize: 16,
       tuneLineHeight: 1.75,
       tuneParaSpacing: 16,
-      aiBaseUrl: "https://api.openai.com/v1",
-      aiApiKey: "",
-      aiModel: "gpt-4o-mini",
-      aiImageModel: "gpt-image-1",
 
       docId: null,
       title: "未命名文章",
@@ -120,6 +109,8 @@ export const useStore = create<EditorState>()(
       category: "未分类",
       saveState: "local",
       cssDialogOpen: false,
+      aiChatReady: false,
+      aiImageReady: false,
 
       setContent: (content) => set({ content }),
       setTitle: (title) => set({ title }),
@@ -137,13 +128,14 @@ export const useStore = create<EditorState>()(
         set({ splitRatio: Math.min(0.75, Math.max(0.25, splitRatio)) }),
       setTune: (t) => set(t),
       setCategory: (category) => set({ category }),
-      setAiConfig: (c) => set(c),
+      setAiStatus: (s) => set(s),
     }),
     {
       name: "xedit-store",
-      version: 3,
+      version: 4,
       // v1 起代码主题固定 VS 2015、Mac 风格固定开启；v2 起移除手机预览模式，清掉历史持久化值；
-      // v3 起专注模式下线：即时渲染并入首页文章视图，编辑页固定分屏
+      // v3 起专注模式下线：即时渲染并入首页文章视图，编辑页固定分屏；
+      // v4 起 AI 密钥改为服务端按账号加密存储，清掉本地遗留的接口地址/密钥/模型
       migrate: (persisted) => {
         const state = persisted as Record<string, unknown> | undefined;
         if (state) {
@@ -151,6 +143,10 @@ export const useStore = create<EditorState>()(
           delete state.macCode;
           delete state.previewMode;
           delete state.focusMode;
+          delete state.aiBaseUrl;
+          delete state.aiApiKey;
+          delete state.aiModel;
+          delete state.aiImageModel;
         }
         return state as never;
       },
@@ -164,10 +160,6 @@ export const useStore = create<EditorState>()(
         tuneFontSize: state.tuneFontSize,
         tuneLineHeight: state.tuneLineHeight,
         tuneParaSpacing: state.tuneParaSpacing,
-        aiBaseUrl: state.aiBaseUrl,
-        aiApiKey: state.aiApiKey,
-        aiModel: state.aiModel,
-        aiImageModel: state.aiImageModel,
         // 未登录时的本地文稿也持久化，防止刷新丢失
         title: state.title,
         content: state.content,
