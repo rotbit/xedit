@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ossConfigured, ossPut, IMAGE_EXT } from "@/lib/oss";
 import { decryptSecret } from "./crypto";
-import { getProvider, resolveBaseUrl, type ProviderMeta } from "./catalog";
+import { getProvider, resolveBaseUrl, type ProviderMeta, type ProviderScope } from "./catalog";
 
 export interface ActiveConfig {
   meta: ProviderMeta;
@@ -14,31 +14,27 @@ export interface ActiveConfig {
 }
 
 /**
- * 读取某用户当前启用的 AI 配置。
- * purpose 决定取文本模型还是图片模型；未启用/无该平台记录时返回 null。
+ * 读取某用户在指定用途（文本对话 / AI 生图）下启用的 AI 配置。
+ * 两个用途各有一套平台、密钥与模型；未启用/无该平台记录时返回 null。
  */
 export async function getActiveConfig(
   userId: string,
-  purpose: "chat" | "image"
+  scope: ProviderScope
 ): Promise<ActiveConfig | null> {
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
-  const providerId = purpose === "chat" ? settings?.aiChatProvider : settings?.aiImageProvider;
+  const providerId = scope === "chat" ? settings?.aiChatProvider : settings?.aiImageProvider;
   if (!providerId) return null;
-  const meta = getProvider(providerId);
+  const meta = getProvider(scope, providerId);
   if (!meta) return null;
   const row = await prisma.aiProvider.findUnique({
-    where: { userId_provider: { userId, provider: providerId } },
+    where: { userId_scope_provider: { userId, scope, provider: providerId } },
   });
   if (!row) return null;
-  const model =
-    purpose === "chat"
-      ? row.chatModel || meta.defaultChatModel
-      : row.imageModel || meta.defaultImageModel;
   return {
     meta,
     token: decryptSecret(row.apiKeyEnc),
     baseUrl: resolveBaseUrl(meta, row.baseUrl),
-    model,
+    model: row.model || meta.defaultModel,
   };
 }
 

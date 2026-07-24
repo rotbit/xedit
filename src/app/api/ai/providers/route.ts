@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { encryptSecret, decryptSecret, keyLast4 } from "@/lib/ai/crypto";
-import { isProviderId } from "@/lib/ai/catalog";
+import { isProviderId, isProviderScope, type ProviderScope } from "@/lib/ai/catalog";
 
 export const runtime = "nodejs";
 
@@ -13,8 +13,13 @@ interface ProviderView {
   hasKey: boolean;
   keyLast4: string;
   baseUrl: string;
-  chatModel: string;
-  imageModel: string;
+  model: string;
+}
+
+/** 一个用途（chat / image）下的全部平台配置与当前启用项 */
+interface ScopeView {
+  providers: Record<string, ProviderView>;
+  active: string;
 }
 
 async function buildConfig(userId: string) {
@@ -22,22 +27,20 @@ async function buildConfig(userId: string) {
     prisma.aiProvider.findMany({ where: { userId } }),
     prisma.userSettings.findUnique({ where: { userId } }),
   ]);
-  const providers: Record<string, ProviderView> = {};
+  const chat: ScopeView = { providers: {}, active: settings?.aiChatProvider ?? "" };
+  const image: ScopeView = { providers: {}, active: settings?.aiImageProvider ?? "" };
   for (const row of rows) {
+    if (!isProviderScope(row.scope)) continue;
     const key = decryptSecret(row.apiKeyEnc);
-    providers[row.provider] = {
+    const target = row.scope === "chat" ? chat : image;
+    target.providers[row.provider] = {
       hasKey: Boolean(key),
       keyLast4: keyLast4(key),
       baseUrl: row.baseUrl,
-      chatModel: row.chatModel,
-      imageModel: row.imageModel,
+      model: row.model,
     };
   }
-  return {
-    providers,
-    activeChat: settings?.aiChatProvider ?? "",
-    activeImage: settings?.aiImageProvider ?? "",
-  };
+  return { chat, image };
 }
 
 export async function GET() {
@@ -56,40 +59,38 @@ export async function PUT(req: Request) {
   const userId = session.user.id;
   const body = await req.json().catch(() => ({}));
 
-  // 1) 更新某个平台的配置
+  // 1) 更新某个用途下某个平台的配置
   if (typeof body.provider === "string") {
-    if (!isProviderId(body.provider)) {
+    if (!isProviderScope(body.scope)) {
+      return NextResponse.json({ error: "未知用途" }, { status: 400 });
+    }
+    const scope: ProviderScope = body.scope;
+    if (!isProviderId(scope, body.provider)) {
       return NextResponse.json({ error: "未知平台" }, { status: 400 });
     }
-    const provider = body.provider;
-    const data: {
-      baseUrl?: string;
-      chatModel?: string;
-      imageModel?: string;
-      apiKeyEnc?: string;
-    } = {};
+    const provider: string = body.provider;
+    const data: { baseUrl?: string; model?: string; apiKeyEnc?: string } = {};
 
     if (typeof body.baseUrl === "string") data.baseUrl = body.baseUrl.trim().slice(0, 200);
-    if (typeof body.chatModel === "string") data.chatModel = body.chatModel.trim().slice(0, 120);
-    if (typeof body.imageModel === "string") data.imageModel = body.imageModel.trim().slice(0, 120);
+    if (typeof body.model === "string") data.model = body.model.trim().slice(0, 120);
     // apiKey：缺省/掩码 → 保留原值；有值 → 加密覆盖
     if (typeof body.apiKey === "string" && body.apiKey !== KEY_MASK) {
       data.apiKeyEnc = encryptSecret(body.apiKey.trim());
     }
 
     await prisma.aiProvider.upsert({
-      where: { userId_provider: { userId, provider } },
+      where: { userId_scope_provider: { userId, scope, provider } },
       update: data,
-      create: { userId, provider, ...data },
+      create: { userId, scope, provider, ...data },
     });
   }
 
   // 2) 更新当前启用的平台（文本 / 生图）
   const settingsUpdate: { aiChatProvider?: string; aiImageProvider?: string } = {};
-  if (typeof body.activeChat === "string" && (body.activeChat === "" || isProviderId(body.activeChat))) {
+  if (typeof body.activeChat === "string" && (body.activeChat === "" || isProviderId("chat", body.activeChat))) {
     settingsUpdate.aiChatProvider = body.activeChat;
   }
-  if (typeof body.activeImage === "string" && (body.activeImage === "" || isProviderId(body.activeImage))) {
+  if (typeof body.activeImage === "string" && (body.activeImage === "" || isProviderId("image", body.activeImage))) {
     settingsUpdate.aiImageProvider = body.activeImage;
   }
   if (Object.keys(settingsUpdate).length) {
