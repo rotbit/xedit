@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ossConfigured, ossPut, IMAGE_EXT } from "@/lib/oss";
 import { decryptSecret } from "./crypto";
-import { getProvider, resolveBaseUrl, type ProviderMeta, type ProviderScope } from "./catalog";
+import { getProvider, providersOf, resolveBaseUrl, type ProviderMeta, type ProviderScope } from "./catalog";
 
 export interface ActiveConfig {
   meta: ProviderMeta;
@@ -15,11 +15,14 @@ export interface ActiveConfig {
 
 /**
  * 读取某用户在指定用途（文本对话 / AI 生图）下启用的 AI 配置。
- * 两个用途各有一套平台、密钥与模型；未启用/无该平台记录时返回 null。
  *
- * override 用于「编辑器里临时切换」：调用方指定本次要用的平台与模型，
- * 覆盖设置里的默认。为防越权，仍以数据库中该平台自己的密钥/接口地址为准，
- * 前端只能选模型、不能塞密钥；平台 id 非法时忽略 override 回落默认。
+ * 平台解析优先级：
+ *   1. override.provider —— 编辑器里临时切换本次要用的平台（前端只能选模型、不能塞密钥；
+ *      密钥/接口地址仍以库中该平台记录为准，防越权）。
+ *   2. 设置里的默认平台（aiChatProvider / aiImageProvider）。
+ *   3. 仅「文本对话」：回落到首个已填密钥的平台——文本无需在设置里指定「启用平台」，
+ *      填了 Key 即可用，用哪个在编辑器里随时切。生图无此回落，仍需显式启用。
+ * 全部落空返回 null。
  */
 export async function getActiveConfig(
   userId: string,
@@ -30,13 +33,29 @@ export async function getActiveConfig(
   const defaultProvider = scope === "chat" ? settings?.aiChatProvider : settings?.aiImageProvider;
   const overrideProvider =
     override?.provider && getProvider(scope, override.provider) ? override.provider : undefined;
-  const providerId = overrideProvider ?? defaultProvider;
+
+  let providerId = overrideProvider ?? (defaultProvider && getProvider(scope, defaultProvider) ? defaultProvider : undefined);
+
+  // 文本对话：没有显式默认时，回落到第一个填了密钥的平台
+  let rows: Awaited<ReturnType<typeof prisma.aiProvider.findMany>> | null = null;
+  if (!providerId && scope === "chat") {
+    rows = await prisma.aiProvider.findMany({ where: { userId, scope } });
+    for (const meta of providersOf(scope)) {
+      const r = rows.find((x) => x.provider === meta.id);
+      if (r && decryptSecret(r.apiKeyEnc)) {
+        providerId = meta.id;
+        break;
+      }
+    }
+  }
   if (!providerId) return null;
+
   const meta = getProvider(scope, providerId);
   if (!meta) return null;
-  const row = await prisma.aiProvider.findUnique({
-    where: { userId_scope_provider: { userId, scope, provider: providerId } },
-  });
+  const row = rows?.find((x) => x.provider === providerId)
+    ?? (await prisma.aiProvider.findUnique({
+      where: { userId_scope_provider: { userId, scope, provider: providerId } },
+    }));
   if (!row) return null;
   // 只有确实切到了这个平台，才采用前端传来的模型；否则用该平台自己存的模型
   const model = (overrideProvider && override?.model?.trim()) || row.model || meta.defaultModel;

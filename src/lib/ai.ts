@@ -31,13 +31,22 @@ function buildChatModels(chat: ChatScopeData | undefined): ChatModelOption[] {
   return opts;
 }
 
-/** 设置里默认平台的模型展示名，用于「跟随默认（xxx）」；未设默认时为空 */
-function defaultChatLabel(chat: ChatScopeData | undefined): string {
+/** 文本对话默认平台：优先设置里的显式默认，否则第一个填了密钥的平台；都没有则空 */
+function defaultChatProvider(chat: ChatScopeData | undefined): string {
   const active = chat?.active;
-  if (!active) return "";
-  const meta = CHAT_PROVIDERS.find((p) => p.id === active);
+  if (active && CHAT_PROVIDERS.some((p) => p.id === active)) return active;
+  for (const meta of CHAT_PROVIDERS) {
+    if (chat?.providers?.[meta.id]?.hasKey) return meta.id;
+  }
+  return "";
+}
+
+/** 默认平台当前会用到的模型展示名，用于切换器里「默认（xxx）」 */
+function defaultChatLabel(chat: ChatScopeData | undefined): string {
+  const id = defaultChatProvider(chat);
+  const meta = CHAT_PROVIDERS.find((p) => p.id === id);
   if (!meta) return "";
-  const model = chat?.providers?.[active]?.model || meta.defaultModel;
+  const model = chat?.providers?.[id]?.model || meta.defaultModel;
   const known = meta.models.find((m) => m.id === model);
   return known?.label ?? model;
 }
@@ -61,13 +70,15 @@ export async function refreshAiStatus(): Promise<void> {
       return;
     }
     const data = await res.json();
-    // 文本对话与生图各一套配置：启用的平台自身填了密钥才算可用
-    const ready = (scope: { active?: string; providers?: Record<string, { hasKey?: boolean }> }) =>
-      Boolean(scope?.active && scope.providers?.[scope.active]?.hasKey);
+    // 文本对话：任一平台填了密钥即可用（用哪个在编辑器里切）。
+    // 生图：仍需在设置里显式启用某平台。
     const chatModels = buildChatModels(data?.chat);
+    const imageReady = Boolean(
+      data?.image?.active && data.image.providers?.[data.image.active]?.hasKey
+    );
     store.setAiStatus({
-      aiChatReady: ready(data?.chat),
-      aiImageReady: ready(data?.image),
+      aiChatReady: chatModels.length > 0,
+      aiImageReady: imageReady,
       aiChatModels: chatModels,
       aiChatDefaultLabel: defaultChatLabel(data?.chat),
     });

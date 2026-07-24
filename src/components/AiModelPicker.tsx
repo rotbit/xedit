@@ -68,7 +68,7 @@ export function AiModelPicker({
         onClick={() => pick(null)}
       >
         <span className="flex-1">
-          跟随设置默认
+          默认
           {defaultLabel ? <span className="text-[var(--ink-faint)]">（{defaultLabel}）</span> : null}
         </span>
         {choice === null ? <Check size={13} className="shrink-0 text-[var(--accent)]" /> : null}
