@@ -1,9 +1,36 @@
 import { useStore } from "@/store/useStore";
 
-/** AI 是否已配置（Key 或本地 Ollama） */
+/** 文本 AI 是否可用（当前账号已启用平台并配置了密钥） */
 export function aiReady(): boolean {
-  const s = useStore.getState();
-  return Boolean(s.aiApiKey || s.aiBaseUrl.includes("localhost"));
+  return useStore.getState().aiChatReady;
+}
+
+/** 生图 AI 是否可用 */
+export function aiImageReady(): boolean {
+  return useStore.getState().aiImageReady;
+}
+
+/**
+ * 从服务端拉取当前账号的 AI 配置，刷新「是否可用」标记。
+ * 未登录（401）或出错时视为不可用。应在应用启动、以及保存 AI 设置后调用。
+ */
+export async function refreshAiStatus(): Promise<void> {
+  try {
+    const res = await fetch("/api/ai/providers");
+    if (!res.ok) {
+      useStore.getState().setAiStatus({ aiChatReady: false, aiImageReady: false });
+      return;
+    }
+    const data = await res.json();
+    const providers = data?.providers ?? {};
+    const ready = (id: string) => Boolean(id && providers[id]?.hasKey);
+    useStore.getState().setAiStatus({
+      aiChatReady: ready(data?.activeChat),
+      aiImageReady: ready(data?.activeImage),
+    });
+  } catch {
+    useStore.getState().setAiStatus({ aiChatReady: false, aiImageReady: false });
+  }
 }
 
 interface ChatOptions {
@@ -14,13 +41,8 @@ interface ChatOptions {
 }
 
 function aiBody(extra: Record<string, unknown>) {
-  const s = useStore.getState();
-  return JSON.stringify({
-    baseUrl: s.aiBaseUrl,
-    apiKey: s.aiApiKey,
-    model: s.aiModel,
-    ...extra,
-  });
+  // 密钥/模型都在服务端按账号取用，这里只传对话内容
+  return JSON.stringify(extra);
 }
 
 /** 非流式对话 */
