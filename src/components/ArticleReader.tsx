@@ -6,12 +6,15 @@ import {
   Loader2,
   Columns2,
   Folder,
+  FolderPlus,
+  Check,
   Copy,
   ChevronDown,
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
 import { buildWechatHtml } from "@/lib/copy/wechat";
+import { askInput } from "./PromptDialog";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { toast } from "./Toast";
@@ -42,13 +45,17 @@ const SAVE_LABEL: Record<string, string> = {
 export function ArticleReader({
   docId,
   actionSlot,
-  onOpenCategory,
+  categories,
+  onCategoryChange,
   onDelete,
 }: {
   docId: string;
   /** 面包屑顶栏右侧的挂载点：操作按钮 portal 到这里，与面包屑共用一行 */
   actionSlot?: HTMLElement | null;
-  onOpenCategory: (path: string) => void;
+  /** 「移动到分类」候选列表（已排序），由首页汇总自建分类 + 各文章分类 */
+  categories?: string[];
+  /** 分类变更后通知首页同步列表状态（持久化由自动保存管线完成） */
+  onCategoryChange?: (category: string) => void;
   onDelete?: () => void;
 }) {
   // 装载 + 自动保存复用编辑页管线（本地/云端文档皆可）
@@ -57,6 +64,7 @@ export function ArticleReader({
   const title = useStore((s) => s.title);
   const content = useStore((s) => s.content);
   const category = useStore((s) => s.category);
+  const setCategory = useStore((s) => s.setCategory);
   const saveState = useStore((s) => s.saveState);
   const setTitle = useStore((s) => s.setTitle);
   const setContent = useStore((s) => s.setContent);
@@ -67,6 +75,7 @@ export function ArticleReader({
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   // 默认单屏 Markdown 编辑；开启后右侧切出真实主题预览
   const [split, setSplit] = useState(false);
@@ -137,6 +146,23 @@ export function ArticleReader({
     divider.addEventListener("pointerup", onUp, { once: true });
   };
 
+  /** 移动分类：改 store 即可，持久化走自动保存管线（本地/云端/离线一致） */
+  const moveToCategory = (c: string) => {
+    setCatMenuOpen(false);
+    if (c === (category || "未分类")) return;
+    setCategory(c);
+    onCategoryChange?.(c);
+    toast(`已移动到「${c}」`, "success");
+  };
+
+  const moveToNewCategory = async () => {
+    const name = (
+      await askInput({ title: "新建分类并移入", placeholder: "分类名称，可用 / 建子分类" })
+    )?.trim();
+    if (!name) return;
+    moveToCategory(name.slice(0, 100));
+  };
+
   /** 直接复制到公众号，与编辑页的复制管线一致 */
   const copyWechat = async () => {
     if (copying) return;
@@ -191,7 +217,7 @@ export function ArticleReader({
         ? createPortal(
             <>
         {/* 排版主题 / 设置 / AI / 版本 / 导出 —— 从老编辑页搬来的功能簇 */}
-        <EditorTools editorRef={editorRef} onOpenVersions={() => setVersionsOpen(true)} />
+        <EditorTools onOpenVersions={() => setVersionsOpen(true)} />
         <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
         {/* 一键复制：点开选择平台（纯图标） */}
         <div className="relative">
@@ -317,13 +343,62 @@ export function ArticleReader({
                     onChange={(e) => setTitle(e.target.value)}
                   />
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
-                    <button
-                      className="flex cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
-                      onClick={() => onOpenCategory(category || "未分类")}
-                    >
-                      <Folder size={12} />
-                      {category || "未分类"}
-                    </button>
+                    <div className="relative">
+                      <button
+                        className="flex cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
+                        title="移动到分类"
+                        onClick={() => setCatMenuOpen((v) => !v)}
+                      >
+                        <Folder size={12} />
+                        {category || "未分类"}
+                        <ChevronDown size={11} className="opacity-60" />
+                      </button>
+                      {catMenuOpen ? (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => setCatMenuOpen(false)}
+                          />
+                          <div className="absolute left-0 top-[calc(100%+6px)] z-20 max-h-64 w-48 overflow-y-auto rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                            <p className="px-3.5 pb-1 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
+                              移动到分类
+                            </p>
+                            {(categories ?? []).map((c) => {
+                              const current = c === (category || "未分类");
+                              return (
+                                <button
+                                  key={c}
+                                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                                  onClick={() => moveToCategory(c)}
+                                >
+                                  <Folder
+                                    size={13}
+                                    className="shrink-0 text-[var(--ink-faint)]"
+                                  />
+                                  <span className="min-w-0 flex-1 truncate">{c}</span>
+                                  {current ? (
+                                    <Check
+                                      size={13}
+                                      className="shrink-0 text-[var(--accent)]"
+                                    />
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                            <button
+                              className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
+                              onClick={() => {
+                                setCatMenuOpen(false);
+                                void moveToNewCategory();
+                              }}
+                            >
+                              <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+                              新建分类…
+                            </button>
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
                     <span>·</span>
                     <span>{SAVE_LABEL[saveState] ?? saveState}</span>
                     <span>·</span>

@@ -24,6 +24,7 @@ import {
   Footprints,
   LayoutGrid,
   List,
+  RotateCw,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronsUpDown,
@@ -195,6 +196,7 @@ export function Home() {
   const [docs, setDocs] = useState<DocMeta[] | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [creating, setCreating] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeCat, setActiveCat] = useState<string>(ALL);
   // 编辑器返回时带 ?doc=<id>，直接落到该文章的阅读视图
   const [readingId, setReadingId] = useState<string | null>(() => {
@@ -425,6 +427,33 @@ export function Home() {
     });
   };
 
+  /** 手动刷新：登录态跑一轮完整同步（拉取其他设备 / MCP 客户端的改动），本地模式重读本地库 */
+  const refreshDocs = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const work = async () => {
+        if (localMode) {
+          setDocs(listLocalDocs());
+          setCustomCats(listLocalCats());
+        } else if (isTrash) {
+          const list = await fetch("/api/documents?trash=1")
+            .then((r) => (r.ok ? r.json() : []))
+            .catch(() => []);
+          setTrashDocs(list);
+        } else {
+          await syncNow(); // 完成后 SYNC_DONE_EVENT 会刷新列表，这里再兜底读一次
+          setDocs(mergedCloudList());
+        }
+      };
+      // 至少转 400ms，避免瞬间完成时图标闪一下看不出反馈
+      await Promise.all([work(), new Promise((r) => setTimeout(r, 400))]);
+      toast("已刷新", "success");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const switchDocView = (v: "card" | "list") => {
     setDocView(v);
     try {
@@ -442,6 +471,29 @@ export function Home() {
         // 忽略
       }
       return !v;
+    });
+  };
+
+  /** 右键唤出文档操作菜单：与「···」按钮同一菜单，锚点跟随鼠标。
+   *  菜单宽 192px 且右锚定位：在屏幕左缘（侧栏）右键时钳制右锚，避免菜单被推出左缘 */
+  const openDocMenuAt = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDocMenu({
+      id,
+      top: e.clientY + 2,
+      right: Math.min(window.innerWidth - e.clientX, window.innerWidth - 208),
+    });
+  };
+
+  /** 右键唤出分类菜单（含根节点「全部文章」）；靠近屏幕底部时上移，避免菜单溢出 */
+  const openCatMenuAt = (e: React.MouseEvent, path: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCatMenu({
+      path,
+      top: Math.min(e.clientY + 2, window.innerHeight - 200),
+      left: e.clientX,
     });
   };
 
@@ -824,6 +876,7 @@ export function Home() {
           }`}
           style={{ paddingLeft: `${30 + depth * 14}px` }}
           onClick={() => openDoc(doc.id)}
+          onContextMenu={(e) => openDocMenuAt(e, doc.id)}
           title={doc.title}
         >
           <FileText
@@ -839,6 +892,7 @@ export function Home() {
         >
           <Trash2 size={12} />
         </button>
+        {renderDocMenu(doc, doc.category || UNCATEGORIZED)}
       </div>
     );
   };
@@ -861,6 +915,7 @@ export function Home() {
             }`}
             style={{ paddingLeft: `${6 + depth * 14}px` }}
             onClick={() => openCategory(node.path)}
+            onContextMenu={(e) => openCatMenuAt(e, node.path)}
           >
             <span
               className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] hover:bg-[var(--hairline)]"
@@ -929,43 +984,6 @@ export function Home() {
               </button>
             ) : null}
           </span>
-          {catMenu?.path === node.path ? (
-            createPortal(
-            <>
-              <div
-                className="fixed inset-0 z-30"
-                onClick={() => setCatMenu(null)}
-                onWheel={() => setCatMenu(null)}
-              />
-              <div
-                className="fixed z-40 w-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]"
-                style={{ top: catMenu.top, left: catMenu.left }}
-              >
-                <button
-                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                  onClick={() => {
-                    setCatMenu(null);
-                    void renameCategory(node.path);
-                  }}
-                >
-                  <PenLine size={13} className="text-[var(--ink-faint)]" />
-                  重命名
-                </button>
-                <button
-                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                  onClick={() => {
-                    setCatMenu(null);
-                    void removeCategory(node.path);
-                  }}
-                >
-                  <Trash2 size={13} />
-                  删除分类
-                </button>
-              </div>
-            </>,
-            document.body
-            )
-          ) : null}
         </div>
         {isOpen ? (
           <div>
@@ -1060,6 +1078,102 @@ export function Home() {
       )
     ) : null;
 
+  /** 分类操作菜单（右键 / 「···」共用）：根节点、未分类、普通分类各按能力渲染条目 */
+  const catMenuPortal = (() => {
+    if (!catMenu) return null;
+    const isRoot = catMenu.path === ALL;
+    const canManageCat = !isRoot && catMenu.path !== UNCATEGORIZED;
+    const canAddChild =
+      canManageCat && catMenu.path.split("/").length < MAX_DEPTH;
+    const itemCls =
+      "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]";
+    return createPortal(
+      <>
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setCatMenu(null)}
+          onWheel={() => setCatMenu(null)}
+        />
+        <div
+          className="fixed z-40 w-44 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]"
+          style={{ top: catMenu.top, left: catMenu.left }}
+        >
+          <button
+            className={itemCls}
+            onClick={() => {
+              setCatMenu(null);
+              void createDoc(isRoot ? UNCATEGORIZED : catMenu.path);
+            }}
+          >
+            <FilePlus2 size={13} className="text-[var(--ink-faint)]" />
+            新建文章
+          </button>
+          {isRoot ? (
+            <button
+              className={itemCls}
+              onClick={() => {
+                setCatMenu(null);
+                void createCategory();
+              }}
+            >
+              <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+              新建分类
+            </button>
+          ) : canAddChild ? (
+            <button
+              className={itemCls}
+              onClick={() => {
+                setCatMenu(null);
+                void createCategory(catMenu.path);
+              }}
+            >
+              <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+              新建子分类
+            </button>
+          ) : null}
+          {isRoot ? (
+            <button
+              className={itemCls}
+              onClick={() => {
+                setCatMenu(null);
+                void refreshDocs();
+              }}
+            >
+              <RotateCw size={13} className="text-[var(--ink-faint)]" />
+              刷新列表
+            </button>
+          ) : null}
+          {canManageCat ? (
+            <>
+              <div className="my-1 border-t border-[var(--hairline)]" />
+              <button
+                className={itemCls}
+                onClick={() => {
+                  setCatMenu(null);
+                  void renameCategory(catMenu.path);
+                }}
+              >
+                <PenLine size={13} className="text-[var(--ink-faint)]" />
+                重命名
+              </button>
+              <button
+                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                onClick={() => {
+                  setCatMenu(null);
+                  void removeCategory(catMenu.path);
+                }}
+              >
+                <Trash2 size={13} />
+                删除分类
+              </button>
+            </>
+          ) : null}
+        </div>
+      </>,
+      document.body
+    );
+  })();
+
   // 会话状态确认前（及本地文章列表读取前）不渲染，避免闪现登录页
   if (status === "loading" || (localMode && docs === null)) {
     return <div className="h-full bg-[var(--paper)]" />;
@@ -1126,18 +1240,28 @@ export function Home() {
                   ? "同步中…"
                   : `${docs.length} 篇文章${totalChars > 0 ? ` · ${totalChars.toLocaleString()} 字` : ""}`}
               </span>
-              <button
-                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-active)] hover:text-[var(--accent-deep)] disabled:opacity-60"
-                title="新建文章"
-                onClick={() => void createDoc()}
-                disabled={creating}
-              >
-                {creating ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <FilePlus2 size={13} />
-                )}
-              </button>
+              <span className="flex items-center">
+                <button
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-active)] hover:text-[var(--ink)] disabled:opacity-60"
+                  title="刷新列表"
+                  onClick={() => void refreshDocs()}
+                  disabled={refreshing}
+                >
+                  <RotateCw size={12} className={refreshing ? "animate-spin" : ""} />
+                </button>
+                <button
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-active)] hover:text-[var(--accent-deep)] disabled:opacity-60"
+                  title="新建文章"
+                  onClick={() => void createDoc()}
+                  disabled={creating}
+                >
+                  {creating ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <FilePlus2 size={13} />
+                  )}
+                </button>
+              </span>
             </div>
             <nav className="mt-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
                   {/* 根节点：全部文章，其余分类挂在它下面 */}
@@ -1153,6 +1277,7 @@ export function Home() {
                         if (!rootOpen) toggleRoot();
                         openCategory(ALL);
                       }}
+                      onContextMenu={(e) => openCatMenuAt(e, ALL)}
                     >
                       <span
                         className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] hover:bg-[var(--hairline)]"
@@ -1469,7 +1594,20 @@ export function Home() {
             <ArticleReader
               docId={readingId}
               actionSlot={actionSlot}
-              onOpenCategory={openCategory}
+              categories={Array.from(
+                new Set([
+                  ...customCats,
+                  ...(docs ?? []).map((d) => d.category || UNCATEGORIZED),
+                ])
+              ).sort((a, b) => a.localeCompare(b, "zh"))}
+              onCategoryChange={(category) => {
+                setDocs(
+                  (prev) =>
+                    prev?.map((d) =>
+                      d.id === readingId ? { ...d, category } : d
+                    ) ?? null
+                );
+              }}
               onDelete={() => {
                 const d = (docs ?? []).find((x) => x.id === readingId);
                 if (d) void removeDoc(d);
@@ -1515,6 +1653,7 @@ export function Home() {
                               key={doc.id}
                               className="group relative flex cursor-pointer items-center gap-3 border-b border-[var(--hairline-soft)] px-4 py-3 transition-colors last:border-b-0 hover:bg-[var(--paper)]"
                               onClick={() => openDoc(doc.id)}
+                              onContextMenu={(e) => openDocMenuAt(e, doc.id)}
                             >
                               <FileText
                                 size={14}
@@ -1573,6 +1712,9 @@ export function Home() {
                               onClick={() => {
                                 if (!isTrash) openDoc(doc.id);
                               }}
+                              onContextMenu={
+                                isTrash ? undefined : (e) => openDocMenuAt(e, doc.id)
+                              }
                             >
                               <span className="absolute bottom-5 left-0 top-5 w-[3px] rounded-r-full bg-transparent transition-colors group-hover:bg-[var(--accent)]" />
                               <p className="truncate pr-8 text-[15.5px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
@@ -1668,6 +1810,7 @@ export function Home() {
             已离线 · 改动保存在本地，联网后自动同步
           </div>
         ) : null}
+        {catMenuPortal}
         {settingsOpen ? <AiSettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
         <Toaster />
       </div>
