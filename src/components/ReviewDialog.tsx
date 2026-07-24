@@ -70,9 +70,6 @@ async function runReview(): Promise<{ report: Report; truncated: boolean }> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      baseUrl: s.aiBaseUrl,
-      apiKey: s.aiApiKey,
-      model: s.aiModel,
       system: REVIEW_PROMPT,
       prompt: `文章标题：${s.title}\n\n${s.content.slice(0, MAX_CHARS)}`,
     }),

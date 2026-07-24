@@ -1,75 +1,78 @@
 import { NextResponse } from "next/server";
-import { ossConfigured, ossPut } from "@/lib/oss";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { getActiveConfig, persistImage } from "@/lib/ai/server";
+import { replicateImageUrl } from "@/lib/ai/replicate";
 
+export const runtime = "nodejs";
 export const maxDuration = 180;
 
+const SIZES = ["1024x1024", "1536x1024", "1024x1536"] as const;
+/** 尺寸 → Replicate 的 aspect_ratio */
+const ASPECT: Record<string, string> = {
+  "1024x1024": "1:1",
+  "1536x1024": "3:2",
+  "1024x1536": "2:3",
+};
+
 /**
- * OpenAI 兼容图片生成代理。
- * 返回 b64 时若已配置 OSS 则转存图床（公众号需要可访问的图片 URL）。
+ * AI 生图代理。使用当前登录用户启用的「生图平台」（replicate / 智谱）。
+ * 生成结果统一转存 OSS 图床，得到公众号可用的稳定 URL。
  */
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => null);
-  const baseUrl: string = typeof body?.baseUrl === "string" ? body.baseUrl.replace(/\/$/, "") : "";
-  const apiKey: string = typeof body?.apiKey === "string" ? body.apiKey : "";
-  const model: string = typeof body?.model === "string" ? body.model : "";
-  const prompt: string = typeof body?.prompt === "string" ? body.prompt : "";
-  const size: string = ["1024x1024", "1536x1024", "1024x1536"].includes(body?.size)
-    ? body.size
-    : "1024x1024";
-
-  if (!/^https?:\/\//.test(baseUrl)) {
-    return NextResponse.json({ error: "AI 接口地址无效，请先在「AI 设置」中配置" }, { status: 400 });
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "请先登录后再使用 AI 功能" }, { status: 401 });
   }
-  if (!model || !prompt) {
-    return NextResponse.json({ error: "缺少 model 或图片描述" }, { status: 400 });
+
+  const body = await req.json().catch(() => null);
+  const prompt: string = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+  const size: string = SIZES.includes(body?.size) ? body.size : "1024x1024";
+  if (!prompt) {
+    return NextResponse.json({ error: "缺少图片描述" }, { status: 400 });
+  }
+
+  const cfg = await getActiveConfig(session.user.id, "image");
+  if (!cfg) {
+    return NextResponse.json({ error: "尚未启用生图平台，请先在「AI 设置」中配置" }, { status: 400 });
+  }
+  if (!cfg.token) {
+    return NextResponse.json({ error: `请先在「AI 设置」中填写 ${cfg.meta.label} 的密钥` }, { status: 400 });
+  }
+  if (!cfg.model) {
+    return NextResponse.json({ error: "未选择图片模型" }, { status: 400 });
   }
 
   try {
-    const res = await fetch(`${baseUrl}/images/generations`, {
+    if (cfg.meta.kind === "replicate") {
+      const url = await replicateImageUrl({
+        model: cfg.model,
+        token: cfg.token,
+        prompt,
+        aspectRatio: ASPECT[size],
+        baseUrl: cfg.baseUrl,
+        signal: AbortSignal.timeout(170_000),
+      });
+      return NextResponse.json({ url: await persistImage(session.user.id, { url }) });
+    }
+
+    // OpenAI 兼容生图（智谱 CogView 等）
+    const res = await fetch(`${cfg.baseUrl}/images/generations`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-      },
-      body: JSON.stringify({ model, prompt, n: 1, size }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({ model: cfg.model, prompt, n: 1, size }),
       signal: AbortSignal.timeout(170_000),
     });
-
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       const message = data?.error?.message ?? `上游返回 ${res.status}`;
       return NextResponse.json({ error: `生成失败：${message}` }, { status: 502 });
     }
-
     const item = data?.data?.[0];
     if (item?.url) {
-      return NextResponse.json({ url: item.url });
+      return NextResponse.json({ url: await persistImage(session.user.id, { url: item.url }) });
     }
     if (item?.b64_json) {
-      if (!ossConfigured()) {
-        return NextResponse.json(
-          { error: "该模型返回 base64 图片，需要配置阿里云 OSS 图床后才能使用" },
-          { status: 501 }
-        );
-      }
-      const buffer = Buffer.from(item.b64_json, "base64");
-      const { url, key } = await ossPut(buffer, "png", "image/png");
-      const session = await auth();
-      if (session?.user?.id) {
-        await prisma.asset.create({
-          data: {
-            userId: session.user.id,
-            key,
-            url,
-            size: buffer.length,
-            mime: "image/png",
-            source: "ai",
-          },
-        });
-      }
-      return NextResponse.json({ url });
+      return NextResponse.json({ url: await persistImage(session.user.id, { b64: item.b64_json }) });
     }
     return NextResponse.json({ error: "AI 未返回图片" }, { status: 502 });
   } catch (e) {
