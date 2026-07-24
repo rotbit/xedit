@@ -22,6 +22,8 @@ model User {
   activities    WritingActivity[]
   assets        Asset[]
   aiProviders   AiProvider[]
+  oauthAuthCodes     OAuthAuthCode[]
+  oauthRefreshTokens OAuthRefreshToken[]
 }
 
 model Account {
@@ -133,6 +135,63 @@ model WritingActivity {
   user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, date])
+}
+
+/// MCP 内置的 OAuth 2.1 授权服务器：动态注册（RFC 7591）的客户端。
+/// MCP 客户端（Claude Desktop / Cursor）是公有客户端，走 PKCE，无 client_secret。
+model OAuthClient {
+  id              String              @id @default(cuid()) // client_id
+  name            String              @default("") // client_name
+  /// 允许的回调地址（JSON 字符串数组）；换码时精确匹配，防开放重定向
+  redirectUris    String              @db.Text
+  /// 机密客户端的 secret 散列（scrypt）；公有客户端为空
+  secretHash      String?
+  tokenAuthMethod String              @default("none")
+  createdAt       DateTime            @default(now())
+  authCodes       OAuthAuthCode[]
+  refreshTokens   OAuthRefreshToken[]
+}
+
+/// 一次性授权码：只存 sha256，绑定 PKCE challenge、客户端、回调地址与 resource，短 TTL（分钟级）。
+model OAuthAuthCode {
+  id            String      @id @default(cuid())
+  /// sha256(授权码明文)，明文只在回跳 URL 里出现一次
+  codeHash      String      @unique
+  clientId      String
+  client        OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redirectUri   String      @db.Text
+  codeChallenge String
+  codeMethod    String      @default("S256")
+  scope         String      @default("")
+  /// RFC 8707 目标资源（MCP 服务器规范 URI），换 token 时原样绑定进 aud
+  resource      String      @default("")
+  expiresAt     DateTime
+  /// 已兑换时间；非空表示此码已用过，禁止重放
+  consumedAt    DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([clientId])
+}
+
+/// 刷新令牌：只存 sha256，轮换时把旧令牌置 revokedAt。
+model OAuthRefreshToken {
+  id         String      @id @default(cuid())
+  tokenHash  String      @unique
+  clientId   String
+  client     OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope      String      @default("")
+  resource   String      @default("")
+  expiresAt  DateTime
+  /// 轮换或撤销时间；非空表示不可再用
+  revokedAt  DateTime?
+  createdAt  DateTime    @default(now())
+
+  @@index([userId])
+  @@index([clientId])
 }
 
 /// 图片资产（上传/AI 生成到 OSS 的文件索引）
