@@ -11,6 +11,13 @@ import {
   searchDocuments,
   updateDocument,
 } from "@/lib/documents";
+import {
+  deleteImage,
+  getImage,
+  listImages,
+  uploadImageFromBase64,
+  uploadImageFromUrl,
+} from "@/lib/assets";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -123,6 +130,102 @@ const handler = createMcpHandler(
       async (args, extra) => {
         const deleted = await deleteDocument(requireUserId(extra), args.id, args.hard ?? false);
         return deleted ? ok({ ok: true, id: args.id, hard: Boolean(args.hard) }) : fail("文档不存在");
+      }
+    );
+
+    // ---- 图片（图床 / 阿里云 OSS）----
+
+    server.registerTool(
+      "list_images",
+      {
+        description: "列出当前用户图床里的图片（返回可访问 URL、类型、尺寸）。",
+        inputSchema: {
+          limit: z.number().int().min(1).max(200).optional().describe("最多返回条数，默认 50"),
+        },
+      },
+      async (args, extra) => {
+        const images = await listImages(requireUserId(extra), args.limit);
+        return ok(images);
+      }
+    );
+
+    server.registerTool(
+      "get_image",
+      {
+        description:
+          "按 id 获取图片，返回可访问 URL。include_data=true 时同时把图片本身返回，供模型查看内容。",
+        inputSchema: {
+          id: z.string().min(1).describe("图片 id"),
+          include_data: z.boolean().optional().describe("为 true 时附带图片本体（base64）供查看"),
+        },
+      },
+      async (args, extra) => {
+        const img = await getImage(requireUserId(extra), args.id);
+        if (!img) return fail("图片不存在");
+        const content: Array<
+          | { type: "text"; text: string }
+          | { type: "image"; data: string; mimeType: string }
+        > = [
+          {
+            type: "text",
+            text: JSON.stringify(
+              { id: img.id, url: img.url, mime: img.mime, size: img.size },
+              null,
+              2
+            ),
+          },
+        ];
+        if (args.include_data) {
+          try {
+            const res = await fetch(img.url, { signal: AbortSignal.timeout(15000) });
+            if (res.ok) {
+              const buf = Buffer.from(await res.arrayBuffer());
+              content.push({
+                type: "image",
+                data: buf.toString("base64"),
+                mimeType: img.mime || "image/png",
+              });
+            }
+          } catch {
+            /* 取图失败时仅返回 URL 文本 */
+          }
+        }
+        return { content };
+      }
+    );
+
+    server.registerTool(
+      "delete_image",
+      {
+        description: "从图床删除图片（同时删除 OSS 对象），不可恢复。",
+        inputSchema: { id: z.string().min(1).describe("图片 id") },
+      },
+      async (args, extra) => {
+        const deleted = await deleteImage(requireUserId(extra), args.id);
+        return deleted ? ok({ ok: true, id: args.id }) : fail("图片不存在");
+      }
+    );
+
+    server.registerTool(
+      "upload_image",
+      {
+        description:
+          "上传图片到图床，返回可访问 URL。二选一：url=从该网址抓取图片转存（推荐）；或 data=图片 base64（可带 data URL 前缀），data 方式建议附 mime。限 10MB，支持 png/jpg/gif/webp/svg。",
+        inputSchema: {
+          url: z.string().optional().describe("图片直链，服务端抓取后转存到图床"),
+          data: z.string().optional().describe("图片的 base64，可带 data:image/*;base64, 前缀"),
+          mime: z.string().optional().describe("data 方式的 MIME，如 image/png"),
+        },
+      },
+      async (args, extra) => {
+        const userId = requireUserId(extra);
+        try {
+          if (args.url) return ok(await uploadImageFromUrl(userId, args.url));
+          if (args.data) return ok(await uploadImageFromBase64(userId, args.data, args.mime));
+          return fail("需提供 url 或 data 之一");
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : "上传失败");
+        }
       }
     );
   },
