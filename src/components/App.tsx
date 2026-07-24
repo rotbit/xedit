@@ -69,10 +69,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <Topbar
-        editorRef={editorRef}
-        onOpenVersions={() => setVersionsOpen(true)}
-      />
+      <Topbar onOpenVersions={() => setVersionsOpen(true)} />
       {/* 窄屏编辑/预览切换条（≥md 分屏时隐藏） */}
       <div className="flex h-9 shrink-0 items-center justify-center gap-1 border-b border-[var(--hairline)] bg-[var(--panel)] md:hidden">
         {(["edit", "preview"] as const).map((v) => (

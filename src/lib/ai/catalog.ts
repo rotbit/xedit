@@ -1,15 +1,13 @@
 /**
  * AI 平台目录：平台元信息与模型候选，前后端共用，不含任何密钥。
- *
- * 「文本对话」与「AI 生图」是两份互相独立的配置（scope）：各自选平台、各自填密钥与模型。
- * 同一个平台（如 Replicate）出现在两个 scope 里时，也是两条互不影响的记录。
+ * 现仅剩「文本对话」一个用途，供公众号内容审查调用。
  *
  * 两类接入：
  * - replicate：一个 token 覆盖 openai/claude/gemini/deepseek/kimi 等全部家族（原生 prediction 接口）
  * - openai 兼容：kimi(moonshot) / glm(zhipu) / deepseek 各自官方接口
  */
 
-export type ProviderScope = "chat" | "image";
+export type ProviderScope = "chat";
 export type ProviderKind = "replicate" | "openai";
 
 export interface ModelOption {
@@ -118,46 +116,17 @@ export const CHAT_PROVIDERS: ProviderMeta[] = [
   },
 ];
 
-/** AI 生图可选平台（与文本对话各配各的密钥） */
-export const IMAGE_PROVIDERS: ProviderMeta[] = [
-  {
-    ...REPLICATE_BASE,
-    models: [
-      { id: "black-forest-labs/flux-1.1-pro-ultra", label: "FLUX 1.1 Pro Ultra" },
-      { id: "black-forest-labs/flux-2-pro", label: "FLUX.2 Pro" },
-      { id: "black-forest-labs/flux-schnell", label: "FLUX schnell（快·省）" },
-      { id: "bytedance/seedream-4", label: "Seedream 4" },
-      { id: "google/imagen-4", label: "Imagen 4（Google）" },
-      { id: "google/nano-banana-pro", label: "Nano Banana Pro（Google）" },
-      { id: "openai/gpt-image-1.5", label: "GPT Image 1.5（OpenAI）" },
-    ],
-    defaultModel: "black-forest-labs/flux-1.1-pro-ultra",
-  },
-  {
-    id: "zhipu",
-    label: "CogView · 智谱官方",
-    tab: "GLM",
-    kind: "openai",
-    defaultBaseUrl: "https://open.bigmodel.cn/api/paas/v4",
-    keyHint: "…（智谱 API Key）",
-    keyUrl: "https://open.bigmodel.cn/usercenter/apikeys",
-    models: [
-      { id: "cogview-4", label: "CogView-4" },
-      { id: "cogview-3-flash", label: "CogView-3 Flash（免费）" },
-    ],
-    defaultModel: "cogview-4",
-  },
-];
-
-export const PROVIDER_SCOPES: ProviderScope[] = ["chat", "image"];
+export const PROVIDER_SCOPES: ProviderScope[] = ["chat"];
 
 export function isProviderScope(scope: string): scope is ProviderScope {
-  return scope === "chat" || scope === "image";
+  return scope === "chat";
 }
+
+const PROVIDERS_BY_SCOPE: Record<ProviderScope, ProviderMeta[]> = { chat: CHAT_PROVIDERS };
 
 /** 某个用途下的全部平台 */
 export function providersOf(scope: ProviderScope): ProviderMeta[] {
-  return scope === "chat" ? CHAT_PROVIDERS : IMAGE_PROVIDERS;
+  return PROVIDERS_BY_SCOPE[scope];
 }
 
 export function getProvider(scope: ProviderScope, id: string): ProviderMeta | undefined {
