@@ -101,18 +101,16 @@ model UserSettings {
   linkFootnote Boolean @default(true)
   /// 用户自建分类（JSON 数组），与文章上的分类取并集展示，保证空分类不消失
   categories   String  @default("[]")
-  /// 当前用于「文本对话」的 AI 平台 id（对应 scope=chat 的 AiProvider.provider）；为空表示未启用
+  /// 默认文本平台 id（对应 scope=chat 的 AiProvider.provider）；为空表示回落到首个已填密钥的平台
   aiChatProvider  String @default("")
-  /// 当前用于「AI 生图」的 AI 平台 id（对应 scope=image 的 AiProvider.provider）；为空表示未启用
-  aiImageProvider String @default("")
 }
 
-/// 用户配置的 AI 平台凭据（每个用途 × 每个平台一行）。apiKeyEnc 为 AES-256-GCM 加密后的密钥，明文绝不落库。
+/// 用户配置的 AI 文本平台凭据（内容审查用）。apiKeyEnc 为 AES-256-GCM 加密后的密钥，明文绝不落库。
 model AiProvider {
   userId    String
-  /// 用途：chat（文本对话）| image（AI 生图）；两者是完全独立的配置，密钥不共用
+  /// 用途：现仅剩 chat（文本对话）
   scope     String   @default("chat")
-  /// 平台 id：chat = replicate | moonshot | zhipu | deepseek；image = replicate | zhipu
+  /// 平台 id：replicate | moonshot | zhipu | deepseek
   provider  String
   /// 加密后的 API Key（空串表示尚未填写）
   apiKeyEnc String   @default("") @db.Text

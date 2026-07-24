@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import { useStore, type SaveState } from "@/store/useStore";
-import { AiModelPicker } from "./AiModelPicker";
 
 const SAVE_LABEL: Record<SaveState, { text: string; cls: string }> = {
   local: { text: "仅保存在本地", cls: "text-[var(--ink-faint)]" },
@@ -15,7 +14,6 @@ const SAVE_LABEL: Record<SaveState, { text: string; cls: string }> = {
 export function StatusBar() {
   const content = useStore((s) => s.content);
   const saveState = useStore((s) => s.saveState);
-  const aiChatReady = useStore((s) => s.aiChatReady);
 
   const stats = useMemo(() => {
     const chars = content.replace(/\s/g, "").length;
@@ -32,7 +30,6 @@ export function StatusBar() {
       <span>行数 {stats.lines}</span>
       <span>约 {stats.minutes} 分钟读完</span>
       <span className="flex-1" />
-      {aiChatReady ? <AiModelPicker variant="chip" placement="up" /> : null}
       <span className={`flex items-center gap-1.5 ${save.cls}`}>
         <span className="h-1.5 w-1.5 rounded-full bg-current" />
         {save.text}

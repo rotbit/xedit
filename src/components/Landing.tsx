@@ -35,8 +35,8 @@ const FEATURES = [
   },
   {
     icon: Sparkles,
-    title: "AI 助手",
-    desc: "翻译、润色、起标题、生成配图；自带 Key 即用，Key 只存浏览器本地",
+    title: "内容审查",
+    desc: "AI 检查违禁词、标题党与合规风险；自带 Key 即用，密钥加密存服务端",
   },
   {
     icon: Sigma,
@@ -112,7 +112,7 @@ function HeroMock() {
             <span style={{ color: "var(--ink-faint)" }}>-</span> 十三套排版主题
           </p>
           <p>
-            <span style={{ color: "var(--ink-faint)" }}>-</span> AI 翻译、润色与配图
+            <span style={{ color: "var(--ink-faint)" }}>-</span> AI 内容合规审查
           </p>
           <p>
             <span style={{ color: "var(--seal)" }}>&gt;</span>{" "}
@@ -132,7 +132,7 @@ function HeroMock() {
             </p>
             <ul style={{ margin: "10px 0" }}>
               <li>十三套排版主题</li>
-              <li>AI 翻译、润色与配图</li>
+              <li>AI 内容合规审查</li>
             </ul>
             <blockquote style={{ margin: "12px 0" }}>
               <p style={{ margin: "6px 0" }}>云端同步，版本可回滚</p>
@@ -330,7 +330,7 @@ export function Landing({ onLogin, onStart, hasLocalDraft }: LandingProps) {
             style={{ animationDelay: "0.12s" }}
           >
             左侧写 Markdown，右侧实时预览，一键复制到微信公众号或知乎，样式不丢。
-            主题、公式、AI 助手与云端同步，一站配齐。
+            主题、公式、内容审查与云端同步，一站配齐。
           </p>
           <div
             className="rise mt-9 flex flex-wrap items-center justify-center gap-3"

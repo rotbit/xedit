@@ -16,7 +16,7 @@ interface ProviderView {
   model: string;
 }
 
-/** 一个用途（chat / image）下的全部平台配置与当前启用项 */
+/** 「文本对话」用途下的全部平台配置与当前启用项 */
 interface ScopeView {
   providers: Record<string, ProviderView>;
   active: string;
@@ -28,19 +28,17 @@ async function buildConfig(userId: string) {
     prisma.userSettings.findUnique({ where: { userId } }),
   ]);
   const chat: ScopeView = { providers: {}, active: settings?.aiChatProvider ?? "" };
-  const image: ScopeView = { providers: {}, active: settings?.aiImageProvider ?? "" };
   for (const row of rows) {
     if (!isProviderScope(row.scope)) continue;
     const key = decryptSecret(row.apiKeyEnc);
-    const target = row.scope === "chat" ? chat : image;
-    target.providers[row.provider] = {
+    chat.providers[row.provider] = {
       hasKey: Boolean(key),
       keyLast4: keyLast4(key),
       baseUrl: row.baseUrl,
       model: row.model,
     };
   }
-  return { chat, image };
+  return { chat };
 }
 
 export async function GET() {
@@ -85,19 +83,15 @@ export async function PUT(req: Request) {
     });
   }
 
-  // 2) 更新当前启用的平台（文本 / 生图）
-  const settingsUpdate: { aiChatProvider?: string; aiImageProvider?: string } = {};
-  if (typeof body.activeChat === "string" && (body.activeChat === "" || isProviderId("chat", body.activeChat))) {
-    settingsUpdate.aiChatProvider = body.activeChat;
-  }
-  if (typeof body.activeImage === "string" && (body.activeImage === "" || isProviderId("image", body.activeImage))) {
-    settingsUpdate.aiImageProvider = body.activeImage;
-  }
-  if (Object.keys(settingsUpdate).length) {
+  // 2) 更新默认文本平台
+  if (
+    typeof body.activeChat === "string" &&
+    (body.activeChat === "" || isProviderId("chat", body.activeChat))
+  ) {
     await prisma.userSettings.upsert({
       where: { userId },
-      update: settingsUpdate,
-      create: { userId, ...settingsUpdate },
+      update: { aiChatProvider: body.activeChat },
+      create: { userId, aiChatProvider: body.activeChat },
     });
   }
 
