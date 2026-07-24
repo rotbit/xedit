@@ -275,24 +275,31 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </datalist>
 
-              {/* 该用途启用哪个平台 */}
-              <div className="mt-5 flex items-center gap-3 rounded-lg border border-[var(--hairline)] bg-[var(--paper)] p-3">
-                <label className="w-20 shrink-0 text-[12px] text-[var(--ink-soft)]">
-                  {SCOPE_LABEL[scope]}用
-                </label>
-                <select
-                  className={fieldCls}
-                  value={active[scope]}
-                  onChange={(e) => setActive((a) => ({ ...a, [scope]: e.target.value }))}
-                >
-                  <option value="">未启用</option>
-                  {providersOf(scope).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* 文本对话填了密钥即可用、在编辑器里随时切模型，无需在此启用；
+                  生图没有编辑器切换器，仍需显式启用某个平台 */}
+              {scope === "chat" ? (
+                <p className="mt-5 rounded-lg border border-[var(--hairline)] bg-[var(--paper)] p-3 text-[12px] leading-5 text-[var(--ink-soft)]">
+                  填好密钥即可使用，无需在此启用。写作时可在编辑器工具栏「AI 助手」或底部状态栏随时切换模型。
+                </p>
+              ) : (
+                <div className="mt-5 flex items-center gap-3 rounded-lg border border-[var(--hairline)] bg-[var(--paper)] p-3">
+                  <label className="w-20 shrink-0 text-[12px] text-[var(--ink-soft)]">
+                    {SCOPE_LABEL[scope]}用
+                  </label>
+                  <select
+                    className={fieldCls}
+                    value={active[scope]}
+                    onChange={(e) => setActive((a) => ({ ...a, [scope]: e.target.value }))}
+                  >
+                    <option value="">未启用</option>
+                    {providersOf(scope).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="flex h-14 shrink-0 items-center justify-between border-t border-[var(--hairline)] px-4">
