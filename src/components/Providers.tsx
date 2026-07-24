@@ -15,7 +15,12 @@ function AiStatusSync() {
   useEffect(() => {
     if (status === "authenticated") void refreshAiStatus();
     else if (status === "unauthenticated")
-      useStore.getState().setAiStatus({ aiChatReady: false, aiImageReady: false });
+      useStore.getState().setAiStatus({
+        aiChatReady: false,
+        aiImageReady: false,
+        aiChatModels: [],
+        aiChatDefaultLabel: "",
+      });
   }, [status]);
   return null;
 }
