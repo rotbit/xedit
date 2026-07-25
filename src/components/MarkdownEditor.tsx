@@ -87,9 +87,11 @@ const mdHighlight = HighlightStyle.define([
   { tag: tags.link, color: "var(--md-link)" },
   { tag: tags.url, color: "var(--md-link)" },
   {
+    // 底色用半透明：这层背景画在选区（drawSelection 的负层级）之上，
+    // 不透光就会把代码上的选中高亮整块挡掉，看着像选不中
     tag: tags.monospace,
     color: "var(--md-code)",
-    background: "var(--md-code-bg)",
+    background: "var(--md-code-tint)",
     fontFamily: "var(--mono)",
     borderRadius: "3px",
   },
