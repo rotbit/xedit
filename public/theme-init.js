@@ -12,4 +12,6 @@ try {
   if (authed || (docs && docs !== "[]")) {
     document.documentElement.dataset.ws = "1";
   }
-} catch (e) {}
+} catch {
+  // localStorage 被隐私模式/策略禁用时静默跳过，首帧退回默认外观
+}

@@ -1,0 +1,52 @@
+# 自托管一键起：PostgreSQL + xEdit。
+#
+#   cp .env.example .env      # 至少填 AUTH_SECRET 与 POSTGRES_PASSWORD
+#   docker compose up -d --build
+#
+# 应用容器启动时会自动执行 prisma migrate deploy 建表/迁移。
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: xedit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 里设置 POSTGRES_PASSWORD}
+      POSTGRES_DB: xedit
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xedit -d xedit"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+      args:
+        # NEXT_PUBLIC_* 构建期内联，必须在这里传，运行时改无效
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgresql://xedit:${POSTGRES_PASSWORD}@db:5432/xedit
+      AUTH_SECRET: ${AUTH_SECRET:?请在 .env 里设置 AUTH_SECRET，用 openssl rand -base64 32 生成}
+      AUTH_URL: ${AUTH_URL:-}
+      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID:-}
+      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET:-}
+      AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID:-}
+      AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET:-}
+      OSS_REGION: ${OSS_REGION:-}
+      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-}
+      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-}
+      OSS_BUCKET: ${OSS_BUCKET:-}
+      OSS_CDN_DOMAIN: ${OSS_CDN_DOMAIN:-}
+      AI_ENCRYPTION_KEY: ${AI_ENCRYPTION_KEY:-}
+
+volumes:
+  pgdata:
