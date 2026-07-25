@@ -420,6 +420,31 @@ body {
   animation: toast-out 0.2s ease-in both;
 }
 
+/* —— 云端校新提示：状态行里淡入、驻留、淡出，总时长与 REFRESH_HINT_MS 对齐 —— */
+@keyframes sync-hint {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  8%,
+  85% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+.sync-hint {
+  animation: sync-hint 4s ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-hint {
+    animation: none;
+  }
+}
+
 /* —— 进化仪式 —— */
 @keyframes evo-backdrop {
   from {

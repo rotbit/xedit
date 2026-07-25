@@ -30,7 +30,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
   const sourceMode = useStore((s) => s.sourceMode);
   const splitRatio = useStore((s) => s.splitRatio);
   const setSplitRatio = useStore((s) => s.setSplitRatio);
-  const { loggedIn, docVersion, loading, reload } = useEditorDoc(docId);
+  const { loggedIn, docVersion, loading, reload, refreshedHint } = useEditorDoc(docId);
 
   const editorRef = useRef<EditorHandle>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -136,7 +136,7 @@ export function EditorApp({ docId }: { docId: string | null }) {
           <Preview ref={previewRef} onScroll={onPreviewScroll} />
         </div>
       </div>
-      <StatusBar />
+      <StatusBar refreshedHint={refreshedHint} />
       <VersionsPanel
         open={versionsOpen}
         onClose={() => setVersionsOpen(false)}

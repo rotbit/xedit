@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { RefreshCw } from "lucide-react";
 import { useStore, type SaveState } from "@/store/useStore";
 
 const SAVE_LABEL: Record<SaveState, { text: string; cls: string }> = {
@@ -11,7 +12,7 @@ const SAVE_LABEL: Record<SaveState, { text: string; cls: string }> = {
   error: { text: "同步失败", cls: "text-red-600 dark:text-red-400" },
 };
 
-export function StatusBar() {
+export function StatusBar({ refreshedHint = false }: { refreshedHint?: boolean }) {
   const content = useStore((s) => s.content);
   const saveState = useStore((s) => s.saveState);
 
@@ -30,10 +31,18 @@ export function StatusBar() {
       <span>行数 {stats.lines}</span>
       <span>约 {stats.minutes} 分钟读完</span>
       <span className="flex-1" />
-      <span className={`flex items-center gap-1.5 ${save.cls}`}>
-        <span className="h-1.5 w-1.5 rounded-full bg-current" />
-        {save.text}
-      </span>
+      {/* MCP / 其他设备改过、页面自动校新后，在同步状态这一格轻提示几秒再回落，不弹 toast */}
+      {refreshedHint ? (
+        <span className="sync-hint flex items-center gap-1.5 text-[var(--accent)]">
+          <RefreshCw size={11} />
+          已更新到最新版本
+        </span>
+      ) : (
+        <span className={`flex items-center gap-1.5 ${save.cls}`}>
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          {save.text}
+        </span>
+      )}
     </footer>
   );
 }
