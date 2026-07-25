@@ -109,6 +109,27 @@ interface AppConfig {
   oss: boolean;
 }
 
+/** 正在拖拽的对象：文章，或分类（分类连同子树与其中文章整体随迁） */
+type DragItem = { kind: "doc"; id: string } | { kind: "cat"; path: string };
+
+/** 拖拽悬停时落点行的高亮样式 */
+const DROP_HL = "bg-[var(--accent-wash)] shadow-[inset_0_0_0_1.5px_var(--accent)]";
+
+/** 拖拽悬停自动展开折叠分类的计时器；同一时刻只有一个拖拽，模块级即可 */
+let dragExpandTimer: number | null = null;
+
+function cancelDragExpand() {
+  if (dragExpandTimer !== null) {
+    window.clearTimeout(dragExpandTimer);
+    dragExpandTimer = null;
+  }
+}
+
+function scheduleDragExpand(fn: () => void) {
+  cancelDragExpand();
+  dragExpandTimer = window.setTimeout(fn, 600);
+}
+
 /** 账户菜单项样式 */
 const accountItemCls =
   "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]";
@@ -259,6 +280,9 @@ export function Home() {
     }
   });
   const migratedRef = useRef(false);
+  /** 拖拽移动：当前拖的对象与悬停中的落点（分类路径或 ALL 根节点） */
+  const [dragItem, setDragItem] = useState<DragItem | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   // 本地模式：文章与分类都从本地库读；渲染期间带守卫地装载（React 推荐模式）
   const [localLoaded, setLocalLoaded] = useState(false);
@@ -714,6 +738,35 @@ export function Home() {
     openCategory(path);
   };
 
+  /** 把分类 path（含子孙分类与其中文章）整体迁移为 to：重命名与拖拽移动共用 */
+  const relocateCategory = async (path: string, to: string): Promise<boolean> => {
+    const remap = (c: string) =>
+      c === path ? to : c.startsWith(`${path}/`) ? to + c.slice(path.length) : c;
+    if (localMode) {
+      for (const d of listLocalDocs()) {
+        const cat = d.category || UNCATEGORIZED;
+        if (remap(cat) !== cat) updateLocalDoc(d.id, { category: remap(cat) });
+      }
+      saveLocalCats(Array.from(new Set([...customCats.map(remap), to])));
+    } else {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rename", from: path, to }),
+      });
+      if (!res.ok) return false;
+    }
+    setDocs(
+      (prev) =>
+        prev?.map((d) => ({ ...d, category: remap(d.category || UNCATEGORIZED) })) ?? null
+    );
+    setCustomCats((prev) => Array.from(new Set([...prev.map(remap), to])));
+    if (activeCat === path || activeCat.startsWith(`${path}/`)) {
+      setActiveCat(remap(activeCat));
+    }
+    return true;
+  };
+
   const renameCategory = async (path: string) => {
     const oldName = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
     const name = (
@@ -728,38 +781,32 @@ export function Home() {
       toast("分类已存在", "error");
       return;
     }
-    const remap = (c: string) =>
-      c === path ? to : c.startsWith(`${path}/`) ? to + c.slice(path.length) : c;
-    if (localMode) {
-      for (const d of listLocalDocs()) {
-        const cat = d.category || UNCATEGORIZED;
-        if (remap(cat) !== cat) updateLocalDoc(d.id, { category: remap(cat) });
-      }
-      saveLocalCats(Array.from(new Set([...customCats.map(remap), to])));
+    if (!localMode && !online) {
+      toast("离线时分类操作暂不可用，联网后再试", "error");
+      return;
+    }
+    if (await relocateCategory(path, to)) toast("已重命名", "success");
+    else toast("重命名失败", "error");
+  };
+
+  /** 拖拽把分类挂到新父级下（parent 空串 = 提升为顶级分类） */
+  const moveCategory = async (path: string, parent: string) => {
+    const name = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
+    const to = parent ? `${parent}/${name}` : name;
+    if (to === path) return;
+    if (to === UNCATEGORIZED) {
+      toast("不能与「未分类」同名", "error");
+      return;
+    }
+    if (!localMode && !online) {
+      toast("离线时分类操作暂不可用，联网后再试", "error");
+      return;
+    }
+    if (await relocateCategory(path, to)) {
+      toast(parent ? `已移动到「${parent}」` : "已设为顶级分类", "success");
     } else {
-      if (!online) {
-        toast("离线时分类操作暂不可用，联网后再试", "error");
-        return;
-      }
-      const res = await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "rename", from: path, to }),
-      });
-      if (!res.ok) {
-        toast("重命名失败", "error");
-        return;
-      }
+      toast("移动失败", "error");
     }
-    setDocs(
-      (prev) =>
-        prev?.map((d) => ({ ...d, category: remap(d.category || UNCATEGORIZED) })) ?? null
-    );
-    setCustomCats((prev) => Array.from(new Set([...prev.map(remap), to])));
-    if (activeCat === path || activeCat.startsWith(`${path}/`)) {
-      setActiveCat(remap(activeCat));
-    }
-    toast("已重命名", "success");
   };
 
   const removeCategory = async (path: string) => {
@@ -801,6 +848,95 @@ export function Home() {
     if (inSub(activeCat)) setActiveCat(ALL);
     toast("已删除分类", "success");
   };
+
+  /* —— 鼠标拖拽移动：文章/分类拖到侧栏的分类行（或根节点）上 —— */
+
+  const endDrag = () => {
+    cancelDragExpand();
+    setDragItem(null);
+    setDropTarget(null);
+  };
+
+  /** 当前拖拽对象能否落到 target（分类路径，或 ALL 根节点） */
+  const canDropOn = (target: string): boolean => {
+    if (!dragItem) return false;
+    if (dragItem.kind === "doc") {
+      const doc = (docs ?? []).find((d) => d.id === dragItem.id);
+      if (!doc) return false;
+      return (doc.category || UNCATEGORIZED) !== (target === ALL ? UNCATEGORIZED : target);
+    }
+    const path = dragItem.path;
+    const parent = target === ALL ? "" : target;
+    if (path === UNCATEGORIZED || parent === UNCATEGORIZED) return false;
+    if (parent === path || parent.startsWith(`${path}/`)) return false; // 不能拖进自己或子孙
+    const curParent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    if (parent === curParent) return false;
+    // 层级上限：落点深度 + 被拖子树的高度不得超过 MAX_DEPTH
+    const height = [...customCats, ...(docs ?? []).map((d) => d.category || UNCATEGORIZED)]
+      .filter((c) => c === path || c.startsWith(`${path}/`))
+      .reduce((h, c) => Math.max(h, c.split("/").length - path.split("/").length + 1), 1);
+    return (parent ? parent.split("/").length : 0) + height <= MAX_DEPTH;
+  };
+
+  /** 拖拽源通用属性（文章卡片 / 列表行 / 侧栏文章行 / 分类行） */
+  const dragSrcProps = (item: DragItem) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => {
+      e.stopPropagation();
+      // Firefox 必须 setData 才会启动拖拽
+      e.dataTransfer.setData("text/plain", item.kind === "doc" ? item.id : item.path);
+      e.dataTransfer.effectAllowed = "move";
+      setDragItem(item);
+    },
+    onDragEnd: () => endDrag(),
+  });
+
+  /** 落点通用属性：target 为分类路径或 ALL（根节点 = 分类提为顶级 / 文章移入未分类） */
+  const dropProps = (target: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!canDropOn(target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      if (dropTarget === target) return;
+      setDropTarget(target);
+      // 悬停片刻自动展开折叠的分类，便于往更深层拖放
+      cancelDragExpand();
+      if (target !== ALL && !expanded.has(target)) {
+        scheduleDragExpand(() => {
+          setExpanded((prev) => {
+            const next = new Set(prev);
+            next.add(target);
+            try {
+              localStorage.setItem("xedit-cat-expanded", JSON.stringify(Array.from(next)));
+            } catch {
+              // 忽略
+            }
+            return next;
+          });
+        });
+      }
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+      if (dropTarget === target) setDropTarget(null);
+      cancelDragExpand();
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const item = dragItem;
+      const ok = item !== null && canDropOn(target);
+      endDrag();
+      if (!item || !ok) return;
+      if (item.kind === "doc") {
+        const doc = (docs ?? []).find((d) => d.id === item.id);
+        if (doc) void moveDoc(doc, target === ALL ? UNCATEGORIZED : target);
+      } else {
+        void moveCategory(item.path, target === ALL ? "" : target);
+      }
+    },
+  });
 
   const handleLogin = () => openAuth("login");
 
@@ -867,7 +1003,13 @@ export function Home() {
   const renderDocRow = (doc: DocMeta, depth: number) => {
     const active = readingId === doc.id;
     return (
-      <div key={doc.id} className="group/doc relative">
+      <div
+        key={doc.id}
+        className={`group/doc relative ${
+          dragItem?.kind === "doc" && dragItem.id === doc.id ? "opacity-40" : ""
+        }`}
+        {...dragSrcProps({ kind: "doc", id: doc.id })}
+      >
         <button
           className={`flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${
             active
@@ -906,12 +1048,18 @@ export function Home() {
 
     return (
       <div key={node.path}>
-        <div className="group/cat relative">
+        <div
+          className="group/cat relative"
+          {...(canManage ? dragSrcProps({ kind: "cat", path: node.path }) : {})}
+          {...dropProps(node.path)}
+        >
           <div
             className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${
               active
                 ? "bg-[var(--sidebar-active)] font-medium text-[var(--accent-deep)]"
                 : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
+            } ${dropTarget === node.path ? DROP_HL : ""} ${
+              dragItem?.kind === "cat" && dragItem.path === node.path ? "opacity-40" : ""
             }`}
             style={{ paddingLeft: `${6 + depth * 14}px` }}
             onClick={() => openCategory(node.path)}
@@ -1264,14 +1412,14 @@ export function Home() {
               </span>
             </div>
             <nav className="mt-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
-                  {/* 根节点：全部文章，其余分类挂在它下面 */}
-                  <div className="group/cat relative">
+                  {/* 根节点：全部文章，其余分类挂在它下面；拖拽落点 = 分类提为顶级 / 文章移入未分类 */}
+                  <div className="group/cat relative" {...dropProps(ALL)}>
                     <div
                       className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${
                         activeCat === ALL && !readingId
                           ? "bg-[var(--sidebar-active)] font-medium text-[var(--accent-deep)]"
                           : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
-                      }`}
+                      } ${dropTarget === ALL ? DROP_HL : ""}`}
                       style={{ paddingLeft: "6px" }}
                       onClick={() => {
                         if (!rootOpen) toggleRoot();
@@ -1651,9 +1799,14 @@ export function Home() {
                           return (
                             <div
                               key={doc.id}
-                              className="group relative flex cursor-pointer items-center gap-3 border-b border-[var(--hairline-soft)] px-4 py-3 transition-colors last:border-b-0 hover:bg-[var(--paper)]"
+                              className={`group relative flex cursor-pointer items-center gap-3 border-b border-[var(--hairline-soft)] px-4 py-3 transition-colors last:border-b-0 hover:bg-[var(--paper)] ${
+                                dragItem?.kind === "doc" && dragItem.id === doc.id
+                                  ? "opacity-40"
+                                  : ""
+                              }`}
                               onClick={() => openDoc(doc.id)}
                               onContextMenu={(e) => openDocMenuAt(e, doc.id)}
+                              {...dragSrcProps({ kind: "doc", id: doc.id })}
                             >
                               <FileText
                                 size={14}
@@ -1707,7 +1860,11 @@ export function Home() {
                           return (
                             <div
                               key={doc.id}
-                              className="rise group relative cursor-pointer rounded-xl bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.05] transition-all hover:shadow-[0_10px_28px_-12px_rgba(0,0,0,0.18)] hover:ring-black/[0.09] dark:ring-white/10 dark:hover:ring-white/20"
+                              className={`rise group relative cursor-pointer rounded-xl bg-[var(--panel)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.05] transition-all hover:shadow-[0_10px_28px_-12px_rgba(0,0,0,0.18)] hover:ring-black/[0.09] dark:ring-white/10 dark:hover:ring-white/20 ${
+                                dragItem?.kind === "doc" && dragItem.id === doc.id
+                                  ? "opacity-40"
+                                  : ""
+                              }`}
                               style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
                               onClick={() => {
                                 if (!isTrash) openDoc(doc.id);
@@ -1715,6 +1872,9 @@ export function Home() {
                               onContextMenu={
                                 isTrash ? undefined : (e) => openDocMenuAt(e, doc.id)
                               }
+                              {...(isTrash
+                                ? {}
+                                : dragSrcProps({ kind: "doc", id: doc.id }))}
                             >
                               <span className="absolute bottom-5 left-0 top-5 w-[3px] rounded-r-full bg-transparent transition-colors group-hover:bg-[var(--accent)]" />
                               <p className="truncate pr-8 text-[15.5px] font-semibold leading-6 text-[var(--ink)] [font-family:var(--serif)]">
