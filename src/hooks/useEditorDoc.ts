@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
@@ -14,6 +14,29 @@ import {
   removeMirrorDoc,
 } from "@/lib/docStore";
 import { pushMirrorDoc } from "@/lib/sync";
+
+/** 回到前台的校新节流：来回切标签页不该反复打接口 */
+const REFRESH_MIN_INTERVAL = 3000;
+
+/**
+ * 最后一次落盘的内容基准。模块级而非组件 ref——编辑页重新 mount（工作台/阅读视图互切）后
+ * 仍要靠它判断 store 里有没有未落盘的防抖编辑；组件级 ref 会随 mount 清零，
+ * 于是一律被当成「有改动」而沿用旧 store，后台已同步到的新内容就被盖了回去。
+ */
+const lastSaved: {
+  current: { docId: string | null; title: string; content: string; category: string };
+} = { current: { docId: null, title: "", content: "", category: "" } };
+
+/**
+ * store 里是否有尚未落盘的编辑——防抖窗口（800ms）内离开页面就会留下这种内容。
+ * 基准优先取 lastSaved（同一页面会话内精确），页面刷新后退化为与镜像内容比对；
+ * 两者都拿不到时保守返回 true：宁可不刷新，也不能丢用户刚敲的字。
+ */
+function hasPendingEdit(id: string): boolean {
+  const base = lastSaved.current.docId === id ? lastSaved.current.content : getMirrorContent(id);
+  if (base === null) return true;
+  return useStore.getState().content !== base;
+}
 
 /**
  * 编辑页的文档装载与自动保存。
@@ -35,12 +58,45 @@ export function useEditorDoc(routeDocId: string | null) {
   const idleVersionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** 本次会话是否有过成功的云端保存——没有就不必在关页面时请求存档 */
   const savedThisSessionRef = useRef(false);
-  const lastSavedRef = useRef<{
-    docId: string | null;
-    title: string;
-    content: string;
-    category: string;
-  }>({ docId: null, title: "", content: "", category: "" });
+  /** 上次向服务端校新的时刻，用于节流 */
+  const lastRefreshAtRef = useRef(0);
+
+  /**
+   * 从云端校新当前文档：仅当镜像不 dirty（无未推送改动）且 store 与镜像一致
+   * （无未落盘编辑）时才替换，本地一律优先。装载后、回到前台、网络恢复三处共用。
+   */
+  const refreshFromServer = useCallback(async (id: string) => {
+    if (!id || isLocalId(id) || !navigator.onLine) return;
+    const meta = getMirrorMeta(id);
+    const mirrored = meta ? getMirrorContent(id) : null;
+    if (!meta || mirrored === null || meta.dirty) return;
+    const before = useStore.getState();
+    if (before.docId !== id || before.content !== mirrored || before.title !== meta.title) return;
+    lastRefreshAtRef.current = Date.now();
+    try {
+      const res = await fetch(`/api/documents/${id}`);
+      if (!res.ok) return;
+      const doc = await res.json();
+      if (new Date(doc.updatedAt).getTime() <= new Date(meta.updatedAt).getTime()) return;
+      // 请求往返期间用户可能已开始打字或切走，写回 store 前再核一次
+      const now = useStore.getState();
+      if (now.docId !== id || now.content !== mirrored || now.title !== meta.title) return;
+      applyServerDoc(doc);
+      lastSaved.current = {
+        docId: doc.id,
+        title: doc.title,
+        content: doc.content,
+        category: doc.category ?? "未分类",
+      };
+      now.setDoc({ id: doc.id, title: doc.title, content: doc.content });
+      now.setCategory(doc.category ?? "未分类");
+      now.setSaveState("saved");
+      setDocVersion((v) => v + 1);
+      toast("已更新为云端最新版本", "success");
+    } catch {
+      // 网络抖动等：保持现有内容，下次触发再试
+    }
+  }, []);
 
   // 停止编辑 5 分钟后，把当前内容定格为一个版本（页面关闭时由服务端在下次保存时兜底）
   const scheduleIdleVersion = (id: string) => {
@@ -85,7 +141,7 @@ export function useEditorDoc(routeDocId: string | null) {
     if (isLocalId(s.docId)) {
       try {
         updateLocalDoc(s.docId!, { title: s.title, content: s.content, category: s.category });
-        lastSavedRef.current = {
+        lastSaved.current = {
           docId: s.docId,
           title: s.title,
           content: s.content,
@@ -105,7 +161,7 @@ export function useEditorDoc(routeDocId: string | null) {
     }
     // 云端文档：先落本地镜像（离线也保得住），再尝试推送
     saveMirrorLocal(s.docId, { title: s.title, content: s.content, category: s.category });
-    lastSavedRef.current = {
+    lastSaved.current = {
       docId: s.docId,
       title: s.title,
       content: s.content,
@@ -157,9 +213,15 @@ export function useEditorDoc(routeDocId: string | null) {
     }
     // 会话状态落定等原因导致 effect 重跑时，已装载的文档不重复装载（防止打断输入）
     if (reloadTick === 0 && adoptedRef.current === routeDocId) return;
-    // 阅读视图 ↔ 编辑页互切时 store 已持有该文档的最新内容（含未落盘的防抖编辑），
-    // 直接沿用避免旧数据覆盖；lastSavedRef 留空，随后的自动保存会把待存内容刷下去
-    if (reloadTick === 0 && useStore.getState().docId === routeDocId) {
+    // 阅读视图 ↔ 编辑页互切时 store 可能持有未落盘的防抖编辑，这种情况才沿用 store
+    // 避免旧数据覆盖，随后的自动保存会把这份待存内容刷下去。
+    // 反之（store 与已落盘内容一致）不能沿用——镜像可能刚被后台同步刷新过，
+    // 沿用旧 store 会把新内容盖回去，「回工作台再点进来还是旧稿」就是这么来的。
+    if (
+      reloadTick === 0 &&
+      useStore.getState().docId === routeDocId &&
+      hasPendingEdit(routeDocId)
+    ) {
       adoptedRef.current = routeDocId;
       queueMicrotask(() => {
         setDocVersion((v) => v + 1);
@@ -169,8 +231,10 @@ export function useEditorDoc(routeDocId: string | null) {
     }
     if (isLocalId(routeDocId)) {
       // 本地文档：不依赖会话状态，直接从本地库装载；
-      // 会话状态从 loading 落定时 effect 会重跑，靠 lastSavedRef 防止重复装载打断输入
-      if (lastSavedRef.current.docId === routeDocId) return;
+      // 会话状态从 loading 落定时 effect 会重跑，靠 lastSaved 防止重复装载打断输入。
+      // lastSaved 跨 mount 存活，故还要确认 store 确实持有这篇，否则会漏装载。
+      if (lastSaved.current.docId === routeDocId && useStore.getState().docId === routeDocId)
+        return;
       const meta = listLocalDocs().find((d) => d.id === routeDocId);
       const content = getLocalDocContent(routeDocId);
       if (!meta || content === null) {
@@ -178,7 +242,7 @@ export function useEditorDoc(routeDocId: string | null) {
         router.replace("/");
         return;
       }
-      lastSavedRef.current = {
+      lastSaved.current = {
         docId: routeDocId,
         title: meta.title,
         content,
@@ -201,7 +265,7 @@ export function useEditorDoc(routeDocId: string | null) {
     const mirrorContent = mirrorMeta ? getMirrorContent(routeDocId) : null;
     if (mirrorMeta && mirrorContent !== null) {
       adoptedRef.current = routeDocId;
-      lastSavedRef.current = {
+      lastSaved.current = {
         docId: routeDocId,
         title: mirrorMeta.title,
         content: mirrorContent,
@@ -215,42 +279,10 @@ export function useEditorDoc(routeDocId: string | null) {
         setDocVersion((v) => v + 1);
         setLoading(false);
       });
-      // 后台校新：服务端更新、且用户尚未开始编辑时才替换（本地优先）
-      if (navigator.onLine && !mirrorMeta.dirty) {
-        void (async () => {
-          try {
-            const res = await fetch(`/api/documents/${routeDocId}`);
-            if (cancelled || !res.ok) return;
-            const doc = await res.json();
-            if (cancelled) return;
-            if (new Date(doc.updatedAt).getTime() <= new Date(mirrorMeta.updatedAt).getTime())
-              return;
-            const cur = useStore.getState();
-            if (
-              cur.docId !== routeDocId ||
-              cur.content !== mirrorContent ||
-              cur.title !== mirrorMeta.title
-            )
-              return;
-            applyServerDoc(doc);
-            lastSavedRef.current = {
-              docId: doc.id,
-              title: doc.title,
-              content: doc.content,
-              category: doc.category ?? "未分类",
-            };
-            cur.setDoc({ id: doc.id, title: doc.title, content: doc.content });
-            cur.setCategory(doc.category ?? "未分类");
-            cur.setSaveState("saved");
-            setDocVersion((v) => v + 1);
-          } catch {
-            // 网络抖动等，保持镜像内容即可
-          }
-        })();
-      }
-      return () => {
-        cancelled = true;
-      };
+      // 后台校新：服务端更新、且本地无改动时才替换（本地优先）。
+      // 与上面的装载一样挪出 effect 同步体，避免装载即触发级联渲染
+      queueMicrotask(() => void refreshFromServer(routeDocId));
+      return;
     }
 
     // 无镜像：需要网络与登录（首次打开该文档，顺手落镜像供之后离线用）
@@ -280,7 +312,7 @@ export function useEditorDoc(routeDocId: string | null) {
       removeMirrorDoc(doc.id);
       applyServerDoc(doc);
       adoptedRef.current = doc.id;
-      lastSavedRef.current = {
+      lastSaved.current = {
         docId: doc.id,
         title: doc.title,
         content: doc.content,
@@ -295,7 +327,24 @@ export function useEditorDoc(routeDocId: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [routeDocId, status, router, reloadTick]);
+  }, [routeDocId, status, router, reloadTick, refreshFromServer]);
+
+  // —— 回到前台 / 网络恢复时校新 ——
+  // 没有 WebSocket 推送，这是 MCP、其他设备或另一个标签页改过的内容进到当前页的唯一时机。
+  useEffect(() => {
+    if (!routeDocId || isLocalId(routeDocId)) return;
+    const tryRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastRefreshAtRef.current < REFRESH_MIN_INTERVAL) return;
+      void refreshFromServer(routeDocId);
+    };
+    document.addEventListener("visibilitychange", tryRefresh);
+    window.addEventListener("online", tryRefresh);
+    return () => {
+      document.removeEventListener("visibilitychange", tryRefresh);
+      window.removeEventListener("online", tryRefresh);
+    };
+  }, [routeDocId, refreshFromServer]);
 
   // —— 登录后拉取云端偏好（主题/自定义CSS/外链设置） ——
   useEffect(() => {
@@ -322,7 +371,7 @@ export function useEditorDoc(routeDocId: string | null) {
 
   useEffect(() => {
     if (isLocalId(docId)) {
-      const last = lastSavedRef.current;
+      const last = lastSaved.current;
       if (
         last.docId === docId &&
         last.title === title &&
@@ -333,7 +382,7 @@ export function useEditorDoc(routeDocId: string | null) {
       const timer = setTimeout(() => {
         try {
           updateLocalDoc(docId!, { title, content, category });
-          lastSavedRef.current = { docId, title, content, category };
+          lastSaved.current = { docId, title, content, category };
           useStore.getState().setSaveState("local");
         } catch {
           useStore.getState().setSaveState("error");
@@ -342,10 +391,12 @@ export function useEditorDoc(routeDocId: string | null) {
       return () => clearTimeout(timer);
     }
     if (!docId) {
-      useStore.getState().setSaveState("local");
+      // 按实时状态判断，不能用捕获值：装载 effect 会在同一提交里先设好 docId，
+      // 而这里拿到的还是上次渲染的 null，照它写会把刚设好的「已同步云端」冲成「仅保存在本地」
+      if (!useStore.getState().docId) useStore.getState().setSaveState("local");
       return;
     }
-    const last = lastSavedRef.current;
+    const last = lastSaved.current;
     if (
       last.docId === docId &&
       last.title === title &&
@@ -357,7 +408,7 @@ export function useEditorDoc(routeDocId: string | null) {
     // 云端文档：先落本地镜像，再尝试推送；离线/失败时保持 dirty 由同步引擎兜底
     const timer = setTimeout(async () => {
       saveMirrorLocal(docId, { title, content, category });
-      lastSavedRef.current = { docId, title, content, category };
+      lastSaved.current = { docId, title, content, category };
       if (!navigator.onLine) {
         useStore.getState().setSaveState("pending");
         return;
