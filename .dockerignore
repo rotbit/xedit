@@ -3,10 +3,12 @@ node_modules
 .git
 .env
 .env.*
-!.env.example
 npm-debug.log*
 Dockerfile
+docker-compose.yml
 .dockerignore
 README.md
+LICENSE
 CLAUDE.md
 AGENTS.md
+docs
