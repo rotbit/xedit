@@ -465,34 +465,66 @@ body {
   animation: evo-drop 1s ease-out both;
 }
 
-/* —— 落地页：刊物式展示排版 —— */
-.landing-display {
-  font-family: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC",
-    var(--serif);
+/* —— 落地页 —— */
+
+/* 首页对未登录会话一律服务端直出落地页（SEO 需要真实 DOM）。本机已有工作区的老用户
+   由 theme-init.js 在首次绘制前打上 data-ws，这一帧直接盖掉，等工作台接管。 */
+[data-ws="1"] .landing-boot {
+  display: none;
 }
-.landing-vertical {
-  writing-mode: vertical-rl;
+
+/* 落地页在自己的滚动容器里，锚点跳转要避开吸顶栏 */
+.landing-scroll {
+  scroll-behavior: smooth;
 }
-/* 印章落款：从高处压下、微回弹，落定在 6° */
-@keyframes stamp-in {
-  0% {
-    opacity: 0;
-    transform: scale(2.4) rotate(18deg);
-  }
-  55% {
-    opacity: 1;
-    transform: scale(0.92) rotate(2deg);
-  }
-  75% {
-    transform: scale(1.08) rotate(8deg);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) rotate(6deg);
-  }
+.landing-scroll [id] {
+  scroll-margin-top: 90px;
 }
-.stamp-in {
-  animation: stamp-in 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) 0.55s both;
+
+/* 样机里的源码：Markdown 与 HTML 片段共用同一套等宽排版 */
+.xe-source {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 2;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* Markdown 标记符号（#、**、-、>）：朱砂点出，正文仍是墨色 */
+.xe-source .xe-mk {
+  color: var(--seal);
+}
+.xe-source .xe-dim {
+  color: var(--ink-soft);
+}
+/* 内联结果里的 HTML 片段着色 */
+.xe-source .xe-tag {
+  color: var(--md-code);
+}
+.xe-source .xe-attr {
+  color: var(--md-link);
+}
+.xe-source .xe-str {
+  color: var(--ink-soft);
+}
+
+/* FAQ 的 details：去掉浏览器默认三角，交给自绘的箭头 */
+.landing-scroll summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 主题样张一律按日间纸面渲染：公众号里就是白底黑字 */
+.xe-paper {
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-scroll {
+    scroll-behavior: auto;
+  }
+  .rise {
+    animation: none;
+  }
 }
 
 /* —— 入场动画（首页用） —— */

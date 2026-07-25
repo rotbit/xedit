@@ -7,6 +7,8 @@ import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { createLocalDoc, listLocalDocs } from "@/lib/localDocs";
 import { Toaster } from "@/components/Toast";
 import { openAuth } from "@/components/AuthDialog";
+import { LogoMark } from "@/components/LogoMark";
+import { LandingActionsProvider } from "@/features/landing/LandingActions";
 import { CategoryContextMenu } from "./components/CategoryContextMenu";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspaceContent } from "./components/WorkspaceContent";
@@ -16,17 +18,17 @@ const AiSettingsDialog = dynamic(
   () => import("@/components/AiDialogs").then((m) => m.AiSettingsDialog),
   { ssr: false }
 );
-/* 落地页连带 13 套主题 CSS，只有首访未登录才需要，不进工作台首屏包 */
-const Landing = dynamic(() => import("@/components/Landing").then((m) => m.Landing), {
-  ssr: false,
-  loading: () => <div className="h-full bg-[var(--paper)]" />,
-});
+
+interface HomeProps {
+  /** 服务端渲染好的落地页；已登录时为 null（那条路径根本走不到落地页） */
+  landing: React.ReactNode;
+}
 
 /**
  * 应用首页：已有内容时是 Notion 式工作台（全高侧栏 + 面包屑顶栏 + 独立滚动内容区），
- * 未登录且无本地文章时是产品落地页。
+ * 未登录且无本地文章时展示 page.tsx 传进来的落地页。
  */
-export function Home() {
+export function Home({ landing }: HomeProps) {
   const router = useRouter();
   const ws = useWorkspace();
   const { auth, prefs, library, nav } = ws;
@@ -54,9 +56,22 @@ export function Home() {
     }
   };
 
-  // 会话状态确认前（及本地文章列表读取前）不渲染，避免闪现登录页
+  const actions = {
+    onStart: startLocalWriting,
+    onLogin: () => openAuth("login"),
+    startLabel: hasLocalDraft ? "继续编辑本地文稿" : "开始写作",
+  };
+
+  // 会话状态确认前（及本地文章列表读取前）还不知道该给谁看什么。
+  // 服务端已判定未登录时，这一帧就把落地页铺出来——它必须是真实 DOM，爬虫才读得到；
+  // 老用户由 theme-init.js 在首次绘制前打上 data-ws，用 CSS 盖住这帧，不会看见落地页。
   if (auth.status === "loading" || (auth.localMode && library.docs === null)) {
-    return <div className="h-full bg-[var(--paper)]" />;
+    if (!landing) return <div className="h-full bg-[var(--paper)]" />;
+    return (
+      <div className="landing-boot h-full">
+        <LandingActionsProvider value={actions}>{landing}</LandingActionsProvider>
+      </div>
+    );
   }
 
   const hasWorkspace =
@@ -65,11 +80,11 @@ export function Home() {
   if (!hasWorkspace) {
     return (
       <>
-        <Landing
-          onLogin={() => openAuth("login")}
-          onStart={startLocalWriting}
-          hasLocalDraft={hasLocalDraft}
-        />
+        <LandingActionsProvider value={actions}>
+          {/* 服务端渲染时会话已判定为未登录，landing 必然存在；
+              兜底分支只在会话中途失效（如另一个标签页登出）时短暂出现 */}
+          {landing ?? <SignedOutFallback onStart={startLocalWriting} />}
+        </LandingActionsProvider>
         <Toaster />
       </>
     );
@@ -95,6 +110,30 @@ export function Home() {
       <CategoryContextMenu ws={ws} />
       {settingsOpen ? <AiSettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       <Toaster />
+    </div>
+  );
+}
+
+/** 会话在客户端失效、手上又没有落地页 HTML 时的最小可用界面 */
+function SignedOutFallback({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-6 bg-[var(--paper)] px-6 text-center">
+      <LogoMark className="h-10 w-10 text-[var(--seal)]" />
+      <p className="text-[15px] text-[var(--ink-soft)]">登录状态已失效，重新开始吧</p>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          className="h-10 cursor-pointer rounded-lg bg-[var(--accent)] px-5 text-[14px] font-medium text-[var(--accent-fg)]"
+          onClick={onStart}
+        >
+          开始写作
+        </button>
+        <button
+          className="h-10 cursor-pointer rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-5 text-[14px]"
+          onClick={() => openAuth("login")}
+        >
+          登录 / 注册
+        </button>
+      </div>
     </div>
   );
 }
