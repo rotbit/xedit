@@ -19,6 +19,13 @@ import { pushMirrorDoc } from "@/lib/sync";
 const REFRESH_MIN_INTERVAL = 3000;
 
 /**
+ * 校新提示的驻留时长。内容被云端版本替换是「顺带发生的事」，不值得弹 toast 挡视线，
+ * 只在状态行（已保存 / 已同步云端 那一格）短暂换成提示文案再回落。
+ * 需与 globals.css 里 .sync-hint 动画时长保持一致，淡出正好接上文案切回。
+ */
+const REFRESH_HINT_MS = 4000;
+
+/**
  * 最后一次落盘的内容基准。模块级而非组件 ref——编辑页重新 mount（工作台/阅读视图互切）后
  * 仍要靠它判断 store 里有没有未落盘的防抖编辑；组件级 ref 会随 mount 清零，
  * 于是一律被当成「有改动」而沿用旧 store，后台已同步到的新内容就被盖了回去。
@@ -61,6 +68,20 @@ export function useEditorDoc(routeDocId: string | null) {
   /** 上次向服务端校新的时刻，用于节流 */
   const lastRefreshAtRef = useRef(0);
 
+  /** 刚把内容换成云端最新版：状态行显示提示，几秒后自行回落 */
+  const [refreshedHint, setRefreshedHint] = useState(false);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showRefreshHint = useCallback(() => {
+    setRefreshedHint(true);
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    hintTimerRef.current = setTimeout(() => setRefreshedHint(false), REFRESH_HINT_MS);
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    };
+  }, []);
+
   /**
    * 从云端校新当前文档：仅当镜像不 dirty（无未推送改动）且 store 与镜像一致
    * （无未落盘编辑）时才替换，本地一律优先。装载后、回到前台、网络恢复三处共用。
@@ -92,11 +113,11 @@ export function useEditorDoc(routeDocId: string | null) {
       now.setCategory(doc.category ?? "未分类");
       now.setSaveState("saved");
       setDocVersion((v) => v + 1);
-      toast("已更新为云端最新版本", "success");
+      showRefreshHint();
     } catch {
       // 网络抖动等：保持现有内容，下次触发再试
     }
-  }, []);
+  }, [showRefreshHint]);
 
   // 停止编辑 5 分钟后，把当前内容定格为一个版本（页面关闭时由服务端在下次保存时兜底）
   const scheduleIdleVersion = (id: string) => {
@@ -448,6 +469,8 @@ export function useEditorDoc(routeDocId: string | null) {
     sessionStatus: status,
     docVersion,
     loading,
+    /** 刚拉到云端新内容，状态行据此短暂提示（替代弹窗） */
+    refreshedHint,
     /** 重新从云端拉取当前文档（版本回滚后使用） */
     reload: () => setReloadTick((t) => t + 1),
   };
