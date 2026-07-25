@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { X, Loader2, Copy, Check, Trash2, Plug } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
 import { toast } from "./Toast";
@@ -12,6 +12,10 @@ interface Connection {
   since: string;
 }
 
+/** MCP 服务器地址随站点部署固定，订阅无需做任何事 */
+const subscribeNoop = () => () => {};
+const getMcpUrl = () => `${window.location.origin}/api/mcp`;
+
 /**
  * MCP 连接设置：展示 MCP 服务器地址与接入方法，管理（撤销）已授权的 AI 客户端。
  * 接入走标准 OAuth 2.1（客户端里点「连接」即弹授权页），无需手动生成令牌。
@@ -22,12 +26,9 @@ export function McpDialog({ onClose }: { onClose: () => void }) {
   const [conns, setConns] = useState<Connection[]>([]);
   const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
-  const [mcpUrl, setMcpUrl] = useState("");
+  // origin 只有浏览器里才有；用 useSyncExternalStore 读，服务端快照给空串，避免水合不一致
+  const mcpUrl = useSyncExternalStore(subscribeNoop, getMcpUrl, () => "");
   useEscape(onClose, true);
-
-  useEffect(() => {
-    setMcpUrl(`${window.location.origin}/api/mcp`);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

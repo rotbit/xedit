@@ -11,8 +11,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# 构建阶段不需要真实密钥，占位即可（运行时由 Dokploy 注入）
+# 构建阶段不需要真实密钥，占位即可（运行时由编排平台注入）
 ENV AUTH_SECRET=build-placeholder
+# NEXT_PUBLIC_* 在构建期就被内联进产物，运行时再注入无效，故走 build arg。
+# 自建部署传入自己的域名（不带结尾斜杠），留空则回落到 src/lib/site.ts 里的默认值。
+ARG NEXT_PUBLIC_SITE_URL=""
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 RUN npx prisma generate && npm run build
 
 # ---- 运行 ----

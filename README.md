@@ -1,129 +1,111 @@
-# xEdit · Markdown 公众号排版工具
+<div align="center">
 
-仿 [mdnice](https://editor.mdnice.com/) 的 Markdown 排版编辑器：左侧写 Markdown，右侧实时预览，一键复制到**微信公众号**或**知乎**，样式不丢。
+# xEdit
+
+**Markdown 公众号排版工具 —— 左边写 Markdown，右边就是公众号里的样子，一键复制，样式不丢。**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-000.svg)](./LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000.svg)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19-000.svg)](https://react.dev)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-000.svg)](https://www.postgresql.org)
+
+[在线体验](https://xedit.me) · [部署教程](./docs/deployment.md) · [MCP 接入](./docs/mcp.md)
+
+</div>
+
+---
+
+微信公众号后台的编辑器会丢掉 `<style>`、`class` 和伪元素，导致大多数「排版工具」粘贴过去就散架。xEdit 在复制的那一刻把主题样式**逐条内联**到每个标签上，公众号后台、知乎编辑器直接 `⌘V`，标题、引用、代码块、表格、公式全都保持原样。
+
+不登录也能用：全部排版、预览、复制、导出功能都在浏览器里跑，文稿存本地。登录之后才有云端同步、版本历史和图床。
 
 ## 功能
 
-- **双栏编辑**：CodeMirror 6 编辑器 + 实时预览，双向同步滚动，格式化工具栏
-- **一键复制**：单按钮选择平台——公众号（主题 CSS 全部内联，代码块空白转 `&nbsp;/<br>` 保住缩进）或知乎（公式转 eeimg、代码块由知乎重新高亮）
-- **13 套排版主题**（选择器带真实样式缩略图与适用内容类型标签）；代码块统一 VS 2015 配色 + Mac 风格窗口，零配置
-- **外链转脚注**：微信不允许外链，自动转成「文字[n]」+ 文末参考链接（可开关）
-- **数学公式**：`$行内$` 与 `$$块级$$`，MathJax 渲染为 SVG，粘贴到公众号不变形
-- **图床**：编辑器内粘贴/拖拽图片自动上传阿里云 OSS 并插入
-- **云端同步**：GitHub 登录后多篇文章管理、自动保存（PostgreSQL）；未登录时保存在浏览器本地
-- **版本历史**：自动保存每隔约 5 分钟留存快照（也可手动存档），随时一键回滚，回滚前自动备份当前内容
+**排版与复制**
+
+- **一键复制**：公众号模式（主题 CSS 全部内联，代码块空白转 `&nbsp;`/`<br>` 保住缩进）与知乎模式（公式转 eeimg、代码块交给知乎重新高亮）
+- **13 套排版主题**：经典黑、微信绿、科技蓝、水墨、杂志风……选择器带真实样式缩略图和适用内容类型标签
+- **6 套代码配色** + Mac 风格窗口装饰（三个圆点）
 - **自定义 CSS**：叠加在主题之上，复制时一并内联
-- **导出**：Markdown / 独立 HTML / PDF（打印）
-- **AI 助手**：自带 Key 即用（OpenAI 兼容接口，支持 DeepSeek/通义/Ollama 等）——选中翻译中英互转、润色、AI 生成配图插入正文；Key 仅存浏览器本地
-- **手机预览模式**、可拖拽分栏、字数统计、阅读时长
-- **首页工作台**：`/` 为文章列表（未登录时是产品页 + 本地文稿入口），`/edit` 写本地文稿，`/edit/[id]` 编辑云端文章
+- **外链转脚注**：公众号正文不允许外链，自动转成「文字[n]」+ 文末参考链接，可开关
+- **数学公式**：`$行内$` 与 `$$块级$$`，MathJax 渲染成 SVG 再复制，公众号不支持 MathML 也不变形
+- **导出**：Markdown / 独立 HTML / 打印版 PDF / 整篇长图 PNG
 
-## 本地启动
+**编辑体验**
 
-依赖：Node 20+、PostgreSQL 14+（本机通过 `brew install postgresql@17` 安装即可）。
+- **双模编辑**：类 Obsidian 的 Live Preview（标题、加粗、代码、图片在编辑区里直接呈现排版），或左右分栏对照，随时切换
+- CodeMirror 6 编辑器、双向同步滚动、格式化工具栏、大纲面板、手机预览模式、可拖拽分栏、字数与阅读时长统计
+
+**文章管理**
+
+- **多级分类树**：文章和分类都能拖着移动，全局搜索、右键菜单、回收站软删除可恢复
+- **版本历史**：自动快照 + 手动存档，点开任一版本即可看到与当前稿的逐行差异，一键回滚，回滚前自动备份现稿
+- **图床**：截图粘贴、文件拖入自动上传到你自己的阿里云 OSS 并就地插入，素材库统一管理
+- **写作统计**：热力图、趋势曲线、每日目标，累计字数喂养一只会进化的墨灵
+- **本地优先**：断网照写，改动落本地镜像，联网自动补同步
+
+**AI**
+
+- **公众号内容审查**：按《微信公众平台运营规范》、推荐加热机制与广告法逐项体检——标题党、绝对化违禁词、合规风险，发之前先过一遍。自带 Key，支持 Replicate / Kimi / GLM / DeepSeek
+- **MCP Server**：内置 MCP 服务端与自建 OAuth 2.1 授权，Claude Desktop、Cursor 等客户端授权后可直接列出、检索、新建、改写你的文章与图床 → [接入文档](./docs/mcp.md)
+
+## 快速开始
+
+前置依赖：**Node.js 20+**、**PostgreSQL 14+**。
 
 ```bash
-# 1. 安装依赖
+# 1. 克隆并安装
+git clone https://github.com/rotbit/xedit.git
+cd xedit
 npm install
 
-# 2. 准备数据库（首次）
-brew services start postgresql@17
-/opt/homebrew/opt/postgresql@17/bin/createdb xedit
+# 2. 准备数据库（macOS 示例，其他平台装好 PostgreSQL 即可）
+brew install postgresql@17 && brew services start postgresql@17
+createdb xedit
 
-# 3. 配置 .env（见下方说明），然后建表
+# 3. 配置环境变量
+cp .env.example .env
+#    至少填 DATABASE_URL；AUTH_SECRET 用下面这行生成后填入
+openssl rand -base64 32
+
+# 4. 建表
 npx prisma migrate dev
 
-# 4. 启动
+# 5. 启动
 npm run dev
-# 打开 http://localhost:3000
 ```
 
-不配置 GitHub OAuth / OSS 也能用：编辑、预览、复制、导出都可离线工作，文稿保存在浏览器本地。
+打开 <http://localhost:3000> 即可。不配置 GitHub/Google OAuth 与 OSS 也能跑——登录用邮箱密码注册即可，图片粘贴功能会静默跳过上传。
 
-## 环境变量（.env）
+## 环境变量
 
-| 变量 | 说明 |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL 连接串，如 `postgresql://用户名@localhost:5432/xedit` |
-| `AUTH_SECRET` | `openssl rand -base64 32` 生成 |
-| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | GitHub OAuth App 凭据（启用登录与云端同步） |
-| `OSS_REGION` | 如 `oss-cn-hangzhou` |
-| `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` | 阿里云 AccessKey（建议用仅限该 Bucket 的 RAM 子账号） |
-| `OSS_BUCKET` | Bucket 名称（需公共读） |
-| `OSS_CDN_DOMAIN` | 可选，绑定的 CDN/自定义域名 |
+完整清单见 [`.env.example`](./.env.example)，这里是速查：
 
-### 创建 GitHub OAuth App
+| 变量 | 必填 | 说明 |
+| --- | :---: | --- |
+| `DATABASE_URL` | ✅ | PostgreSQL 连接串，如 `postgresql://user:pass@localhost:5432/xedit` |
+| `AUTH_SECRET` | ✅ | 会话与 MCP 令牌的签名密钥，`openssl rand -base64 32` 生成 |
+| `AUTH_URL` | | 反代后建议显式指定，如 `https://example.com` |
+| `NEXT_PUBLIC_SITE_URL` | | 公网地址，供 canonical / OG / sitemap 使用，不带结尾斜杠 |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | | 填了才出现 GitHub 登录 |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | | 填了才出现 Google 登录 |
+| `OSS_REGION` / `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` / `OSS_BUCKET` | | 阿里云 OSS 图床，建议用仅授权该 Bucket 的 RAM 子账号 |
+| `OSS_CDN_DOMAIN` | | 绑定的 CDN/自定义域名 |
+| `AI_ENCRYPTION_KEY` | | AI 平台 Key 的加密主密钥，留空则从 `AUTH_SECRET` 派生 |
 
-1. 打开 <https://github.com/settings/developers> → New OAuth App
-2. Homepage URL 填 `http://localhost:3000`
-3. **Authorization callback URL 填 `http://localhost:3000/api/auth/callback/github`**
-4. 生成 Client Secret，把 ID/Secret 填入 `.env`，重启 dev server
+> **密钥安全**：所有密钥只存在服务端。图片上传经 `/api/upload` 中转，OSS AccessKey 不会下发到浏览器；用户填的 AI 平台 Key 经 AES-256-GCM 加密后入库，明文绝不落库。
 
-部署到线上后把两个 URL 换成正式域名（回调路径不变）。
+## 部署
 
-### 阿里云 OSS
+仓库自带 `Dockerfile`（Next.js standalone 产物，容器启动时自动执行 `prisma migrate deploy`）。
 
-1. 创建 Bucket（读写权限选「公共读」）
-2. RAM 控制台创建子用户，授予该 Bucket 的 `PutObject` 权限，生成 AccessKey
-3. 填入 `.env`，重启后登录即可在编辑器里粘贴图片自动上传
-
-密钥只存在服务端，上传经由 `/api/upload` 中转，不会暴露到浏览器。
-
-
-## 部署到 Dokploy
-
-仓库自带 `Dockerfile`（Next.js standalone 产物，启动时自动执行 `prisma migrate deploy` 建表/迁移），Dokploy 直接识别即可。
-
-### 1. 创建 PostgreSQL 服务
-
-Dokploy 面板 → 你的 Project → **Create Service → Database → PostgreSQL**：
-- Database Name：`xedit`，记下用户名/密码
-- 无需暴露外部端口，应用走 Docker 内网连接
-
-### 2. 创建应用
-
-**Create Service → Application**：
-- Source：选择 GitHub 仓库 `xedit`、分支 `main`（首次需在 Dokploy 里安装 GitHub App 授权）
-- Build Type：**Dockerfile**（路径默认 `./Dockerfile`）
-
-### 3. 配置环境变量（应用 → Environment）
-
-```env
-DATABASE_URL=postgresql://<用户名>:<密码>@<postgres服务名>:5432/xedit
-AUTH_SECRET=<openssl rand -base64 32 重新生成一个>
-AUTH_URL=https://你的域名
-AUTH_GITHUB_ID=<生产环境 OAuth App 的 Client ID>
-AUTH_GITHUB_SECRET=<生产环境 OAuth App 的 Secret>
-OSS_REGION=oss-cn-hangzhou
-OSS_ACCESS_KEY_ID=...
-OSS_ACCESS_KEY_SECRET=...
-OSS_BUCKET=...
-OSS_CDN_DOMAIN=          # 可选
-```
-
-`<postgres服务名>` 在 Dokploy 数据库服务详情页可以看到（Internal Host）。
-
-### 4. 域名与 HTTPS
-
-应用 → **Domains → Add Domain**：填域名、Container Port 填 `3000`、开启 HTTPS（Let's Encrypt 自动签发）。域名 DNS 先解析到服务器 IP。
-
-### 5. 生产环境 GitHub OAuth App
-
-再建一个 OAuth App（与本地那个分开）：
-- Homepage：`https://你的域名`
-- Callback：`https://你的域名/api/auth/callback/github`
-
-### 6. 部署
-
-点 **Deploy**。容器启动时自动跑数据库迁移，之后每次 `git push` 到 main 可开启 Auto Deploy 自动发布（应用设置里打开 Webhook）。
+完整步骤见 **[部署教程](./docs/deployment.md)**，涵盖 Docker / Docker Compose、Dokploy 一键部署、域名与 HTTPS、生产环境 OAuth 配置和升级回滚。
 
 ## 技术栈
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · CodeMirror 6 · markdown-it · highlight.js · MathJax（SVG 公式）· DOMPurify · Auth.js (GitHub OAuth) · Prisma + PostgreSQL · ali-oss · Zustand
+Next.js 16（App Router）· React 19 · TypeScript · Tailwind CSS v4 · CodeMirror 6 · markdown-it · highlight.js · MathJax（SVG）· DOMPurify · Auth.js v5 · Prisma + PostgreSQL · ali-oss · Zustand · MCP SDK
 
 ### 复制到公众号的原理
-
-微信编辑器会丢弃 `<style>`、`class` 和伪元素，只保留内联 `style`。复制管线：
 
 ```
 Markdown → markdown-it 渲染 → DOMPurify 消毒
@@ -132,22 +114,43 @@ Markdown → markdown-it 渲染 → DOMPurify 消毒
         → 清理 class/id/data-* → 选区复制（text/html）
 ```
 
-主题装饰全部使用真实元素（如标题里的 `span.prefix/.content/.suffix`）和 data URI 背景图，保证粘贴到公众号后不丢样式。
+主题装饰全部使用真实元素（如标题里的 `span.prefix/.content/.suffix`）和 data URI 背景图，而非伪元素，保证粘贴到公众号后不丢样式。
 
 ## 目录结构
 
 ```
 src/
-├── app/                # 页面与 API 路由（documents/settings/upload/auth/config）
-├── components/         # Topbar/Sidebar/MarkdownEditor/Preview/StatusBar/弹窗等
-├── hooks/              # useDocuments（云端同步）、useSyncScroll（同步滚动）
+├── app/                # 页面与 API 路由
+│   ├── api/            # documents / categories / assets / settings / stats
+│   │                   # upload / ai / auth / oauth / mcp
+│   ├── edit/           # 编辑器页（/edit 本地稿，/edit/[id] 云端文章）
+│   ├── oauth/          # MCP 客户端的授权同意页
+│   └── page.tsx        # 落地页 + 工作台
+├── components/         # 跨功能域的通用组件与弹窗
+├── features/
+│   ├── editor/         # 编辑器工具栏、导出、复制菜单
+│   ├── landing/        # 落地页（服务端直出、可交互样机、SEO）
+│   ├── stats/          # 写作统计与墨灵
+│   └── workspace/      # 文章列表、分类树、拖拽、回收站
 ├── lib/
-│   ├── markdown/       # markdown-it 配置、数学公式、标题结构化等插件
-│   ├── themes/         # 排版主题（base + 12 套预设）与代码主题注册表
+│   ├── markdown/       # markdown-it 配置与插件（公式、标题结构化等）
+│   ├── themes/         # 排版主题（base + 13 套预设）与代码主题注册表
 │   ├── copy/           # 样式内联器、公众号/知乎复制管线、剪贴板
-│   └── export.ts       # MD/HTML/PDF 导出
+│   ├── oauth/          # 自建 OAuth 2.1 授权服务器（AS + RS）
+│   ├── ai/             # 平台目录、密钥加解密、服务端调用
+│   └── export.ts       # MD / HTML / PDF / PNG 导出
 ├── store/              # Zustand 全局状态（含本地持久化）
 └── auth.ts             # Auth.js 配置
-prisma/schema.prisma    # User/Document/DocumentVersion/UserSettings 数据模型
+prisma/                 # 数据模型与迁移
 public/code-themes/     # highlight.js 代码主题 CSS
 ```
+
+## 贡献
+
+欢迎 Issue 与 PR。提 PR 前请确认 `npm run lint` 与 `npm run build` 通过。
+
+新增排版主题：在 `src/lib/themes/presets.ts` 里照现有格式加一项即可，注意装饰元素不要用伪元素（公众号会丢弃）。
+
+## License
+
+[MIT](./LICENSE) © rotbit
