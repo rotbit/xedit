@@ -11,6 +11,7 @@ import {
   Copy,
   ChevronDown,
   MoreHorizontal,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { buildWechatHtml } from "@/lib/copy/wechat";
@@ -59,7 +60,7 @@ export function ArticleReader({
   onDelete?: () => void;
 }) {
   // 装载 + 自动保存复用编辑页管线（本地/云端文档皆可）
-  const { docVersion, loading, loggedIn, reload } = useEditorDoc(docId);
+  const { docVersion, loading, loggedIn, reload, refreshedHint } = useEditorDoc(docId);
 
   const title = useStore((s) => s.title);
   const content = useStore((s) => s.content);
@@ -400,7 +401,15 @@ export function ArticleReader({
                       ) : null}
                     </div>
                     <span>·</span>
-                    <span>{SAVE_LABEL[saveState] ?? saveState}</span>
+                    {/* MCP / 其他设备改过、页面自动校新后，在这一格轻提示几秒再回落，不弹 toast */}
+                    {refreshedHint ? (
+                      <span className="sync-hint flex items-center gap-1 text-[var(--accent)]">
+                        <RefreshCw size={11} />
+                        已更新到最新版本
+                      </span>
+                    ) : (
+                      <span>{SAVE_LABEL[saveState] ?? saveState}</span>
+                    )}
                     <span>·</span>
                     <span>{chars} 字</span>
                     {chars > 0 ? (
