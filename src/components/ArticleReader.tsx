@@ -24,7 +24,7 @@ import { useEditorDoc } from "@/hooks/useEditorDoc";
 import { useSyncScroll } from "@/hooks/useSyncScroll";
 import { MarkdownEditor, type EditorHandle } from "./MarkdownEditor";
 import { EditorToolbar } from "./EditorToolbar";
-import { EditorTools } from "./EditorTools";
+import { EditorTools } from "@/features/editor/components/EditorTools";
 import { OutlinePanel } from "./OutlinePanel";
 import { Preview } from "./Preview";
 import { VersionsPanel } from "./VersionsPanel";

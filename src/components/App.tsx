@@ -9,7 +9,7 @@ import { MarkdownEditor, type EditorHandle } from "./MarkdownEditor";
 import { EditorToolbar } from "./EditorToolbar";
 import { OutlinePanel } from "./OutlinePanel";
 import { Preview } from "./Preview";
-import { Topbar } from "./Topbar";
+import { Topbar } from "@/features/editor/Topbar";
 import { StatusBar } from "./StatusBar";
 import { VersionsPanel } from "./VersionsPanel";
 import { Toaster } from "./Toast";
