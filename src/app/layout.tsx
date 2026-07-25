@@ -1,10 +1,59 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
+import {
+  OG_IMAGE,
+  SITE_DESCRIPTION,
+  SITE_KEYWORDS,
+  SITE_NAME,
+  SITE_TAGLINE,
+  SITE_URL,
+} from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "xEdit · Markdown 公众号排版",
-  description: "Markdown 一键排版微信公众号、知乎，支持多主题、云端同步与阿里云 OSS 图床",
+  // 有了 metadataBase，各页的相对 canonical / OG 图路径才会补成绝对地址
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} · ${SITE_TAGLINE}｜Markdown 一键排版微信公众号`,
+    template: `%s｜${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  keywords: SITE_KEYWORDS,
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  alternates: { canonical: "/" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  openGraph: {
+    type: "website",
+    locale: "zh_CN",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} · ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: `${SITE_NAME} — ${SITE_TAGLINE}` }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} · ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE],
+  },
+  formatDetection: { telephone: false, email: false, address: false },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
+    { media: "(prefers-color-scheme: dark)", color: "#161616" },
+  ],
 };
 
 export default function RootLayout({
