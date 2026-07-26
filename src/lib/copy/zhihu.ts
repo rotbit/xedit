@@ -34,6 +34,30 @@ export async function buildZhihuHtml(markdown: string): Promise<string> {
     }
   }
 
+  // 视频：知乎编辑器同样不吃外部 <video>，降级为封面图 + 提示（需用知乎的视频按钮插入）
+  for (const video of Array.from(root.querySelectorAll("video"))) {
+    const container = video.closest("figure") ?? video;
+    const caption = container.querySelector("figcaption")?.textContent ?? "";
+    const parts: HTMLElement[] = [];
+    const poster = video.getAttribute("poster");
+    if (poster) {
+      const p = document.createElement("p");
+      const img = document.createElement("img");
+      img.src = poster;
+      img.alt = caption || "视频封面";
+      p.appendChild(img);
+      parts.push(p);
+    }
+    const noteP = document.createElement("p");
+    const em = document.createElement("em");
+    em.textContent = caption
+      ? `（此处有视频「${caption}」，请用知乎编辑器的视频按钮插入）`
+      : "（此处有视频，请用知乎编辑器的视频按钮插入）";
+    noteP.appendChild(em);
+    parts.push(noteP);
+    container.replaceWith(...parts);
+  }
+
   // figure → 普通段落图片（知乎不识别 figcaption）
   for (const figure of Array.from(root.querySelectorAll("figure"))) {
     const img = figure.querySelector("img");

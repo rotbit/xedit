@@ -1,5 +1,6 @@
 import type MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
+import { isVideoUrl, posterFromTitle } from "@/lib/media";
 
 // —— 标题结构化 ——
 // 输出 <h2><span class="prefix"></span><span class="content">标题</span><span class="suffix"></span></h2>
@@ -14,7 +15,8 @@ export function headingPlugin(md: MarkdownIt): void {
     `</span><span class="suffix"></span></${tokens[idx].tag}>\n`;
 }
 
-// —— 独立成段的图片转 figure，alt 文本作为图注 ——
+// —— 独立成段的图片/视频转 figure，alt 文本作为图注 ——
+// 视频复用图片语法 ![说明](xx.mp4 "poster=封面URL")，按扩展名识别输出 <video>。
 export function figurePlugin(md: MarkdownIt): void {
   md.core.ruler.push("implicit_figure", (state) => {
     const tokens = state.tokens;
@@ -39,13 +41,26 @@ export function figurePlugin(md: MarkdownIt): void {
 
   md.renderer.rules.image = (tokens, idx) => {
     const token = tokens[idx];
-    const src = md.utils.escapeHtml(token.attrGet("src") ?? "");
+    const rawSrc = token.attrGet("src") ?? "";
+    const src = md.utils.escapeHtml(rawSrc);
     const alt = md.utils.escapeHtml(token.content ?? "");
     const title = token.attrGet("title");
-    const caption = token.content || title || "";
-    const titleAttr = title ? ` title="${md.utils.escapeHtml(title)}"` : "";
     // 是否在 figure 内由父 token 决定；figure 内输出图注
     const inFigure = tokens.length === 1;
+
+    if (isVideoUrl(rawSrc)) {
+      const poster = posterFromTitle(title);
+      const posterAttr = poster ? ` poster="${md.utils.escapeHtml(poster)}"` : "";
+      const video = `<video src="${src}"${posterAttr} controls preload="metadata" playsinline></video>`;
+      const caption = token.content ?? "";
+      if (inFigure && caption) {
+        return `${video}<figcaption>${md.utils.escapeHtml(caption)}</figcaption>`;
+      }
+      return video;
+    }
+
+    const caption = token.content || title || "";
+    const titleAttr = title ? ` title="${md.utils.escapeHtml(title)}"` : "";
     const img = `<img src="${src}" alt="${alt}"${titleAttr}>`;
     if (inFigure && caption) {
       return `${img}<figcaption>${md.utils.escapeHtml(caption)}</figcaption>`;

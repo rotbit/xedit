@@ -6,18 +6,17 @@ import {
   ossSignedPutUrl,
   ossStat,
   ossUrlOf,
-  IMAGE_EXT,
-  MAX_IMAGE_SIZE,
   OSS_KEY_PATTERN,
 } from "@/lib/oss";
+import { MEDIA_EXT, MIME_BY_EXT, maxSizeOf, sizeLimitError } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 
 /**
  * 浏览器直传 OSS 的两步接口：
- *   POST 换一个限时签名地址（图片本身不经过本服务）
+ *   POST 换一个限时签名地址（文件本身不经过本服务）
  *   PUT  直传成功后回来登记入库（用 head 向 OSS 确认对象确实存在）
  * 需要在 Bucket 的跨域设置里放行本站来源的 PUT 与 Content-Type 头；
- * 没配的话前端会自动回落到 /api/upload 中转。
+ * 没配的话前端会自动回落到 /api/upload 中转（仅图片；视频只能直传）。
  */
 
 async function requireUser() {
@@ -35,10 +34,10 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const mime = typeof body?.mime === "string" ? body.mime : "";
   const size = typeof body?.size === "number" ? body.size : 0;
-  const ext = IMAGE_EXT[mime];
-  if (!ext) return NextResponse.json({ error: `不支持的图片类型: ${mime}` }, { status: 415 });
-  if (size > MAX_IMAGE_SIZE) {
-    return NextResponse.json({ error: "图片不能超过 10MB" }, { status: 413 });
+  const ext = MEDIA_EXT[mime];
+  if (!ext) return NextResponse.json({ error: `不支持的文件类型: ${mime}` }, { status: 415 });
+  if (size > maxSizeOf(mime)) {
+    return NextResponse.json({ error: sizeLimitError(mime) }, { status: 413 });
   }
 
   const key = ossObjectKey(ext);
@@ -59,9 +58,11 @@ export async function PUT(req: Request) {
   }
 
   const stat = await ossStat(key);
-  if (!stat) return NextResponse.json({ error: "图片未上传成功" }, { status: 404 });
-  if (stat.size > MAX_IMAGE_SIZE) {
-    return NextResponse.json({ error: "图片不能超过 10MB" }, { status: 413 });
+  if (!stat) return NextResponse.json({ error: "文件未上传成功" }, { status: 404 });
+  // 大小按对象实际类型限额：签名时校过声明值，这里再校 OSS 里的真实值
+  const mime = stat.mime || MIME_BY_EXT[key.split(".").pop() ?? ""] || "";
+  if (stat.size > maxSizeOf(mime)) {
+    return NextResponse.json({ error: sizeLimitError(mime) }, { status: 413 });
   }
 
   const url = ossUrlOf(key);
