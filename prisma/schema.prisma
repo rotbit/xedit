@@ -101,6 +101,8 @@ model UserSettings {
   linkFootnote Boolean @default(true)
   /// 用户自建分类（JSON 数组），与文章上的分类取并集展示，保证空分类不消失
   categories   String  @default("[]")
+  /// 可视化主题编辑器保存的「我的主题」（CustomThemeSpec JSON 数组）
+  customThemes String  @default("[]") @db.Text
   /// 默认文本平台 id（对应 scope=chat 的 AiProvider.provider）；为空表示回落到首个已填密钥的平台
   aiChatProvider  String @default("")
 }

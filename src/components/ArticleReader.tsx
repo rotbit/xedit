@@ -19,7 +19,7 @@ import { askInput } from "./PromptDialog";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { toast } from "./Toast";
-import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
+import { buildRenderOptions } from "@/features/editor/lib/renderOptions";
 import { useStore } from "@/store/useStore";
 import { useEditorDoc } from "@/hooks/useEditorDoc";
 import { useSyncScroll } from "@/hooks/useSyncScroll";
@@ -170,13 +170,7 @@ export function ArticleReader({
     setCopying("wechat");
     try {
       const s = useStore.getState();
-      const html = await buildWechatHtml(s.content, {
-        themeCss: getTheme(s.themeId).css,
-        codeCss: await getCodeThemeCss(s.codeThemeId),
-        customCss: `${buildTuneCss(s)}\n${s.customCss}`.trim(),
-        macCode: s.macCode,
-        linkFootnote: s.linkFootnote,
-      });
+      const html = await buildWechatHtml(s.content, await buildRenderOptions());
       await copyRichHtml(html, s.content);
       toast("已复制！打开公众号后台编辑器直接粘贴", "success");
     } catch (e) {

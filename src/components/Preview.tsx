@@ -5,7 +5,7 @@ import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { BASE_CSS } from "@/lib/themes/base";
-import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
+import { resolveTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 import { useStore } from "@/store/useStore";
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
 export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onScroll }, ref) {
   const content = useStore((s) => s.content);
   const themeId = useStore((s) => s.themeId);
+  const customThemes = useStore((s) => s.customThemes);
   const codeThemeId = useStore((s) => s.codeThemeId);
   const customCss = useStore((s) => s.customCss);
   const macCode = useStore((s) => s.macCode);
@@ -50,7 +51,7 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
     };
   }, [codeThemeId]);
 
-  const theme = getTheme(themeId);
+  const theme = resolveTheme(themeId, customThemes);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">

@@ -1,5 +1,5 @@
 import { useStore } from "@/store/useStore";
-import { getTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
+import { resolveTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 
 /** 复制与导出共用的渲染参数：当前主题 + 代码高亮 + 排版微调 + 自定义 CSS */
 export async function buildRenderOptions() {
@@ -7,7 +7,7 @@ export async function buildRenderOptions() {
   const codeCss = await getCodeThemeCss(s.codeThemeId);
   const tuneCss = buildTuneCss(s);
   return {
-    themeCss: getTheme(s.themeId).css,
+    themeCss: resolveTheme(s.themeId, s.customThemes).css,
     codeCss,
     customCss: `${tuneCss}\n${s.customCss}`.trim(),
     macCode: s.macCode,

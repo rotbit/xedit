@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { CustomThemeSpec } from "@/lib/themes/custom";
 
 /** pending：已存本地镜像、等待联网后同步云端 */
 export type SaveState = "local" | "saving" | "saved" | "pending" | "error";
@@ -43,6 +44,8 @@ interface SettingsSlice {
   themeId: string;
   codeThemeId: string;
   customCss: string;
+  /** 可视化主题编辑器保存的「我的主题」，themeId 以 custom: 前缀引用 */
+  customThemes: CustomThemeSpec[];
   macCode: boolean;
   linkFootnote: boolean;
   syncScroll: boolean;
@@ -66,6 +69,8 @@ interface EditorState extends SettingsSlice {
   saveState: SaveState;
   /** 由设置抽屉/弹窗使用 */
   cssDialogOpen: boolean;
+  /** 主题编辑器：closed 未打开；"new" 新建；其余为在编辑的自定义主题 id */
+  themeStudio: "closed" | "new" | string;
   /** 文本 AI（内容审查用）是否已配置密钥（服务端拉取，不持久化） */
   aiChatReady: boolean;
 
@@ -81,6 +86,11 @@ interface EditorState extends SettingsSlice {
   setSyncScroll: (v: boolean) => void;
   setSourceMode: (v: boolean) => void;
   setCssDialogOpen: (v: boolean) => void;
+  setThemeStudio: (v: "closed" | "new" | string) => void;
+  /** 保存（新建或覆盖）一个自定义主题 */
+  saveCustomTheme: (spec: CustomThemeSpec) => void;
+  removeCustomTheme: (id: string) => void;
+  setCustomThemes: (list: CustomThemeSpec[]) => void;
   setSplitRatio: (r: number) => void;
   setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
   setCategory: (c: string) => void;
@@ -93,6 +103,7 @@ export const useStore = create<EditorState>()(
       themeId: "classic",
       codeThemeId: "vs2015",
       customCss: "",
+      customThemes: [],
       macCode: true,
       linkFootnote: true,
       syncScroll: true,
@@ -108,6 +119,7 @@ export const useStore = create<EditorState>()(
       category: "未分类",
       saveState: "local",
       cssDialogOpen: false,
+      themeStudio: "closed" as const,
       aiChatReady: false,
 
       setContent: (content) => set({ content }),
@@ -122,6 +134,20 @@ export const useStore = create<EditorState>()(
       setSyncScroll: (syncScroll) => set({ syncScroll }),
       setSourceMode: (sourceMode) => set({ sourceMode }),
       setCssDialogOpen: (cssDialogOpen) => set({ cssDialogOpen }),
+      setThemeStudio: (themeStudio) => set({ themeStudio }),
+      saveCustomTheme: (spec) =>
+        set((s) => ({
+          customThemes: s.customThemes.some((t) => t.id === spec.id)
+            ? s.customThemes.map((t) => (t.id === spec.id ? spec : t))
+            : [...s.customThemes, spec],
+        })),
+      removeCustomTheme: (id) =>
+        set((s) => ({
+          customThemes: s.customThemes.filter((t) => t.id !== id),
+          // 正在使用被删主题时回落到默认
+          themeId: s.themeId === `custom:${id}` ? "classic" : s.themeId,
+        })),
+      setCustomThemes: (customThemes) => set({ customThemes }),
       setSplitRatio: (splitRatio) =>
         set({ splitRatio: Math.min(0.75, Math.max(0.25, splitRatio)) }),
       setTune: (t) => set(t),
@@ -153,6 +179,7 @@ export const useStore = create<EditorState>()(
       partialize: (state) => ({
         themeId: state.themeId,
         customCss: state.customCss,
+        customThemes: state.customThemes,
         linkFootnote: state.linkFootnote,
         syncScroll: state.syncScroll,
         sourceMode: state.sourceMode,

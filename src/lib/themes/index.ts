@@ -3,6 +3,18 @@ import { BASE_CSS } from "./base";
 
 export { THEME_PRESETS, BASE_CSS };
 export type { ThemePreset };
+export {
+  CUSTOM_THEME_PREFIX,
+  HEADING_STYLE_OPTIONS,
+  QUOTE_STYLE_OPTIONS,
+  LINK_STYLE_OPTIONS,
+  buildCustomThemeCss,
+  customThemeToPreset,
+  defaultCustomSpec,
+  resolveTheme,
+  sanitizeCustomThemes,
+  type CustomThemeSpec,
+} from "./custom";
 
 export interface CodeTheme {
   id: string;
