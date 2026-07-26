@@ -1,6 +1,7 @@
 // 所有主题共享的结构性基础样式。
 // 注意：装饰必须用真实元素（prefix/suffix span）或内联可继承属性，
-// 伪元素/伪类在复制到公众号后会丢失，主题中不要依赖它们。
+// 伪元素/伪类在复制到公众号后会丢失，主题中不要依赖它们
+// （:nth-child 这类结构性伪类除外——内联器用 el.matches 匹配，能落到具体元素上）。
 
 // Mac 窗口三个圆点，data URI 形式的 SVG，公众号支持 background-image data URI
 export const MAC_DOTS =
@@ -12,7 +13,7 @@ export const BASE_CSS = `
   font-size: 16px;
   color: #333333;
   line-height: 1.75;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.5px;
   word-break: break-word;
   overflow-wrap: break-word;
   padding: 16px 16px 24px 16px;
@@ -20,30 +21,62 @@ export const BASE_CSS = `
 }
 #nice p {
   margin: 16px 0;
+  text-align: justify;
 }
 #nice h1, #nice h2, #nice h3, #nice h4, #nice h5, #nice h6 {
-  margin: 28px 0 16px 0;
   font-weight: bold;
-  line-height: 1.4;
+  line-height: 1.45;
 }
+#nice h1 { margin: 32px 0 20px 0; }
+#nice h2 { margin: 36px 0 18px 0; }
+#nice h3 { margin: 28px 0 14px 0; }
+#nice h4, #nice h5, #nice h6 { margin: 24px 0 12px 0; }
 #nice img {
   max-width: 100%;
   display: block;
   margin: 0 auto;
+  border-radius: 4px;
+}
+#nice video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  border-radius: 6px;
+  background-color: #000000;
 }
 #nice figure {
+  margin: 22px 0;
+}
+/* 复制到公众号时视频降级出的占位块（公众号粘贴不支持 video，需后台手动插入） */
+#nice .video-placeholder {
   margin: 20px 0;
+}
+#nice .video-placeholder img {
+  border-radius: 6px;
+}
+#nice .video-placeholder .video-note {
+  display: block;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #999999;
+  background-color: #f8f8f8;
+  border: 1px dashed #dddddd;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-top: 8px;
 }
 #nice figcaption {
   display: block;
   text-align: center;
   font-size: 13px;
   color: #999999;
-  margin-top: 6px;
+  margin-top: 8px;
   line-height: 1.6;
 }
 #nice ul, #nice ol {
-  margin: 12px 0;
+  margin: 14px 0;
   padding-left: 26px;
 }
 #nice ul {
@@ -60,35 +93,35 @@ export const BASE_CSS = `
   padding-left: 8px;
 }
 #nice li {
-  margin: 5px 0;
+  margin: 6px 0;
   line-height: 1.75;
 }
 #nice hr {
   border: none;
   border-top: 1px solid #e5e5e5;
-  margin: 28px 0;
+  margin: 32px 0;
 }
 #nice blockquote {
   margin: 20px 0;
-  padding: 1px 16px;
+  padding: 4px 16px;
 }
 #nice blockquote p {
   margin: 10px 0;
 }
 #nice pre.code-block {
-  margin: 18px 0;
-  border-radius: 6px;
+  margin: 20px 0;
+  border-radius: 8px;
   overflow: hidden;
 }
 #nice pre.code-block code.hljs {
   display: block;
   overflow-x: auto;
-  padding: 14px 14px;
+  padding: 14px 16px;
   font-size: 13.5px;
   line-height: 1.7;
   font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   letter-spacing: 0;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 #nice pre.code-block.mac-code code.hljs {
   padding-top: 34px;
@@ -100,9 +133,9 @@ export const BASE_CSS = `
 #nice p code, #nice li code, #nice td code, #nice blockquote code:not(.hljs) {
   font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
   font-size: 14px;
-  padding: 2px 5px;
+  padding: 2px 6px;
   margin: 0 2px;
-  border-radius: 3px;
+  border-radius: 4px;
   letter-spacing: 0;
 }
 #nice .table-container {
@@ -117,10 +150,16 @@ export const BASE_CSS = `
   max-width: 100%;
 }
 #nice th, #nice td {
-  border: 1px solid #dddddd;
-  padding: 8px 14px;
+  border: 1px solid #e3e3e3;
+  padding: 9px 14px;
   line-height: 1.6;
   min-width: 60px;
+}
+#nice th {
+  font-weight: 600;
+}
+#nice tr:nth-child(2n) td {
+  background-color: #fafafa;
 }
 #nice .math-block {
   overflow-x: auto;
@@ -130,7 +169,7 @@ export const BASE_CSS = `
 #nice .table-of-contents {
   margin: 20px 0;
   padding: 14px 18px;
-  border-radius: 6px;
+  border-radius: 8px;
   background-color: #f8f8f8;
 }
 #nice .table-of-contents .toc-title {
