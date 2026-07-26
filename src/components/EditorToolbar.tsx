@@ -9,6 +9,7 @@ import {
   SquareCode,
   Link2,
   Image as ImageIcon,
+  Film,
   Table,
   Minus,
   ListTree,
@@ -43,6 +44,7 @@ const BUTTONS: Btn[] = [
   { cmd: "codeblock", icon: <SquareCode size={ICON} strokeWidth={STROKE} />, label: "代码块" },
   { cmd: "link", icon: <Link2 size={ICON} strokeWidth={STROKE} />, label: "链接" },
   { cmd: "image", icon: <ImageIcon size={ICON} strokeWidth={STROKE} />, label: "图片" },
+  { cmd: "video", icon: <Film size={ICON} strokeWidth={STROKE} />, label: "视频（上传）" },
   { cmd: "table", icon: <Table size={ICON} strokeWidth={STROKE} />, label: "表格" },
   { cmd: "hr", icon: <Minus size={ICON} strokeWidth={STROKE} />, label: "分割线" },
 ];

@@ -1,18 +1,30 @@
 import { lookup } from "node:dns/promises";
 import net from "node:net";
 import { prisma } from "@/lib/prisma";
+import { ossConfigured, ossDelete, ossPut } from "@/lib/oss";
 import {
   IMAGE_EXT,
-  MAX_IMAGE_SIZE,
-  ossConfigured,
-  ossDelete,
-  ossPut,
-} from "@/lib/oss";
+  VIDEO_EXT,
+  MEDIA_EXT,
+  maxSizeOf,
+  sizeLimitError,
+} from "@/lib/media";
 
 /**
- * 图片资产的共享服务层（供 MCP 工具用）。复用 src/lib/oss.ts 的 OSS 逻辑，
+ * 媒体资产（图片/视频）的共享服务层（供 MCP 工具用）。复用 src/lib/oss.ts 的 OSS 逻辑，
  * 所有操作按 userId 隔离。upload-from-URL 带 SSRF 守卫。
  */
+
+export type MediaKind = "image" | "video";
+
+/** 按工具语义校验 mime：upload_image 只收图、upload_video 只收视频 */
+function assertKind(mime: string, kind: MediaKind): void {
+  const table = kind === "video" ? VIDEO_EXT : IMAGE_EXT;
+  if (!(mime in table)) {
+    const hint = kind === "video" ? "mp4/webm/mov" : "png/jpg/gif/webp/svg";
+    throw new Error(`不支持的${kind === "video" ? "视频" : "图片"}类型: ${mime || "未知"}（支持 ${hint}）`);
+  }
+}
 
 export interface AssetView {
   id: string;
@@ -77,10 +89,10 @@ async function storeBuffer(
   mime: string,
   source: string
 ): Promise<AssetView> {
-  const ext = IMAGE_EXT[mime];
-  if (!ext) throw new Error(`不支持的图片类型: ${mime || "未知"}`);
+  const ext = MEDIA_EXT[mime];
+  if (!ext) throw new Error(`不支持的文件类型: ${mime || "未知"}`);
   if (buffer.length === 0) throw new Error("空文件");
-  if (buffer.length > MAX_IMAGE_SIZE) throw new Error("图片不能超过 10MB");
+  if (buffer.length > maxSizeOf(mime)) throw new Error(sizeLimitError(mime));
   if (!ossConfigured()) throw new Error("服务端未配置阿里云 OSS，无法上传");
   const { url, key } = await ossPut(buffer, ext, mime);
   const a = await prisma.asset.create({
@@ -89,14 +101,16 @@ async function storeBuffer(
   return toView(a);
 }
 
-export async function uploadImageFromBase64(
+export async function uploadMediaFromBase64(
   userId: string,
   data: string,
-  mime?: string
+  mime: string | undefined,
+  kind: MediaKind
 ): Promise<AssetView> {
   // 兼容 data URL（data:image/png;base64,xxxx），可从中取 mime
   const m = data.match(/^data:([^;,]*);base64,([\s\S]*)$/);
   const finalMime = mime || (m ? m[1] : "");
+  assertKind(finalMime, kind);
   const b64 = m ? m[2] : data;
   const buffer = Buffer.from(b64, "base64");
   return storeBuffer(userId, buffer, finalMime, "mcp");
@@ -140,13 +154,13 @@ async function assertPublicHttpUrl(u: string): Promise<void> {
 }
 
 /** 逐跳校验的安全抓取：手动跟随重定向，每一跳都过 SSRF 守卫，防重定向绕过 */
-async function safeImageFetch(url: string): Promise<Response> {
+async function safeMediaFetch(url: string, timeoutMs: number): Promise<Response> {
   let current = url;
   for (let hop = 0; hop <= 3; hop++) {
     await assertPublicHttpUrl(current);
     const res = await fetch(current, {
       redirect: "manual",
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get("location");
@@ -159,13 +173,18 @@ async function safeImageFetch(url: string): Promise<Response> {
   throw new Error("重定向次数过多");
 }
 
-export async function uploadImageFromUrl(userId: string, sourceUrl: string): Promise<AssetView> {
-  const res = await safeImageFetch(sourceUrl);
-  if (!res.ok) throw new Error(`抓取图片失败: HTTP ${res.status}`);
+export async function uploadMediaFromUrl(
+  userId: string,
+  sourceUrl: string,
+  kind: MediaKind
+): Promise<AssetView> {
+  // 视频体积大，抓取窗口放宽（MCP 路由整体上限 60s）
+  const res = await safeMediaFetch(sourceUrl, kind === "video" ? 45000 : 15000);
+  if (!res.ok) throw new Error(`抓取失败: HTTP ${res.status}`);
   const mime = (res.headers.get("content-type") || "").split(";")[0].trim();
-  if (!IMAGE_EXT[mime]) throw new Error(`该地址不是支持的图片类型: ${mime || "未知"}`);
+  assertKind(mime, kind);
   const declared = Number(res.headers.get("content-length") || 0);
-  if (declared && declared > MAX_IMAGE_SIZE) throw new Error("图片不能超过 10MB");
+  if (declared && declared > maxSizeOf(mime)) throw new Error(sizeLimitError(mime));
   const buffer = Buffer.from(await res.arrayBuffer());
   return storeBuffer(userId, buffer, mime, "mcp-url");
 }

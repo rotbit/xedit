@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ossConfigured, ossList, ossUrlOf } from "@/lib/oss";
+import { MIME_BY_EXT } from "@/lib/media";
 
 export async function GET() {
   const session = await auth();
@@ -15,7 +16,7 @@ export async function GET() {
   return NextResponse.json(assets);
 }
 
-/** 同步 OSS 历史图片：把 xedit/ 前缀下未入库的对象补录到当前账号 */
+/** 同步 OSS 历史文件：把 xedit/ 前缀下未入库的对象补录到当前账号 */
 export async function POST() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -31,19 +32,8 @@ export async function POST() {
     prisma.asset.findMany({ where: { userId }, select: { key: true } }),
   ]);
   const known = new Set(existing.map((e) => e.key));
-  const mimeOf = (key: string): string => {
-    const ext = key.split(".").pop()?.toLowerCase() ?? "";
-    return (
-      {
-        png: "image/png",
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        gif: "image/gif",
-        webp: "image/webp",
-        svg: "image/svg+xml",
-      }[ext] ?? ""
-    );
-  };
+  const mimeOf = (key: string): string =>
+    MIME_BY_EXT[key.split(".").pop()?.toLowerCase() ?? ""] ?? "";
   const fresh = objects.filter((o) => !known.has(o.key) && mimeOf(o.key));
   if (fresh.length > 0) {
     await prisma.asset.createMany({

@@ -360,6 +360,33 @@ body {
   font-size: 13px;
   cursor: pointer;
 }
+/* 行内渲染的视频：播放条交互交给原生控件，编辑入口在下方说明栏 */
+.cm-live-preview .cm-lp-video {
+  display: block;
+  margin: 8px 0;
+}
+.cm-live-preview .cm-lp-video video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  border-radius: 8px;
+  background: #000;
+}
+.cm-live-preview .cm-lp-video-bar {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  cursor: pointer;
+}
+.cm-live-preview .cm-lp-video-bar:hover {
+  color: var(--ink-soft);
+  background: var(--accent-wash);
+}
+
 /* 分割线 */
 .cm-live-preview .cm-lp-hr {
   display: inline-block;

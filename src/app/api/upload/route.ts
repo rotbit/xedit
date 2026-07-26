@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { ossConfigured, ossPut, IMAGE_EXT, MAX_IMAGE_SIZE } from "@/lib/oss";
+import { ossConfigured, ossPut } from "@/lib/oss";
+import { IMAGE_EXT, MAX_IMAGE_SIZE, isVideoMime } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 
-/** 服务端中转上传：直传不可用（如 Bucket 未配 CORS）时的兜底通道 */
+/** 服务端中转上传：直传不可用（如 Bucket 未配 CORS）时的兜底通道。
+ *  仅图片——视频体积大，中转要整个读进内存还会撞请求体上限，只走直传。 */
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -20,6 +22,12 @@ export async function POST(req: Request) {
   const file = formData.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "缺少文件" }, { status: 400 });
+  }
+  if (isVideoMime(file.type)) {
+    return NextResponse.json(
+      { error: "视频仅支持浏览器直传，请确认 OSS Bucket 已配置跨域（CORS）" },
+      { status: 415 }
+    );
   }
   if (file.size > MAX_IMAGE_SIZE) {
     return NextResponse.json({ error: "图片不能超过 10MB" }, { status: 413 });

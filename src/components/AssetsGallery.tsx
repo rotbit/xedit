@@ -11,10 +11,12 @@ import {
   X,
   Images,
   Sparkles,
+  Play,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { uploadImageFile } from "@/lib/uploadImage";
+import { uploadMediaFile } from "@/lib/uploadMedia";
+import { VIDEO_EXT } from "@/lib/media";
 import { toast } from "./Toast";
 import { askConfirm } from "./PromptDialog";
 
@@ -33,6 +35,8 @@ function formatSize(bytes: number): string {
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${bytes} B`;
 }
+
+const isVideo = (asset: Asset) => asset.mime.startsWith("video/");
 
 export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
   const [assets, setAssets] = useState<Asset[] | null>(null);
@@ -96,14 +100,14 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
     let ok = 0;
     for (const file of Array.from(files)) {
       try {
-        await uploadImageFile(file);
+        await uploadMediaFile(file);
         ok += 1;
       } catch (e) {
         toast(e instanceof Error ? e.message : `「${file.name}」上传失败`, "error");
       }
     }
     if (ok > 0) {
-      toast(`已上传 ${ok} 张图片`, "success");
+      toast(`已上传 ${ok} 个文件`, "success");
       await refresh();
     }
     setUploading(false);
@@ -115,8 +119,8 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
 
   const removeAsset = async (asset: Asset) => {
     const ok = await askConfirm({
-      title: "删除图片",
-      message: "同时会从 OSS 删除该文件；引用了这张图的文章会显示裂图。",
+      title: "删除文件",
+      message: "同时会从 OSS 删除该文件；引用了它的文章会显示失效。",
       confirmText: "删除",
       danger: true,
     });
@@ -136,7 +140,7 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
       {/* 工具栏 */}
       <div className="flex items-center gap-3">
         <p className="text-[13px] text-[var(--ink-faint)]">
-          {assets === null ? "加载中…" : `共 ${assets.length} 张图片`}
+          {assets === null ? "加载中…" : `共 ${assets.length} 个文件`}
         </p>
         <span className="flex-1" />
         <button
@@ -158,12 +162,12 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
           disabled={uploading || !ossConfigured}
         >
           {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-          上传图片
+          上传
         </button>
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept={`image/*,${Object.keys(VIDEO_EXT).join(",")}`}
           multiple
           className="hidden"
           onChange={(e) => {
@@ -188,9 +192,9 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
         <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--hairline-strong)] py-20">
           <Images size={26} className="text-[var(--ink-faint)]" />
           <p className="text-[13px] leading-6 text-[var(--ink-faint)] text-center">
-            还没有图片。在编辑器里粘贴图片、AI 生成配图，
+            还没有素材。在编辑器里粘贴图片或视频，
             <br />
-            或点「同步 OSS 历史」把已有图片找回来
+            或点「同步 OSS 历史」把已有文件找回来
           </p>
         </div>
       ) : (
@@ -201,8 +205,19 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
               className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_10px_30px_-8px_rgba(0,0,0,0.25)]"
               onClick={() => setLightbox(i)}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={asset.url} alt={asset.key} loading="lazy" className="w-full" />
+              {isVideo(asset) ? (
+                <div className="relative">
+                  <video src={asset.url} muted playsInline preload="metadata" className="w-full" />
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span className="rounded-full bg-black/45 p-2.5 text-white">
+                      <Play size={16} fill="currentColor" />
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={asset.url} alt={asset.key} loading="lazy" className="w-full" />
+              )}
               {/* 悬停信息层 */}
               <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/70 to-black/0 px-3 pb-2 pt-8 transition-transform group-hover:translate-y-0 [@media(hover:none)]:translate-y-0">
                 <div className="pointer-events-auto flex items-center gap-1">
@@ -302,13 +317,24 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
                 <ChevronLeft size={18} />
               </button>
             ) : null}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={assets[lightbox].url}
-              alt=""
-              className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            />
+            {isVideo(assets[lightbox]) ? (
+              <video
+                src={assets[lightbox].url}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={assets[lightbox].url}
+                alt=""
+                className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
             {lightbox < assets.length - 1 ? (
               <button
                 className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-white/10 p-2.5 text-white/80 hover:bg-white/25"

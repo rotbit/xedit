@@ -20,7 +20,9 @@ import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { searchKeymap } from "@codemirror/search";
 import { livePreview } from "@/lib/livePreview";
-import { uploadImageFile } from "@/lib/uploadImage";
+import { uploadMediaFile } from "@/lib/uploadMedia";
+import { extractVideoPoster } from "@/lib/videoPoster";
+import { VIDEO_EXT, isVideoMime } from "@/lib/media";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import { toast } from "./Toast";
@@ -56,6 +58,7 @@ export type FormatCommand =
   | "codeblock"
   | "link"
   | "image"
+  | "video"
   | "table"
   | "hr";
 
@@ -156,29 +159,55 @@ const TABLE_TEMPLATE = `| 表头 | 表头 |
 | 内容 | 内容 |
 | 内容 | 内容 |`;
 
-async function uploadImage(file: File): Promise<string | null> {
+async function uploadMedia(file: File): Promise<string | null> {
   try {
-    return await uploadImageFile(file);
+    return await uploadMediaFile(file);
   } catch (e) {
-    toast(e instanceof Error ? e.message : "图片上传失败", "error");
+    toast(e instanceof Error ? e.message : "上传失败", "error");
     return null;
   }
 }
 
-function handleImageFiles(view: EditorView, files: FileList | File[]): boolean {
-  const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
-  if (images.length === 0) return false;
-  toast("图片上传中…");
+function insertAtCursor(view: EditorView, text: string) {
+  const pos = view.state.selection.main.head;
+  view.dispatch({ changes: { from: pos, insert: text } });
+}
+
+/** 上传视频并插入：正片与封面帧并行上传，封面写进 title 位（poster= 约定） */
+async function uploadVideoAndInsert(view: EditorView, file: File) {
+  const [url, posterUrl] = await Promise.all([
+    uploadMedia(file),
+    extractVideoPoster(file).then((poster) => (poster ? uploadMedia(poster) : null)),
+  ]);
+  if (!url) return;
+  const name = file.name.replace(/\.[^.]+$/, "");
+  const posterPart = posterUrl ? ` "poster=${posterUrl}"` : "";
+  insertAtCursor(view, `\n![${name}](${url}${posterPart})\n`);
+  toast("视频已插入", "success");
+}
+
+function handleMediaFiles(view: EditorView, files: FileList | File[]): boolean {
+  const all = Array.from(files);
+  const images = all.filter((f) => f.type.startsWith("image/"));
+  const videos = all.filter((f) => isVideoMime(f.type));
+  const unsupported = all.filter((f) => f.type.startsWith("video/") && !isVideoMime(f.type));
+  for (const f of unsupported) {
+    toast(`「${f.name}」格式不支持，视频请用 mp4 / webm / mov`, "error");
+  }
+  if (images.length === 0 && videos.length === 0) return unsupported.length > 0;
+
+  if (images.length > 0) toast("图片上传中…");
   for (const file of images) {
-    void uploadImage(file).then((url) => {
+    void uploadMedia(file).then((url) => {
       if (!url) return;
       const name = file.name.replace(/\.[^.]+$/, "");
-      const pos = view.state.selection.main.head;
-      view.dispatch({
-        changes: { from: pos, insert: `\n![${name}](${url})\n` },
-      });
+      insertAtCursor(view, `\n![${name}](${url})\n`);
       toast("图片已插入", "success");
     });
+  }
+  if (videos.length > 0) toast("视频上传中，大文件可能要一会儿…");
+  for (const file of videos) {
+    void uploadVideoAndInsert(view, file);
   }
   return true;
 }
@@ -253,7 +282,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         EditorView.domEventHandlers({
           paste: (event, view) => {
             const files = event.clipboardData?.files;
-            if (files && files.length > 0 && handleImageFiles(view, files)) {
+            if (files && files.length > 0 && handleMediaFiles(view, files)) {
               event.preventDefault();
               return true;
             }
@@ -283,7 +312,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
           },
           drop: (event, view) => {
             const files = event.dataTransfer?.files;
-            if (files && files.length > 0 && handleImageFiles(view, files)) {
+            if (files && files.length > 0 && handleMediaFiles(view, files)) {
               event.preventDefault();
               return true;
             }
@@ -364,6 +393,17 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
           return wrapSelection(view, "[", "](https://)", "链接文字");
         case "image":
           return insertBlock(view, "![图片描述](https://)");
+        case "video": {
+          // 直接拉起文件选择上传，比让用户手填视频 URL 更顺手
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = Object.keys(VIDEO_EXT).join(",");
+          input.onchange = () => {
+            if (input.files?.length) handleMediaFiles(view, input.files);
+          };
+          input.click();
+          return;
+        }
         case "table":
           return insertBlock(view, TABLE_TEMPLATE);
         case "hr":
