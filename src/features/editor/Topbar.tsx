@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, Palette, History, LogIn, ChevronDown, ShieldCheck } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { getTheme } from "@/lib/themes";
+import { resolveTheme } from "@/lib/themes";
 import { Dropdown } from "@/components/Dropdown";
 import { toast } from "@/components/Toast";
 import { openAuth } from "@/components/AuthDialog";
@@ -34,6 +34,7 @@ export function Topbar({ onOpenVersions }: { onOpenVersions: () => void }) {
   const category = useStore((s) => s.category);
   const setCategory = useStore((s) => s.setCategory);
   const themeId = useStore((s) => s.themeId);
+  const customThemes = useStore((s) => s.customThemes);
 
   const { catList, docList, setCatList } = useDocOptions(status, docId);
   const backHref = useBackToReader(status, docId);
@@ -103,7 +104,7 @@ export function Topbar({ onOpenVersions }: { onOpenVersions: () => void }) {
           trigger={
             <button className={ghostBtn}>
               <Palette size={15} />
-              <span className="hidden sm:inline">{getTheme(themeId).name}</span>
+              <span className="hidden sm:inline">{resolveTheme(themeId, customThemes).name}</span>
               <ChevronDown size={13} className="text-[var(--ink-faint)]" />
             </button>
           }
