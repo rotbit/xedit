@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
+import { sanitizeCustomThemes } from "@/lib/themes/custom";
 import { toast } from "@/components/Toast";
 import { isLocalId, listLocalDocs, getLocalDocContent, updateLocalDoc } from "@/lib/localDocs";
 import {
@@ -380,6 +381,11 @@ export function useEditorDoc(routeDocId: string | null) {
         s.setThemeId(settings.themeId);
         s.setCustomCss(settings.customCss);
         s.setLinkFootnote(settings.linkFootnote);
+        try {
+          s.setCustomThemes(sanitizeCustomThemes(JSON.parse(settings.customThemes ?? "[]")));
+        } catch {
+          /* 历史数据损坏时保留本地值 */
+        }
       }
     })();
   }, [loggedIn]);
@@ -451,6 +457,7 @@ export function useEditorDoc(routeDocId: string | null) {
   const themeId = useStore((s) => s.themeId);
   const customCss = useStore((s) => s.customCss);
   const linkFootnote = useStore((s) => s.linkFootnote);
+  const customThemes = useStore((s) => s.customThemes);
 
   useEffect(() => {
     if (!loggedIn || !settingsLoadedRef.current) return;
@@ -458,11 +465,11 @@ export function useEditorDoc(routeDocId: string | null) {
       void fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ themeId, customCss, linkFootnote }),
+        body: JSON.stringify({ themeId, customCss, linkFootnote, customThemes }),
       });
     }, 1000);
     return () => clearTimeout(timer);
-  }, [loggedIn, themeId, customCss, linkFootnote]);
+  }, [loggedIn, themeId, customCss, linkFootnote, customThemes]);
 
   return {
     loggedIn,

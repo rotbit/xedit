@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Palette, Settings2, Download, History, Sparkles, ShieldCheck } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { getTheme } from "@/lib/themes";
+import { resolveTheme } from "@/lib/themes";
 import { Dropdown, menuItemCls } from "@/components/Dropdown";
 import { toast } from "@/components/Toast";
 import { ThemePickerPanel } from "@/components/ThemePicker";
@@ -29,6 +29,7 @@ const EXPORT_ITEMS: { kind: ExportKind; label: string }[] = [
  */
 export function EditorTools({ onOpenVersions }: { onOpenVersions: () => void }) {
   const themeId = useStore((s) => s.themeId);
+  const customThemes = useStore((s) => s.customThemes);
   const linkFootnote = useStore((s) => s.linkFootnote);
   const setLinkFootnote = useStore((s) => s.setLinkFootnote);
   const syncScroll = useStore((s) => s.syncScroll);
@@ -59,7 +60,7 @@ export function EditorTools({ onOpenVersions }: { onOpenVersions: () => void }) 
       <Dropdown
         width={430}
         trigger={
-          <button className={iconBtn} title={`排版主题：${getTheme(themeId).name}`}>
+          <button className={iconBtn} title={`排版主题：${resolveTheme(themeId, customThemes).name}`}>
             <Palette size={16} strokeWidth={1.75} />
           </button>
         }

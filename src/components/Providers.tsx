@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { SessionProvider, useSession } from "next-auth/react";
 import { PromptHost, ConfirmHost } from "./PromptDialog";
 import { AuthHost } from "./AuthDialog";
+import { CssDialog } from "./CssDialog";
+import { ThemeStudio } from "./ThemeStudio";
 import { EvolutionWatcher } from "./EvolutionWatcher";
 import { SwRegister } from "./SwRegister";
 import { refreshAiStatus } from "@/lib/ai";
@@ -30,6 +32,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <PromptHost />
       <ConfirmHost />
       <AuthHost />
+      <CssDialog />
+      <ThemeStudio />
     </SessionProvider>
   );
 }

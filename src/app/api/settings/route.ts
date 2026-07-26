@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { sanitizeCustomThemes } from "@/lib/themes/custom";
 
 export async function GET() {
   const session = await auth();
@@ -25,6 +26,9 @@ export async function PUT(req: Request) {
   if (typeof body.customCss === "string") data.customCss = body.customCss;
   if (typeof body.macCode === "boolean") data.macCode = body.macCode;
   if (typeof body.linkFootnote === "boolean") data.linkFootnote = body.linkFootnote;
+  if (Array.isArray(body.customThemes)) {
+    data.customThemes = JSON.stringify(sanitizeCustomThemes(body.customThemes));
+  }
   if (Array.isArray(body.categories)) {
     const list = body.categories
       .filter((c: unknown): c is string => typeof c === "string" && Boolean(c.trim()))
