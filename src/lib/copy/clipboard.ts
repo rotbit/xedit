@@ -22,6 +22,9 @@ function copyViaSelection(html: string): boolean {
   container.style.position = "fixed";
   container.style.left = "-9999px";
   container.style.top = "0";
+  // 复制时浏览器会把容器链上的有效底色盖印到每个块级元素上：
+  // 必须固定纯白，否则应用自身的纸面灰会跟着进公众号（纯白微信深色模式还能正确反转）
+  container.style.backgroundColor = "#ffffff";
   container.setAttribute("contenteditable", "true");
   // html 由 buildWechatHtml/buildZhihuHtml 产出，源头已经过 DOMPurify 消毒
   container.innerHTML = html;
