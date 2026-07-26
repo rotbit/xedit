@@ -14,6 +14,7 @@ import {
   ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
+import { isVideoUrl, posterFromTitle } from "@/lib/media";
 
 /**
  * 即时渲染（类 Obsidian Live Preview）——节点级还原策略：
@@ -57,6 +58,45 @@ class ImageWidget extends WidgetType {
     return wrap;
   }
   ignoreEvent() {
+    return true;
+  }
+}
+
+class VideoWidget extends WidgetType {
+  constructor(readonly src: string, readonly alt: string, readonly poster: string | null) {
+    super();
+  }
+  eq(other: VideoWidget) {
+    return other.src === this.src && other.alt === this.alt && other.poster === this.poster;
+  }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement("span");
+    wrap.className = "cm-lp-video";
+    const video = document.createElement("video");
+    video.src = this.src;
+    if (this.poster) video.poster = this.poster;
+    video.controls = true;
+    video.preload = "metadata";
+    video.playsInline = true;
+    // 播放条把点击都吃掉了，编辑入口放在下方说明栏
+    const bar = document.createElement("span");
+    bar.className = "cm-lp-video-bar";
+    bar.textContent = this.alt ? `▶ ${this.alt}` : "▶ 视频";
+    bar.title = "点击编辑视频源码";
+    bar.addEventListener("mousedown", (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = view.posAtDOM(wrap);
+      view.dispatch({ selection: { anchor: pos + 2 }, scrollIntoView: true });
+      view.focus();
+    });
+    wrap.appendChild(video);
+    wrap.appendChild(bar);
+    return wrap;
+  }
+  ignoreEvent() {
+    // 交给原生 <video> 控件处理播放/进度等交互
     return true;
   }
 }
@@ -252,10 +292,15 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
             const src = url ? state.sliceDoc(url.from, url.to) : "";
             const alt = marks.length >= 2 ? state.sliceDoc(marks[0].to, marks[1].from) : "";
             if (src) {
-              const deco = Decoration.replace({ widget: new ImageWidget(src, alt) }).range(
-                node.from,
-                node.to
-              );
+              // 视频复用图片语法，title 位携带 poster= 封面约定
+              const titleNode = n.getChild("LinkTitle");
+              const rawTitle = titleNode
+                ? state.sliceDoc(titleNode.from, titleNode.to).replace(/^["'(]|["')]$/g, "")
+                : "";
+              const widget = isVideoUrl(src)
+                ? new VideoWidget(src, alt, posterFromTitle(rawTitle))
+                : new ImageWidget(src, alt);
+              const deco = Decoration.replace({ widget }).range(node.from, node.to);
               decos.push(deco);
               atomics.push(deco);
             }

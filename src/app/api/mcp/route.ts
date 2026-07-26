@@ -15,8 +15,8 @@ import {
   deleteImage,
   getImage,
   listImages,
-  uploadImageFromBase64,
-  uploadImageFromUrl,
+  uploadMediaFromBase64,
+  uploadMediaFromUrl,
 } from "@/lib/assets";
 
 export const runtime = "nodejs";
@@ -133,12 +133,12 @@ const handler = createMcpHandler(
       }
     );
 
-    // ---- 图片（图床 / 阿里云 OSS）----
+    // ---- 素材（图床 / 阿里云 OSS，图片与视频）----
 
     server.registerTool(
       "list_images",
       {
-        description: "列出当前用户图床里的图片（返回可访问 URL、类型、尺寸）。",
+        description: "列出当前用户素材库里的图片与视频（返回可访问 URL、类型、尺寸）。",
         inputSchema: {
           limit: z.number().int().min(1).max(200).optional().describe("最多返回条数，默认 50"),
         },
@@ -175,7 +175,8 @@ const handler = createMcpHandler(
             ),
           },
         ];
-        if (args.include_data) {
+        // 视频没有对应的 MCP 内容类型，只返回 URL 文本
+        if (args.include_data && !img.mime.startsWith("video/")) {
           try {
             const res = await fetch(img.url, { signal: AbortSignal.timeout(15000) });
             if (res.ok) {
@@ -220,8 +221,33 @@ const handler = createMcpHandler(
       async (args, extra) => {
         const userId = requireUserId(extra);
         try {
-          if (args.url) return ok(await uploadImageFromUrl(userId, args.url));
-          if (args.data) return ok(await uploadImageFromBase64(userId, args.data, args.mime));
+          if (args.url) return ok(await uploadMediaFromUrl(userId, args.url, "image"));
+          if (args.data) return ok(await uploadMediaFromBase64(userId, args.data, args.mime, "image"));
+          return fail("需提供 url 或 data 之一");
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : "上传失败");
+        }
+      }
+    );
+
+    server.registerTool(
+      "upload_video",
+      {
+        description:
+          "上传视频到素材库，返回可访问 URL；正文中用图片语法 ![说明](URL) 引用即可渲染为播放器。" +
+          "二选一：url=从该网址抓取转存（推荐）；或 data=视频 base64（可带 data URL 前缀），data 方式建议附 mime。" +
+          "限 100MB，支持 mp4/webm/mov。",
+        inputSchema: {
+          url: z.string().optional().describe("视频直链，服务端抓取后转存到素材库"),
+          data: z.string().optional().describe("视频的 base64，可带 data:video/*;base64, 前缀"),
+          mime: z.string().optional().describe("data 方式的 MIME，如 video/mp4"),
+        },
+      },
+      async (args, extra) => {
+        const userId = requireUserId(extra);
+        try {
+          if (args.url) return ok(await uploadMediaFromUrl(userId, args.url, "video"));
+          if (args.data) return ok(await uploadMediaFromBase64(userId, args.data, args.mime, "video"));
           return fail("需提供 url 或 data 之一");
         } catch (e) {
           return fail(e instanceof Error ? e.message : "上传失败");

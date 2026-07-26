@@ -1,16 +1,6 @@
 import OSS from "ali-oss";
 
-/** 允许上传的图片类型 → 扩展名 */
-export const IMAGE_EXT: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/gif": "gif",
-  "image/webp": "webp",
-  "image/svg+xml": "svg",
-};
-
-/** 单张图片大小上限 */
-export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+// 媒体类型白名单与大小上限在 src/lib/media.ts（客户端也要用，不能依赖本文件的 ali-oss）
 
 export function ossConfigured(): boolean {
   return Boolean(

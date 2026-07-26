@@ -92,16 +92,17 @@ claude mcp add --transport http xedit https://xedit.me/api/mcp
 | `update_document` | 更新标题/正文/分类，只传要改的字段。**正文变化会自动留一个版本快照** |
 | `delete_document` | 默认软删除（进回收站可恢复）；`hard: true` 为永久删除 |
 
-### 图床
+### 素材库（图片与视频）
 
 | 工具 | 说明 |
 | --- | --- |
-| `list_images` | 列出图床里的图片，返回可访问 URL、类型、尺寸 |
-| `get_image` | 按 `id` 取图片 URL；`include_data: true` 时连图片本体一起返回，供模型「看」图 |
-| `upload_image` | 上传到图床。`url=` 从网址抓取转存（推荐），或 `data=` 传 base64。限 10MB，支持 png/jpg/gif/webp/svg |
-| `delete_image` | 从图床删除（同时删 OSS 对象），不可恢复 |
+| `list_images` | 列出素材库里的图片与视频，返回可访问 URL、类型、尺寸 |
+| `get_image` | 按 `id` 取素材 URL；`include_data: true` 时连图片本体一起返回，供模型「看」图（视频只返回 URL） |
+| `upload_image` | 上传图片。`url=` 从网址抓取转存（推荐），或 `data=` 传 base64。限 10MB，支持 png/jpg/gif/webp/svg |
+| `upload_video` | 上传视频，正文用图片语法 `![说明](URL)` 引用即渲染为播放器。`url=` 抓取转存（推荐）或 `data=` base64。限 100MB，支持 mp4/webm/mov |
+| `delete_image` | 从素材库删除（同时删 OSS 对象），不可恢复 |
 
-图床相关工具需要服务端配好阿里云 OSS，否则会返回上传失败。
+素材相关工具需要服务端配好阿里云 OSS，否则会返回上传失败。
 
 所有工具都严格按令牌里的用户身份隔离，AI 只能看到、改到**你自己**的文章。
 

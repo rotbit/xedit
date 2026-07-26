@@ -12,6 +12,11 @@ export interface WechatBuildOptions {
   macCode?: boolean;
   /** 外部链接转为文末引用 */
   linkFootnote?: boolean;
+  /**
+   * 视频处理：公众号粘贴会剥掉 <video>，默认降级为封面占位图 + 替换提示；
+   * "keep" 保留真视频（HTML 导出等能播放的场景用）
+   */
+  videoMode?: "placeholder" | "keep";
 }
 
 const WECHAT_HOST = /^https?:\/\/mp\.weixin\.qq\.com\//i;
@@ -90,6 +95,29 @@ function transformCodeBlocks(root: HTMLElement): void {
   }
 }
 
+/**
+ * 视频降级：公众号编辑器粘贴时会整个剥掉 <video>（视频只能在后台用「插入视频」添加），
+ * 换成封面占位图 + 提示行，粘贴后版面不塌、作者一眼知道哪里要补。
+ */
+function transformVideos(root: HTMLElement): void {
+  for (const video of Array.from(root.querySelectorAll("video"))) {
+    const section = document.createElement("section");
+    section.className = "video-placeholder";
+    const poster = video.getAttribute("poster");
+    if (poster) {
+      const img = document.createElement("img");
+      img.src = poster;
+      img.alt = "视频封面";
+      section.appendChild(img);
+    }
+    const note = document.createElement("p");
+    note.className = "video-note";
+    note.textContent = "📹 此处有视频 — 请在公众号后台点「插入视频」替换本占位";
+    section.appendChild(note);
+    video.replaceWith(section);
+  }
+}
+
 /** 微信会丢弃 class/id/data-*，复制前统一移除，减小体积 */
 function cleanAttributes(root: HTMLElement): void {
   const all = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
@@ -125,10 +153,20 @@ export async function buildWechatHtml(
 
   if (opts.linkFootnote) transformLinks(root);
   transformCodeBlocks(root);
+  if (opts.videoMode !== "keep") transformVideos(root);
 
   const cssLayers = [BASE_CSS, opts.codeCss, opts.themeCss];
   if (opts.customCss?.trim()) cssLayers.push(opts.customCss);
   inlineStyles(root, cssLayers);
+
+  // 公众号正文自带页边距、且有深色模式：白底主题去掉根部横向内边距与底色，
+  // 避免正文被双重内缩，也让公众号深色模式能正常接管底色（深色主题保留自己的底与边距）
+  const bg = root.style.backgroundColor.replace(/\s+/g, "").toLowerCase();
+  if (!bg || bg === "#ffffff" || bg === "rgb(255,255,255)" || bg === "white") {
+    root.style.backgroundColor = "";
+    root.style.paddingLeft = "0";
+    root.style.paddingRight = "0";
+  }
 
   cleanAttributes(root);
   return root.outerHTML;

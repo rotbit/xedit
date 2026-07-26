@@ -29,7 +29,7 @@ async function buildStandaloneHtml(
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${title || "untitled"}</title>`,
     "</head>",
-    '<body style="margin:0 auto;max-width:720px;">',
+    '<body style="margin:0 auto;max-width:720px;padding:0 16px;">',
     body,
     "</body>",
     "</html>",
@@ -43,7 +43,8 @@ export async function exportHtml(
 ): Promise<void> {
   downloadFile(
     `${title || "untitled"}.html`,
-    await buildStandaloneHtml(title, markdown, opts),
+    // HTML 导出能直接播放，保留真 <video>；PDF/长图不可播，沿用默认的封面占位
+    await buildStandaloneHtml(title, markdown, { ...opts, videoMode: "keep" }),
     "text/html;charset=utf-8"
   );
 }
