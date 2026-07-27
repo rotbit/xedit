@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { createLocalDoc, listLocalDocs } from "@/lib/localDocs";
-import { Toaster } from "@/components/Toast";
+import { Toaster, toast } from "@/components/Toast";
 import { openAuth } from "@/components/AuthDialog";
 import { LogoMark } from "@/components/LogoMark";
 import { LandingActionsProvider } from "@/features/landing/LandingActions";
@@ -29,10 +29,21 @@ interface HomeProps {
  * 未登录且无本地文章时展示 page.tsx 传进来的落地页。
  */
 export function Home({ landing }: HomeProps) {
-  const router = useRouter();
   const ws = useWorkspace();
   const { auth, prefs, library, nav } = ws;
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // 旧 /edit 链接与桌面端「新建文章 Cmd+N」带 ?new=1 进来：会话就绪后直接建一篇新稿
+  const searchParams = useSearchParams();
+  const newConsumed = useRef(false);
+  useEffect(() => {
+    if (newConsumed.current || searchParams.get("new") !== "1") return;
+    if (auth.status === "loading") return;
+    newConsumed.current = true;
+    window.history.replaceState(null, "", "/");
+    // 挪到宏任务里执行，创建动作内部的同步 setState 不属于本 effect
+    setTimeout(() => void ws.docActions.createDoc(), 0);
+  }, [searchParams, auth.status, ws]);
 
   const localDraft = useStore((s) => s.content);
   const hasLocalDraft = Boolean(localDraft.trim()) && localDraft !== DEFAULT_MARKDOWN;
@@ -51,8 +62,8 @@ export function Home({ landing }: HomeProps) {
       library.setDocs(listLocalDocs());
       nav.openDoc(doc.id);
     } catch {
-      // 本地存储不可用时退回旧的单稿模式
-      router.push("/edit");
+      // 本地文档库全靠 localStorage，不可用就只能明说（旧的单稿编辑页已下线）
+      toast("浏览器本地存储不可用，无法离线写作，请登录后使用", "error");
     }
   };
 
