@@ -49,7 +49,14 @@ function formatSize(bytes: number): string {
 
 const isVideo = (asset: Asset) => asset.mime.startsWith("video/");
 
-export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
+export function AssetsGallery({
+  ossConfigured,
+  onOpenDoc,
+}: {
+  ossConfigured: boolean;
+  /** 打开引用文章：工作台传 nav.openDoc 就地切换视图；缺省退回 /?doc=<id> */
+  onOpenDoc?: (id: string) => void;
+}) {
   // 「同步 OSS 历史」会认领整个 bucket 的无主文件，接口只对管理员开放，按钮也只给管理员看
   const isAdmin = useSession().data?.user?.isAdmin === true;
   const [assets, setAssets] = useState<Asset[] | null>(null);
@@ -407,10 +414,23 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
                         <span className="truncate">{d.title}</span>
                         <span className="shrink-0 text-white/40">回收站</span>
                       </span>
+                    ) : onOpenDoc ? (
+                      <button
+                        key={d.id}
+                        className="flex max-w-[240px] cursor-pointer items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/85 transition-colors hover:bg-white/25 hover:text-white"
+                        title={`打开「${d.title}」`}
+                        onClick={() => {
+                          setLightbox(null);
+                          onOpenDoc(d.id);
+                        }}
+                      >
+                        <FileText size={11} className="shrink-0" />
+                        <span className="truncate">{d.title}</span>
+                      </button>
                     ) : (
                       <a
                         key={d.id}
-                        href={`/edit/${d.id}`}
+                        href={`/?doc=${d.id}`}
                         className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/85 transition-colors hover:bg-white/25 hover:text-white"
                         title={`打开「${d.title}」`}
                       >
