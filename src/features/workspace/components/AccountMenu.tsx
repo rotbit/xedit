@@ -3,7 +3,7 @@
 import { createPortal } from "react-dom";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { LogOut, Moon, Settings2, Sun } from "lucide-react";
+import { LogOut, Moon, Settings2, ShieldCheck, Sun } from "lucide-react";
 import { clearMirror } from "@/lib/docStore";
 import { toggleDark } from "@/components/DarkToggle";
 import { menuItemCls, menuPanelCls } from "../constants";
@@ -53,6 +53,12 @@ export function AccountMenu({
           <Settings2 size={13} className="text-[var(--ink-faint)]" />
           设置…
         </button>
+        {user?.isAdmin ? (
+          <a className={menuItemCls} href="/admin">
+            <ShieldCheck size={13} className="text-[var(--ink-faint)]" />
+            管理后台
+          </a>
+        ) : null}
         <div className="my-1 border-t border-[var(--hairline)]" />
         <button
           className={menuItemCls}

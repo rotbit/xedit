@@ -15,6 +15,14 @@ model User {
   image         String?
   /// 邮箱注册用户的 scrypt 密码散列；OAuth 用户为空
   passwordHash  String?
+  /// 注册时间（历史用户由迁移回填为其最早一篇文档的创建时间）
+  createdAt     DateTime          @default(now())
+  /// 只读封禁时间；非空表示仅可查看导出，不能写入上传
+  bannedAt      DateTime?
+  /// 封禁原因，随 403 提示展示给被封用户
+  banReason     String?
+  /// 存储配额（字节）；空 = 用全局默认，0 = 不限制
+  storageQuota  BigInt?
   accounts      Account[]
   sessions      Session[]
   documents     Document[]

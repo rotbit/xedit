@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import {
   ossConfigured,
+  ossDelete,
   ossObjectKey,
   ossSignedPutUrl,
   ossStat,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/oss";
 import { MEDIA_EXT, MIME_BY_EXT, maxSizeOf, sizeLimitError } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
+import { uploadBlocked } from "@/lib/guards";
 
 /**
  * 浏览器直传 OSS 的两步接口：
@@ -39,6 +41,9 @@ export async function POST(req: Request) {
   if (size > maxSizeOf(mime)) {
     return NextResponse.json({ error: sizeLimitError(mime) }, { status: 413 });
   }
+  // 签名前先按声明大小预检封禁与配额，别让用户白传一趟
+  const blocked = await uploadBlocked(userId, size);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
 
   const key = ossObjectKey(ext);
   return NextResponse.json({ key, uploadUrl: ossSignedPutUrl(key, mime), url: ossUrlOf(key) });
@@ -63,6 +68,16 @@ export async function PUT(req: Request) {
   const mime = stat.mime || MIME_BY_EXT[key.split(".").pop() ?? ""] || "";
   if (stat.size > maxSizeOf(mime)) {
     return NextResponse.json({ error: sizeLimitError(mime) }, { status: 413 });
+  }
+  // 登记时按 OSS 真实大小终检；超了就把刚传的对象删掉，不留无主文件
+  const blocked = await uploadBlocked(userId, stat.size);
+  if (blocked) {
+    try {
+      await ossDelete(key);
+    } catch {
+      /* 对象可能已不存在 */
+    }
+    return NextResponse.json({ error: blocked }, { status: 403 });
   }
 
   const url = ossUrlOf(key);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { readOnlyGuard } from "@/lib/guards";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -46,6 +47,8 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  const denied = await readOnlyGuard(session.user.id);
+  if (denied) return denied;
   const body = await req.json().catch(() => ({}));
   const doc = await prisma.document.create({
     data: {

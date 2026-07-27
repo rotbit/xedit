@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { readOnlyGuard } from "@/lib/guards";
 import { snapshot, autoSnapshot, IDLE_RULE } from "@/lib/versions";
 
 type Params = { params: Promise<{ id: string }> };
@@ -38,6 +39,8 @@ export async function POST(req: Request, { params }: Params) {
   const { id } = await params;
   const doc = await ownedDoc(id);
   if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
+  const denied = await readOnlyGuard(doc.userId);
+  if (denied) return denied;
 
   const body = await req.json().catch(() => ({}));
   // auto 来自前端的停笔 / 关页面兜底，要节流；manual 是用户明确点了「存档」，只去重

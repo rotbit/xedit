@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { readOnlyGuard } from "@/lib/guards";
 import { getActiveConfig } from "@/lib/ai/server";
 import { replicateChatOnce, replicateChatStream } from "@/lib/ai/replicate";
 
@@ -16,6 +17,8 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "请先登录后再使用 AI 功能" }, { status: 401 });
   }
+  const denied = await readOnlyGuard(session.user.id);
+  if (denied) return denied;
 
   const body = await req.json().catch(() => null);
   const system: string = typeof body?.system === "string" ? body.system : "";

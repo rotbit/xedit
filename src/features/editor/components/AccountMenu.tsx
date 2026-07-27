@@ -2,7 +2,7 @@
 
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { Settings2, LogOut, Moon, Sun } from "lucide-react";
+import { Settings2, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { Dropdown, menuItemCls } from "@/components/Dropdown";
 import { clearMirror } from "@/lib/docStore";
 import { toggleDark } from "@/components/DarkToggle";
@@ -48,6 +48,12 @@ export function AccountMenu({
         <Settings2 size={14} />
         设置…
       </button>
+      {user.isAdmin ? (
+        <a className={menuItemCls} href="/admin">
+          <ShieldCheck size={14} />
+          管理后台
+        </a>
+      ) : null}
       <div className="my-1 border-t border-[var(--hairline)]" />
       <button
         className={menuItemCls}
