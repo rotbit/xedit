@@ -18,6 +18,7 @@ import {
   uploadMediaFromBase64,
   uploadMediaFromUrl,
 } from "@/lib/assets";
+import { writeBlocked } from "@/lib/guards";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -96,7 +97,11 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) => {
-        const doc = await createDocument(requireUserId(extra), args);
+        const userId = requireUserId(extra);
+        // MCP 的 OAuth token 不查会话，只读封禁要在写工具上单独拦
+        const blocked = await writeBlocked(userId);
+        if (blocked) return fail(blocked);
+        const doc = await createDocument(userId, args);
         return ok(doc);
       }
     );
@@ -113,7 +118,10 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) => {
-        const updated = await updateDocument(requireUserId(extra), args.id, args);
+        const userId = requireUserId(extra);
+        const blocked = await writeBlocked(userId);
+        if (blocked) return fail(blocked);
+        const updated = await updateDocument(userId, args.id, args);
         return updated ? ok({ ok: true, id: args.id }) : fail("文档不存在");
       }
     );
@@ -128,7 +136,10 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) => {
-        const deleted = await deleteDocument(requireUserId(extra), args.id, args.hard ?? false);
+        const userId = requireUserId(extra);
+        const blocked = await writeBlocked(userId);
+        if (blocked) return fail(blocked);
+        const deleted = await deleteDocument(userId, args.id, args.hard ?? false);
         return deleted ? ok({ ok: true, id: args.id, hard: Boolean(args.hard) }) : fail("文档不存在");
       }
     );
@@ -202,7 +213,10 @@ const handler = createMcpHandler(
         inputSchema: { id: z.string().min(1).describe("图片 id") },
       },
       async (args, extra) => {
-        const deleted = await deleteImage(requireUserId(extra), args.id);
+        const userId = requireUserId(extra);
+        const blocked = await writeBlocked(userId);
+        if (blocked) return fail(blocked);
+        const deleted = await deleteImage(userId, args.id);
         return deleted ? ok({ ok: true, id: args.id }) : fail("图片不存在");
       }
     );

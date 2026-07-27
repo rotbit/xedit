@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { readOnlyGuard } from "@/lib/guards";
 import { encryptSecret, decryptSecret, keyLast4 } from "@/lib/ai/crypto";
 import { isProviderId, isProviderScope, type ProviderScope } from "@/lib/ai/catalog";
 
@@ -55,6 +56,8 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
   const userId = session.user.id;
+  const denied = await readOnlyGuard(userId);
+  if (denied) return denied;
   const body = await req.json().catch(() => ({}));
 
   // 1) 更新某个用途下某个平台的配置

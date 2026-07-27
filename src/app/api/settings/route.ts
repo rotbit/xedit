@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { readOnlyGuard } from "@/lib/guards";
 import { sanitizeCustomThemes } from "@/lib/themes/custom";
 
 export async function GET() {
@@ -19,6 +20,8 @@ export async function PUT(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  const denied = await readOnlyGuard(session.user.id);
+  if (denied) return denied;
   const body = await req.json().catch(() => ({}));
   const data: Record<string, string | boolean> = {};
   if (typeof body.themeId === "string") data.themeId = body.themeId;
