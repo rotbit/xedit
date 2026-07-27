@@ -15,6 +15,7 @@ import {
   Play,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { VIDEO_EXT } from "@/lib/media";
@@ -29,6 +30,15 @@ interface Asset {
   mime: string;
   source: string;
   createdAt: string;
+}
+
+/** 引用该素材的文章（/api/assets/[id]/usage） */
+interface UsageDoc {
+  id: string;
+  title: string;
+  category: string;
+  updatedAt: string;
+  deletedAt: string | null;
 }
 
 function formatSize(bytes: number): string {
@@ -46,6 +56,8 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  // 每个素材的引用文章缓存；undefined = 尚未查过
+  const [usage, setUsage] = useState<Record<string, UsageDoc[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -68,6 +80,25 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
       cancelled = true;
     };
   }, []);
+
+  // 打开大图时反查这个素材被哪些文章引用（查过的走缓存）
+  useEffect(() => {
+    if (lightbox === null) return;
+    const asset = assets?.[lightbox];
+    if (!asset || usage[asset.id]) return;
+    let cancelled = false;
+    void fetch(`/api/assets/${asset.id}/usage`)
+      .then((r) => (r.ok ? r.json() : { docs: [] }))
+      .then((d) => {
+        if (!cancelled) setUsage((prev) => ({ ...prev, [asset.id]: d.docs ?? [] }));
+      })
+      .catch(() => {
+        if (!cancelled) setUsage((prev) => ({ ...prev, [asset.id]: [] }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lightbox, assets, usage]);
 
   // 键盘导航大图
   useEffect(() => {
@@ -351,6 +382,46 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
                 <ChevronRight size={18} />
               </button>
             ) : null}
+          </div>
+          {/* 引用反查：这个素材出现在哪些文章里 */}
+          <div className="shrink-0 px-6 pb-5" onClick={(e) => e.stopPropagation()}>
+            {(() => {
+              const docs = usage[assets[lightbox].id];
+              if (!docs) {
+                return <p className="text-center text-[12px] text-white/40">正在查询引用…</p>;
+              }
+              if (docs.length === 0) {
+                return <p className="text-center text-[12px] text-white/40">未被任何文章引用</p>;
+              }
+              return (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <span className="text-[12px] text-white/50">用于 {docs.length} 篇文章：</span>
+                  {docs.map((d) =>
+                    d.deletedAt ? (
+                      <span
+                        key={d.id}
+                        className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/50"
+                        title="在回收站中"
+                      >
+                        <FileText size={11} className="shrink-0" />
+                        <span className="truncate">{d.title}</span>
+                        <span className="shrink-0 text-white/40">回收站</span>
+                      </span>
+                    ) : (
+                      <a
+                        key={d.id}
+                        href={`/edit/${d.id}`}
+                        className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/85 transition-colors hover:bg-white/25 hover:text-white"
+                        title={`打开「${d.title}」`}
+                      >
+                        <FileText size={11} className="shrink-0" />
+                        <span className="truncate">{d.title}</span>
+                      </a>
+                    )
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       ) : null}
