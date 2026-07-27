@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { readOnlyGuard } from "@/lib/guards";
 import { ossConfigured, ossDelete } from "@/lib/oss";
 
 type Params = { params: Promise<{ id: string }> };
@@ -11,6 +12,8 @@ export async function DELETE(_req: Request, { params }: Params) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  const denied = await readOnlyGuard(session.user.id);
+  if (denied) return denied;
   const { id } = await params;
   const asset = await prisma.asset.findFirst({
     where: { id, userId: session.user.id },

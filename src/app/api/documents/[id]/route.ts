@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { readOnlyGuard } from "@/lib/guards";
 import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
 
 /** 东八区日期串 YYYY-MM-DD */
@@ -29,6 +30,8 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PUT(req: Request, { params }: Params) {
   const userId = await requireUser();
   if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const denied = await readOnlyGuard(userId);
+  if (denied) return denied;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 
@@ -79,6 +82,8 @@ export async function PUT(req: Request, { params }: Params) {
 export async function DELETE(req: Request, { params }: Params) {
   const userId = await requireUser();
   if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const denied = await readOnlyGuard(userId);
+  if (denied) return denied;
   const { id } = await params;
   const hard = new URL(req.url).searchParams.get("hard") === "1";
 

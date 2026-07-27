@@ -7,6 +7,8 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      /** 是否为 ADMIN_EMAILS 白名单里的超级管理员 */
+      isAdmin?: boolean;
     };
   }
 }

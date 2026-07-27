@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { readOnlyGuard } from "@/lib/guards";
 
 const UNCATEGORIZED = "未分类";
 
@@ -15,6 +16,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
   const userId = session.user.id;
+  const denied = await readOnlyGuard(userId);
+  if (denied) return denied;
   const body = await req.json().catch(() => ({}));
   const action: string = body?.action;
   const from: string = typeof body?.from === "string" ? body.from.trim() : "";

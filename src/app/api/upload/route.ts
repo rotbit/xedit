@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { ossConfigured, ossPut } from "@/lib/oss";
 import { IMAGE_EXT, MAX_IMAGE_SIZE, isVideoMime } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
+import { uploadBlocked } from "@/lib/guards";
 
 /** 服务端中转上传：直传不可用（如 Bucket 未配 CORS）时的兜底通道。
  *  仅图片——视频体积大，中转要整个读进内存还会撞请求体上限，只走直传。 */
@@ -36,6 +37,8 @@ export async function POST(req: Request) {
   if (!ext) {
     return NextResponse.json({ error: `不支持的图片类型: ${file.type}` }, { status: 415 });
   }
+  const blocked = await uploadBlocked(session.user.id, file.size);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());

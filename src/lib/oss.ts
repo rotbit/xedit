@@ -88,3 +88,10 @@ export async function ossList(): Promise<{ key: string; size: number; lastModifi
 export async function ossDelete(key: string): Promise<void> {
   await client().delete(key);
 }
+
+/** 批量删除对象（删除账号时清理其全部素材）；OSS 单次上限 1000 个 */
+export async function ossDeleteMany(keys: string[]): Promise<void> {
+  for (let i = 0; i < keys.length; i += 1000) {
+    await client().deleteMulti(keys.slice(i, i + 1000), { quiet: true });
+  }
+}

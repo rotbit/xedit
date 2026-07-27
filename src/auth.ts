@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { isAdminEmail } from "@/lib/admin";
 import type { Provider } from "next-auth/providers";
 
 export const githubConfigured = Boolean(
@@ -47,11 +48,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     jwt({ token, user }) {
       if (user) token.uid = user.id;
+      // 管理员按 env 白名单每次重判，改名单不用等 JWT 过期
+      token.adm = isAdminEmail(typeof token.email === "string" ? token.email : null);
       return token;
     },
     session({ session, token }) {
       if (session.user && token.uid) {
         session.user.id = token.uid as string;
+        session.user.isAdmin = token.adm === true;
       }
       return session;
     },

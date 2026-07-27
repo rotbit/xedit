@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { readOnlyGuard } from "@/lib/guards";
 import { pruneVersions } from "@/lib/versions";
 
 type Params = { params: Promise<{ id: string; versionId: string }> };
@@ -32,6 +33,8 @@ export async function POST(_req: Request, { params }: Params) {
   const { id, versionId } = await params;
   const doc = await ownedDoc(id);
   if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
+  const denied = await readOnlyGuard(doc.userId);
+  if (denied) return denied;
 
   const version = await prisma.documentVersion.findFirst({
     where: { id: versionId, documentId: id },
@@ -56,6 +59,8 @@ export async function DELETE(_req: Request, { params }: Params) {
   const { id, versionId } = await params;
   const doc = await ownedDoc(id);
   if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
+  const denied = await readOnlyGuard(doc.userId);
+  if (denied) return denied;
 
   const result = await prisma.documentVersion.deleteMany({
     where: { id: versionId, documentId: id },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Loader2,
   Upload,
@@ -39,6 +40,8 @@ function formatSize(bytes: number): string {
 const isVideo = (asset: Asset) => asset.mime.startsWith("video/");
 
 export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
+  // 「同步 OSS 历史」会认领整个 bucket 的无主文件，接口只对管理员开放，按钮也只给管理员看
+  const isAdmin = useSession().data?.user?.isAdmin === true;
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -143,19 +146,21 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
           {assets === null ? "加载中…" : `共 ${assets.length} 个文件`}
         </p>
         <span className="flex-1" />
-        <button
-          className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] text-[var(--ink)] hover:bg-[var(--paper)] disabled:opacity-60"
-          onClick={() => void syncHistory()}
-          disabled={syncing || !ossConfigured}
-          title="把 OSS 里已有但未入库的图片补录进来"
-        >
-          {syncing ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <RefreshCw size={14} />
-          )}
-          同步 OSS 历史
-        </button>
+        {isAdmin ? (
+          <button
+            className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] text-[var(--ink)] hover:bg-[var(--paper)] disabled:opacity-60"
+            onClick={() => void syncHistory()}
+            disabled={syncing || !ossConfigured}
+            title="把 OSS 里已有但未入库的图片补录进来（仅管理员）"
+          >
+            {syncing ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            同步 OSS 历史
+          </button>
+        ) : null}
         <button
           className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
           onClick={() => fileInputRef.current?.click()}
@@ -194,7 +199,7 @@ export function AssetsGallery({ ossConfigured }: { ossConfigured: boolean }) {
           <p className="text-[13px] leading-6 text-[var(--ink-faint)] text-center">
             还没有素材。在编辑器里粘贴图片或视频，
             <br />
-            或点「同步 OSS 历史」把已有文件找回来
+            {isAdmin ? "或点「同步 OSS 历史」把已有文件找回来" : "或点右上角「上传」添加"}
           </p>
         </div>
       ) : (

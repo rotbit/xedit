@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import net from "node:net";
 import { prisma } from "@/lib/prisma";
+import { uploadBlocked } from "@/lib/guards";
 import { ossConfigured, ossDelete, ossPut } from "@/lib/oss";
 import {
   IMAGE_EXT,
@@ -94,6 +95,9 @@ async function storeBuffer(
   if (buffer.length === 0) throw new Error("空文件");
   if (buffer.length > maxSizeOf(mime)) throw new Error(sizeLimitError(mime));
   if (!ossConfigured()) throw new Error("服务端未配置阿里云 OSS，无法上传");
+  // 只读封禁 / 存储配额：MCP 的两条上传路径都汇到这里
+  const blocked = await uploadBlocked(userId, buffer.length);
+  if (blocked) throw new Error(blocked);
   const { url, key } = await ossPut(buffer, ext, mime);
   const a = await prisma.asset.create({
     data: { userId, key, url, size: buffer.length, mime, source },
