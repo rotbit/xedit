@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
+import { touchDailyActive } from "@/lib/active";
 import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
 
 /** 东八区日期串 YYYY-MM-DD */
@@ -19,6 +20,8 @@ async function requireUser() {
 export async function GET(_req: Request, { params }: Params) {
   const userId = await requireUser();
   if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  // 直接打开 /edit/[id] 不经过文档列表，这里补一个 DAU 打点位
+  void touchDailyActive(userId);
   const { id } = await params;
   const doc = await prisma.document.findFirst({ where: { id, userId } });
   if (!doc || doc.deletedAt) {

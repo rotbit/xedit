@@ -93,7 +93,7 @@ npm run dev
 | `OSS_CDN_DOMAIN` | | 绑定的 CDN/自定义域名 |
 | `AI_ENCRYPTION_KEY` | | AI 平台 Key 的加密主密钥，留空则从 `AUTH_SECRET` 派生 |
 | `ADMIN_EMAILS` | | 超级管理员邮箱白名单（逗号分隔），填了才开放 `/admin` 管理后台 |
-| `DEFAULT_STORAGE_QUOTA_MB` | | 每账号素材存储配额（MB），默认 1024；后台可按账号单独调整 |
+| `DEFAULT_STORAGE_QUOTA_MB` | | 每账号素材存储配额（MB），默认 10240（10GB）；后台可按账号单独调整 |
 
 > **密钥安全**：所有密钥只存在服务端。图片上传经 `/api/upload` 中转，OSS AccessKey 不会下发到浏览器；用户填的 AI 平台 Key 经 AES-256-GCM 加密后入库，明文绝不落库。
 

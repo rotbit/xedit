@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
+import { touchDailyActive } from "@/lib/active";
 
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  // 打开工作台必经此接口，作为 DAU 打点位；失败不影响响应
+  void touchDailyActive(session.user.id);
   const params = new URL(req.url).searchParams;
   const trash = params.get("trash") === "1";
   // full=1：附带正文，供本地优先的同步引擎一次拉全量镜像

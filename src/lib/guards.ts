@@ -7,10 +7,10 @@ import { prisma } from "@/lib/prisma";
  * REST 路由与 MCP 工具是两条独立通道，都要经过这里，行为才不漂移。
  */
 
-/** 全局默认存储配额（字节）；可用 DEFAULT_STORAGE_QUOTA_MB 覆盖。单账号的 User.storageQuota 优先，0 表示不限。 */
+/** 全局默认存储配额（字节，默认 10GB）；可用 DEFAULT_STORAGE_QUOTA_MB 覆盖。单账号的 User.storageQuota 优先，0 表示不限。 */
 export const DEFAULT_STORAGE_QUOTA = (() => {
   const mb = Number(process.env.DEFAULT_STORAGE_QUOTA_MB);
-  return Number.isFinite(mb) && mb >= 0 ? mb * 1024 * 1024 : 1024 * 1024 * 1024;
+  return Number.isFinite(mb) && mb >= 0 ? mb * 1024 * 1024 : 10 * 1024 * 1024 * 1024;
 })();
 
 export function formatBytes(n: number): string {

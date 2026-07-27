@@ -32,6 +32,7 @@ model User {
   aiProviders   AiProvider[]
   oauthAuthCodes     OAuthAuthCode[]
   oauthRefreshTokens OAuthRefreshToken[]
+  dailyActives  DailyActive[]
 }
 
 model Account {
@@ -132,6 +133,17 @@ model AiProvider {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, scope, provider])
+}
+
+/// 每日活跃打点（date 为东八区 YYYY-MM-DD）：后台 DAU 曲线的数据源，
+/// 网页与 MCP 的关键接口都会打点，历史由 WritingActivity 回填
+model DailyActive {
+  userId String
+  date   String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, date])
+  @@index([date])
 }
 
 /// 每日写作流水（date 为东八区 YYYY-MM-DD）
