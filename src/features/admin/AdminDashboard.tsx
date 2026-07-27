@@ -25,6 +25,7 @@ import { menuDangerCls } from "@/features/workspace/constants";
 import { formatBytes, formatDate, quotaLabel, usagePercent } from "./format";
 import type { AdminUser, Overview, UserListResp } from "./types";
 import { BanDialog, QuotaDialog } from "./dialogs";
+import { DauChart } from "./DauChart";
 import { UserDetailDrawer } from "./UserDetailDrawer";
 
 /** 超级管理员后台：全站概览 + 账号列表（封禁 / 配额 / 删号 / 明细） */
@@ -168,6 +169,9 @@ export function AdminDashboard() {
           hint={overview ? `${overview.assets.count} 个文件` : ""}
         />
       </div>
+
+      {/* 活跃用户曲线 */}
+      <DauChart />
 
       {/* 搜索 */}
       <div className="mt-8 flex items-center gap-3">

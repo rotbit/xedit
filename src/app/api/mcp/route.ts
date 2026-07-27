@@ -19,6 +19,7 @@ import {
   uploadMediaFromUrl,
 } from "@/lib/assets";
 import { writeBlocked } from "@/lib/guards";
+import { touchDailyActive } from "@/lib/active";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -279,6 +280,8 @@ async function verifyToken(req: Request, bearerToken?: string): Promise<AuthInfo
   const origin = publicOrigin(req);
   const verified = await verifyAccessToken(bearerToken, acceptedAudiences(origin));
   if (!verified) return undefined;
+  // MCP 通道的 DAU 打点（进程内已按天去重，不必担心每请求一次）
+  void touchDailyActive(verified.userId);
   return {
     token: bearerToken,
     clientId: verified.clientId,
