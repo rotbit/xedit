@@ -82,7 +82,7 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
             {activeCat === STATS ? (
               <WritingStats />
             ) : activeCat === ASSETS ? (
-              <AssetsGallery ossConfigured={config?.oss ?? false} />
+              <AssetsGallery ossConfigured={config?.oss ?? false} onOpenDoc={nav.openDoc} />
             ) : (
               <DocList ws={ws} />
             )}
