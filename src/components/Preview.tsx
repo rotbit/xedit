@@ -27,10 +27,14 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
   const [codeCss, setCodeCss] = useState("");
   const [mathReady, setMathReady] = useState(false);
 
-  // MathJax 动态加载完成后重渲染一次，公式从降级原文变为 SVG
+  // MathJax（连字体 1MB+）只在正文疑似有公式时才拉，加载完成后重渲染一次，
+  // 公式从降级原文变为 SVG。用 $ 粗筛：偶尔误判（价格符号）也只是多下一次，
+  // 与从前的无条件加载相比只赚不亏。
+  const mayHaveMath = content.includes("$");
   useEffect(() => {
+    if (!mayHaveMath) return;
     void ensureMathJax().then(() => setMathReady(true));
-  }, []);
+  }, [mayHaveMath]);
 
   // 渲染防抖：输入停顿 180ms 后更新预览。
   // renderMarkdown 结果统一经 sanitizeHtml（DOMPurify）消毒后才进入 DOM。

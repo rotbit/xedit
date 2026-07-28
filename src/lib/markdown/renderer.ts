@@ -1,7 +1,16 @@
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 import taskLists from "markdown-it-task-lists";
-import hljs from "highlight.js";
+// 全量 highlight.js 带 190+ 语言、打包上 MB；common 集 35 种主流语言足够公众号场景，
+// 冷门语言退化为无高亮的转义输出（fence 渲染里有 getLanguage 兜底）
+import hljs from "highlight.js/lib/common";
+import dockerfile from "highlight.js/lib/languages/dockerfile";
+import http from "highlight.js/lib/languages/http";
+import nginx from "highlight.js/lib/languages/nginx";
+
+hljs.registerLanguage("dockerfile", dockerfile);
+hljs.registerLanguage("http", http);
+hljs.registerLanguage("nginx", nginx);
 import { mathPlugin } from "./math";
 import { headingPlugin, figurePlugin, tocPlugin, lineMapPlugin } from "./plugins";
 
