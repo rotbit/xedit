@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import type { Session } from "next-auth";
 import { SessionProvider, useSession } from "next-auth/react";
 import { PromptHost, ConfirmHost } from "./PromptDialog";
 import { AuthHost } from "./AuthDialog";
@@ -22,9 +23,16 @@ function AiStatusSync() {
   return null;
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  session,
+}: {
+  children: React.ReactNode;
+  /** 服务端 auth() 解出的会话，注入后 SessionProvider 不再于首帧发起客户端请求 */
+  session: Session | null;
+}) {
   return (
-    <SessionProvider>
+    <SessionProvider session={session}>
       <AiStatusSync />
       <EvolutionWatcher />
       <SwRegister />

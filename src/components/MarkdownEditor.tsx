@@ -23,22 +23,32 @@ import { livePreview } from "@/lib/livePreview";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { extractVideoPoster } from "@/lib/videoPoster";
 import { VIDEO_EXT, isVideoMime } from "@/lib/media";
-import TurndownService from "turndown";
-import { gfm } from "turndown-plugin-gfm";
+import type TurndownService from "turndown";
 import { toast } from "./Toast";
 
-// 富文本粘贴 → Markdown
+// 富文本粘贴 → Markdown。turndown 不小且只有粘贴用得到，不进编辑器主包：
+// 编辑器挂载后空闲预载，粘贴时同步取用；万一抢在加载完成前粘贴，退化为纯文本粘贴
 let turndown: TurndownService | null = null;
-function htmlToMd(html: string): string {
-  if (!turndown) {
-    turndown = new TurndownService({
-      headingStyle: "atx",
-      codeBlockStyle: "fenced",
-      bulletListMarker: "-",
-      emDelimiter: "*",
-    });
-    turndown.use(gfm);
+let turndownLoading: Promise<void> | null = null;
+function ensureTurndown(): Promise<void> {
+  if (!turndownLoading) {
+    turndownLoading = Promise.all([import("turndown"), import("turndown-plugin-gfm")]).then(
+      ([{ default: Turndown }, { gfm }]) => {
+        const td = new Turndown({
+          headingStyle: "atx",
+          codeBlockStyle: "fenced",
+          bulletListMarker: "-",
+          emDelimiter: "*",
+        });
+        td.use(gfm);
+        turndown = td;
+      }
+    );
   }
+  return turndownLoading;
+}
+function htmlToMd(html: string): string {
+  if (!turndown) return "";
   try {
     return turndown.turndown(html);
   } catch {
@@ -228,6 +238,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
 
   useEffect(() => {
     if (!containerRef.current) return;
+    void ensureTurndown();
 
     const state = EditorState.create({
       doc: initialContent,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
@@ -15,18 +16,58 @@ export async function GET(req: Request) {
   const trash = params.get("trash") === "1";
   // full=1：附带正文，供本地优先的同步引擎一次拉全量镜像
   const full = params.get("full") === "1";
-  const docs = await prisma.document.findMany({
-    where: { userId: session.user.id, deletedAt: trash ? { not: null } : null },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, updatedAt: true, content: true, category: true },
-  });
+  // since=<ISO>：增量同步——只回传该时刻之后有变动的文档（含软删，靠 deletedAt 标记），
+  // 另附全量存活 id 供客户端对账彻底删除。文库大了以后，每次切回前台的同步不再全量下发正文。
+  const since = params.get("since");
+  if (since) {
+    const sinceDate = new Date(since);
+    if (!Number.isNaN(sinceDate.getTime())) {
+      const [changed, live] = await Promise.all([
+        prisma.document.findMany({
+          // gte 而非 gt：游标边界上的文档宁可多发一次，客户端落镜像是幂等的
+          where: { userId: session.user.id, updatedAt: { gte: sinceDate } },
+          orderBy: { updatedAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            updatedAt: true,
+            content: true,
+            category: true,
+            deletedAt: true,
+          },
+        }),
+        prisma.document.findMany({
+          where: { userId: session.user.id, deletedAt: null },
+          select: { id: true },
+        }),
+      ]);
+      return NextResponse.json({ docs: changed, ids: live.map((d) => d.id) });
+    }
+  }
   if (full) {
+    const docs = await prisma.document.findMany({
+      where: { userId: session.user.id, deletedAt: trash ? { not: null } : null },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, title: true, updatedAt: true, content: true, category: true },
+    });
     return NextResponse.json(docs);
   }
-  // 列表附带纯文本摘要与字数，正文本身不下发
+  // 列表附带纯文本摘要与字数，正文本身不下发。
+  // 摘要素材与字数都在库内算好：正文全文不出数据库，查询数据量不随文章长度膨胀
+  const rows = await prisma.$queryRaw<
+    { id: string; title: string; category: string; updatedAt: Date; head: string; chars: number }[]
+  >(Prisma.sql`
+    SELECT id, title, category, "updatedAt",
+           LEFT(content, 2000) AS head,
+           length(regexp_replace(content, ${"\\s"}, '', 'g')) AS chars
+    FROM "Document"
+    WHERE "userId" = ${session.user.id}
+      AND "deletedAt" ${trash ? Prisma.sql`IS NOT NULL` : Prisma.sql`IS NULL`}
+    ORDER BY "updatedAt" DESC
+  `);
   return NextResponse.json(
-    docs.map((d) => {
-      const plain = d.content
+    rows.map((d) => {
+      const plain = d.head
         .replace(/```[\s\S]*?```/g, " ")
         .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
         .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
@@ -39,7 +80,7 @@ export async function GET(req: Request) {
         category: d.category,
         updatedAt: d.updatedAt,
         excerpt: plain.slice(0, 90),
-        chars: d.content.replace(/\s/g, "").length,
+        chars: d.chars,
       };
     })
   );

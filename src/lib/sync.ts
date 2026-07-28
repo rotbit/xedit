@@ -1,16 +1,19 @@
 /**
  * 同步引擎：镜像库 ↔ 云端 的后台推拉。
  * 推：dirty 镜像 PUT 上云、未登录期建的 local- 文档 POST 上云后移除本地副本；
- * 拉：?full=1 一次拉全量正文落镜像（dirty 的本地优先跳过），并对齐删除。
+ * 拉：首次 ?full=1 全量建镜像，此后按 updatedAt 游标 ?since= 增量拉取
+ * （dirty 的本地优先跳过），删除靠响应附带的存活 id 列表对账。
  * 触发：startSync()（进入工作台）、网络恢复、页面回到前台、保存后。
  */
 
 import {
   applyServerDoc,
   listDirtyMirrorDocs,
+  listMirrorDocs,
   getMirrorContent,
   markMirrorSynced,
   reconcileMirror,
+  SYNC_CURSOR_KEY,
   type ServerDoc,
 } from "./docStore";
 import { listLocalDocs, getLocalDocContent, deleteLocalDoc, isLocalId } from "./localDocs";
@@ -88,16 +91,37 @@ export async function syncNow(): Promise<void> {
     }
     // 推：待上云的本地文档
     await drainLocalDocs();
-    // 拉：全量镜像
-    const res = await fetch("/api/documents?full=1");
+    // 拉：有游标且镜像在（防 localStorage 被部分清掉）走增量，只下发有变化的正文；
+    // 否则全量建镜像。增量响应附带全量存活 id，彻底删除靠 reconcile 对账。
+    const cursor = localStorage.getItem(SYNC_CURSOR_KEY);
+    const delta = cursor !== null && listMirrorDocs().length > 0;
+    const res = await fetch(
+      delta ? `/api/documents?since=${encodeURIComponent(cursor)}` : "/api/documents?full=1"
+    );
     if (res.ok) {
-      const docs = (await res.json()) as ServerDoc[];
-      const ids = new Set<string>();
-      for (const doc of docs) {
-        ids.add(doc.id);
-        applyServerDoc(doc);
+      const body = (await res.json()) as
+        | ServerDoc[]
+        | { docs: (ServerDoc & { deletedAt: string | null })[]; ids: string[] };
+      // 游标取服务端 updatedAt 的最大值，不碰本地时钟；同格式 ISO 串可直接字典序比较
+      let latest = cursor ?? "";
+      let liveIds: Set<string>;
+      if (Array.isArray(body)) {
+        liveIds = new Set();
+        for (const doc of body) {
+          liveIds.add(doc.id);
+          applyServerDoc(doc);
+          if (doc.updatedAt > latest) latest = doc.updatedAt;
+        }
+      } else {
+        liveIds = new Set(body.ids);
+        for (const doc of body.docs) {
+          // 软删的只用来推进游标；从镜像移除交给下面的 reconcile（dirty 的会被保住）
+          if (!doc.deletedAt) applyServerDoc(doc);
+          if (doc.updatedAt > latest) latest = doc.updatedAt;
+        }
       }
-      reconcileMirror(ids);
+      reconcileMirror(liveIds);
+      if (latest) localStorage.setItem(SYNC_CURSOR_KEY, latest);
       window.dispatchEvent(new CustomEvent(SYNC_DONE_EVENT));
     }
   } catch {
