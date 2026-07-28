@@ -13,6 +13,7 @@ import { CategoryContextMenu } from "./components/CategoryContextMenu";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspaceContent } from "./components/WorkspaceContent";
 import { useWorkspace } from "./hooks/useWorkspace";
+import { useHydrated } from "@/hooks/useHydrated";
 
 const AiSettingsDialog = dynamic(
   () => import("@/components/AiDialogs").then((m) => m.AiSettingsDialog),
@@ -32,6 +33,7 @@ export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
   const { auth, prefs, library, nav } = ws;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const hydrated = useHydrated();
 
   // 旧 /edit 链接与桌面端「新建文章 Cmd+N」带 ?new=1 进来：会话就绪后直接建一篇新稿
   const searchParams = useSearchParams();
@@ -73,10 +75,11 @@ export function Home({ landing }: HomeProps) {
     startLabel: hasLocalDraft ? "继续编辑本地文稿" : "开始写作",
   };
 
-  // 会话状态确认前（及本地文章列表读取前）还不知道该给谁看什么。
+  // 会话已随 HTML 注入，但工作台内容来自 localStorage（镜像/本地文库），服务端读不到——
+  // hydration 完成前必须两端渲染一致，所以这一帧只出落地页或空壳，翻真后立即重渲染。
   // 服务端已判定未登录时，这一帧就把落地页铺出来——它必须是真实 DOM，爬虫才读得到；
-  // 老用户由 theme-init.js 在首次绘制前打上 data-ws，用 CSS 盖住这帧，不会看见落地页。
-  if (auth.status === "loading" || (auth.localMode && library.docs === null)) {
+  // 老用户由 theme-init 内联脚本在首次绘制前打上 data-ws，用 CSS 盖住这帧，不会看见落地页。
+  if (!hydrated || auth.status === "loading" || (auth.localMode && library.docs === null)) {
     if (!landing) return <div className="h-full bg-[var(--paper)]" />;
     return (
       <div className="landing-boot h-full">
