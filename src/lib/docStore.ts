@@ -28,6 +28,8 @@ export interface ServerDoc {
 const INDEX_KEY = "xedit-mirror-index";
 const DOC_PREFIX = "xedit-mirror-doc:";
 const AUTHED_KEY = "xedit-was-authed";
+/** 增量同步游标：上次成功拉取时见到的最大 updatedAt（服务端时间，ISO 串） */
+export const SYNC_CURSOR_KEY = "xedit-sync-cursor";
 
 function readIndex(): MirrorMeta[] {
   if (typeof window === "undefined") return [];
@@ -137,6 +139,9 @@ export function clearMirror() {
   for (const d of readIndex()) localStorage.removeItem(DOC_PREFIX + d.id);
   localStorage.removeItem(INDEX_KEY);
   localStorage.removeItem(AUTHED_KEY);
+  localStorage.removeItem(SYNC_CURSOR_KEY);
+  // 账号维度的墨力缓存（useTotalChars）一并清掉，防止串号
+  localStorage.removeItem("xedit-exp-cache");
 }
 
 /** 「曾登录」标志：离线时 next-auth 拿不到会话，用它兜底进入离线工作区而非落地页 */

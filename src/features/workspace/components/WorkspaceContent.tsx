@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { ASSETS, STATS } from "../constants";
@@ -30,6 +30,24 @@ const AssetsGallery = dynamic(
   { ssr: false, loading: viewLoading }
 );
 
+/**
+ * 列表首帧渲染完后趁浏览器空闲预热阅读器模块：
+ * 它连带 markdown 渲染管线是最大的懒加载块，等点开文章再现拉，冷缓存下要转几秒圈；
+ * 提前拉进模块缓存后，dynamic() 首次渲染即刻解析。import() 与上面 dynamic 的
+ * 路径相同，打的是同一个 chunk，不会重复下载。
+ */
+function usePrefetchReader() {
+  useEffect(() => {
+    const prefetch = () => void import("@/components/ArticleReader");
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(prefetch, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(prefetch, 1500); // Safari 没有 requestIdleCallback
+    return () => clearTimeout(t);
+  }, []);
+}
+
 /** 文章列表区：装载中骨架 → 空态 → 列表 / 卡片 */
 function DocList({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, filtered } = ws;
@@ -51,6 +69,7 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
   const { nav, library, docActions, config } = ws;
   /** 阅读视图下，ArticleReader 的操作按钮通过 portal 挂进面包屑顶栏右侧，省掉一整条横栏 */
   const [actionSlot, setActionSlot] = useState<HTMLDivElement | null>(null);
+  usePrefetchReader();
 
   const { readingId, isTrash, activeCat } = nav;
   const readingDoc = readingId
