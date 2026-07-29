@@ -15,9 +15,11 @@ const toolBtn =
 export function Sidebar({
   ws,
   onOpenSettings,
+  onOpenFeishu,
 }: {
   ws: Workspace;
   onOpenSettings: () => void;
+  onOpenFeishu: () => void;
 }) {
   const { nav, prefs, library, docActions, totalChars } = ws;
   const { docs } = library;
@@ -88,7 +90,7 @@ export function Sidebar({
       </div>
 
       <CategoryTree ws={ws} />
-      <SidebarFooter ws={ws} onOpenSettings={onOpenSettings} />
+      <SidebarFooter ws={ws} onOpenSettings={onOpenSettings} onOpenFeishu={onOpenFeishu} />
     </aside>
   );
 }
