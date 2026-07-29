@@ -11,6 +11,7 @@ import {
 } from "@/lib/localDocs";
 import { saveMirrorLocal, removeMirrorDoc, applyServerDoc } from "@/lib/docStore";
 import { syncNow } from "@/lib/sync";
+import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
 import { askInput, askConfirm } from "@/components/PromptDialog";
 import { UNCATEGORIZED, isVirtualCat } from "../constants";
@@ -177,6 +178,31 @@ export function useDocActions({ auth, library, nav }: Params) {
     if (!local) void syncNow();
   };
 
+  const renameDoc = async (doc: DocMeta) => {
+    const name = (
+      await askInput({
+        title: "重命名文章",
+        placeholder: "文章标题",
+        defaultValue: doc.title || "未命名文章",
+      })
+    )?.trim();
+    if (!name || name === doc.title) return;
+    const title = name.slice(0, 200);
+    // 正在编辑的就是这篇：只改编辑器状态，持久化与推送交给自动保存，
+    // 免得这里先写库、编辑器又用旧标题回写覆盖
+    const store = useStore.getState();
+    if (nav.readingId === doc.id && store.docId === doc.id) {
+      store.setTitle(title);
+    } else {
+      const local = localMode || isLocalId(doc.id);
+      if (local) updateLocalDoc(doc.id, { title });
+      else saveMirrorLocal(doc.id, { title });
+      if (!local) void syncNow();
+    }
+    setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, title } : d)) ?? null);
+    toast("已重命名", "success");
+  };
+
   const moveToNewCategory = async (doc: DocMeta) => {
     const name = (
       await askInput({ title: "新建分类并移入", placeholder: "分类名称，可用 / 建子分类" })
@@ -194,6 +220,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     restoreDoc,
     hardDeleteDoc,
     moveDoc,
+    renameDoc,
     moveToNewCategory,
   };
 }
