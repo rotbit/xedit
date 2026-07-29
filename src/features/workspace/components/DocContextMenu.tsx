@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { PenLine, Trash2, Folder, FolderPlus } from "lucide-react";
+import { PenLine, TextCursorInput, Trash2, Folder, FolderPlus } from "lucide-react";
 import { menuDangerCls, menuItemCls } from "../constants";
 import { allCategories } from "../lib/catTree";
 import type { DocMeta } from "../types";
@@ -59,6 +59,10 @@ export function DocContextMenu({
         <button className={menuItemCls} onClick={run(() => nav.openDoc(doc.id))}>
           <PenLine size={13} className="text-[var(--ink-faint)]" />
           编辑
+        </button>
+        <button className={menuItemCls} onClick={run(() => void docActions.renameDoc(doc))}>
+          <TextCursorInput size={13} className="text-[var(--ink-faint)]" />
+          重命名
         </button>
         <p className="px-3.5 pb-1 pt-1.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
           移动到分类
