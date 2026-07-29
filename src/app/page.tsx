@@ -1,7 +1,18 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { Home } from "@/features/workspace/Home";
 import { Landing } from "@/features/landing/Landing";
+import { SITE_NAME } from "@/lib/site";
+
+/**
+ * 已登录会话标签页只留「xEdit」——长标题是给搜索引擎看的，天天用的人不需要；
+ * 未登录（含爬虫）沿用 layout 里的完整 SEO 标题。absolute 绕开父级 template。
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await auth();
+  return session?.user ? { title: { absolute: SITE_NAME } } : {};
+}
 
 /**
  * 首页一身二任：未登录是产品落地页，登录后是工作台。

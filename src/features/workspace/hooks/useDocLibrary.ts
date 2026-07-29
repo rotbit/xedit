@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
-import { listLocalDocs, listLocalCats } from "@/lib/localDocs";
+import { listLocalDocs, listLocalCats, DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { listMirrorDocs, setWasAuthed } from "@/lib/docStore";
 import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
 import { toast } from "@/components/Toast";
@@ -41,6 +41,17 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     setCloudLoaded(true);
     setDocs(mergedCloudList());
   }
+
+  // 本机数据一有写入（编辑器改标题/正文、移动分类）立即刷新列表，
+  // 不用等同步引擎跑完一整轮——侧栏文件名要跟着编辑实时变
+  useEffect(() => {
+    const refresh = () => {
+      if (localMode) setDocs(listLocalDocs());
+      else if (loggedIn || offlineAuthed) setDocs(mergedCloudList());
+    };
+    window.addEventListener(DOCS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(DOCS_CHANGED_EVENT, refresh);
+  }, [loggedIn, offlineAuthed, localMode]);
 
   // 自建分类（允许空分类存在）
   useEffect(() => {

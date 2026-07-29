@@ -4,7 +4,7 @@
  * 云端只是同步目标——离线时列表、阅读、编辑全部照常，联网后由 sync 引擎推拉。
  */
 
-import { summarize } from "./localDocs";
+import { notifyDocsChanged, summarize } from "./localDocs";
 
 export interface MirrorMeta {
   id: string;
@@ -84,6 +84,7 @@ export function saveMirrorLocal(
   meta.updatedAt = new Date().toISOString();
   if (dirty) meta.dirty = true;
   writeIndex(list);
+  notifyDocsChanged();
 }
 
 /** 云端文档落镜像；本地有未推送修改（dirty）时跳过，本地优先 */

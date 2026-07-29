@@ -16,6 +16,17 @@ const INDEX_KEY = "xedit-local-docs";
 const DOC_PREFIX = "xedit-local-doc:";
 const CATS_KEY = "xedit-local-cats";
 
+/**
+ * 本地文档库/云端镜像有写入时广播，供文库列表即时刷新（如编辑中改标题，侧栏跟着变）。
+ * 同步引擎的整轮完成另有 SYNC_DONE_EVENT，这个事件只表示「本机数据变了」。
+ */
+export const DOCS_CHANGED_EVENT = "xedit:docs-changed";
+
+export function notifyDocsChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(DOCS_CHANGED_EVENT));
+}
+
 /** local- 前缀区分本地文档与云端 cuid */
 export const isLocalId = (id: string | null | undefined): boolean =>
   typeof id === "string" && id.startsWith("local-");
@@ -93,6 +104,7 @@ export function updateLocalDoc(
     meta.updatedAt = new Date().toISOString();
   }
   writeIndex(list);
+  notifyDocsChanged();
 }
 
 export function deleteLocalDoc(id: string) {

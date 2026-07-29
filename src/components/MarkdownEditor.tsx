@@ -246,7 +246,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         history(),
         drawSelection(),
         EditorView.lineWrapping,
-        placeholder("在这里输入 Markdown …"),
+        placeholder("在这里输入…"),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(mdHighlight),
         liveCompartment.current.of(liveRef.current ? livePreview : []),
