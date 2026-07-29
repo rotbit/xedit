@@ -42,9 +42,11 @@ function SimpleRow({
 export function SidebarFooter({
   ws,
   onOpenSettings,
+  onOpenFeishu,
 }: {
   ws: Workspace;
   onOpenSettings: () => void;
+  onOpenFeishu: () => void;
 }) {
   const { auth, menus, library } = ws;
 
@@ -90,6 +92,7 @@ export function SidebarFooter({
                 user={auth.session?.user}
                 onClose={menus.closeAccountMenu}
                 onOpenSettings={onOpenSettings}
+                onOpenFeishu={onOpenFeishu}
               />
             ) : null}
           </div>

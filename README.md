@@ -9,7 +9,7 @@
 [![React](https://img.shields.io/badge/React-19-000.svg)](https://react.dev)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-000.svg)](https://www.postgresql.org)
 
-[在线体验](https://xedit.me) · [部署教程](./docs/deployment.md) · [MCP 接入](./docs/mcp.md)
+[在线体验](https://xedit.me) · [部署教程](./docs/deployment.md) · [MCP 接入](./docs/mcp.md) · [飞书导入](./docs/feishu-import.md)
 
 </div>
 
@@ -39,6 +39,7 @@
 **文章管理**
 
 - **多级分类树**：文章和分类都能拖着移动，全局搜索、右键菜单、回收站软删除可恢复
+- **飞书知识库导入**：连接飞书账号后整库导入为文章，目录层级映射为分类、图片自动转存，重复同步只处理有改动的文档 → [使用指南](./docs/feishu-import.md)
 - **版本历史**：自动快照 + 手动存档，点开任一版本即可看到与当前稿的逐行差异，一键回滚，回滚前自动备份现稿
 - **图床**：截图粘贴、文件拖入自动上传到你自己的阿里云 OSS 并就地插入，素材库统一管理
 - **写作统计**：热力图、趋势曲线、每日目标，累计字数喂养一只会进化的墨灵

@@ -33,6 +33,8 @@ model User {
   oauthAuthCodes     OAuthAuthCode[]
   oauthRefreshTokens OAuthRefreshToken[]
   dailyActives  DailyActive[]
+  feishuConnection FeishuConnection?
+  feishuDocLinks   FeishuDocLink[]
 }
 
 model Account {
@@ -79,6 +81,7 @@ model Document {
   userId    String
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions  DocumentVersion[]
+  feishuLinks FeishuDocLink[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
@@ -212,6 +215,47 @@ model OAuthRefreshToken {
 
   @@index([userId])
   @@index([clientId])
+}
+
+/// 飞书连接（知识库导入用）：应用凭证按账号各自配置，token 走用户身份 OAuth 获取。
+/// App Secret 与 token 均 AES-256-GCM 加密存储，明文绝不落库。
+model FeishuConnection {
+  userId          String   @id
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 用户自己创建的飞书自建应用 App ID（非敏感，用于回显与发起授权）
+  appId           String   @default("")
+  /// 加密后的 App Secret（空串表示尚未填写）
+  appSecretEnc    String   @default("") @db.Text
+  /// 飞书侧用户标识与展示名，仅用于界面回显
+  feishuOpenId    String   @default("")
+  feishuName      String   @default("")
+  accessTokenEnc  String   @default("") @db.Text
+  refreshTokenEnc String   @default("") @db.Text
+  /// access_token 过期时刻，提前刷新
+  expiresAt       DateTime @default(now())
+  /// 上次同步选择的知识空间（回显与默认值）
+  spaceId         String   @default("")
+  spaceName       String   @default("")
+  lastSyncAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// 飞书 wiki 节点 ↔ xedit 文档的同步映射：增量跳过与幂等更新的依据。
+/// 挂在 User 而非 FeishuConnection 下：断开重连飞书不丢映射，不会重复建档。
+model FeishuDocLink {
+  userId      String
+  /// wiki 节点 token
+  nodeToken   String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  /// 上次同步时飞书侧的编辑时间戳（秒），未变则整篇跳过
+  objEditTime String   @default("")
+  syncedAt    DateTime @updatedAt
+
+  @@id([userId, nodeToken])
+  @@index([userId, documentId])
 }
 
 /// 图片资产（上传/AI 生成到 OSS 的文件索引）

@@ -20,6 +20,11 @@ const AiSettingsDialog = dynamic(
   { ssr: false }
 );
 
+const FeishuDialog = dynamic(
+  () => import("@/components/FeishuDialog").then((m) => m.FeishuDialog),
+  { ssr: false }
+);
+
 interface HomeProps {
   /** 服务端渲染好的落地页；已登录时为 null（那条路径根本走不到落地页） */
   landing: React.ReactNode;
@@ -33,6 +38,7 @@ export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
   const { auth, prefs, library, nav } = ws;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [feishuOpen, setFeishuOpen] = useState(false);
   const hydrated = useHydrated();
 
   // 旧 /edit 链接与桌面端「新建文章 Cmd+N」带 ?new=1 进来：会话就绪后直接建一篇新稿
@@ -113,7 +119,11 @@ export function Home({ landing }: HomeProps) {
           onClick={() => prefs.setSidebarOpen(false)}
         />
       ) : null}
-      <Sidebar ws={ws} onOpenSettings={() => setSettingsOpen(true)} />
+      <Sidebar
+        ws={ws}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenFeishu={() => setFeishuOpen(true)}
+      />
       <WorkspaceContent ws={ws} />
       {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
       {!auth.online && !auth.localMode ? (
@@ -123,6 +133,12 @@ export function Home({ landing }: HomeProps) {
       ) : null}
       <CategoryContextMenu ws={ws} />
       {settingsOpen ? <AiSettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+      {feishuOpen ? (
+        <FeishuDialog
+          onClose={() => setFeishuOpen(false)}
+          onSynced={() => void ws.docActions.refreshDocs()}
+        />
+      ) : null}
       <Toaster />
     </div>
   );

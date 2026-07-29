@@ -3,7 +3,7 @@
 import { createPortal } from "react-dom";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { LogOut, Moon, Settings2, ShieldCheck, Sun } from "lucide-react";
+import { BookDown, LogOut, Moon, Settings2, ShieldCheck, Sun } from "lucide-react";
 import { clearMirror } from "@/lib/docStore";
 import { toggleDark } from "@/components/DarkToggle";
 import { menuItemCls, menuPanelCls } from "../constants";
@@ -18,11 +18,13 @@ export function AccountMenu({
   user,
   onClose,
   onOpenSettings,
+  onOpenFeishu,
 }: {
   anchor: AccountMenuAnchor;
   user: Session["user"] | undefined;
   onClose: () => void;
   onOpenSettings: () => void;
+  onOpenFeishu: () => void;
 }) {
   const run = (fn: () => void) => () => {
     onClose();
@@ -52,6 +54,10 @@ export function AccountMenu({
         <button className={menuItemCls} onClick={run(onOpenSettings)}>
           <Settings2 size={13} className="text-[var(--ink-faint)]" />
           设置…
+        </button>
+        <button className={menuItemCls} onClick={run(onOpenFeishu)}>
+          <BookDown size={13} className="text-[var(--ink-faint)]" />
+          飞书知识库导入…
         </button>
         {user?.isAdmin ? (
           <a className={menuItemCls} href="/admin">
