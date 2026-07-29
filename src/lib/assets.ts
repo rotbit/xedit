@@ -84,7 +84,8 @@ export async function deleteImage(userId: string, id: string): Promise<boolean> 
   return true;
 }
 
-async function storeBuffer(
+/** 服务端已持有字节流时的直接落盘入口（MCP base64 / 飞书导入等都汇到这里） */
+export async function uploadMediaBuffer(
   userId: string,
   buffer: Buffer,
   mime: string,
@@ -117,7 +118,7 @@ export async function uploadMediaFromBase64(
   assertKind(finalMime, kind);
   const b64 = m ? m[2] : data;
   const buffer = Buffer.from(b64, "base64");
-  return storeBuffer(userId, buffer, finalMime, "mcp");
+  return uploadMediaBuffer(userId, buffer, finalMime, "mcp");
 }
 
 // ---- SSRF 守卫：upload-from-URL 是服务端抓取用户给的地址，必须挡内网/保留段 ----
@@ -190,5 +191,5 @@ export async function uploadMediaFromUrl(
   const declared = Number(res.headers.get("content-length") || 0);
   if (declared && declared > maxSizeOf(mime)) throw new Error(sizeLimitError(mime));
   const buffer = Buffer.from(await res.arrayBuffer());
-  return storeBuffer(userId, buffer, mime, "mcp-url");
+  return uploadMediaBuffer(userId, buffer, mime, "mcp-url");
 }
