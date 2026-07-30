@@ -336,6 +336,12 @@ export function ArticleReader({
                     value={title}
                     placeholder="未命名文章"
                     onChange={(e) => setTitle(e.target.value)}
+                    onFocus={() => {
+                      if (title === "未命名文章") setTitle("");
+                    }}
+                    onBlur={() => {
+                      if (!title.trim()) setTitle("未命名文章");
+                    }}
                   />
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
                     <div className="relative">
