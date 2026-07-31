@@ -3,6 +3,8 @@
  * 索引与正文分 key 存 localStorage，登录后由首页批量同步上云并清空。
  */
 
+import { wordCount } from "@/lib/wordCount";
+
 export interface LocalDocMeta {
   id: string;
   title: string;
@@ -54,7 +56,7 @@ export function summarize(content: string): { excerpt: string; chars: number } {
     .replace(/[#>*`~$|-]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-  return { excerpt: plain.slice(0, 90), chars: content.replace(/\s/g, "").length };
+  return { excerpt: plain.slice(0, 90), chars: wordCount(content) };
 }
 
 export function listLocalDocs(): LocalDocMeta[] {
