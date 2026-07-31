@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { snapshot, autoSnapshot, IDLE_RULE } from "@/lib/versions";
+import { wordCount } from "@/lib/wordCount";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -29,7 +30,7 @@ export async function GET(_req: Request, { params }: Params) {
       title: v.title,
       kind: v.kind,
       createdAt: v.createdAt,
-      chars: v.content.replace(/\s/g, "").length,
+      chars: wordCount(v.content),
     }))
   );
 }

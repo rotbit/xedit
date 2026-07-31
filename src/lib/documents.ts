@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
+import { wordCount } from "@/lib/wordCount";
 
 /**
  * 文档增删改查的共享服务层：REST 路由与 MCP 工具共用同一套逻辑，避免行为漂移。
@@ -20,11 +21,6 @@ function plainText(md: string): string {
     .replace(/[#>*`~$|-]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-/** 非空白字数 */
-function charCount(s: string): number {
-  return s.replace(/\s/g, "").length;
 }
 
 function clampLimit(v: number | undefined, def: number, max: number): number {
@@ -70,7 +66,7 @@ export async function listDocuments(
     category: d.category,
     updatedAt: d.updatedAt,
     excerpt: plainText(d.content).slice(0, 120),
-    chars: charCount(d.content),
+    chars: wordCount(d.content),
   }));
 }
 
@@ -109,7 +105,7 @@ export async function searchDocuments(
     category: d.category,
     updatedAt: d.updatedAt,
     excerpt: snippetAround(d.content, q),
-    chars: charCount(d.content),
+    chars: wordCount(d.content),
   }));
 }
 
@@ -167,7 +163,7 @@ export async function updateDocument(
 
   if (typeof data.content === "string" && data.content !== existing.content) {
     await autoSnapshot(id, data.title ?? existing.title, data.content, AUTOSAVE_RULE);
-    const delta = Math.max(0, charCount(data.content) - charCount(existing.content));
+    const delta = Math.max(0, wordCount(data.content) - wordCount(existing.content));
     const date = chinaDate();
     await prisma.writingActivity.upsert({
       where: { userId_date: { userId, date } },

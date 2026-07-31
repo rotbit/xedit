@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { RefreshCw } from "lucide-react";
 import { useStore, type SaveState } from "@/store/useStore";
+import { wordCount } from "@/lib/wordCount";
 
 const SAVE_LABEL: Record<SaveState, { text: string; cls: string }> = {
   local: { text: "仅保存在本地", cls: "text-[var(--ink-faint)]" },
@@ -17,7 +18,7 @@ export function StatusBar({ refreshedHint = false }: { refreshedHint?: boolean }
   const saveState = useStore((s) => s.saveState);
 
   const stats = useMemo(() => {
-    const chars = content.replace(/\s/g, "").length;
+    const chars = wordCount(content);
     const lines = content.split("\n").length;
     const minutes = Math.max(1, Math.round(chars / 400));
     return { chars, lines, minutes };

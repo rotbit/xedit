@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { buildWechatHtml } from "@/lib/copy/wechat";
+import { wordCount } from "@/lib/wordCount";
 import { askInput } from "./PromptDialog";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
@@ -202,7 +203,7 @@ export function ArticleReader({
     );
   }
 
-  const chars = content.replace(/\s/g, "").length;
+  const chars = wordCount(content);
   const docKey = `${docId}:${docVersion}`;
 
   return (

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { computeDecay } from "@/lib/level";
+import { wordCount } from "@/lib/wordCount";
 
 const DAYS = 84; // 12 周热力图
 
@@ -29,7 +30,7 @@ export async function GET() {
   ]);
 
   // 文章与字数
-  const charsOf = (c: string) => c.replace(/\s/g, "").length;
+  const charsOf = wordCount;
   const totalDocs = docs.length;
   const totalChars = docs.reduce((sum, d) => sum + charsOf(d.content), 0);
   const avgChars = totalDocs ? Math.round(totalChars / totalDocs) : 0;
