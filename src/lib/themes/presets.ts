@@ -133,7 +133,7 @@ const lanying: ThemePreset = {
 `,
 };
 
-// 签名造型：居中黑字 + 橙色粗下划线，引用带装饰引号的暖色卡片，加粗压荧光橙
+// 签名造型：橙底白字标签式 h2 + 右侧折角（suffix 三角）+ 通栏橙色底线，引用为橙线暖底卡片
 const orangeHeart: ThemePreset = {
   id: "orange-heart",
   tag: "情感 · 生活",
@@ -141,8 +141,9 @@ const orangeHeart: ThemePreset = {
   color: "#ef7060",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #e05442; }
-#nice h2 { font-size: 20px; text-align: center; color: #2b2b2b; }
-#nice h2 .content { display: inline-block; border-bottom: 3px solid #ef7060; padding: 0 8px 7px 8px; }
+#nice h2 { font-size: 18px; border-bottom: 2px solid #ef7060; }
+#nice h2 .content { display: inline-block; background-color: #ef7060; color: #ffffff; padding: 5px 14px 4px 14px; border-radius: 3px 3px 0 0; margin-right: 3px; }
+#nice h2 .suffix { display: inline-block; vertical-align: bottom; border-bottom: 32px solid #f2e6e2; border-right: 18px solid transparent; }
 #nice h3 { font-size: 17px; color: #e05442; }
 #nice h3 .prefix { display: inline-block; width: 4px; height: 15px; background-color: #ef7060; margin-right: 9px; border-radius: 2px; }
 #nice h4 { font-size: 16px; color: #e05442; }
@@ -150,7 +151,7 @@ const orangeHeart: ThemePreset = {
 #nice strong { color: #d64937; background-image: linear-gradient(transparent 62%, #fde3de 62%); }
 #nice em { color: #c25546; }
 #nice del { color: #999999; }
-#nice blockquote { border-left: none; background-color: #fdf5f3; color: #85615a; border-radius: 10px; padding: 30px 18px 8px 18px; background-image: ${quoteMark("f0ab9f")}; background-repeat: no-repeat; background-position: 16px 11px; background-size: 21px 15px; }
+#nice blockquote { border-left: 4px solid #ef7060; background-color: #fdf2ee; color: #595959; padding: 10px 16px; }
 #nice p code, #nice li code, #nice td code { color: #d95948; background-color: #fdf0ed; }
 #nice th { background-color: #fdefec; color: #c24b3b; }
 #nice th, #nice td { border-color: #f6ddd8; }
