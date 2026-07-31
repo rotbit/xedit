@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { touchDailyActive } from "@/lib/active";
 import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
+import { wordCount } from "@/lib/wordCount";
 
 /** 东八区日期串 YYYY-MM-DD */
 function chinaDate(): string {
@@ -68,10 +69,7 @@ export async function PUT(req: Request, { params }: Params) {
   if (typeof data.content === "string" && data.content !== existing.content) {
     await autoSnapshot(id, data.title ?? existing.title, data.content, AUTOSAVE_RULE);
     // 每日写作流水：保存次数 + 净增字数（删减不计负）
-    const delta = Math.max(
-      0,
-      data.content.replace(/\s/g, "").length - existing.content.replace(/\s/g, "").length
-    );
+    const delta = Math.max(0, wordCount(data.content) - wordCount(existing.content));
     const date = chinaDate();
     await prisma.writingActivity.upsert({
       where: { userId_date: { userId, date } },
