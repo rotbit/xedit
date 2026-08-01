@@ -12,6 +12,7 @@ import {
   ChevronDown,
   MoreHorizontal,
   RefreshCw,
+  Share2,
   Trash2,
 } from "lucide-react";
 import { buildWechatHtml } from "@/lib/copy/wechat";
@@ -27,6 +28,8 @@ import { useSyncScroll } from "@/hooks/useSyncScroll";
 import { MarkdownEditor, type EditorHandle } from "./MarkdownEditor";
 import { EditorToolbar } from "./EditorToolbar";
 import { EditorTools } from "@/features/editor/components/EditorTools";
+import { ShareDialog } from "@/features/share/ShareDialog";
+import { isLocalId } from "@/lib/localDocs";
 import { OutlinePanel } from "./OutlinePanel";
 import { Preview } from "./Preview";
 import { VersionsPanel } from "./VersionsPanel";
@@ -76,6 +79,7 @@ export function ArticleReader({
 
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -215,6 +219,20 @@ export function ArticleReader({
         {/* 排版主题 / 设置 / AI / 版本 / 导出 —— 从老编辑页搬来的功能簇 */}
         <EditorTools onOpenVersions={() => setVersionsOpen(true)} />
         <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
+        {/* 分享：公开链接（48h）+ 访客批注 */}
+        <button
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+          title="分享给他人查看与批注"
+          onClick={() => {
+            if (!loggedIn || isLocalId(docId)) {
+              toast("登录后才能分享文章", "error");
+              return;
+            }
+            setShareOpen(true);
+          }}
+        >
+          <Share2 size={15} />
+        </button>
         {/* 一键复制：点开选择平台（纯图标） */}
         <div className="relative">
           <button
@@ -472,6 +490,9 @@ export function ArticleReader({
         loggedIn={loggedIn}
         onRestored={reload}
       />
+
+      {/* 分享设置：公开链接 + 访客批注 */}
+      {shareOpen ? <ShareDialog docId={docId} onClose={() => setShareOpen(false)} /> : null}
     </div>
   );
 }
