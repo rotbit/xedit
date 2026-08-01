@@ -12,19 +12,54 @@ import {
   anchorFromSelection,
   clearHighlights,
   highlightRange,
+  isMediaTarget,
   locateAnchor,
+  locateMedia,
+  markMedia,
+  mediaAnchor,
+  textOffsetBefore,
   type AnchorInput,
   type AnchorRange,
 } from "./anchors";
+import { isVideoUrl } from "@/lib/media";
 import { Toaster, toast } from "@/components/Toast";
 import { loadIdentity, saveIdentityName, type GuestIdentity } from "./identity";
-import type { ShareCommentJson, SharePayload } from "./types";
+import type { AnchorType, ShareCommentJson, SharePayload } from "./types";
 
 /** 高亮与批注 UI 自身的样式（正文主题之外） */
 const ANNO_CSS = `
 #nice .xe-anno { background-color: rgba(250, 173, 20, 0.24); border-bottom: 2px solid rgba(224, 152, 8, 0.8); cursor: pointer; }
 #nice .xe-anno-active { background-color: rgba(250, 173, 20, 0.45); }
+#nice img.xe-anno-media, #nice video.xe-anno-media { outline: 3px solid rgba(245, 166, 35, 0.65); outline-offset: 2px; }
+#nice img.xe-anno-media { cursor: pointer; }
+#nice img.xe-anno-active, #nice video.xe-anno-active { outline-color: rgba(224, 144, 8, 0.95); }
 `;
+
+/** 待提交的批注锚点（文字选区或媒体） */
+interface PendingAnchor extends AnchorInput {
+  type: AnchorType;
+}
+
+/** 引用区：文字锚点截取原文，媒体锚点显示缩略图/类型标签 */
+function AnchorQuote({ anchorType, anchorText }: { anchorType: AnchorType; anchorText: string }) {
+  if (anchorType === "media") {
+    const video = isVideoUrl(anchorText);
+    return (
+      <span className="flex min-w-0 items-center gap-1.5 border-l-2 border-amber-400 pl-2 text-[12px] text-[var(--ink-faint)]">
+      {video ? null : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={anchorText} alt="" className="h-6 w-6 shrink-0 rounded object-cover" />
+      )}
+      {video ? "视频" : "图片"}
+      </span>
+    );
+  }
+  return (
+    <span className="min-w-0 flex-1 truncate border-l-2 border-amber-400 pl-2 text-[12px] text-[var(--ink-faint)]">
+      {anchorText}
+    </span>
+  );
+}
 
 interface Thread {
   root: ShareCommentJson;
@@ -67,18 +102,24 @@ export function SharedArticle(props: SharePayload) {
   const [selBtn, setSelBtn] = useState<{
     x: number; y: number; anchor: AnchorInput & AnchorRange;
   } | null>(null);
+  const [mediaBtn, setMediaBtn] = useState<{
+    x: number; y: number; anchor: AnchorInput; video: boolean;
+  } | null>(null);
   const [composer, setComposer] = useState<{
-    x: number; y: number; anchor: AnchorInput & AnchorRange;
+    x: number; y: number; anchor: PendingAnchor;
   } | null>(null);
   const [guestName, setGuestName] = useState("");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [outline, setOutline] = useState<{ level: number; text: string }[]>([]);
 
   const identityRef = useRef<GuestIdentity | null>(null);
   const articleRef = useRef<HTMLElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   /** 正文由我们手动写入 innerHTML（React 不管理其子树），高亮 span 才不会被重渲染抹掉 */
   const lastHtmlRef = useRef("");
+  /** 媒体「批注」浮标的延迟隐藏计时器（离开媒体→进入浮标之间留缓冲） */
+  const mediaHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // —— 渲染正文（与编辑器预览完全同一条管线，DOMPurify 消毒后才入 DOM） ——
   const mayHaveMath = content.includes("$");
@@ -153,12 +194,41 @@ export function SharedArticle(props: SharePayload) {
     const next = new Map<string, AnchorRange | null>();
     for (const c of comments) {
       if (c.parentId) continue;
+      if (c.anchorType === "media") {
+        const el = locateMedia(root, c);
+        if (el) {
+          const off = textOffsetBefore(root, el);
+          next.set(c.id, { start: off, end: off });
+          if (!c.resolvedAt) markMedia(el, c.id);
+        } else {
+          next.set(c.id, null);
+        }
+        continue;
+      }
       const range = locateAnchor(root, c);
       next.set(c.id, range);
       if (range && !c.resolvedAt) highlightRange(root, range, c.id);
     }
     setRanges(next);
   }, [html, comments]);
+
+  // —— 大纲：正文变化时从渲染结果里提取 h1~h3 ——
+  // 声明在正文写入 effect 之后：同一次 html 变更的提交里，先写正文再提取
+  useEffect(() => {
+    const root = articleRef.current;
+    if (!root || !html) return;
+    setOutline(
+      Array.from(root.querySelectorAll<HTMLElement>("h1, h2, h3")).map((h) => ({
+        level: Number(h.tagName.slice(1)),
+        text: h.textContent?.trim() ?? "",
+      }))
+    );
+  }, [html]);
+
+  const jumpToHeading = useCallback((index: number) => {
+    const headings = articleRef.current?.querySelectorAll<HTMLElement>("h1, h2, h3");
+    headings?.[index]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // —— 激活态样式 ——
   useEffect(() => {
@@ -168,7 +238,8 @@ export function SharedArticle(props: SharePayload) {
       el.classList.remove("xe-anno-active");
     }
     if (activeId) {
-      for (const el of Array.from(root.querySelectorAll(`[data-anno="${activeId}"]`))) {
+      // ~= 按空格分词匹配：媒体元素可能挂多条批注 id
+      for (const el of Array.from(root.querySelectorAll(`[data-anno~="${activeId}"]`))) {
         el.classList.add("xe-anno-active");
       }
     }
@@ -207,7 +278,7 @@ export function SharedArticle(props: SharePayload) {
   // —— 打开线程面板（点高亮或侧栏卡片） ——
   const openThread = useCallback((id: string, scrollTo = false) => {
     const wrap = wrapRef.current;
-    const span = articleRef.current?.querySelector<HTMLElement>(`[data-anno="${id}"]`);
+    const span = articleRef.current?.querySelector<HTMLElement>(`[data-anno~="${id}"]`);
     setActiveId(id);
     setDraft("");
     if (span && wrap) {
@@ -223,21 +294,67 @@ export function SharedArticle(props: SharePayload) {
     }
   }, []);
 
+  // —— 媒体「批注」浮标的显示与延迟隐藏 ——
+  const cancelMediaHide = useCallback(() => {
+    if (mediaHideTimer.current) {
+      clearTimeout(mediaHideTimer.current);
+      mediaHideTimer.current = null;
+    }
+  }, []);
+  const scheduleMediaHide = useCallback(() => {
+    cancelMediaHide();
+    mediaHideTimer.current = setTimeout(() => setMediaBtn(null), 250);
+  }, [cancelMediaHide]);
+
+  const showMediaBtn = useCallback(
+    (el: HTMLElement) => {
+      const root = articleRef.current;
+      const wrap = wrapRef.current;
+      if (!root || !wrap) return;
+      cancelMediaHide();
+      const rect = el.getBoundingClientRect();
+      const wrapRect = wrap.getBoundingClientRect();
+      setMediaBtn({
+        x: rect.right - wrapRect.left - 8,
+        y: rect.top - wrapRect.top + 8,
+        anchor: mediaAnchor(root, el),
+        video: el.tagName === "VIDEO",
+      });
+    },
+    [cancelMediaHide]
+  );
+
+  const onArticlePointerOver = useCallback(
+    (e: React.PointerEvent) => {
+      if (!allowComment || composer) return;
+      const media = (e.target as HTMLElement).closest("img, video");
+      if (media && isMediaTarget(media)) showMediaBtn(media);
+      else scheduleMediaHide();
+    },
+    [allowComment, composer, showMediaBtn, scheduleMediaHide]
+  );
+
   const onArticleClick = useCallback(
     (e: React.MouseEvent) => {
-      const span = (e.target as HTMLElement).closest<HTMLElement>(".xe-anno");
-      if (span?.dataset.anno) {
+      const target = e.target as HTMLElement;
+      const marked = target.closest<HTMLElement>("[data-anno]");
+      // 视频点击留给播放控件，已有批注经浮标或侧栏打开；图片与文字高亮点击直达
+      if (marked?.dataset.anno && marked.tagName !== "VIDEO") {
         e.preventDefault();
-        openThread(span.dataset.anno);
+        const ids = marked.dataset.anno.split(" ");
+        const firstOpen = ids.find((id) =>
+          comments.some((c) => c.id === id && !c.resolvedAt)
+        );
+        openThread(firstOpen ?? ids[0]);
       }
     },
-    [openThread]
+    [openThread, comments]
   );
 
   // —— 提交批注 / 回复 ——
   const needName = !viewerIsOwner && !guestName.trim();
   const submit = useCallback(
-    async (parentId: string | null, anchor?: AnchorInput) => {
+    async (parentId: string | null, anchor?: PendingAnchor) => {
       const body = draft.trim();
       if (!body || busy) return;
       setBusy(true);
@@ -254,6 +371,7 @@ export function SharedArticle(props: SharePayload) {
             parentId,
             ...(anchor
               ? {
+                  anchorType: anchor.type,
                   anchorText: anchor.anchorText,
                   anchorPrefix: anchor.anchorPrefix,
                   anchorIndex: anchor.anchorIndex,
@@ -369,7 +487,28 @@ export function SharedArticle(props: SharePayload) {
 
       {/* 内容区（body 是 overflow-hidden，这里自建滚动） */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[820px] justify-center gap-8 px-4 py-8">
+        <div className="mx-auto flex max-w-[1060px] justify-center gap-8 px-4 py-8">
+          {/* 大纲（桌面）：从渲染结果提取 h1~h3，点击平滑跳转 */}
+          {outline.length > 0 ? (
+            <nav className="hidden w-[190px] shrink-0 lg:block">
+              <div className="sticky top-0 pt-1">
+                <p className="mb-3 text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">大纲</p>
+                <div className="flex flex-col gap-0.5">
+                  {outline.map((h, i) => (
+                    <button
+                      key={`${i}-${h.text}`}
+                      className="cursor-pointer truncate rounded-md px-2 py-1 text-left text-[12px] leading-relaxed text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+                      style={{ paddingLeft: 8 + (h.level - 1) * 14 }}
+                      title={h.text}
+                      onClick={() => jumpToHeading(i)}
+                    >
+                      {h.text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </nav>
+          ) : null}
           {/* 文章列：与编辑器预览一致的手机阅读宽度 */}
           <div ref={wrapRef} className="relative w-full max-w-[440px]">
             <div className="light-lock rounded-xl bg-white px-2.5 py-6 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)]">
@@ -385,6 +524,7 @@ export function SharedArticle(props: SharePayload) {
               </div>
               <div
                 onClick={onArticleClick}
+                onPointerOver={onArticlePointerOver}
                 onPointerUp={() => setTimeout(captureSelection, 0)}
                 onKeyUp={() => setTimeout(captureSelection, 0)}
               >
@@ -393,7 +533,7 @@ export function SharedArticle(props: SharePayload) {
             </div>
             <p className="py-6 text-center text-[12px] text-[var(--ink-faint)]">
               本页由 xedit 生成 · 链接 48 小时内有效
-              {allowComment ? " · 选中正文任意文字即可批注" : ""}
+              {allowComment ? " · 选中文字或点击图片、视频即可批注" : ""}
             </p>
 
             {/* 选中后的「批注」浮动按钮 */}
@@ -406,8 +546,9 @@ export function SharedArticle(props: SharePayload) {
                   // 位置在这里就钳好（渲染期不许读 ref）
                   const width = wrapRef.current?.clientWidth ?? 440;
                   setComposer({
-                    ...selBtn,
+                    y: selBtn.y,
                     x: Math.min(Math.max(8, selBtn.x - 150), width - 308),
+                    anchor: { ...selBtn.anchor, type: "text" },
                   });
                   setDraft("");
                   setActiveId(null);
@@ -419,6 +560,31 @@ export function SharedArticle(props: SharePayload) {
               </button>
             ) : null}
 
+            {/* 悬停/点按图片视频出现的「批注」浮标 */}
+            {mediaBtn && !composer ? (
+              <button
+                className="absolute z-30 flex -translate-x-full cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--ink)] py-1.5 pl-2.5 pr-3 text-[12px] font-medium text-[var(--panel)] shadow-lg hover:opacity-90"
+                style={{ left: mediaBtn.x, top: mediaBtn.y }}
+                onPointerEnter={cancelMediaHide}
+                onPointerLeave={scheduleMediaHide}
+                onClick={() => {
+                  const width = wrapRef.current?.clientWidth ?? 440;
+                  setComposer({
+                    x: Math.min(Math.max(8, mediaBtn.x - 300), width - 308),
+                    y: mediaBtn.y + 34,
+                    anchor: { ...mediaBtn.anchor, type: "media" },
+                  });
+                  setDraft("");
+                  setActiveId(null);
+                  setPanelPos(null);
+                  setMediaBtn(null);
+                }}
+              >
+                <MessageSquarePlus size={13} />
+                批注{mediaBtn.video ? "视频" : "图片"}
+              </button>
+            ) : null}
+
             {/* 新批注编辑卡 */}
             {composer ? (
               <div
@@ -426,9 +592,12 @@ export function SharedArticle(props: SharePayload) {
                 style={{ left: composer.x, top: composer.y }}
               >
                 <div className="mb-2 flex items-start gap-2">
-                  <p className="min-w-0 flex-1 truncate border-l-2 border-amber-400 pl-2 text-[12px] text-[var(--ink-faint)]">
-                    {composer.anchor.anchorText}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <AnchorQuote
+                      anchorType={composer.anchor.type}
+                      anchorText={composer.anchor.anchorText}
+                    />
+                  </div>
                   <button
                     className="cursor-pointer text-[var(--ink-faint)] hover:text-[var(--ink)]"
                     onClick={() => setComposer(null)}
@@ -475,9 +644,12 @@ export function SharedArticle(props: SharePayload) {
                 style={{ left: panelPos.x, top: panelPos.y }}
               >
                 <div className="flex items-center justify-between border-b border-[var(--hairline-soft)] px-3 py-2">
-                  <p className="min-w-0 flex-1 truncate border-l-2 border-amber-400 pl-2 text-[12px] text-[var(--ink-faint)]">
-                    {activeThread.root.anchorText}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <AnchorQuote
+                      anchorType={activeThread.root.anchorType}
+                      anchorText={activeThread.root.anchorText}
+                    />
+                  </div>
                   <div className="ml-2 flex items-center gap-1">
                     {activeThread.root.mine && !activeThread.root.resolvedAt ? (
                       <button
@@ -518,8 +690,8 @@ export function SharedArticle(props: SharePayload) {
                         <span className="flex-1" />
                         {c.mine ? (
                           <button
-                            className="hidden cursor-pointer text-[var(--ink-faint)] hover:text-red-500 group-hover:block"
-                            title="删除"
+                            className="cursor-pointer text-[var(--ink-faint)] hover:text-red-500"
+                            title="删除批注"
                             onClick={() => void removeComment(c)}
                           >
                             <Trash2 size={12} />
@@ -571,7 +743,7 @@ export function SharedArticle(props: SharePayload) {
               {sortedThreads.open.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-[var(--hairline)] px-3 py-4 text-[12px] leading-relaxed text-[var(--ink-faint)]">
                   {allowComment
-                    ? "还没有批注。选中正文任意文字，点「批注」即可发表意见。"
+                    ? "还没有批注。选中正文文字，或把鼠标移到图片、视频上，点「批注」即可发表意见。"
                     : "该分享未开放批注。"}
                 </p>
               ) : (
@@ -599,9 +771,12 @@ export function SharedArticle(props: SharePayload) {
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-1 truncate border-l-2 border-amber-400 pl-2 text-[11px] text-[var(--ink-faint)]">
-                        {t.root.anchorText}
-                      </p>
+                      <div className="mt-1">
+                        <AnchorQuote
+                          anchorType={t.root.anchorType}
+                          anchorText={t.root.anchorText}
+                        />
+                      </div>
                       <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-[var(--ink-soft)]">
                         {t.root.body}
                       </p>

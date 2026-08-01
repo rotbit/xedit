@@ -31,6 +31,7 @@ export function commentJson(
     author: string;
     isOwner: boolean;
     authorKeyHash: string;
+    anchorType: string;
     anchorText: string;
     anchorPrefix: string;
     anchorIndex: number;
@@ -46,6 +47,7 @@ export function commentJson(
     author: c.author,
     isOwner: c.isOwner,
     mine: viewer.isOwner || (c.authorKeyHash !== "" && c.authorKeyHash === viewer.keyHash),
+    anchorType: c.anchorType === "media" ? "media" : "text",
     anchorText: c.anchorText,
     anchorPrefix: c.anchorPrefix,
     anchorIndex: c.anchorIndex,

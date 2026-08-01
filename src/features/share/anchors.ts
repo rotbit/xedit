@@ -99,7 +99,7 @@ export function highlightRange(
   }
 }
 
-/** 摘掉所有高亮 span（保留文本），并合并相邻文本节点恢复干净结构 */
+/** 摘掉所有高亮（文字 span 与媒体描边），并合并相邻文本节点恢复干净结构 */
 export function clearHighlights(root: HTMLElement): void {
   for (const span of Array.from(root.querySelectorAll("span.xe-anno"))) {
     const parent = span.parentNode;
@@ -107,5 +107,50 @@ export function clearHighlights(root: HTMLElement): void {
     while (span.firstChild) parent.insertBefore(span.firstChild, span);
     parent.removeChild(span);
   }
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>(".xe-anno-media"))) {
+    el.classList.remove("xe-anno-media", "xe-anno-active");
+    el.removeAttribute("data-anno");
+  }
   root.normalize();
+}
+
+// —— 媒体（图片/视频）锚点：src + 同 src 第几个 ——
+
+/** 元素是否可作媒体批注对象 */
+export function isMediaTarget(el: Element): el is HTMLElement {
+  return el.tagName === "IMG" || el.tagName === "VIDEO";
+}
+
+function mediaSrc(el: Element): string {
+  return el.getAttribute("src") ?? "";
+}
+
+/** 为媒体元素构造锚点（anchorText=src，anchorIndex=同 src 第几个出现） */
+export function mediaAnchor(root: HTMLElement, el: Element): AnchorInput {
+  const src = mediaSrc(el);
+  const all = Array.from(root.querySelectorAll("img, video")).filter((m) => mediaSrc(m) === src);
+  return { anchorText: src, anchorPrefix: "", anchorIndex: Math.max(0, all.indexOf(el)) };
+}
+
+/** 按锚点在当前正文中找回媒体元素；src 已不存在返回 null（批注失效） */
+export function locateMedia(root: HTMLElement, a: AnchorInput): HTMLElement | null {
+  const all = Array.from(root.querySelectorAll<HTMLElement>("img, video")).filter(
+    (m) => mediaSrc(m) === a.anchorText
+  );
+  return all[a.anchorIndex] ?? all[0] ?? null;
+}
+
+/** 给媒体元素挂高亮描边与批注 id（同一媒体可挂多条，data-anno 空格分隔） */
+export function markMedia(el: HTMLElement, annoId: string): void {
+  el.classList.add("xe-anno-media");
+  const prev = el.dataset.anno;
+  el.dataset.anno = prev ? `${prev} ${annoId}` : annoId;
+}
+
+/** 元素之前的纯文本偏移，用于批注按原文位置排序（媒体与文字锚点共用一把尺） */
+export function textOffsetBefore(root: HTMLElement, el: Element): number {
+  const r = document.createRange();
+  r.selectNodeContents(root);
+  r.setEndBefore(el);
+  return r.toString().length;
 }

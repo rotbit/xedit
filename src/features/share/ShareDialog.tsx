@@ -123,12 +123,12 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
             <>
               <p className="text-[13px] leading-relaxed text-[var(--ink-soft)]">
                 生成一个公开链接，任何人打开都能看到这篇文章的
-                <b>公众号真实渲染效果</b>，并可以像飞书一样选中文字批注——无需注册登录。
+                <b>公众号真实渲染效果</b>，并可以像飞书一样对文字、图片、视频批注——无需注册登录。
               </p>
               <ul className="mt-3 flex flex-col gap-1.5 text-[12px] leading-relaxed text-[var(--ink-faint)]">
                 <li>· 链接 48 小时内有效，到期自动失效，可随时重新开启</li>
                 <li>· 分享页按你当前的排版主题渲染，正文实时跟随文章更新</li>
-                <li>· 重新开启沿用同一链接，已有批注不会丢失</li>
+                <li>· 每次重新开启都会生成新链接，旧链接立刻失效；已有批注保留</li>
               </ul>
               <button
                 className="mt-4 w-full cursor-pointer rounded-lg bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-45"

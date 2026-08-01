@@ -118,6 +118,9 @@ model ShareComment {
   authorKeyHash String    @default("")
   /// 登录态的文档作者本人发表
   isOwner       Boolean   @default(false)
+  /// 锚点类型：text=选中文字（anchorText/Prefix/Index 定位纯文本区间）；
+  /// media=图片或视频（anchorText 存 src，anchorIndex 为同 src 第几个）
+  anchorType    String    @default("text")
   anchorText    String    @default("") @db.Text
   anchorPrefix  String    @default("")
   anchorIndex   Int       @default(0)
