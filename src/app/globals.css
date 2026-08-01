@@ -560,6 +560,26 @@ body {
   scroll-margin-top: 90px;
 }
 
+/* 首屏像一张正在校对的稿纸：极淡的基准线只负责建立编辑感，不抢正文。 */
+.landing-hero {
+  background-image:
+    linear-gradient(to right, transparent 0, transparent calc(50% - 570px), var(--hairline-soft) calc(50% - 570px), var(--hairline-soft) calc(50% - 569px), transparent calc(50% - 569px)),
+    linear-gradient(to right, transparent 0, transparent calc(50% + 569px), var(--hairline-soft) calc(50% + 569px), var(--hairline-soft) calc(50% + 570px), transparent calc(50% + 570px));
+}
+
+/* 主视觉只做一次几乎察觉不到的纸张归位，避免持续漂浮干扰阅读。 */
+@keyframes paper-settle {
+  from {
+    transform: translate3d(0, 10px, 0) rotate(-0.35deg);
+  }
+  to {
+    transform: none;
+  }
+}
+.paper-drift {
+  animation: paper-settle 0.9s cubic-bezier(0.2, 0.72, 0.22, 1) 0.18s both;
+}
+
 /* 样机里的源码：Markdown 与 HTML 片段共用同一套等宽排版 */
 .xe-source {
   font-family: var(--mono);
@@ -602,6 +622,9 @@ body {
     scroll-behavior: auto;
   }
   .rise {
+    animation: none;
+  }
+  .paper-drift {
     animation: none;
   }
 }
