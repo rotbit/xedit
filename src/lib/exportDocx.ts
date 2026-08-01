@@ -48,6 +48,8 @@ interface Build {
   images: Map<string, PreparedImage | null>;
   /** 公式节点 → 栅格化后的 PNG */
   math: Map<Element, PreparedImage | null>;
+  /** 视频节点 → 封面帧（poster 或抓取的首帧）；null 表示拿不到 */
+  frames: Map<Element, PreparedImage | null>;
   olInstance: number;
   failed: number;
 }
@@ -161,6 +163,55 @@ async function blobToImage(blob: Blob): Promise<PreparedImage | null> {
   return rasterizeToPng(blob, 1);
 }
 
+/** 抓取视频首帧作封面：依赖视频源允许跨域读取（本站 OSS 为支持直传已配 CORS），失败或超时降级为无封面 */
+function captureVideoFrame(src: string): Promise<PreparedImage | null> {
+  const capture = new Promise<PreparedImage | null>((resolve) => {
+    const v = document.createElement("video");
+    let settled = false;
+    const done = (r: PreparedImage | null) => {
+      if (settled) return;
+      settled = true;
+      v.removeAttribute("src");
+      v.load();
+      resolve(r);
+    };
+    v.crossOrigin = "anonymous";
+    v.preload = "metadata";
+    v.muted = true;
+    v.playsInline = true;
+    v.onerror = () => done(null);
+    v.onloadedmetadata = () => {
+      // 跳过纯黑的第 0 帧，取 0.1s（短视频取中点兜底）
+      v.currentTime = Math.min(0.1, (v.duration || 1) / 2);
+    };
+    v.onseeked = () => {
+      try {
+        const w = v.videoWidth;
+        const h = v.videoHeight;
+        if (!w || !h) return done(null);
+        const scale = Math.min(1, 1280 / w);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return done(null);
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (!blob) return done(null);
+          void blob.arrayBuffer().then((data) =>
+            done({ data, type: "png", width: canvas.width, height: canvas.height })
+          );
+        }, "image/png");
+      } catch {
+        done(null); // 源站未放开 CORS 时 canvas 被污染，drawImage/toBlob 会抛
+      }
+    };
+    v.src = src;
+  });
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+  return Promise.race([capture, timeout]);
+}
+
 async function prepareMedia(root: HTMLElement, b: Build): Promise<void> {
   const urls = new Set<string>();
   root.querySelectorAll("img").forEach((el) => {
@@ -177,6 +228,15 @@ async function prepareMedia(root: HTMLElement, b: Build): Promise<void> {
       const img = blob ? await blobToImage(blob) : null;
       if (!img) b.failed += 1;
       b.images.set(url, img);
+    })
+  );
+  // 视频封面：优先 poster（已随图片批量拉取），否则现场抓首帧
+  await Promise.all(
+    Array.from(root.querySelectorAll("video")).map(async (v) => {
+      const poster = v.getAttribute("poster");
+      const fromPoster = poster ? (b.images.get(poster) ?? null) : null;
+      const src = v.getAttribute("src") ?? "";
+      b.frames.set(v, fromPoster ?? (src ? await captureVideoFrame(src) : null));
     })
   );
   // 公式：MathJax SVG 栅格化为 2x PNG；没有 SVG（MathJax 未就绪）留 null，走 TeX 文本兜底
@@ -360,8 +420,7 @@ function videoBlocks(video: Element, caption: string, b: Build): Paragraph[] {
   const src = video.getAttribute("src") ?? video.querySelector("source")?.getAttribute("src") ?? "";
   if (!src) return [];
   const out: Paragraph[] = [];
-  const poster = video.getAttribute("poster");
-  const posterImg = poster ? b.images.get(poster) : null;
+  const posterImg = b.frames.get(video);
   if (posterImg) out.push(imagePara(posterImg));
   out.push(
     new Paragraph({
@@ -494,6 +553,43 @@ function listBlocks(listEl: Element, level: number, b: Build): BlockChild[] {
   return out;
 }
 
+/** 把含图片/视频的段落按媒体位置切分：文字聚段、媒体独立成块，媒体紧邻的换行不产生空段 */
+function splitMediaParagraph(el: Element, ctx: Ctx, b: Build): BlockChild[] {
+  const isBr = (n: Node) => n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName === "BR";
+  const out: BlockChild[] = [];
+  let acc: Node[] = [];
+  const flushText = () => {
+    while (acc.length && isBr(acc[0])) acc.shift();
+    while (acc.length && isBr(acc[acc.length - 1])) acc.pop();
+    if (acc.some((n) => n.textContent?.trim())) {
+      const runs: InlineChild[] = [];
+      acc.forEach((n) => pushInline(n, {}, runs, b));
+      if (runs.length) out.push(new Paragraph({ children: runs, ...quoteOpts(ctx) }));
+    }
+    acc = [];
+  };
+  for (const node of Array.from(el.childNodes)) {
+    const child = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : null;
+    if (child?.tagName === "VIDEO") {
+      flushText();
+      out.push(...videoBlocks(child, "", b));
+    } else if (child?.tagName === "IMG") {
+      flushText();
+      const src = child.getAttribute("src") ?? "";
+      const pi = src ? b.images.get(src) : null;
+      if (pi) out.push(imagePara(pi));
+      else {
+        const alt = child.getAttribute("alt");
+        out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`));
+      }
+    } else {
+      acc.push(node);
+    }
+  }
+  flushText();
+  return out;
+}
+
 function blockOf(el: Element, ctx: Ctx, b: Build): BlockChild[] {
   const tag = el.tagName;
 
@@ -505,10 +601,12 @@ function blockOf(el: Element, ctx: Ctx, b: Build): BlockChild[] {
 
   switch (tag) {
     case "P": {
-      const runs = inlineOf(el, b);
       // 空段落（保留的空行）导出为空行
       if (!el.textContent?.trim() && !el.querySelector("img, video")) return [new Paragraph({})];
-      return [new Paragraph({ children: runs, ...quoteOpts(ctx) })];
+      // 预览里图片/视频均为块级独占一行（含单回车换行挤进段落的情况），导出保持一致：
+      // 按媒体节点把段落切开，视频恢复完整卡片，图片恢复居中整图
+      if (el.querySelector(":scope > img, :scope > video")) return splitMediaParagraph(el, ctx, b);
+      return [new Paragraph({ children: inlineOf(el, b), ...quoteOpts(ctx) })];
     }
     case "FIGURE":
       return figureBlocks(el, ctx, b);
@@ -621,7 +719,7 @@ export async function exportDocx(title: string, markdown: string): Promise<void>
     if (markdown.includes("$")) await ensureMathJax().catch(() => undefined);
     const html = sanitizeHtml(renderMarkdown(markdown, {}));
     const body = new DOMParser().parseFromString(html, "text/html").body;
-    const b: Build = { images: new Map(), math: new Map(), olInstance: 0, failed: 0 };
+    const b: Build = { images: new Map(), math: new Map(), frames: new Map(), olInstance: 0, failed: 0 };
     await prepareMedia(body, b);
     const children = childBlocks(body, { quote: 0 }, b);
     const doc = new Document({
