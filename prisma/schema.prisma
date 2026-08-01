@@ -82,11 +82,51 @@ model Document {
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions  DocumentVersion[]
   feishuLinks FeishuDocLink[]
+  share     DocShare?
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
   @@index([userId, updatedAt(sort: Desc)])
   @@index([userId, category])
+}
+
+/// 文章分享链接：id 即 URL 中的 token（随机 hex，不可枚举）。
+/// 一篇文章至多一条；关闭分享置 enabled=false 而不删行，重开时链接与批注都还在。
+model DocShare {
+  id           String         @id
+  documentId   String         @unique
+  document     Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId       String
+  enabled      Boolean        @default(true)
+  /// 是否允许访客批注
+  allowComment Boolean        @default(true)
+  /// 到期时刻（开启/重开时顺延 48 小时），过期后访问与批注都拒绝
+  expiresAt    DateTime
+  createdAt    DateTime       @default(now())
+  comments     ShareComment[]
+}
+
+/// 分享页批注：锚定在渲染后正文的纯文本上（选中文本 + 前文 + 第几次出现）。
+/// 访客无账号，凭浏览器本地随机 key 的 sha256 认领自己的批注；文档作者走登录态。
+model ShareComment {
+  id            String    @id @default(cuid())
+  shareId       String
+  share         DocShare  @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  /// 顶级批注为空；回复挂在顶级批注下
+  parentId      String?
+  author        String
+  authorKeyHash String    @default("")
+  /// 登录态的文档作者本人发表
+  isOwner       Boolean   @default(false)
+  anchorText    String    @default("") @db.Text
+  anchorPrefix  String    @default("")
+  anchorIndex   Int       @default(0)
+  body          String    @db.Text
+  /// 解决（销记）时间；仅顶级批注有意义
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([shareId, createdAt])
 }
 
 // 版本快照：自动保存按时间间隔留存，支持一键回滚
