@@ -104,6 +104,42 @@ export function tocPlugin(md: MarkdownIt): void {
   });
 }
 
+// —— 保留多余空行 ——
+// Markdown 把任意多个空行折叠成一个段落间隔，但公众号作者习惯用空行控制留白，
+// 编辑器里看到的空行应与渲染效果一致：1 个空行是标准段落分隔，
+// 第 2 个起每个空行输出一个空段落（<p><br></p>，公众号编辑器自身表示空行的方式）。
+// 文首的空行没有分隔职责，每行都算留白。
+export function blankLinePlugin(md: MarkdownIt): void {
+  md.core.ruler.push("preserve_blank_lines", (state) => {
+    const tokens = state.tokens;
+    let depth = 0;
+    let prevEnd = 0; // 上一个顶层块的结束行（不含尾随空行）
+    let atStart = true;
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (depth === 0 && token.nesting >= 0 && token.map) {
+        const gap = token.map[0] - prevEnd;
+        const extra = atStart ? gap : gap - 1;
+        if (extra > 0) {
+          const firstLine = atStart ? prevEnd : prevEnd + 1;
+          let html = "";
+          for (let n = 0; n < extra; n++) {
+            html += `<p data-line="${firstLine + n}"><br></p>\n`;
+          }
+          const filler = new state.Token("html_block", "", 0);
+          filler.map = [prevEnd, token.map[0]];
+          filler.content = html;
+          tokens.splice(i, 0, filler);
+          i++;
+        }
+        prevEnd = token.map[1];
+        atStart = false;
+      }
+      depth += token.nesting;
+    }
+  });
+}
+
 // —— 块级元素写入 data-line，用于编辑器与预览的同步滚动 ——
 export function lineMapPlugin(md: MarkdownIt): void {
   md.core.ruler.push("line_map", (state) => {
