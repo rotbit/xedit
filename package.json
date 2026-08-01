@@ -23,6 +23,7 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@prisma/client": "^6.19.3",
     "ali-oss": "^6.23.0",
+    "docx": "^9.7.1",
     "dompurify": "^3.4.12",
     "highlight.js": "^11.11.1",
     "html-to-image": "^1.11.13",
