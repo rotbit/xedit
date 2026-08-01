@@ -18,6 +18,7 @@ const iconBtn =
 const EXPORT_ITEMS: { kind: ExportKind; label: string }[] = [
   { kind: "md", label: "导出 Markdown" },
   { kind: "html", label: "导出 HTML" },
+  { kind: "docx", label: "导出 Word（可导入飞书）" },
   { kind: "pdf", label: "导出 PDF（打印）" },
   { kind: "image", label: "导出长图（PNG）" },
 ];
