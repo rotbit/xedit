@@ -14,7 +14,7 @@ export const SITE_TAGLINE = "Markdown 公众号排版工具";
 
 /** 首页 description：控制在 150 字以内，覆盖核心检索意图 */
 export const SITE_DESCRIPTION =
-  "xEdit 是一款免费的 Markdown 微信公众号排版工具：左边写 Markdown，右边实时预览，一键复制到公众号或知乎，样式全部内联不丢失。内置 13 套排版主题、数学公式、图床上传、版本回滚、AI 内容审查与云端同步，支持网页版与 Mac 客户端。";
+  "xEdit 是一款免费的 Markdown 微信公众号排版工具：左边写 Markdown，右边实时预览，一键复制到公众号或知乎，样式全部内联不丢失。内置 13 套排版主题、数学公式、图床上传、版本回滚、分享批注与 AI 内容审查，可导出 Word 导入飞书，支持网页版与 Mac 客户端。";
 
 /** 面向搜索引擎的关键词（现代搜索引擎权重低，但对部分站内/第三方检索仍有用） */
 export const SITE_KEYWORDS = [
@@ -29,6 +29,9 @@ export const SITE_KEYWORDS = [
   "公众号排版主题",
   "公众号 Markdown 工具",
   "在线 Markdown 编辑器",
+  "Markdown 转 Word",
+  "公众号文章导入飞书",
+  "文章分享批注",
   "xEdit",
 ];
 
