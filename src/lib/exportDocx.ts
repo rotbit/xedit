@@ -212,6 +212,20 @@ function captureVideoFrame(src: string): Promise<PreparedImage | null> {
   return Promise.race([capture, timeout]);
 }
 
+/** 换行后的行首空白在浏览器里不渲染（markdown-it 输出 <br>\n），导出前抹掉保持一致 */
+function stripSpaceAfterBreaks(root: HTMLElement): void {
+  root.querySelectorAll("br").forEach((br) => {
+    let node = br.nextSibling;
+    while (node && node.nodeType === Node.TEXT_NODE) {
+      node.textContent = (node.textContent ?? "").replace(/^\s+/, "");
+      if (node.textContent) break;
+      const next = node.nextSibling;
+      node.parentNode?.removeChild(node);
+      node = next;
+    }
+  });
+}
+
 async function prepareMedia(root: HTMLElement, b: Build): Promise<void> {
   const urls = new Set<string>();
   root.querySelectorAll("img").forEach((el) => {
@@ -702,7 +716,8 @@ const STYLES = {
   default: {
     document: {
       run: { size: 22, color: INK, font: BODY_FONT },
-      paragraph: { spacing: { after: 160, line: 300 } },
+      // 显式左对齐：WPS/飞书在线编辑默认两端对齐，会把段内换行（<w:br/>）前的行拉伸铺满
+      paragraph: { alignment: AlignmentType.LEFT, spacing: { after: 160, line: 300 } },
     },
     heading1: heading(36, 320, 200),
     heading2: heading(32, 280, 180),
@@ -719,6 +734,7 @@ export async function exportDocx(title: string, markdown: string): Promise<void>
     if (markdown.includes("$")) await ensureMathJax().catch(() => undefined);
     const html = sanitizeHtml(renderMarkdown(markdown, {}));
     const body = new DOMParser().parseFromString(html, "text/html").body;
+    stripSpaceAfterBreaks(body);
     const b: Build = { images: new Map(), math: new Map(), frames: new Map(), olInstance: 0, failed: 0 };
     await prepareMedia(body, b);
     const children = childBlocks(body, { quote: 0 }, b);
