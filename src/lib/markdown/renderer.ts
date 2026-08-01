@@ -12,7 +12,13 @@ hljs.registerLanguage("dockerfile", dockerfile);
 hljs.registerLanguage("http", http);
 hljs.registerLanguage("nginx", nginx);
 import { mathPlugin } from "./math";
-import { headingPlugin, figurePlugin, tocPlugin, lineMapPlugin } from "./plugins";
+import {
+  headingPlugin,
+  figurePlugin,
+  tocPlugin,
+  blankLinePlugin,
+  lineMapPlugin,
+} from "./plugins";
 
 export interface RenderEnv {
   /** 代码块使用 Mac 窗口风格 */
@@ -23,7 +29,8 @@ function createMd(): MarkdownIt {
   const md = new MarkdownIt({
     html: true,
     linkify: true,
-    breaks: false,
+    // 编辑器里的换行所见即所得：单个回车即 <br>，与公众号写作习惯一致
+    breaks: true,
   });
 
   md.use(footnote);
@@ -32,6 +39,8 @@ function createMd(): MarkdownIt {
   md.use(headingPlugin);
   md.use(figurePlugin);
   md.use(tocPlugin);
+  // 放在 toc/figure 之后：它们按相邻 token 模式匹配，先插空段落会打断结构
+  md.use(blankLinePlugin);
   md.use(lineMapPlugin);
 
   md.renderer.rules.fence = (tokens, idx, _options, env: RenderEnv) => {
