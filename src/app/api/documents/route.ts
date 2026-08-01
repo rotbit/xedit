@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { touchDailyActive } from "@/lib/active";
+import { wordCount } from "@/lib/wordCount";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -52,22 +52,17 @@ export async function GET(req: Request) {
     });
     return NextResponse.json(docs);
   }
-  // 列表附带纯文本摘要与字数，正文本身不下发。
-  // 摘要素材与字数都在库内算好：正文全文不出数据库，查询数据量不随文章长度膨胀
-  const rows = await prisma.$queryRaw<
-    { id: string; title: string; category: string; updatedAt: Date; head: string; chars: number }[]
-  >(Prisma.sql`
-    SELECT id, title, category, "updatedAt",
-           LEFT(content, 2000) AS head,
-           length(regexp_replace(content, ${"\\s"}, '', 'g')) AS chars
-    FROM "Document"
-    WHERE "userId" = ${session.user.id}
-      AND "deletedAt" ${trash ? Prisma.sql`IS NOT NULL` : Prisma.sql`IS NULL`}
-    ORDER BY "updatedAt" DESC
-  `);
+  // 列表附带纯文本摘要与字数，正文本身不下发（进程内算完即丢，响应体积不随文章长度膨胀）。
+  // 字数走 wordCount 统一口径，与阅读页/状态栏/统计一致。
+  const docs = await prisma.document.findMany({
+    where: { userId: session.user.id, deletedAt: trash ? { not: null } : null },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true, category: true, updatedAt: true, content: true },
+  });
   return NextResponse.json(
-    rows.map((d) => {
-      const plain = d.head
+    docs.map((d) => {
+      const plain = d.content
+        .slice(0, 2000)
         .replace(/```[\s\S]*?```/g, " ")
         .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
         .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
@@ -80,7 +75,7 @@ export async function GET(req: Request) {
         category: d.category,
         updatedAt: d.updatedAt,
         excerpt: plain.slice(0, 90),
-        chars: d.chars,
+        chars: wordCount(d.content),
       };
     })
   );
