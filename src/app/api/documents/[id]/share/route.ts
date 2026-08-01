@@ -45,7 +45,12 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json(shareJson(share, share ? await countThreads(share.id) : 0));
 }
 
-/** 开启分享：已有链接则复用并把有效期顺延 48 小时（批注不丢），否则生成新 token */
+/** 开启分享。
+ * - 首次或重新开启（含已过期）：生成全新 token，旧链接立刻作废；
+ *   批注靠外键 ON UPDATE CASCADE 跟着新 token 走，不会丢。
+ * - 开启中调用（续期）：沿用当前链接，只把有效期顺延 48 小时——
+ *   已把链接发给审阅人后续期不应换址。
+ */
 export async function POST(_req: Request, { params }: Params) {
   const { id } = await params;
   const doc = await ownedDoc(id);
@@ -55,10 +60,13 @@ export async function POST(_req: Request, { params }: Params) {
 
   const expiresAt = new Date(Date.now() + SHARE_TTL_MS);
   const existing = await prisma.docShare.findUnique({ where: { documentId: id } });
+  const live = existing && existing.enabled && existing.expiresAt.getTime() > Date.now();
   const share = existing
     ? await prisma.docShare.update({
         where: { documentId: id },
-        data: { enabled: true, expiresAt },
+        data: live
+          ? { expiresAt }
+          : { id: randomBytes(16).toString("hex"), enabled: true, expiresAt },
       })
     : await prisma.docShare.create({
         data: {

@@ -50,6 +50,7 @@ export async function POST(req: Request, { params }: Params) {
     ? session?.user?.name?.trim() || "作者"
     : (typeof body.author === "string" && body.author.trim().slice(0, 30)) || "访客";
 
+  const anchorType = body.anchorType === "media" ? "media" : "text";
   // 回复必须挂在本分享的顶级批注下
   if (parentId) {
     const parent = await prisma.shareComment.findFirst({
@@ -58,7 +59,7 @@ export async function POST(req: Request, { params }: Params) {
     });
     if (!parent) return NextResponse.json({ error: "批注不存在" }, { status: 404 });
   } else {
-    const anchorText = typeof body.anchorText === "string" ? body.anchorText.slice(0, 1000) : "";
+    const anchorText = typeof body.anchorText === "string" ? body.anchorText.slice(0, 2000) : "";
     if (!anchorText.trim()) {
       return NextResponse.json({ error: "缺少批注锚点" }, { status: 400 });
     }
@@ -76,9 +77,10 @@ export async function POST(req: Request, { params }: Params) {
       author,
       authorKeyHash: !isOwner && key ? hashGuestKey(key) : "",
       isOwner,
+      anchorType: parentId ? "text" : anchorType,
       anchorText: parentId
         ? ""
-        : (typeof body.anchorText === "string" ? body.anchorText.slice(0, 1000) : ""),
+        : (typeof body.anchorText === "string" ? body.anchorText.slice(0, 2000) : ""),
       anchorPrefix: parentId
         ? ""
         : (typeof body.anchorPrefix === "string" ? body.anchorPrefix.slice(0, 64) : ""),
