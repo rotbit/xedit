@@ -7,6 +7,7 @@ import {
   FolderTree,
   History,
   ImageUp,
+  MessageSquareText,
   PenLine,
   Palette,
   Plug,
@@ -60,8 +61,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       },
       {
         icon: FileDown,
-        title: "四种导出格式",
-        desc: "除了复制，还能导出 Markdown 源文件、独立 HTML、打印版 PDF，以及整篇文章的长图 PNG。",
+        title: "五种导出格式",
+        desc: "除了复制，还能导出 Markdown 源文件、独立 HTML、打印版 PDF、整篇长图 PNG，以及保留完整结构、可直接导入飞书的 Word 文档。",
       },
     ],
   },
@@ -109,6 +110,11 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         icon: Plug,
         title: "MCP 接入 AI 客户端",
         desc: "内置 MCP Server 与自建 OAuth 2.1 授权，Claude 等客户端授权后可以直接列出、检索、新建、改写你的文章与图床。",
+      },
+      {
+        icon: MessageSquareText,
+        title: "分享链接与批注",
+        desc: "生成 48 小时有效的分享链接，读者免登录就能阅读全文，还能选中文字、图片或视频发表批注并回复，像飞书文档一样收集修改意见。",
       },
       {
         icon: Cloud,
@@ -196,7 +202,15 @@ export const FAQ: FaqItem[] = [
   },
   {
     q: "除了公众号，还能发到别的平台吗？",
-    a: "可以。除了「复制到公众号」，还有针对知乎优化的复制模式；也能导出 HTML、Markdown、PDF 和长图 PNG，用于博客、掘金、小红书等其他渠道。",
+    a: "可以。除了「复制到公众号」，还有针对知乎优化的复制模式；也能导出 HTML、Markdown、PDF、长图 PNG 和 Word 文档，用于博客、掘金、小红书、飞书等其他渠道。",
+  },
+  {
+    q: "能把文章导出成 Word 或导入飞书吗？",
+    a: "可以。导出菜单里选「导出 Word」会生成标准 .docx 文件：标题层级、列表、表格、图片、代码块和数学公式全部保留，在飞书云文档里用「导入」上传后就是可编辑的原生文档；视频会以封面帧加播放链接的形式保留，点击即可播放。",
+  },
+  {
+    q: "可以把草稿分享给别人提意见吗？",
+    a: "可以。每篇文章都能生成一个 48 小时有效的分享链接，对方不用注册登录，打开就能读，还能选中一段文字、一张图片甚至一个视频添加批注；你在分享页里可以直接回复，收集意见就像在飞书文档里一样。",
   },
   {
     q: "AI 内容审查会读到我的文章吗？密钥安全吗？",
