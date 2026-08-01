@@ -211,7 +211,7 @@ export function Showcase() {
           "复制到公众号、复制到知乎，两种目标格式分别优化",
           "数学公式先渲染成 SVG，绕开公众号不支持 MathML 的老问题",
           "代码块保留高亮配色，可选 Mac 窗口样式的三个圆点",
-          "也能导出 Markdown、HTML、PDF 与整篇长图 PNG",
+          "也能导出 Markdown、HTML、PDF、长图，以及可导入飞书的 Word",
         ]}
       >
         <InlinePipeline />
