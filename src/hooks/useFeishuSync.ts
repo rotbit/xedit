@@ -42,8 +42,10 @@ export interface FeishuSyncState {
   syncing: boolean;
   /** 首批尚未返回：正在扫描知识库目录（大库这一步要几秒） */
   scanning: boolean;
-  /** 批次请求瞬时失败，正在退避重试 */
-  retrying: boolean;
+  /** 批次请求瞬时失败，正在退避重试（attempt 从 1 计） */
+  retry: { attempt: number; reason: string } | null;
+  /** 已点停止，等循环在安全点退出 */
+  cancelling: boolean;
   /** 正在处理中的文档标题（上一批返回的 nextUp，即当前在跑的这批） */
   current: string[];
   /** 最近完成的文档，新的在前 */
@@ -65,7 +67,8 @@ export interface FeishuSyncState {
 let state: FeishuSyncState = {
   syncing: false,
   scanning: false,
-  retrying: false,
+  retry: null,
+  cancelling: false,
   current: [],
   recent: [],
   progress: null,
@@ -73,6 +76,9 @@ let state: FeishuSyncState = {
   errorAcked: true,
   reconnectRequired: false,
 };
+
+/** 停止请求放在 store 外：它是给循环看的一次性信号，不需要触发渲染 */
+let cancelRequested = false;
 
 const listeners = new Set<() => void>();
 
@@ -111,27 +117,46 @@ export function clearFeishuSyncProgress() {
   if (!state.syncing) emit({ progress: null, recent: [], current: [], error: null });
 }
 
-/** 重试也救不回来的失败：明确的业务错误，或瞬时故障重试次数耗尽 */
+/** 请求停止：循环在安全点（批与批之间、退避等待中）退出，进度保留可续传 */
+export function cancelFeishuSync() {
+  if (!state.syncing || state.cancelling) return;
+  cancelRequested = true;
+  emit({ cancelling: true });
+}
+
+/** 自动重试救不回来的终止：明确的业务错误，或用户手动停止 */
 class SyncAbort extends Error {
   needReconnect: boolean;
-  constructor(message: string, needReconnect = false) {
+  manual: boolean;
+  constructor(message: string, opts: { needReconnect?: boolean; manual?: boolean } = {}) {
     super(message);
-    this.needReconnect = needReconnect;
+    this.needReconnect = opts.needReconnect ?? false;
+    this.manual = opts.manual ?? false;
   }
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** 瞬时故障的退避间隔；服务端滚动发布的切换空档一般也能扛过去 */
-const RETRY_DELAYS_MS = [2000, 5000, 15000];
+/** 小步睡眠：长退避等待中点「停止」也能在半秒内生效 */
+async function backoff(ms: number) {
+  const step = 500;
+  for (let waited = 0; waited < ms && !cancelRequested; waited += step) {
+    await sleep(Math.min(step, ms - waited));
+  }
+}
+
+/** 退避序列；用尽后保持最后一档不放弃，靠持续重试扛过部署、断网这类更长的故障窗口 */
+const RETRY_DELAYS_MS = [2000, 5000, 15000, 30000, 60000];
 
 /**
- * 单批请求：网络错误、非 JSON 响应（代理超时回 HTML）、5xx/429 都按瞬时故障重试；
+ * 单批请求：网络错误、非 JSON 响应（代理超时回 HTML）、5xx/429 都按瞬时故障
+ * 无限退避重试——页面开着同步就不会停，无需手动点继续；「停止」按钮随时可打断。
  * 4xx 的业务错误（未登录/授权失效/参数错）重试无意义，直接终止。
  * 批次在服务端是幂等的——写成功但响应丢了的批，重跑会按「未变动」整篇跳过。
  */
 async function fetchBatch(payload: object): Promise<SyncBatch> {
   for (let attempt = 0; ; attempt++) {
+    if (cancelRequested) throw new SyncAbort("已手动停止", { manual: true });
     let transient: string;
     try {
       const res = await fetch("/api/feishu/sync", {
@@ -143,22 +168,21 @@ async function fetchBatch(payload: object): Promise<SyncBatch> {
         .json()
         .catch(() => null);
       if (res.ok && data) {
-        if (state.retrying) emit({ retrying: false });
+        if (state.retry) emit({ retry: null });
         return data;
       }
       if (data && res.status < 500 && res.status !== 429) {
-        throw new SyncAbort(data.error ?? "同步失败", Boolean(data.needReconnect));
+        throw new SyncAbort(data.error ?? "同步失败", {
+          needReconnect: Boolean(data.needReconnect),
+        });
       }
       transient = data?.error ?? `服务端暂时不可用（HTTP ${res.status}）`;
     } catch (e) {
       if (e instanceof SyncAbort) throw e;
       transient = "网络请求失败";
     }
-    if (attempt >= RETRY_DELAYS_MS.length) {
-      throw new SyncAbort(`${transient}，已自动重试 ${RETRY_DELAYS_MS.length} 次`);
-    }
-    emit({ retrying: true });
-    await sleep(RETRY_DELAYS_MS[attempt]);
+    emit({ retry: { attempt: attempt + 1, reason: transient } });
+    await backoff(RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)]);
   }
 }
 
@@ -169,10 +193,12 @@ export async function startFeishuSync(
   onSynced: () => void
 ): Promise<void> {
   if (state.syncing) return;
+  cancelRequested = false;
   emit({
     syncing: true,
     scanning: true,
-    retrying: false,
+    retry: null,
+    cancelling: false,
     current: [],
     recent: [],
     progress: null,
@@ -219,14 +245,16 @@ export async function startFeishuSync(
     onSynced();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "同步失败";
+    const manual = e instanceof SyncAbort && e.manual;
     // 中断原因固定进面板，不再只有一闪而过的 toast；已同步的批次都已入库，可续传
     emit({
       error: msg,
-      errorAcked: false,
+      // 自己点的停止不用胶囊再提醒
+      errorAcked: manual,
       reconnectRequired: e instanceof SyncAbort && e.needReconnect,
     });
-    toast(msg, "error");
+    toast(manual ? "同步已停止，随时可以继续" : msg, manual ? "info" : "error");
   } finally {
-    emit({ syncing: false, scanning: false, retrying: false, current: [] });
+    emit({ syncing: false, scanning: false, retry: null, cancelling: false, current: [] });
   }
 }
