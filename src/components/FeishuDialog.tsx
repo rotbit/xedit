@@ -5,6 +5,7 @@ import { BookDown, Check, ChevronDown, Copy, Loader2, Unlink, X } from "lucide-r
 import { useEscape } from "@/hooks/useEscape";
 import {
   ackReconnect,
+  cancelFeishuSync,
   clearFeishuSyncProgress,
   isFeishuSyncing,
   startFeishuSync,
@@ -528,10 +529,12 @@ export function FeishuDialog({
                         </span>
                       </p>
                     ) : null}
-                    {syncing && sync.retrying ? (
+                    {syncing && sync.retry ? (
                       <p className="mt-1 flex items-center gap-1.5 text-amber-600/90">
                         <Loader2 size={12} className="shrink-0 animate-spin" />
-                        请求失败，正在自动重试…
+                        <span className="truncate">
+                          连接失败，自动重试中（第 {sync.retry.attempt} 次）：{sync.retry.reason}
+                        </span>
                       </p>
                     ) : null}
                     {sync.recent.length > 0 ? (
@@ -564,13 +567,23 @@ export function FeishuDialog({
                 ) : null}
                 {syncing ? (
                   <p className="mt-2 border-t border-[var(--hairline)] pt-2 text-[11px] text-[var(--ink-faint)]">
-                    关闭本窗口不影响同步，完成后会有提示；关闭或刷新页面会中断，下次同步自动续传
+                    关闭本窗口不影响同步，网络波动会自动重试，完成后有提示；
+                    关闭或刷新页面会中断，下次同步自动续传
                   </p>
                 ) : null}
               </section>
             ) : null}
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {syncing ? (
+                <button
+                  className="flex cursor-pointer items-center rounded-md border border-[var(--hairline-strong)] px-4 py-1.5 text-[13px] text-[var(--ink-soft)] hover:bg-[var(--paper)] disabled:opacity-60"
+                  onClick={cancelFeishuSync}
+                  disabled={sync.cancelling}
+                >
+                  {sync.cancelling ? "停止中…" : "停止"}
+                </button>
+              ) : null}
               <button className={btnPrimary} onClick={runSync} disabled={syncing}>
                 {syncing ? <Loader2 size={13} className="animate-spin" /> : null}
                 {syncing ? "同步中…" : sync.error && progress ? "继续同步" : "开始同步"}

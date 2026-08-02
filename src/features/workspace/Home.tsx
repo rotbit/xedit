@@ -143,7 +143,7 @@ export function Home({ landing }: HomeProps) {
           {feishuSync.syncing ? (
             <>
               <Loader2 size={13} className="animate-spin text-[var(--accent)]" />
-              飞书同步中
+              {feishuSync.retry ? "飞书同步重试中" : "飞书同步中"}
               {feishuSync.progress
                 ? ` ${feishuSync.progress.total - feishuSync.progress.pending}/${feishuSync.progress.total}`
                 : "…"}
