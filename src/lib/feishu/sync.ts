@@ -31,6 +31,10 @@ export interface SyncBatchResult {
   skipped: number;
   unsupported: number;
   failed: { nodeToken: string; title: string; reason: string }[];
+  /** 本批实际写入的文档，前端进度列表用 */
+  items: { title: string; action: "created" | "updated" }[];
+  /** 接下来将处理的文档标题：下一批在跑时前端显示「正在同步 X」 */
+  nextUp: string[];
 }
 
 /** 目录层级 → 分类路径：`飞书知识库/空间名/祖先…`，段内斜杠替换掉，超长丢弃深层级 */
@@ -94,6 +98,8 @@ export async function syncFeishuSpace(
     skipped: 0,
     unsupported: 0,
     failed: [],
+    items: [],
+    nextUp: [],
   };
   if (truncated) {
     result.failed.push({
@@ -140,14 +146,17 @@ export async function syncFeishuSpace(
       const link = linkOf.get(node.nodeToken);
       if (link) {
         const ok = await updateDocument(userId, link.documentId, { title, content, category });
-        if (ok) result.updated++;
-        else result.skipped++; // 文章在回收站（或已没了又被外键清走）：尊重用户删除，不再写
+        if (ok) {
+          result.updated++;
+          result.items.push({ title, action: "updated" });
+        } else result.skipped++; // 文章在回收站（或已没了又被外键清走）：尊重用户删除，不再写
       } else {
         const doc = await createDocument(userId, { title, content, category });
         await prisma.feishuDocLink.create({
           data: { userId, nodeToken: node.nodeToken, documentId: doc.id },
         });
         result.created++;
+        result.items.push({ title, action: "created" });
       }
       await prisma.feishuDocLink.updateMany({
         where: { userId, nodeToken: node.nodeToken },
@@ -163,6 +172,9 @@ export async function syncFeishuSpace(
   }
 
   result.pending = changed.length - processed;
+  result.nextUp = changed
+    .slice(processed, processed + BATCH_DOCS)
+    .map((n) => n.title.trim() || "未命名文档");
   result.done = result.pending === 0;
   if (result.done) {
     await prisma.feishuConnection.updateMany({
