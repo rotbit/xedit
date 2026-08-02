@@ -486,7 +486,7 @@ export function FeishuDialog({
               )}
             </section>
 
-            {syncing || progress ? (
+            {syncing || progress || sync.error ? (
               <section className="rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-4 py-3 text-[12px] leading-5 text-[var(--ink-soft)]">
                 {sync.scanning ? (
                   <p className="flex items-center gap-2">
@@ -528,6 +528,12 @@ export function FeishuDialog({
                         </span>
                       </p>
                     ) : null}
+                    {syncing && sync.retrying ? (
+                      <p className="mt-1 flex items-center gap-1.5 text-amber-600/90">
+                        <Loader2 size={12} className="shrink-0 animate-spin" />
+                        请求失败，正在自动重试…
+                      </p>
+                    ) : null}
                     {sync.recent.length > 0 ? (
                       <ul className="mt-1.5 space-y-0.5 text-[var(--ink-faint)]">
                         {sync.recent.slice(0, 4).map((it, i) => (
@@ -551,6 +557,11 @@ export function FeishuDialog({
                     ) : null}
                   </>
                 ) : null}
+                {!syncing && sync.error ? (
+                  <p className={`text-red-600/90 ${progress ? "mt-1.5" : ""}`}>
+                    同步已中断：{sync.error}。已同步的内容都已保存，点「继续同步」从断点继续。
+                  </p>
+                ) : null}
                 {syncing ? (
                   <p className="mt-2 border-t border-[var(--hairline)] pt-2 text-[11px] text-[var(--ink-faint)]">
                     关闭本窗口不影响同步，完成后会有提示；关闭或刷新页面会中断，下次同步自动续传
@@ -562,7 +573,7 @@ export function FeishuDialog({
             <div className="flex justify-end">
               <button className={btnPrimary} onClick={runSync} disabled={syncing}>
                 {syncing ? <Loader2 size={13} className="animate-spin" /> : null}
-                {syncing ? "同步中…" : "开始同步"}
+                {syncing ? "同步中…" : sync.error && progress ? "继续同步" : "开始同步"}
               </button>
             </div>
 
