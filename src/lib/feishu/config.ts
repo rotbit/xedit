@@ -11,8 +11,11 @@ export const FEISHU = {
   tokenUrl: "https://accounts.feishu.cn/oauth/v3/token",
   /** OpenAPI 根 */
   apiBase: "https://open.feishu.cn/open-apis",
-  /** 请求的用户身份权限：读知识库结构、读 docx 内容、下载文档图片、发 refresh_token */
-  scope: "wiki:wiki:readonly docx:document:readonly drive:drive:readonly offline_access",
+  /** 请求的用户身份权限：读知识库结构、读 docx 内容、下载文档图片、发 refresh_token。
+   *  图片下载用细粒度的 docs:document.media:download 而非 drive:drive:readonly——
+   *  后者是需审核权限（要企业管理员批），前者免审、开通即生效，两者都能调「下载素材」。 */
+  scope:
+    "wiki:wiki:readonly docx:document:readonly docs:document.media:download offline_access",
 } as const;
 
 /** OAuth 回调地址：随部署域名走（复用 MCP OAuth 的 publicOrigin 推导）。
