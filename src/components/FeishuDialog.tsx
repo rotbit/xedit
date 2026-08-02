@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { BookDown, Check, ChevronDown, Copy, Loader2, Unlink, X } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
+import {
+  ackReconnect,
+  clearFeishuSyncProgress,
+  isFeishuSyncing,
+  startFeishuSync,
+  useFeishuSync,
+} from "@/hooks/useFeishuSync";
 import { toast } from "./Toast";
 import { openAuth } from "./AuthDialog";
 
@@ -27,27 +34,6 @@ interface ConnectionView {
 interface SpaceOption {
   id: string;
   name: string;
-}
-
-interface SyncBatch {
-  done: boolean;
-  total: number;
-  pending: number;
-  created: number;
-  updated: number;
-  skipped: number;
-  unsupported: number;
-  failed: { nodeToken: string; title: string; reason: string }[];
-}
-
-/** 跨轮次累计的同步进度（skipped/unsupported/total 取最后一轮的全量口径） */
-interface Progress {
-  created: number;
-  updated: number;
-  skipped: number;
-  pending: number;
-  total: number;
-  failed: SyncBatch["failed"];
 }
 
 const btnPrimary =
@@ -129,7 +115,10 @@ function Guide({ callbackUrl, defaultOpen }: { callbackUrl: string; defaultOpen:
           <ol className="mb-3 list-decimal space-y-1 pl-4">
             <li>点「连接飞书」，在弹出的飞书官方页面登录并点「授权」，弹窗会自动关闭；</li>
             <li>回到本窗口，在下拉框里选择要导入的知识库；</li>
-            <li>点「开始同步」等进度走完。之后飞书里有更新，再来点一次即可——只会同步有改动的文档。</li>
+            <li>
+              点「开始同步」。同步期间可以关掉本窗口（完成后会有提示），但请别关闭或刷新页面；
+              中断了也没关系，下次同步会跳过没改动的文档、自动续传。之后飞书里有更新，再来点一次即可。
+            </li>
           </ol>
           <p className="mb-1 font-medium text-[var(--ink)]">同步规则</p>
           <ul className="space-y-1 pl-1">
@@ -168,15 +157,16 @@ export function FeishuDialog({
   const [savingApp, setSavingApp] = useState(false);
   const [spaces, setSpaces] = useState<SpaceOption[] | null>(null);
   const [spaceId, setSpaceId] = useState("");
-  const [syncing, setSyncing] = useState(false);
-  const [progress, setProgress] = useState<Progress | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
-  const syncingRef = useRef(false);
+  // 同步循环与进度在模块层跑：关掉对话框不打断，重开还能接上
+  const sync = useFeishuSync();
+  const syncing = sync.syncing;
+  const progress = sync.progress;
   // 焦点回落会重新拉状态，此时别把用户还没保存的凭证草稿冲掉
   const appDirtyRef = useRef(false);
   // origin 只有浏览器里才有；服务端快照给空串，避免水合不一致
   const callbackUrl = useSyncExternalStore(subscribeNoop, getCallbackUrl, () => "");
-  useEscape(onClose, !syncing);
+  useEscape(onClose);
 
   const markAppDirty = useCallback(() => {
     appDirtyRef.current = true;
@@ -216,11 +206,12 @@ export function FeishuDialog({
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.origin === window.location.origin && e.data?.type === "xedit-feishu-connected") {
+        ackReconnect();
         void loadConnection();
       }
     };
     const onFocus = () => {
-      if (!syncingRef.current) void loadConnection();
+      if (!isFeishuSyncing()) void loadConnection();
     };
     window.addEventListener("message", onMessage);
     window.addEventListener("focus", onFocus);
@@ -236,9 +227,13 @@ export function FeishuDialog({
     setSpaces(null);
   }, []);
 
+  // 同步循环发现授权失效时在 store 里留了标记（对话框可能当时是关着的），
+  // 这里把它并进「已连接」判定，重新授权成功后由 postMessage 回调清除
+  const connected = Boolean(conn?.connected) && !sync.reconnectRequired;
+
   // 已连接时拉取可选的知识空间列表
   useEffect(() => {
-    if (!conn?.connected) return;
+    if (!connected) return;
     let cancelled = false;
     (async () => {
       try {
@@ -260,7 +255,7 @@ export function FeishuDialog({
     return () => {
       cancelled = true;
     };
-  }, [conn?.connected, handleReconnect]);
+  }, [connected, handleReconnect]);
 
   const saveApp = async () => {
     if (!appId.trim()) {
@@ -308,7 +303,7 @@ export function FeishuDialog({
       if (!res.ok) throw new Error();
       setConn((c) => (c ? { ...c, connected: false, feishuName: "" } : c));
       setSpaces(null);
-      setProgress(null);
+      clearFeishuSyncProgress();
       toast("已断开授权（应用凭证、已导入文章与同步记录都保留）", "success");
     } catch {
       toast("断开失败", "error");
@@ -317,65 +312,23 @@ export function FeishuDialog({
     }
   };
 
-  const runSync = async () => {
+  const runSync = () => {
     const space = spaces?.find((s) => s.id === spaceId);
     if (!space) {
       toast("请先选择要导入的知识库", "error");
       return;
     }
-    setSyncing(true);
-    syncingRef.current = true;
-    const acc: Progress = { created: 0, updated: 0, skipped: 0, pending: 0, total: 0, failed: [] };
-    // 本轮失败的节点回传给服务端跳过，坏文档不会每一批都重试、卡住进度
-    const skip: string[] = [];
-    try {
-      // 服务端每次只处理一小批（避免超时），循环直到 done；300 轮上限只是防御死循环
-      for (let round = 0; round < 300; round++) {
-        const res = await fetch("/api/feishu/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ spaceId: space.id, spaceName: space.name, skip }),
-        });
-        const data: SyncBatch & { error?: string; needReconnect?: boolean } = await res.json();
-        if (!res.ok) {
-          if (data.needReconnect) handleReconnect();
-          throw new Error(data.error ?? "同步失败");
-        }
-        for (const f of data.failed) {
-          if (f.nodeToken) skip.push(f.nodeToken);
-          // 截断提示这类无 token 条目可能每轮重复出现，去重后再入列表
-          if (!acc.failed.some((x) => x.nodeToken === f.nodeToken && x.title === f.title)) {
-            acc.failed.push(f);
-          }
-        }
-        acc.created += data.created;
-        acc.updated += data.updated;
-        acc.skipped = data.skipped + data.unsupported;
-        acc.pending = data.pending;
-        acc.total = data.total;
-        setProgress({ ...acc, failed: [...acc.failed] });
-        if (data.done) break;
-      }
-      toast(
-        acc.created + acc.updated > 0
-          ? `同步完成：新增 ${acc.created} 篇，更新 ${acc.updated} 篇`
-          : "同步完成：内容没有变化",
-        "success"
-      );
+    // 完成回调即使对话框已关闭也有效：onSynced 属于外层工作台，loadConnection 卸载后是空操作
+    void startFeishuSync(space, () => {
       onSynced();
       void loadConnection();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "同步失败", "error");
-    } finally {
-      setSyncing(false);
-      syncingRef.current = false;
-    }
+    });
   };
 
   return (
     <div
       className="fixed inset-0 z-[95] flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
-      onClick={() => !syncing && onClose()}
+      onClick={onClose}
     >
       <div
         className="flex max-h-[92vh] w-[520px] max-w-[94vw] flex-col overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
@@ -415,7 +368,7 @@ export function FeishuDialog({
               去登录
             </button>
           </div>
-        ) : !conn?.connected ? (
+        ) : !conn || !connected ? (
           <div className="flex flex-col gap-5 overflow-y-auto px-5 py-5">
             {/* 第一步：账号自己的飞书应用凭证 */}
             <section>
@@ -533,29 +486,81 @@ export function FeishuDialog({
               )}
             </section>
 
-            {progress ? (
+            {syncing || progress ? (
               <section className="rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-4 py-3 text-[12px] leading-5 text-[var(--ink-soft)]">
-                <p>
-                  新增 {progress.created} · 更新 {progress.updated} · 跳过 {progress.skipped}
-                  {syncing ? ` · 待处理 ${progress.pending}` : ""}（共 {progress.total} 篇）
-                </p>
-                {progress.failed.length > 0 ? (
-                  <ul className="mt-1.5 space-y-0.5 text-red-600/90">
-                    {progress.failed.slice(0, 5).map((f, i) => (
-                      <li key={i} className="truncate">
-                        失败：{f.title} — {f.reason}
-                      </li>
-                    ))}
-                    {progress.failed.length > 5 ? (
-                      <li>…另有 {progress.failed.length - 5} 篇失败</li>
+                {sync.scanning ? (
+                  <p className="flex items-center gap-2">
+                    <Loader2 size={13} className="shrink-0 animate-spin text-[var(--accent)]" />
+                    正在扫描知识库目录、同步第一批文档…
+                  </p>
+                ) : progress ? (
+                  <>
+                    {/* 进度 = 已核对的文档（未变动的跳过也算），分母是库里全部文档 */}
+                    <div className="mb-2 flex items-center gap-2.5">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
+                        <div
+                          className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
+                          style={{
+                            width: `${
+                              progress.total > 0
+                                ? Math.round(
+                                    ((progress.total - progress.pending) / progress.total) * 100
+                                  )
+                                : 100
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <span className="shrink-0 text-[11px] text-[var(--ink-faint)] [font-family:var(--mono)]">
+                        {progress.total - progress.pending}/{progress.total}
+                      </span>
+                    </div>
+                    <p>
+                      新增 {progress.created} · 更新 {progress.updated} · 跳过 {progress.skipped}
+                      {syncing ? ` · 待处理 ${progress.pending}` : ""}
+                    </p>
+                    {syncing && sync.current.length > 0 ? (
+                      <p className="mt-1 flex items-center gap-1.5 text-[var(--ink)]">
+                        <Loader2 size={12} className="shrink-0 animate-spin text-[var(--accent)]" />
+                        <span className="truncate">
+                          正在同步：{sync.current[0]}
+                          {sync.current.length > 1 ? ` 等 ${sync.current.length} 篇` : ""}
+                        </span>
+                      </p>
                     ) : null}
-                  </ul>
+                    {sync.recent.length > 0 ? (
+                      <ul className="mt-1.5 space-y-0.5 text-[var(--ink-faint)]">
+                        {sync.recent.slice(0, 4).map((it, i) => (
+                          <li key={i} className="truncate">
+                            {it.action === "created" ? "新增" : "更新"}：{it.title}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {progress.failed.length > 0 ? (
+                      <ul className="mt-1.5 space-y-0.5 text-red-600/90">
+                        {progress.failed.slice(0, 5).map((f, i) => (
+                          <li key={i} className="truncate">
+                            失败：{f.title} — {f.reason}
+                          </li>
+                        ))}
+                        {progress.failed.length > 5 ? (
+                          <li>…另有 {progress.failed.length - 5} 篇失败</li>
+                        ) : null}
+                      </ul>
+                    ) : null}
+                  </>
+                ) : null}
+                {syncing ? (
+                  <p className="mt-2 border-t border-[var(--hairline)] pt-2 text-[11px] text-[var(--ink-faint)]">
+                    关闭本窗口不影响同步，完成后会有提示；关闭或刷新页面会中断，下次同步自动续传
+                  </p>
                 ) : null}
               </section>
             ) : null}
 
             <div className="flex justify-end">
-              <button className={btnPrimary} onClick={() => void runSync()} disabled={syncing}>
+              <button className={btnPrimary} onClick={runSync} disabled={syncing}>
                 {syncing ? <Loader2 size={13} className="animate-spin" /> : null}
                 {syncing ? "同步中…" : "开始同步"}
               </button>
