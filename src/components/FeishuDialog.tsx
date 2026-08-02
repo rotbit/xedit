@@ -104,8 +104,8 @@ function Guide({ callbackUrl, defaultOpen }: { callbackUrl: string; defaultOpen:
               「权限管理」里申请 4 个<b>用户身份</b>权限：
               <code className={codeCls}>wiki:wiki:readonly</code>、
               <code className={codeCls}>docx:document:readonly</code>、
-              <code className={codeCls}>drive:drive:readonly</code>、
-              <code className={codeCls}>offline_access</code>；
+              <code className={codeCls}>docs:document.media:download</code>、
+              <code className={codeCls}>offline_access</code>（都是免审权限，开通即生效）；
             </li>
             <li>
               「安全设置 → 重定向 URL」里添加：
@@ -122,7 +122,7 @@ function Guide({ callbackUrl, defaultOpen }: { callbackUrl: string; defaultOpen:
                 </button>
               </span>
             </li>
-            <li>创建版本并发布应用（企业管理员审核通过后权限才生效）；</li>
+            <li>创建版本并发布应用（首次配置需要发一次版让应用启用；上面的权限本身开通即生效）；</li>
             <li>把「凭证与基础信息」里的 App ID / App Secret 填到上方并保存。</li>
           </ol>
           <p className="mb-1 font-medium text-[var(--ink)]">日常操作</p>
@@ -172,9 +172,16 @@ export function FeishuDialog({
   const [progress, setProgress] = useState<Progress | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const syncingRef = useRef(false);
+  // 焦点回落会重新拉状态，此时别把用户还没保存的凭证草稿冲掉
+  const appDirtyRef = useRef(false);
   // origin 只有浏览器里才有；服务端快照给空串，避免水合不一致
   const callbackUrl = useSyncExternalStore(subscribeNoop, getCallbackUrl, () => "");
   useEscape(onClose, !syncing);
+
+  const markAppDirty = useCallback(() => {
+    appDirtyRef.current = true;
+    setAppDirty(true);
+  }, []);
 
   const loadConnection = useCallback(async () => {
     try {
@@ -185,10 +192,12 @@ export function FeishuDialog({
       }
       const data: ConnectionView = await res.json();
       setConn(data);
-      setAppId(data.appId);
-      setAppSecret("");
-      setSecretEdited(false);
-      setAppDirty(false);
+      // 有未保存的草稿就只更新连接态，输入框留给用户（切标签复制 Secret 时会触发这里）
+      if (!appDirtyRef.current) {
+        setAppId(data.appId);
+        setAppSecret("");
+        setSecretEdited(false);
+      }
       if (data.connected) setSpaceId((prev) => prev || data.spaceId);
     } catch {
       toast("加载飞书连接状态失败", "error");
@@ -274,6 +283,7 @@ export function FeishuDialog({
       setAppId(data.appId);
       setAppSecret("");
       setSecretEdited(false);
+      appDirtyRef.current = false;
       setAppDirty(false);
       toast("应用凭证已保存", "success");
     } catch (e) {
@@ -419,7 +429,7 @@ export function FeishuDialog({
                 value={appId}
                 onChange={(e) => {
                   setAppId(e.target.value);
-                  setAppDirty(true);
+                  markAppDirty();
                 }}
                 placeholder="cli_ 开头的应用 ID"
               />
@@ -431,7 +441,7 @@ export function FeishuDialog({
                 onChange={(e) => {
                   setAppSecret(e.target.value);
                   setSecretEdited(true);
-                  setAppDirty(true);
+                  markAppDirty();
                 }}
                 placeholder={
                   conn?.secretLast4
