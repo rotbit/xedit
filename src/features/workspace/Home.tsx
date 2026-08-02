@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
-import { useFeishuSync } from "@/hooks/useFeishuSync";
+import { ackSyncError, useFeishuSync } from "@/hooks/useFeishuSync";
 import { createLocalDoc, listLocalDocs } from "@/lib/localDocs";
 import { Toaster, toast } from "@/components/Toast";
 import { openAuth } from "@/components/AuthDialog";
@@ -134,24 +134,37 @@ export function Home({ landing }: HomeProps) {
           已离线 · 改动保存在本地，联网后自动同步
         </div>
       ) : null}
-      {/* 飞书同步在后台跑着而对话框已关：右下角留个进度胶囊，点开回到详情 */}
-      {feishuSync.syncing && !feishuOpen ? (
+      {/* 飞书同步在后台跑着（或悄悄中断了）而对话框已关：右下角留个胶囊，点开回到详情 */}
+      {!feishuOpen && (feishuSync.syncing || (feishuSync.error && !feishuSync.errorAcked)) ? (
         <button
           className="fixed bottom-4 right-4 z-40 flex cursor-pointer items-center gap-2 rounded-full border border-[var(--hairline)] bg-[var(--panel)] px-3.5 py-1.5 text-[12px] text-[var(--ink-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:text-[var(--ink)]"
           onClick={() => setFeishuOpen(true)}
         >
-          <Loader2 size={13} className="animate-spin text-[var(--accent)]" />
-          飞书同步中
-          {feishuSync.progress
-            ? ` ${feishuSync.progress.total - feishuSync.progress.pending}/${feishuSync.progress.total}`
-            : "…"}
+          {feishuSync.syncing ? (
+            <>
+              <Loader2 size={13} className="animate-spin text-[var(--accent)]" />
+              飞书同步中
+              {feishuSync.progress
+                ? ` ${feishuSync.progress.total - feishuSync.progress.pending}/${feishuSync.progress.total}`
+                : "…"}
+            </>
+          ) : (
+            <>
+              <AlertCircle size={13} className="text-red-500" />
+              飞书同步已中断，点击查看
+            </>
+          )}
         </button>
       ) : null}
       <CategoryContextMenu ws={ws} />
       {settingsOpen ? <AiSettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       {feishuOpen ? (
         <FeishuDialog
-          onClose={() => setFeishuOpen(false)}
+          onClose={() => {
+            setFeishuOpen(false);
+            // 打开过对话框就算看过中断提示，胶囊不再提醒（面板里的原因保留）
+            ackSyncError();
+          }}
           onSynced={() => void ws.docActions.refreshDocs()}
         />
       ) : null}
