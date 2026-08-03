@@ -364,14 +364,19 @@ export function ArticleReader({
                   />
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
                     <div className="relative">
+                      {/* 深层级路径太长压垮元信息行：只显末级名，全路径挂在悬停提示里 */}
                       <button
-                        className="flex cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
-                        title="移动到分类"
+                        className="flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
+                        title={`${category || "未分类"}\n点击移动到分类`}
                         onClick={() => setCatMenuOpen((v) => !v)}
                       >
-                        <Folder size={12} />
-                        {category || "未分类"}
-                        <ChevronDown size={11} className="opacity-60" />
+                        <Folder size={12} className="shrink-0" />
+                        <span className="truncate">
+                          {(category || "未分类").includes("/")
+                            ? `…/${(category || "未分类").split("/").pop()}`
+                            : category || "未分类"}
+                        </span>
+                        <ChevronDown size={11} className="shrink-0 opacity-60" />
                       </button>
                       {catMenuOpen ? (
                         <>
