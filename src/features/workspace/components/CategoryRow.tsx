@@ -1,7 +1,15 @@
 "use client";
 
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from "lucide-react";
-import { DROP_HL, UNCATEGORIZED, countCls, rowCls, treeIndent } from "../constants";
+import {
+  DROP_HL,
+  DROP_LINE_BOTTOM,
+  DROP_LINE_TOP,
+  UNCATEGORIZED,
+  countCls,
+  rowCls,
+  treeIndent,
+} from "../constants";
 import { DocRow } from "./DocRow";
 import type { CatNode } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -24,6 +32,10 @@ export function CategoryRow({
   const active = nav.activeCat === node.path && !nav.readingId;
   const hasChildren = node.children.length > 0 || node.docs.length > 0;
   const canManage = node.path !== UNCATEGORIZED;
+  const spot = drag.dropSpot;
+  const zone = spot?.kind === "cat" && spot.key === node.path ? spot.zone : null;
+  const dropCls =
+    zone === "into" ? DROP_HL : zone === "before" ? DROP_LINE_TOP : zone === "after" ? DROP_LINE_BOTTOM : "";
 
   return (
     <div>
@@ -33,9 +45,9 @@ export function CategoryRow({
         {...drag.dropProps(node.path)}
       >
         <div
-          className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(active)} ${
-            drag.dropTarget === node.path ? DROP_HL : ""
-          } ${drag.isDragging({ kind: "cat", path: node.path }) ? "opacity-40" : ""}`}
+          className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(active)} ${dropCls} ${
+            drag.isDragging({ kind: "cat", path: node.path }) ? "opacity-40" : ""
+          }`}
           style={{ paddingLeft: `${6 + treeIndent(depth)}px` }}
           onClick={() => nav.openCategory(node.path)}
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
