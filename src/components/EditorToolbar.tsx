@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Bold,
   Italic,
@@ -15,7 +16,7 @@ import {
   Minus,
   ListTree,
 } from "lucide-react";
-import { Dropdown, menuItemCls } from "./Dropdown";
+import { menuItemCls } from "./Dropdown";
 import type { FormatCommand } from "./MarkdownEditor";
 
 /** 统一的图标尺寸与描边：略细的描边让整条工具栏更秀气、更一致 */
@@ -75,61 +76,100 @@ const TEXT_COLORS = [
   { value: "#92400e", label: "棕" },
 ];
 
-/** 字体颜色按钮：A + 最近用色的色条，点开色板；null = 清除颜色 */
+const PANEL_W = 190;
+
+/** 字体颜色按钮：A + 最近用色的色条，点开色板；null = 清除颜色。
+ *  工具栏是 overflow-x-auto 的滚动容器，普通绝对定位的下拉会被裁掉还把按钮挤得滚动，
+ *  所以色板用 portal 挂到 body、fixed 定位到按钮下方 */
 function ColorPicker({ onPick }: { onPick: (color: string | null) => void }) {
   const [last, setLast] = useState(TEXT_COLORS[0].value);
+  const [panel, setPanel] = useState<{ left: number; top: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const toggle = () => {
+    if (panel) return setPanel(null);
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    // 贴按钮左缘；右侧出屏时往回收
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - PANEL_W - 8));
+    setPanel({ left, top: r.bottom + 6 });
+  };
+
+  // 点面板和按钮以外的地方收起
+  useEffect(() => {
+    if (!panel) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (panelRef.current?.contains(t) || btnRef.current?.contains(t)) return;
+      setPanel(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [panel]);
+
   const pick = (color: string | null) => {
     if (color) setLast(color);
     onPick(color);
   };
+
   return (
-    <Dropdown
-      align="left"
-      width={190}
-      trigger={
-        <button className={btnBase} title="字体颜色">
-          <span className="flex flex-col items-center leading-none">
-            <span className="text-[13px] font-semibold leading-none [font-family:var(--sans)]">
-              A
-            </span>
-            <span
-              className="mt-[2px] h-[3px] w-[14px] rounded-full"
-              style={{ background: last }}
-            />
+    <>
+      <button ref={btnRef} className={btnBase} title="字体颜色" onClick={toggle}>
+        <span className="flex flex-col items-center leading-none">
+          <span className="text-[13px] font-semibold leading-none [font-family:var(--sans)]">
+            A
           </span>
-        </button>
-      }
-    >
-      <div className="grid grid-cols-5 justify-items-center gap-1.5 px-3 pb-2 pt-1">
-        {TEXT_COLORS.map((c) => (
-          <button
-            key={c.value}
-            className="h-6 w-6 cursor-pointer rounded-full border border-black/10 transition-transform duration-100 hover:scale-110"
-            style={{ background: c.value }}
-            title={c.label}
-            onClick={() => pick(c.value)}
-          />
-        ))}
-      </div>
-      {/* 自定义取色要连续调色，点击不收起面板 */}
-      <div
-        className="border-t border-[var(--hairline-soft)] px-3.5 py-1.5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <label className="flex cursor-pointer items-center justify-between gap-2 text-[13px] text-[var(--ink)]">
-          自定义
-          <input
-            type="color"
-            className="h-6 w-9 cursor-pointer rounded border border-[var(--hairline)] bg-transparent p-0"
-            defaultValue={last}
-            onChange={(e) => pick(e.target.value)}
-          />
-        </label>
-      </div>
-      <button className={menuItemCls} onClick={() => pick(null)}>
-        清除颜色
+          <span className="mt-[2px] h-[3px] w-[14px] rounded-full" style={{ background: last }} />
+        </span>
       </button>
-    </Dropdown>
+      {panel
+        ? createPortal(
+            <div
+              ref={panelRef}
+              className="fixed z-[80] rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]"
+              style={{ left: panel.left, top: panel.top, width: PANEL_W }}
+            >
+              <div className="grid grid-cols-5 justify-items-center gap-1.5 px-3 pb-2 pt-1">
+                {TEXT_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    className="h-6 w-6 cursor-pointer rounded-full border border-black/10 transition-transform duration-100 hover:scale-110"
+                    style={{ background: c.value }}
+                    title={c.label}
+                    onClick={() => {
+                      pick(c.value);
+                      setPanel(null);
+                    }}
+                  />
+                ))}
+              </div>
+              {/* 自定义取色要连续调色，选色期间面板保持展开 */}
+              <div className="border-t border-[var(--hairline-soft)] px-3.5 py-1.5">
+                <label className="flex cursor-pointer items-center justify-between gap-2 text-[13px] text-[var(--ink)]">
+                  自定义
+                  <input
+                    type="color"
+                    className="h-6 w-9 cursor-pointer rounded border border-[var(--hairline)] bg-transparent p-0"
+                    defaultValue={last}
+                    onChange={(e) => pick(e.target.value)}
+                  />
+                </label>
+              </div>
+              <button
+                className={menuItemCls}
+                onClick={() => {
+                  pick(null);
+                  setPanel(null);
+                }}
+              >
+                清除颜色
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
   );
 }
 
