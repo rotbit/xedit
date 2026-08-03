@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ALL, UNCATEGORIZED } from "../constants";
-import { buildTree } from "../lib/catTree";
+import { buildTree, findNode } from "../lib/catTree";
+import { reorderList } from "../lib/sidebarOrder";
+import type { CatNode } from "../types";
 import { useAppConfig } from "./useAppConfig";
 import { useAuthMode } from "./useAuthMode";
 import { useCategoryActions } from "./useCategoryActions";
@@ -31,6 +33,40 @@ export function useWorkspace() {
   });
   const docActions = useDocActions({ auth, library, nav });
   const catActions = useCategoryActions({ auth, library, nav });
+
+  // 排序回调在放下那一刻才执行，经 ref 读当次渲染的树（drag hook 先于 tree 构建）
+  const treeRef = useRef<CatNode[]>([]);
+  const parentOf = (path: string) =>
+    path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+  const nameOf = (path: string) =>
+    path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
+
+  /** 分类插到 targetPath 前/后：先记显示顺序（立即生效），跨父级再连带迁移 */
+  const reorderCategory = (path: string, targetPath: string, zone: "before" | "after") => {
+    const parent = parentOf(targetPath);
+    const siblings = parent ? (findNode(treeRef.current, parent)?.children ?? []) : treeRef.current;
+    const names = siblings.map((n) => n.name);
+    const moved = nameOf(path);
+    if (!names.includes(moved)) names.push(moved); // 跨父级迁入
+    const list = reorderList(names, moved, nameOf(targetPath), zone);
+    library.updateOrder((o) => ({ ...o, cats: { ...o.cats, [parent]: list } }));
+    if (parentOf(path) !== parent) void catActions.moveCategory(path, parent);
+  };
+
+  /** 文章插到 targetId 前/后：记录该分类下的手动顺序，跨分类再连带移动 */
+  const reorderDoc = (id: string, targetId: string, zone: "before" | "after") => {
+    const all = library.docs ?? [];
+    const dragged = all.find((d) => d.id === id);
+    const target = all.find((d) => d.id === targetId);
+    if (!dragged || !target) return;
+    const cat = target.category || UNCATEGORIZED;
+    const ids = (findNode(treeRef.current, cat)?.docs ?? []).map((d) => d.id);
+    if (!ids.includes(id)) ids.push(id); // 跨分类迁入
+    const list = reorderList(ids, id, targetId, zone);
+    library.updateOrder((o) => ({ ...o, docs: { ...o.docs, [cat]: list } }));
+    if ((dragged.category || UNCATEGORIZED) !== cat) void docActions.moveDoc(dragged, cat);
+  };
+
   const drag = useDragMove({
     docs: library.docs,
     customCats: library.customCats,
@@ -38,12 +74,21 @@ export function useWorkspace() {
     expandOne: prefs.expandOne,
     moveDoc: docActions.moveDoc,
     moveCategory: catActions.moveCategory,
+    reorderCategory,
+    reorderDoc,
   });
 
-  const { docs, customCats, trashDocs } = library;
+  const { docs, customCats, trashDocs, order } = library;
   const { activeCat, isTrash, search } = nav;
 
-  const tree = useMemo(() => buildTree(docs ?? [], customCats), [docs, customCats]);
+  const tree = useMemo(
+    () => buildTree(docs ?? [], customCats, order),
+    [docs, customCats, order]
+  );
+  // 排序回调只在拖放事件里执行（必然晚于本次渲染的 effect），effect 里同步 ref 足够新鲜
+  useEffect(() => {
+    treeRef.current = tree;
+  }, [tree]);
 
   const totalChars = useMemo(
     () => (docs ?? []).reduce((s, d) => s + (d.chars ?? 0), 0),
