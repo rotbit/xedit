@@ -1,4 +1,5 @@
 import type { FeishuBlock } from "./api";
+import { hexOfFeishuFontColor } from "./colors";
 
 /**
  * 飞书 docx 块树 → Markdown。
@@ -50,6 +51,8 @@ interface TextElementStyle {
   italic?: boolean;
   strikethrough?: boolean;
   inline_code?: boolean;
+  /** 飞书字体色枚举（FontColor 1~7） */
+  text_color?: number;
   link?: { url?: string };
 }
 
@@ -98,6 +101,8 @@ function inline(elements: TextElement[] | undefined): string {
         else if (s.bold) core = `**${core}**`;
         else if (s.italic) core = `*${core}*`;
         if (s.strikethrough) core = `~~${core}~~`;
+        const colorHex = hexOfFeishuFontColor(s.text_color);
+        if (colorHex) core = `<span style="color:${colorHex}">${core}</span>`;
         piece = lead + core + tail;
       }
       if (s.link?.url) piece = `[${piece || "链接"}](${decodeUrl(s.link.url)})`;
