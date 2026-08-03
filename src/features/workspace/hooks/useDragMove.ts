@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ALL, MAX_DEPTH, UNCATEGORIZED } from "../constants";
-import { allCategories } from "../lib/catTree";
+import { ALL, UNCATEGORIZED } from "../constants";
+import { allCategories, canNestCategory } from "../lib/catTree";
 import type { DocMeta, DragItem } from "../types";
 
 /** 拖拽悬停自动展开折叠分类的计时器；同一时刻只有一个拖拽，模块级即可 */
@@ -58,17 +58,8 @@ export function useDragMove({
       if (!doc) return false;
       return (doc.category || UNCATEGORIZED) !== (target === ALL ? UNCATEGORIZED : target);
     }
-    const path = dragItem.path;
     const parent = target === ALL ? "" : target;
-    if (path === UNCATEGORIZED || parent === UNCATEGORIZED) return false;
-    if (parent === path || parent.startsWith(`${path}/`)) return false; // 不能拖进自己或子孙
-    const curParent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-    if (parent === curParent) return false;
-    // 层级上限：落点深度 + 被拖子树的高度不得超过 MAX_DEPTH
-    const height = allCategories(customCats, docs)
-      .filter((c) => c === path || c.startsWith(`${path}/`))
-      .reduce((h, c) => Math.max(h, c.split("/").length - path.split("/").length + 1), 1);
-    return (parent ? parent.split("/").length : 0) + height <= MAX_DEPTH;
+    return canNestCategory(dragItem.path, parent, allCategories(customCats, docs));
   };
 
   /** 拖拽源通用属性（文章卡片 / 列表行 / 侧栏文章行 / 分类行） */
