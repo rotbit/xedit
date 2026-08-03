@@ -8,7 +8,7 @@ import {
   FolderPlus,
   MoreHorizontal,
 } from "lucide-react";
-import { DROP_HL, MAX_DEPTH, UNCATEGORIZED, countCls, rowCls } from "../constants";
+import { DROP_HL, MAX_DEPTH, UNCATEGORIZED, countCls, rowCls, treeIndent } from "../constants";
 import { DocRow } from "./DocRow";
 import type { CatNode } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -44,9 +44,10 @@ export function CategoryRow({
           className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(active)} ${
             drag.dropTarget === node.path ? DROP_HL : ""
           } ${drag.isDragging({ kind: "cat", path: node.path }) ? "opacity-40" : ""}`}
-          style={{ paddingLeft: `${6 + depth * 14}px` }}
+          style={{ paddingLeft: `${6 + treeIndent(depth)}px` }}
           onClick={() => nav.openCategory(node.path)}
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
+          title={node.name}
         >
           <span
             className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] hover:bg-[var(--hairline)]"

@@ -1,7 +1,7 @@
 "use client";
 
 import { FileText, Trash2 } from "lucide-react";
-import { UNCATEGORIZED, rowCls } from "../constants";
+import { UNCATEGORIZED, rowCls, treeIndent } from "../constants";
 import { DocContextMenu } from "./DocContextMenu";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -19,7 +19,7 @@ export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth:
     >
       <button
         className={`flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${rowCls(active)}`}
-        style={{ paddingLeft: `${30 + depth * 14}px` }}
+        style={{ paddingLeft: `${30 + treeIndent(depth)}px` }}
         onClick={() => nav.openDoc(doc.id)}
         onContextMenu={(e) => menus.openDocMenuAt(e, doc.id)}
         title={doc.title}
