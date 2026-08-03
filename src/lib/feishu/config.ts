@@ -16,7 +16,15 @@ export const FEISHU = {
    *  后者是需审核权限（要企业管理员批），前者免审、开通即生效，两者都能调「下载素材」。 */
   scope:
     "wiki:wiki:readonly docx:document:readonly docs:document.media:download offline_access",
+  /** 推送/写回需要的额外写入权限（同样免审）：建知识库节点、写 docx 块、上传图片素材 */
+  scopeWriteExtra: "wiki:wiki docx:document docs:document.media:upload",
 } as const;
+
+/** 判断一串已授予的 scope 是否包含推送所需的全部写入权限 */
+export function hasFeishuWriteScopes(granted: string): boolean {
+  const set = new Set(granted.split(/\s+/));
+  return FEISHU.scopeWriteExtra.split(" ").every((s) => set.has(s));
+}
 
 /** OAuth 回调地址：随部署域名走（复用 MCP OAuth 的 publicOrigin 推导）。
  *  用户需把它配进自己飞书应用的「安全设置 → 重定向 URL」。 */

@@ -57,6 +57,7 @@ export async function PUT(req: Request) {
     refreshTokenEnc?: string;
     feishuOpenId?: string;
     feishuName?: string;
+    scopes?: string;
   } = { appId };
   // Secret：缺省/掩码 → 保留原值；有值 → 加密覆盖
   if (typeof body.appSecret === "string" && body.appSecret !== KEY_MASK) {
@@ -68,6 +69,7 @@ export async function PUT(req: Request) {
     data.refreshTokenEnc = "";
     data.feishuOpenId = "";
     data.feishuName = "";
+    data.scopes = "";
   }
   await prisma.feishuConnection.upsert({
     where: { userId },
@@ -85,7 +87,7 @@ export async function DELETE() {
   }
   await prisma.feishuConnection.updateMany({
     where: { userId: session.user.id },
-    data: { accessTokenEnc: "", refreshTokenEnc: "", feishuOpenId: "", feishuName: "" },
+    data: { accessTokenEnc: "", refreshTokenEnc: "", feishuOpenId: "", feishuName: "", scopes: "" },
   });
   return NextResponse.json({ ok: true });
 }

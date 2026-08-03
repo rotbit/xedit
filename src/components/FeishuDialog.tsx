@@ -92,7 +92,12 @@ function Guide({ callbackUrl, defaultOpen }: { callbackUrl: string; defaultOpen:
               <code className={codeCls}>wiki:wiki:readonly</code>、
               <code className={codeCls}>docx:document:readonly</code>、
               <code className={codeCls}>docs:document.media:download</code>、
-              <code className={codeCls}>offline_access</code>（都是免审权限，开通即生效）；
+              <code className={codeCls}>offline_access</code>（都是免审权限，开通即生效）。
+              如需把 xedit 文章<b>推送/写回</b>飞书，再加 3 个：
+              <code className={codeCls}>wiki:wiki</code>、
+              <code className={codeCls}>docx:document</code>、
+              <code className={codeCls}>docs:document.media:upload</code>（同样免审，
+              首次推送时会引导你重新授权）；
             </li>
             <li>
               「安全设置 → 重定向 URL」里添加：
@@ -127,6 +132,8 @@ function Guide({ callbackUrl, defaultOpen }: { callbackUrl: string; defaultOpen:
             <li>· 文档里的图片自动转存到你的图片库，不再依赖飞书</li>
             <li>· 重复同步是安全的：没改动的整篇跳过，有改动的更新并保留版本历史</li>
             <li>· 导入的文章移入回收站后不再被同步更新；彻底删除后再次同步会重新导入</li>
+            <li>· 文章列表右键「推送到飞书」：已关联的写回原文档（先做冲突检查），
+              未关联的在上面选择的知识库根目录新建文档</li>
             <li>· 仅支持新版云文档；电子表格、多维表格、思维笔记等会以占位提示代替</li>
             <li>· 凭证与授权只属于你的账号：App Secret 与 token 均加密保存在服务端</li>
             <li>· 按飞书安全策略，授权满 365 天需重新连接一次</li>

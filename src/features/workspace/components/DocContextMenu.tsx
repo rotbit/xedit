@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { PenLine, TextCursorInput, Trash2, Folder, FolderPlus } from "lucide-react";
+import { BookUp, PenLine, TextCursorInput, Trash2, Folder, FolderPlus } from "lucide-react";
 import { menuDangerCls, menuItemCls } from "../constants";
 import { allCategories } from "../lib/catTree";
 import type { DocMeta } from "../types";
@@ -23,7 +23,7 @@ export function DocContextMenu({
   doc: DocMeta;
   cat: string;
 }) {
-  const { menus, nav, library, docActions } = ws;
+  const { menus, nav, library, docActions, auth } = ws;
   const anchor = menus.docMenu;
   if (anchor?.id !== doc.id) return null;
 
@@ -84,6 +84,19 @@ export function DocContextMenu({
           <FolderPlus size={13} className="text-[var(--ink-faint)]" />
           新建分类…
         </button>
+        {!auth.localMode ? (
+          <>
+            <div className="my-1 border-t border-[var(--hairline)]" />
+            <button
+              className={menuItemCls}
+              onClick={run(() => void docActions.pushToFeishu(doc))}
+              disabled={docActions.pushingFeishu}
+            >
+              <BookUp size={13} className="text-[var(--ink-faint)]" />
+              推送到飞书
+            </button>
+          </>
+        ) : null}
         <div className="my-1 border-t border-[var(--hairline)]" />
         <button className={menuDangerCls} onClick={run(() => void docActions.removeDoc(doc))}>
           <Trash2 size={13} />

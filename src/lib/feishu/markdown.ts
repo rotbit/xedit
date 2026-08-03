@@ -27,8 +27,9 @@ const B = {
   quoteContainer: 34,
 } as const;
 
-/** code 块 language 数字枚举 → 代码围栏语言标记（常用子集，缺省回落纯文本） */
-const CODE_LANG: Record<number, string> = {
+/** code 块 language 数字枚举 → 代码围栏语言标记（常用子集，缺省回落纯文本）；
+ *  mdToBlocks 反向转换共用（取反做 语言标记 → 枚举） */
+export const CODE_LANG: Record<number, string> = {
   1: "", 7: "bash", 8: "csharp", 9: "cpp", 10: "c", 12: "css", 15: "dart",
   18: "dockerfile", 22: "go", 24: "html", 28: "json", 29: "java", 30: "javascript",
   32: "kotlin", 33: "latex", 36: "lua", 38: "makefile", 39: "markdown", 43: "php",

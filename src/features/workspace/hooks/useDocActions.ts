@@ -33,6 +33,7 @@ export function useDocActions({ auth, library, nav }: Params) {
   const { setDocs, setCustomCats, setTrashDocs } = library;
   const [creating, setCreating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pushingFeishu, setPushingFeishu] = useState(false);
 
   /** 手动刷新：登录态跑一轮完整同步（拉取其他设备 / MCP 客户端的改动），本地模式重读本地库 */
   const refreshDocs = async () => {
@@ -211,9 +212,79 @@ export function useDocActions({ auth, library, nav }: Params) {
     void moveDoc(doc, name.slice(0, 100));
   };
 
+  /** 推送/写回飞书：冲突时确认后强制覆盖；未开写入权限时引导升级授权 */
+  const pushToFeishu = async (doc: DocMeta) => {
+    if (localMode || isLocalId(doc.id)) {
+      toast("本地文章还没上云，登录并同步后才能推送到飞书", "error");
+      return;
+    }
+    if (!online) {
+      toast("离线时无法推送，联网后再试", "error");
+      return;
+    }
+    if (pushingFeishu) return;
+    setPushingFeishu(true);
+    try {
+      await syncNow(); // 先把手上未保存的改动冲上云，推的才是最新内容
+      toast("正在推送到飞书，篇幅长或图片多时需要一点时间…", "info");
+      const push = (force: boolean) =>
+        fetch("/api/feishu/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId: doc.id, force }),
+        });
+      let res = await push(false);
+      let data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.conflict) {
+        const ok = await askConfirm({
+          title: "飞书侧有更新",
+          message: `「${doc.title || "未命名文章"}」在飞书里自上次同步后有改动，继续推送会用 xedit 的内容覆盖飞书侧。要覆盖吗？`,
+          confirmText: "覆盖推送",
+          danger: true,
+        });
+        if (!ok) return;
+        toast("正在覆盖推送…", "info");
+        res = await push(true);
+        data = await res.json().catch(() => ({}));
+      }
+      if (res.status === 403 && data.needWriteAuth) {
+        const ok = await askConfirm({
+          title: "需要开通写入权限",
+          message:
+            "推送需在你的飞书应用「权限管理」里再开通 3 个免审权限：wiki:wiki、docx:document、docs:document.media:upload。开通后点「重新授权」完成升级，再推送一次即可。",
+          confirmText: "重新授权",
+        });
+        if (ok) {
+          window.open(
+            "/api/feishu/authorize?write=1",
+            "xedit-feishu-auth",
+            "width=520,height=680,menubar=no,toolbar=no"
+          );
+        }
+        return;
+      }
+      if (!res.ok) {
+        toast(data.error ?? "推送失败", "error");
+        return;
+      }
+      const extra = data.imageFailed > 0 ? `（${data.imageFailed} 张图片转存失败）` : "";
+      toast(
+        data.action === "created"
+          ? `已推送到飞书知识库${extra}`
+          : `已写回飞书原文档${extra}`,
+        "success"
+      );
+    } catch {
+      toast("推送失败：网络异常", "error");
+    } finally {
+      setPushingFeishu(false);
+    }
+  };
+
   return {
     creating,
     refreshing,
+    pushingFeishu,
     refreshDocs,
     createDoc,
     removeDoc,
@@ -222,6 +293,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     moveDoc,
     renameDoc,
     moveToNewCategory,
+    pushToFeishu,
   };
 }
 

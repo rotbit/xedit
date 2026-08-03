@@ -21,6 +21,8 @@ interface TokenResponse {
   access_token?: string;
   expires_in?: number;
   refresh_token?: string;
+  /** 实际授予的权限列表（空格分隔）；推送前据此判断写入权限 */
+  scope?: string;
 }
 
 async function requestToken(
@@ -54,11 +56,13 @@ async function appCredentials(
   return appSecret ? { appId: conn.appId, appSecret } : null;
 }
 
-/** 授权码换 token 并落库。返回错误文案；null 表示成功 */
+/** 授权码换 token 并落库。返回错误文案；null 表示成功。
+ *  requestedScope 是授权时请求的 scope，token 响应缺 scope 字段时作兜底记录 */
 export async function exchangeFeishuCode(
   userId: string,
   code: string,
-  redirectUri: string
+  redirectUri: string,
+  requestedScope = ""
 ): Promise<string | null> {
   const cred = await appCredentials(userId);
   if (!cred) return "请先在对话框里保存你的飞书应用凭证";
@@ -95,6 +99,7 @@ export async function exchangeFeishuCode(
       accessTokenEnc: encryptSecret(data.access_token),
       refreshTokenEnc: encryptSecret(data.refresh_token ?? ""),
       expiresAt: new Date(Date.now() + (data.expires_in ?? 0) * 1000),
+      scopes: data.scope || requestedScope,
     },
   });
   return null;
@@ -127,6 +132,7 @@ export async function getFeishuAccessToken(userId: string): Promise<string> {
       // 飞书会轮换 refresh_token；未返回时保留旧值
       ...(data.refresh_token ? { refreshTokenEnc: encryptSecret(data.refresh_token) } : {}),
       expiresAt: new Date(Date.now() + (data.expires_in ?? 0) * 1000),
+      ...(data.scope ? { scopes: data.scope } : {}),
     },
   });
   return data.access_token;
