@@ -1,14 +1,7 @@
 "use client";
 
-import {
-  ChevronRight,
-  FilePlus2,
-  Folder,
-  FolderOpen,
-  FolderPlus,
-  MoreHorizontal,
-} from "lucide-react";
-import { DROP_HL, MAX_DEPTH, UNCATEGORIZED, countCls, rowCls, treeIndent } from "../constants";
+import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from "lucide-react";
+import { DROP_HL, UNCATEGORIZED, countCls, rowCls, treeIndent } from "../constants";
 import { DocRow } from "./DocRow";
 import type { CatNode } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -26,12 +19,11 @@ export function CategoryRow({
   node: CatNode;
   depth: number;
 }) {
-  const { nav, prefs, menus, drag, docActions, catActions } = ws;
+  const { nav, prefs, menus, drag } = ws;
   const isOpen = prefs.expanded.has(node.path);
   const active = nav.activeCat === node.path && !nav.readingId;
   const hasChildren = node.children.length > 0 || node.docs.length > 0;
   const canManage = node.path !== UNCATEGORIZED;
-  const canAddChild = node.path.split("/").length < MAX_DEPTH && canManage;
 
   return (
     <div>
@@ -71,30 +63,9 @@ export function CategoryRow({
             {node.count}
           </span>
         </div>
-        <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
-          <button
-            className={`${actionBtn} hover:text-[var(--accent)]`}
-            title={`在「${node.name}」新建文章`}
-            onClick={(e) => {
-              e.stopPropagation();
-              void docActions.createDoc(node.path);
-            }}
-          >
-            <FilePlus2 size={13} />
-          </button>
-          {canAddChild ? (
-            <button
-              className={`${actionBtn} hover:text-[var(--accent)]`}
-              title={`在「${node.name}」下新建子分类`}
-              onClick={(e) => {
-                e.stopPropagation();
-                void catActions.createCategory(node.path);
-              }}
-            >
-              <FolderPlus size={13} />
-            </button>
-          ) : null}
-          {canManage ? (
+        {/* 新建文章/子分类都收进「⋯」菜单：悬停快捷图标会压住长标题 */}
+        {canManage ? (
+          <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
             <button
               className={`${actionBtn} hover:text-[var(--ink)]`}
               title="管理分类"
@@ -102,8 +73,8 @@ export function CategoryRow({
             >
               <MoreHorizontal size={13} />
             </button>
-          ) : null}
-        </span>
+          </span>
+        ) : null}
       </div>
       {isOpen ? (
         <div>
