@@ -340,7 +340,7 @@ export function ArticleReader({
           onPointerEnter={() => setActive("editor")}
         >
           <EditorToolbar
-            onCommand={(cmd) => editorRef.current?.applyFormat(cmd)}
+            onCommand={(cmd, arg) => editorRef.current?.applyFormat(cmd, arg)}
             outlineOpen={outlineOpen}
             onToggleOutline={() => setOutlineOpen((v) => !v)}
             centered={!split}

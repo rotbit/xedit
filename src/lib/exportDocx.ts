@@ -267,6 +267,23 @@ async function prepareMedia(root: HTMLElement, b: Build): Promise<void> {
 
 // —— 行内节点 → TextRun / ImageRun / 超链接 ——
 
+/** 内联 style 的 CSS 颜色 → docx 十六进制（不带 #）；认不出的形态返回 undefined。
+ *  浏览器会把 style 属性里的 hex 规范化成 rgb() 形态，两种都要接 */
+function cssColorToHex(css: string): string | undefined {
+  const rgb = css.match(/^rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+  if (rgb) {
+    return rgb
+      .slice(1, 4)
+      .map((v) => Number(v).toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase();
+  }
+  const hex = css.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!hex) return undefined;
+  const h = hex[1];
+  return (h.length === 3 ? [...h].map((c) => c + c).join("") : h).toUpperCase();
+}
+
 function makeRun(text: string, st: RunStyle): TextRun {
   return new TextRun({
     text,
@@ -376,6 +393,12 @@ function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Build): voi
         out.push(makeRun(el.hasAttribute("checked") ? "☑ " : "☐ ", st));
       }
       return;
+    }
+    case "SPAN": {
+      // 编辑器字体颜色（<span style="color:…">）落进 Word 字色
+      const c = (el as HTMLElement).style?.color;
+      const hex = c ? cssColorToHex(c) : undefined;
+      return recurse(hex ? { ...st, color: hex } : st);
     }
     default:
       return recurse(st);
