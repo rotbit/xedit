@@ -1,5 +1,6 @@
 import MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
+import { feishuFontColorOf } from "./colors";
 import { CODE_LANG } from "./markdown";
 
 /**
@@ -61,6 +62,8 @@ interface ElementStyle {
   italic?: boolean;
   strikethrough?: boolean;
   inline_code?: boolean;
+  /** 飞书字体色枚举（FontColor 1~7） */
+  text_color?: number;
   link?: { url: string };
 }
 
@@ -93,6 +96,7 @@ function run(content: string, style: ElementStyle): TextElement {
   if (style.italic) s.italic = true;
   if (style.strikethrough) s.strikethrough = true;
   if (style.inline_code) s.inline_code = true;
+  if (style.text_color) s.text_color = style.text_color;
   if (style.link) s.link = style.link;
   return {
     text_run: {
@@ -106,6 +110,9 @@ function run(content: string, style: ElementStyle): TextElement {
 function inlineElements(children: Token[] | null): TextElement[] {
   const out: TextElement[] = [];
   const style: ElementStyle = {};
+  // 编辑器字体颜色 <span style="color:…">…</span>：开标签入栈生效，闭标签出栈还原。
+  // 所有 span 一律入栈（含无颜色的），保证闭标签配对不错位
+  const colorStack: (number | undefined)[] = [];
   let linkUrl = "";
   for (const tk of children ?? []) {
     switch (tk.type) {
@@ -154,10 +161,26 @@ function inlineElements(children: Token[] | null): TextElement[] {
       case "hardbreak":
         out.push(run("\n", style));
         break;
-      case "html_inline":
-        if (/^<br\s*\/?>$/i.test(tk.content.trim())) out.push(run("\n", style));
-        else emitText(out, tk.content, style);
+      case "html_inline": {
+        const t = tk.content.trim();
+        if (/^<br\s*\/?>$/i.test(t)) {
+          out.push(run("\n", style));
+        } else if (/^<span\b[^>]*>$/i.test(t)) {
+          colorStack.push(style.text_color);
+          const css = t.match(/color:\s*([^;"']+)/i)?.[1];
+          const mapped = css ? feishuFontColorOf(css) : undefined;
+          if (mapped !== undefined) style.text_color = mapped;
+        } else if (/^<\/span\s*>$/i.test(t)) {
+          if (colorStack.length > 0) {
+            const prev = colorStack.pop();
+            if (prev === undefined) delete style.text_color;
+            else style.text_color = prev;
+          }
+        } else {
+          emitText(out, tk.content, style);
+        }
         break;
+      }
       default:
         if (tk.content) emitText(out, tk.content, style);
     }
