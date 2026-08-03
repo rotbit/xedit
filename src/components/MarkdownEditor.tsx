@@ -60,6 +60,7 @@ export type FormatCommand =
   | "bold"
   | "italic"
   | "strike"
+  | "color"
   | "h1"
   | "h2"
   | "h3"
@@ -73,7 +74,8 @@ export type FormatCommand =
   | "hr";
 
 export interface EditorHandle {
-  applyFormat: (cmd: FormatCommand) => void;
+  /** arg：color 命令的色值（缺省 = 清除颜色），其余命令忽略 */
+  applyFormat: (cmd: FormatCommand, arg?: string) => void;
   view: () => EditorView | null;
   /** 跳转到指定行（0 基） */
   scrollToLine: (line: number) => void;
@@ -157,6 +159,37 @@ function wrapSelection(view: EditorView, before: string, after: string, placehol
         range.from + before.length,
         range.from + before.length + text.length
       ),
+    };
+  });
+  view.dispatch(changes);
+  view.focus();
+}
+
+/** 字体颜色：Markdown 没有颜色语法，用内联 <span style="color:…"> 承载
+ *  （预览、公众号复制链路已放行该形态）。color 传 null 表示清除颜色。
+ *  选区恰好是一个颜色 span、或恰好是其内部文字时，就地改写/剥掉原标签，避免嵌套套娃 */
+function applyColor(view: EditorView, color: string | null) {
+  const openTagOf = (c: string) => `<span style="color:${c}">`;
+  const CLOSE_TAG = "</span>";
+  const { state } = view;
+  const changes = state.changeByRange((range) => {
+    let { from, to } = range;
+    // 选区两侧紧贴着一对颜色标签（比如刚上完色又换色）：扩到整个标签一起改写
+    const beforeText = state.doc.sliceString(Math.max(0, from - 60), from);
+    const openAtLeft = beforeText.match(/<span style="color:[^"]*">$/);
+    if (openAtLeft && state.doc.sliceString(to, to + CLOSE_TAG.length) === CLOSE_TAG) {
+      from -= openAtLeft[0].length;
+      to += CLOSE_TAG.length;
+    }
+    const text = state.doc.sliceString(from, to);
+    const wrapped = text.match(/^<span style="color:[^"]*">([\s\S]*)<\/span>$/);
+    if (color === null && !wrapped) return { range }; // 没颜色可清，原样不动
+    const inner = (wrapped ? wrapped[1] : text) || "有色文字";
+    const open = color === null ? "" : openTagOf(color);
+    const insert = color === null ? inner : `${open}${inner}${CLOSE_TAG}`;
+    return {
+      changes: { from, to, insert },
+      range: EditorSelection.range(from + open.length, from + open.length + inner.length),
     };
   });
   view.dispatch(changes);
@@ -411,7 +444,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         view.scrollDOM.scrollTo({ top, behavior: "smooth" });
       });
     },
-    applyFormat: (cmd: FormatCommand) => {
+    applyFormat: (cmd: FormatCommand, arg?: string) => {
       const view = viewRef.current;
       if (!view) return;
       switch (cmd) {
@@ -421,6 +454,8 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
           return wrapSelection(view, "*", "*", "斜体文字");
         case "strike":
           return wrapSelection(view, "~~", "~~", "删除线");
+        case "color":
+          return applyColor(view, arg ?? null);
         case "code":
           return wrapSelection(view, "`", "`", "code");
         case "h1":

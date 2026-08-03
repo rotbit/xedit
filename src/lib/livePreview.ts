@@ -298,6 +298,36 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
             for (const m of node.node.getChildren("EmphasisMark")) hide(m.from, m.to);
           return;
         }
+        if (name === "HTMLTag") {
+          // 工具栏字体颜色写出的 <span style="color:…">…</span>：
+          // 隐藏首尾标签、中间文字直接上色；光标进入范围才还原源码可编辑
+          const open = state.sliceDoc(node.from, node.to).match(/^<span style="color:([^"]*)">$/);
+          if (!open) return;
+          // 向后找配对的 </span>（中间可能嵌套别的 span，按深度计数）
+          let depth = 1;
+          let close: typeof node.node | null = null;
+          for (let sib = node.node.nextSibling; sib; sib = sib.nextSibling) {
+            if (sib.name !== "HTMLTag") continue;
+            const t = state.sliceDoc(sib.from, sib.to);
+            if (/^<span[\s>]/i.test(t)) depth++;
+            else if (/^<\/span\s*>$/i.test(t) && --depth === 0) {
+              close = sib;
+              break;
+            }
+          }
+          if (!close || caretTouches(caret, node.from, close.to)) return;
+          hide(node.from, node.to);
+          hide(close.from, close.to);
+          if (close.from > node.to) {
+            decos.push(
+              Decoration.mark({ attributes: { style: `color:${open[1]}` } }).range(
+                node.to,
+                close.from
+              )
+            );
+          }
+          return;
+        }
         if (name === "InlineCode") {
           if (!caretTouches(caret, node.from, node.to)) {
             const marks = node.node.getChildren("CodeMark");
