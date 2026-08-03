@@ -21,7 +21,7 @@ export function CategoryTree({ ws }: { ws: Workspace }) {
       <div className="group/cat relative" {...drag.dropProps(ALL)}>
         <div
           className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(rootActive)} ${
-            drag.dropTarget === ALL ? DROP_HL : ""
+            drag.dropSpot?.kind === "cat" && drag.dropSpot.key === ALL ? DROP_HL : ""
           }`}
           style={{ paddingLeft: "6px" }}
           onClick={() => {

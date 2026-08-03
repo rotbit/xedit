@@ -8,6 +8,12 @@ import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
 import { toast } from "@/components/Toast";
 import { TRASH } from "../constants";
 import { mergedCloudList } from "../lib/docSource";
+import {
+  parseSidebarOrder,
+  readLocalOrder,
+  writeLocalOrder,
+  type SidebarOrder,
+} from "../lib/sidebarOrder";
 import type { DocMeta } from "../types";
 
 interface Params {
@@ -25,7 +31,25 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
   const [docs, setDocs] = useState<DocMeta[] | null>(null);
   const [customCats, setCustomCats] = useState<string[]>([]);
   const [trashDocs, setTrashDocs] = useState<DocMeta[] | null>(null);
+  // 侧栏手动排序：本地缓存秒出，登录后被服务端覆盖
+  const [order, setOrder] = useState<SidebarOrder>(readLocalOrder);
   const migratedRef = useRef(false);
+
+  /** 更新排序：本地立即生效并缓存，登录态异步推服务端（失败不打扰，下次改动再带上） */
+  const updateOrder = (mutate: (prev: SidebarOrder) => SidebarOrder) => {
+    setOrder((prev) => {
+      const next = mutate(prev);
+      writeLocalOrder(next);
+      if (loggedIn) {
+        void fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sidebarOrder: next }),
+        }).catch(() => undefined);
+      }
+      return next;
+    });
+  };
 
   // 本地模式：文章与分类都从本地库读；渲染期间带守卫地装载（React 推荐模式）
   const [localLoaded, setLocalLoaded] = useState(false);
@@ -68,6 +92,12 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
           }
         } catch {
           // 忽略脏数据
+        }
+        // 服务端的排序覆盖本地缓存（跨设备一致）；服务端还没存过则保留本地
+        if (st.sidebarOrder && st.sidebarOrder !== "{}") {
+          const remote = parseSidebarOrder(st.sidebarOrder);
+          setOrder(remote);
+          writeLocalOrder(remote);
         }
       })
       .catch(() => undefined);
@@ -135,7 +165,7 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     };
   }, [activeCat, loggedIn]);
 
-  return { docs, setDocs, customCats, setCustomCats, trashDocs, setTrashDocs };
+  return { docs, setDocs, customCats, setCustomCats, trashDocs, setTrashDocs, order, updateOrder };
 }
 
 export type DocLibrary = ReturnType<typeof useDocLibrary>;
