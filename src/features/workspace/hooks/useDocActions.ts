@@ -171,6 +171,10 @@ export function useDocActions({ auth, library, nav }: Params) {
 
   const moveDoc = async (doc: DocMeta, category: string) => {
     const local = localMode || isLocalId(doc.id);
+    // 正在编辑的就是这篇：编辑器 store 里的分类必须同步换掉，
+    // 否则下一次自动保存会带着旧分类整包回写，文章又「跳回」原文件夹
+    const store = useStore.getState();
+    if (store.docId === doc.id) store.setCategory(category);
     // 本地优先：未上云的落本地库，已上云的先落镜像（离线同样生效）再推送
     if (local) updateLocalDoc(doc.id, { category });
     else saveMirrorLocal(doc.id, { category });

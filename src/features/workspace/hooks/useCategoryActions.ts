@@ -1,6 +1,7 @@
 "use client";
 
 import { listLocalDocs, updateLocalDoc, saveLocalCats } from "@/lib/localDocs";
+import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
 import { askInput, askConfirm } from "@/components/PromptDialog";
 import { ALL, MAX_DEPTH, UNCATEGORIZED } from "../constants";
@@ -103,6 +104,13 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     if (nav.activeCat === path || nav.activeCat.startsWith(`${path}/`)) {
       nav.setActiveCat(remap(nav.activeCat));
     }
+    // 正打开的文章在被迁移的子树里：编辑器 store 的分类同步改掉，
+    // 否则下次自动保存会带旧路径回写，把已改名/移动的文件夹又「复活」
+    const store = useStore.getState();
+    if (store.docId) {
+      const cur = store.category || UNCATEGORIZED;
+      if (remap(cur) !== cur) store.setCategory(remap(cur));
+    }
     return true;
   };
 
@@ -182,6 +190,11 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     );
     setCustomCats((prev) => prev.filter((c) => !inSub(c)));
     if (inSub(nav.activeCat)) nav.setActiveCat(ALL);
+    // 同 relocateCategory：别让编辑器的旧分类把删掉的文件夹写回来
+    const store = useStore.getState();
+    if (store.docId && inSub(store.category || UNCATEGORIZED)) {
+      store.setCategory(UNCATEGORIZED);
+    }
     toast("已删除分类", "success");
   };
 
