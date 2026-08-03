@@ -6,8 +6,6 @@ import {
   Loader2,
   Columns2,
   Folder,
-  FolderPlus,
-  Check,
   Copy,
   ChevronDown,
   MoreHorizontal,
@@ -15,6 +13,7 @@ import {
   Share2,
   Trash2,
 } from "lucide-react";
+import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
 import { buildWechatHtml } from "@/lib/copy/wechat";
 import { wordCount } from "@/lib/wordCount";
 import { askInput } from "./PromptDialog";
@@ -81,7 +80,6 @@ export function ArticleReader({
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   // 默认单屏 Markdown 编辑；开启后右侧切出真实主题预览
   const [split, setSplit] = useState(false);
@@ -154,7 +152,6 @@ export function ArticleReader({
 
   /** 移动分类：改 store 即可，持久化走自动保存管线（本地/云端/离线一致） */
   const moveToCategory = (c: string) => {
-    setCatMenuOpen(false);
     if (c === (category || "未分类")) return;
     setCategory(c);
     onCategoryChange?.(c);
@@ -167,6 +164,18 @@ export function ArticleReader({
     )?.trim();
     if (!name) return;
     moveToCategory(name.slice(0, 100));
+  };
+
+  /** 分类几百个且层级深，弹带搜索的选择器（与文章列表右键菜单同款） */
+  const pickCategory = async () => {
+    const target = await askCategoryPick({
+      title: "移动到分类",
+      categories: categories ?? [],
+      current: category || "未分类",
+      createOption: "新建分类并移入…",
+    });
+    if (target === CREATE_CATEGORY) return void moveToNewCategory();
+    if (target) moveToCategory(target);
   };
 
   /** 直接复制到公众号，与编辑页的复制管线一致 */
@@ -363,67 +372,21 @@ export function ArticleReader({
                     }}
                   />
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
-                    <div className="relative">
-                      {/* 深层级路径太长压垮元信息行：只显末级名，全路径挂在悬停提示里 */}
-                      <button
-                        className="flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
-                        title={`${category || "未分类"}\n点击移动到分类`}
-                        onClick={() => setCatMenuOpen((v) => !v)}
-                      >
-                        <Folder size={12} className="shrink-0" />
-                        <span className="truncate">
-                          {(category || "未分类").includes("/")
-                            ? `…/${(category || "未分类").split("/").pop()}`
-                            : category || "未分类"}
-                        </span>
-                        <ChevronDown size={11} className="shrink-0 opacity-60" />
-                      </button>
-                      {catMenuOpen ? (
-                        <>
-                          <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setCatMenuOpen(false)}
-                          />
-                          <div className="absolute left-0 top-[calc(100%+6px)] z-20 max-h-64 w-48 overflow-y-auto rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                            <p className="px-3.5 pb-1 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
-                              移动到分类
-                            </p>
-                            {(categories ?? []).map((c) => {
-                              const current = c === (category || "未分类");
-                              return (
-                                <button
-                                  key={c}
-                                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                                  onClick={() => moveToCategory(c)}
-                                >
-                                  <Folder
-                                    size={13}
-                                    className="shrink-0 text-[var(--ink-faint)]"
-                                  />
-                                  <span className="min-w-0 flex-1 truncate">{c}</span>
-                                  {current ? (
-                                    <Check
-                                      size={13}
-                                      className="shrink-0 text-[var(--accent)]"
-                                    />
-                                  ) : null}
-                                </button>
-                              );
-                            })}
-                            <button
-                              className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                              onClick={() => {
-                                setCatMenuOpen(false);
-                                void moveToNewCategory();
-                              }}
-                            >
-                              <FolderPlus size={13} className="text-[var(--ink-faint)]" />
-                              新建分类…
-                            </button>
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
+                    {/* 深层级路径太长压垮元信息行：只显末级名，全路径挂在悬停提示里；
+                        点击弹带搜索的分类选择器（与文章列表右键菜单同款） */}
+                    <button
+                      className="flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
+                      title={`${category || "未分类"}\n点击移动到分类`}
+                      onClick={() => void pickCategory()}
+                    >
+                      <Folder size={12} className="shrink-0" />
+                      <span className="truncate">
+                        {(category || "未分类").includes("/")
+                          ? `…/${(category || "未分类").split("/").pop()}`
+                          : category || "未分类"}
+                      </span>
+                      <ChevronDown size={11} className="shrink-0 opacity-60" />
+                    </button>
                     <span>·</span>
                     {/* MCP / 其他设备改过、页面自动校新后，在这一格轻提示几秒再回落，不弹 toast */}
                     {refreshedHint ? (
