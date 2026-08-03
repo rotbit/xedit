@@ -327,33 +327,38 @@ body {
   border-radius: 0 0 8px 8px;
 }
 /* 代码块开栏行的语言下拉：替代裸露的 ```lang。
-   悬浮在代码块右上角的小胶囊（开栏行是 position:relative 的容器），
+   嵌在代码块右上角的安静标签（开栏行是 position:relative 的容器）：
+   默认只是块底色上的一枚灰字，悬停才浮出圆角底提示可点，不再是压边的白色浮块；
    开栏行本身留空作块顶留白；光标点到那一行仍会还原 ``` 源码 */
 .cm-live-preview .cm-lp-codefence {
   position: absolute;
   top: 50%;
-  right: 10px;
-  transform: translateY(-38%);
+  right: 12px;
+  transform: translateY(-50%);
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  padding: 1px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--hairline);
-  background: var(--panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: 2px 8px;
+  border-radius: 6px;
+  transition: background-color 0.12s;
+}
+.cm-live-preview .cm-lp-codefence:hover {
+  background: var(--sidebar-active);
 }
 .cm-live-preview .cm-lp-codefence select {
   appearance: none;
   border: none;
   background: transparent;
   padding: 0;
-  color: var(--ink-soft);
+  color: var(--ink-faint);
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   outline: none;
+}
+.cm-live-preview .cm-lp-codefence:hover select {
+  color: var(--ink-soft);
 }
 /* 下拉箭头：边框画的标准 chevron，随 flex 垂直居中（字形三角在不同字体下会歪） */
 .cm-live-preview .cm-lp-codefence::after {
@@ -365,6 +370,7 @@ body {
   border-right: 1.5px solid var(--ink-faint);
   border-bottom: 1.5px solid var(--ink-faint);
   transform: rotate(45deg);
+  opacity: 0.7;
   pointer-events: none;
 }
 
