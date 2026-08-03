@@ -101,6 +101,56 @@ class VideoWidget extends WidgetType {
   }
 }
 
+/** 语言下拉的候选（与飞书导入/导出常见语言对齐）；当前值不在列表时临时并入 */
+const FENCE_LANGS = [
+  "", "bash", "c", "cpp", "csharp", "css", "diff", "dockerfile", "go", "graphql",
+  "html", "java", "javascript", "json", "kotlin", "markdown", "php", "python",
+  "ruby", "rust", "scss", "shell", "sql", "swift", "toml", "typescript", "xml", "yaml",
+];
+
+/** 代码块开栏行（```lang）：光标不在时换成语言下拉，选择即改写围栏语言标记 */
+class CodeLangWidget extends WidgetType {
+  constructor(
+    readonly lang: string,
+    readonly infoFrom: number,
+    readonly infoTo: number
+  ) {
+    super();
+  }
+  eq(other: CodeLangWidget) {
+    return (
+      other.lang === this.lang &&
+      other.infoFrom === this.infoFrom &&
+      other.infoTo === this.infoTo
+    );
+  }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement("span");
+    wrap.className = "cm-lp-codefence";
+    const select = document.createElement("select");
+    select.title = "代码语言";
+    const langs = FENCE_LANGS.includes(this.lang) ? FENCE_LANGS : [this.lang, ...FENCE_LANGS];
+    for (const l of langs) {
+      const opt = document.createElement("option");
+      opt.value = l;
+      opt.textContent = l || "纯文本";
+      if (l === this.lang) opt.selected = true;
+      select.appendChild(opt);
+    }
+    select.addEventListener("mousedown", (e) => e.stopPropagation());
+    select.addEventListener("change", () => {
+      view.dispatch({
+        changes: { from: this.infoFrom, to: this.infoTo, insert: select.value },
+      });
+    });
+    wrap.appendChild(select);
+    return wrap;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
 class HrWidget extends WidgetType {
   eq() {
     return true;
@@ -346,6 +396,30 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
                 ? "cm-lp-code cm-lp-code-last"
                 : "cm-lp-code"
           );
+          // 开栏行换语言下拉、闭栏行隐藏：光标落到该行才还原 ``` 源码
+          const marks = node.node.getChildren("CodeMark");
+          const info = node.node.getChild("CodeInfo");
+          const firstLine = state.doc.lineAt(node.from);
+          if (marks.length > 0 && !caretTouches(caret, firstLine.from, firstLine.to)) {
+            const lang = info ? state.sliceDoc(info.from, info.to).trim() : "";
+            const deco = Decoration.replace({
+              widget: new CodeLangWidget(lang, marks[0].to, firstLine.to),
+            }).range(firstLine.from, firstLine.to);
+            decos.push(deco);
+            atomics.push(deco);
+          }
+          if (marks.length >= 2) {
+            const lastLine = state.doc.lineAt(marks[marks.length - 1].from);
+            if (
+              lastLine.number !== firstLine.number &&
+              lastLine.from < lastLine.to &&
+              !caretTouches(caret, lastLine.from, lastLine.to)
+            ) {
+              const deco = Decoration.replace({}).range(lastLine.from, lastLine.to);
+              decos.push(deco);
+              atomics.push(deco);
+            }
+          }
           return;
         }
         if (name === "ListMark") {
