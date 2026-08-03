@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Folder, FolderUp, Search } from "lucide-react";
+import { Folder, FolderPlus, FolderUp, Search } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
+
+/** 选中「新建分类」入口时的返回哨兵（\0 不可能出现在真实分类名里） */
+export const CREATE_CATEGORY = "\u0000create";
 
 export interface CategoryPickOptions {
   title: string;
@@ -12,6 +15,8 @@ export interface CategoryPickOptions {
   current?: string;
   /** 提供该文案时列表顶部固定一项「顶级」，选中后 resolve 空串（null 仍表示取消） */
   topOption?: string;
+  /** 提供该文案时列表底部固定一项「新建分类」，选中后 resolve CREATE_CATEGORY */
+  createOption?: string;
 }
 
 interface PickState extends CategoryPickOptions {
@@ -105,7 +110,7 @@ export function CategoryPickHost() {
               {state.topOption}
             </button>
           ) : null}
-          {shown.length === 0 ? (
+          {shown.length === 0 && !state.createOption ? (
             <p className="px-3 py-8 text-center text-[12.5px] text-[var(--ink-faint)]">
               没有匹配的分类
             </p>
@@ -142,6 +147,15 @@ export function CategoryPickHost() {
               );
             })
           )}
+          {state.createOption ? (
+            <button
+              className="flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pl-3 pr-3 text-left text-[13px] text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
+              onClick={() => close(CREATE_CATEGORY)}
+            >
+              <FolderPlus size={13} className="shrink-0 text-[var(--ink-faint)]" />
+              {state.createOption}
+            </button>
+          ) : null}
         </div>
         <div className="flex items-center justify-end border-t border-[var(--hairline)] bg-[var(--paper)]/50 px-5 py-2.5">
           <button
