@@ -50,6 +50,13 @@
   --md-code-bg: #f5f2fa;
   /* 语法高亮里代码文字的底色：半透明，选区（画在文字层之下）才透得出来 */
   --md-code-tint: rgb(124 92 191 / 0.07);
+  /* 代码块内的语言 token 配色（即时渲染/源码模式通用） */
+  --code-keyword: #a626a4;
+  --code-string: #3f8e46;
+  --code-comment: #9c948a;
+  --code-number: #b76b01;
+  --code-func: #1e6bb8;
+  --code-type: #0e9285;
   /* 刊物体：标题、报头、卡片名走真正的宋体，透出"稿/刊物"的编辑气质 */
   --serif: "Songti SC", "Source Han Serif SC", "Noto Serif SC", "STSong",
     "SimSun", Georgia, serif;
@@ -110,6 +117,12 @@
   --md-code: #b39ddb;
   --md-code-bg: #2c2534;
   --md-code-tint: rgb(179 157 219 / 0.14);
+  --code-keyword: #d68fd6;
+  --code-string: #8ec98f;
+  --code-comment: #7f786e;
+  --code-number: #e0a458;
+  --code-func: #6ba3e8;
+  --code-type: #4fd0c0;
   color-scheme: dark;
 }
 
@@ -408,7 +421,7 @@ body {
   accent-color: var(--accent);
   cursor: pointer;
 }
-/* 链接文字：淡下划线示意可交互，Cmd+点击打开 */
+/* 链接文字：淡下划线示意可交互，点击打开（⌥+点击进入源码编辑） */
 .cm-live-preview .cm-lp-link {
   cursor: pointer;
   text-decoration: underline;
