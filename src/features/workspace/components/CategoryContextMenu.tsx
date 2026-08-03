@@ -1,7 +1,8 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { FilePlus2, FolderPlus, PenLine, RotateCw, Trash2 } from "lucide-react";
+import { FilePlus2, FolderInput, FolderPlus, PenLine, RotateCw, Trash2 } from "lucide-react";
+import { askCategoryPick } from "@/components/CategoryPickDialog";
 import {
   ALL,
   MAX_DEPTH,
@@ -10,11 +11,12 @@ import {
   menuItemCls,
   menuPanelCls,
 } from "../constants";
+import { allCategories, canNestCategory } from "../lib/catTree";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /** 分类操作菜单（右键 / 「···」共用）：根节点、未分类、普通分类各按能力渲染条目 */
 export function CategoryContextMenu({ ws }: { ws: Workspace }) {
-  const { menus, docActions, catActions } = ws;
+  const { menus, docActions, catActions, library } = ws;
   const anchor = menus.catMenu;
   if (!anchor) return null;
 
@@ -26,6 +28,19 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   const run = (fn: () => void) => () => {
     menus.closeCatMenu();
     fn();
+  };
+
+  /** 文件夹归属到另一个文件夹：选择器只列合法落点（防自嵌套/超长），支持移出到顶级 */
+  const moveViaPicker = async () => {
+    const all = allCategories(library.customCats, library.docs);
+    const name = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
+    const target = await askCategoryPick({
+      title: `移动「${name}」到文件夹`,
+      categories: all.filter((c) => canNestCategory(path, c, all)),
+      topOption: path.includes("/") ? "顶级（移出所有文件夹）" : undefined,
+    });
+    if (target === null) return;
+    void catActions.moveCategory(path, target);
   };
 
   return createPortal(
@@ -63,6 +78,10 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
         {canManage ? (
           <>
             <div className="my-1 border-t border-[var(--hairline)]" />
+            <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
+              <FolderInput size={13} className="text-[var(--ink-faint)]" />
+              移动到文件夹…
+            </button>
             <button
               className={menuItemCls}
               onClick={run(() => void catActions.renameCategory(path))}

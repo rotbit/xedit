@@ -1,14 +1,12 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { BookUp, PenLine, TextCursorInput, Trash2, Folder, FolderPlus } from "lucide-react";
+import { BookUp, PenLine, TextCursorInput, Trash2, FolderInput, FolderPlus } from "lucide-react";
+import { askCategoryPick } from "@/components/CategoryPickDialog";
 import { menuDangerCls, menuItemCls } from "../constants";
 import { allCategories } from "../lib/catTree";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
-
-/** 移动到分类的候选上限，超出部分靠「新建分类…」兜底 */
-const MOVE_TARGET_LIMIT = 12;
 
 /**
  * 文档操作菜单（卡片、列表行与侧栏文章行共用）。portal 到 body：卡片的
@@ -27,13 +25,19 @@ export function DocContextMenu({
   const anchor = menus.docMenu;
   if (anchor?.id !== doc.id) return null;
 
-  const targets = allCategories(library.customCats, library.docs)
-    .filter((c) => c !== cat)
-    .slice(0, MOVE_TARGET_LIMIT);
-
   const run = (fn: () => void) => () => {
     menus.closeDocMenu();
     fn();
+  };
+
+  /** 分类可能有几百个且层级很深，弹带搜索的选择器而不是在菜单里平铺 */
+  const moveViaPicker = async () => {
+    const target = await askCategoryPick({
+      title: `移动「${doc.title || "未命名文章"}」到分类`,
+      categories: allCategories(library.customCats, library.docs),
+      current: cat,
+    });
+    if (target && target !== cat) void docActions.moveDoc(doc, target);
   };
 
   return createPortal(
@@ -64,19 +68,10 @@ export function DocContextMenu({
           <TextCursorInput size={13} className="text-[var(--ink-faint)]" />
           重命名
         </button>
-        <p className="px-3.5 pb-1 pt-1.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
-          移动到分类
-        </p>
-        {targets.map((c) => (
-          <button
-            key={c}
-            className={menuItemCls}
-            onClick={run(() => void docActions.moveDoc(doc, c))}
-          >
-            <Folder size={13} className="shrink-0 text-[var(--ink-faint)]" />
-            <span className="truncate">{c}</span>
-          </button>
-        ))}
+        <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
+          <FolderInput size={13} className="text-[var(--ink-faint)]" />
+          移动到分类…
+        </button>
         <button
           className={menuItemCls}
           onClick={run(() => void docActions.moveToNewCategory(doc))}

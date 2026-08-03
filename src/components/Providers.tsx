@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import type { Session } from "next-auth";
 import { SessionProvider, useSession } from "next-auth/react";
 import { PromptHost, ConfirmHost } from "./PromptDialog";
+import { CategoryPickHost } from "./CategoryPickDialog";
 import { AuthHost } from "./AuthDialog";
 import { CssDialog } from "./CssDialog";
 import { ThemeStudio } from "./ThemeStudio";
@@ -39,6 +40,7 @@ export function Providers({
       {children}
       <PromptHost />
       <ConfirmHost />
+      <CategoryPickHost />
       <AuthHost />
       <CssDialog />
       <ThemeStudio />
