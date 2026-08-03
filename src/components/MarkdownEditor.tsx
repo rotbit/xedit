@@ -114,6 +114,38 @@ const mdHighlight = HighlightStyle.define([
   { tag: tags.contentSeparator, color: "var(--accent)", fontWeight: "700" },
 ]);
 
+/** 代码块内嵌语言的 token 配色：随主题变量明暗切换。
+ *  这些 tag 只由围栏里的嵌套语法树产出，Markdown 自身的标记不受影响 */
+const codeHighlight = HighlightStyle.define([
+  {
+    tag: [tags.keyword, tags.operatorKeyword, tags.modifier, tags.self],
+    color: "var(--code-keyword)",
+  },
+  {
+    tag: [tags.string, tags.special(tags.string), tags.character],
+    color: "var(--code-string)",
+  },
+  {
+    tag: [tags.comment, tags.lineComment, tags.blockComment, tags.docComment],
+    color: "var(--code-comment)",
+    fontStyle: "italic",
+  },
+  {
+    tag: [tags.number, tags.integer, tags.float, tags.bool, tags.null, tags.atom],
+    color: "var(--code-number)",
+  },
+  {
+    tag: [tags.function(tags.variableName), tags.function(tags.propertyName), tags.macroName],
+    color: "var(--code-func)",
+  },
+  { tag: [tags.propertyName, tags.attributeName], color: "var(--code-func)" },
+  {
+    tag: [tags.typeName, tags.className, tags.namespace, tags.definition(tags.typeName)],
+    color: "var(--code-type)",
+  },
+  { tag: [tags.regexp, tags.escape], color: "var(--code-number)" },
+]);
+
 function wrapSelection(view: EditorView, before: string, after: string, placeholderText: string) {
   const { state } = view;
   const changes = state.changeByRange((range) => {
@@ -249,6 +281,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         placeholder("在这里输入…"),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(mdHighlight),
+        syntaxHighlighting(codeHighlight),
         liveCompartment.current.of(liveRef.current ? livePreview : []),
         keymap.of([
           {
