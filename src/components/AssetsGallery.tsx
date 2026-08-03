@@ -49,6 +49,43 @@ function formatSize(bytes: number): string {
 
 const isVideo = (asset: Asset) => asset.mime.startsWith("video/");
 
+const PAGE_SIZE = 24;
+
+interface AssetPage {
+  items: Asset[];
+  total: number;
+  nextCursor: string | null;
+}
+
+async function fetchPage(cursor?: string | null): Promise<AssetPage | null> {
+  const qs = new URLSearchParams({ limit: String(PAGE_SIZE) });
+  if (cursor) qs.set("cursor", cursor);
+  const res = await fetch(`/api/assets?${qs}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** 已加载的列表在组件卸载后留在模块里，切回图片库先用它即时渲染，再后台校验 */
+let galleryCache: { assets: Asset[]; total: number; nextCursor: string | null } | null = null;
+
+/** 缩略图：加载完成前透明，避免图片逐张「啪」地拍上来 */
+function Thumb({ asset }: { asset: Asset }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={asset.url}
+      alt={asset.key}
+      loading="lazy"
+      className={`w-full transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+      ref={(el) => {
+        if (el?.complete) setLoaded(true);
+      }}
+      onLoad={() => setLoaded(true)}
+    />
+  );
+}
+
 export function AssetsGallery({
   ossConfigured,
   onOpenDoc,
@@ -59,34 +96,118 @@ export function AssetsGallery({
 }) {
   // 「同步 OSS 历史」会认领整个 bucket 的无主文件，接口只对管理员开放，按钮也只给管理员看
   const isAdmin = useSession().data?.user?.isAdmin === true;
-  const [assets, setAssets] = useState<Asset[] | null>(null);
+  const [assets, setAssets] = useState<Asset[] | null>(galleryCache?.assets ?? null);
+  const [total, setTotal] = useState(galleryCache?.total ?? 0);
+  const [nextCursor, setNextCursor] = useState(galleryCache?.nextCursor ?? null);
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
   // 每个素材的引用文章缓存；undefined = 尚未查过
   const [usage, setUsage] = useState<Record<string, UsageDoc[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const loadingMoreRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const refresh = useCallback(async () => {
-    const res = await fetch("/api/assets");
-    if (res.ok) setAssets(await res.json());
-    else setAssets([]);
+  // 列数跟随断点（保持旧 columns-2/sm:3/xl:4 的档位）。
+  // 分列用固定的「序号 % 列数」轮转而不是 CSS columns：追加下一页时已有图片不换列不跳动，
+  // 且顺序是横向的——最新的图排第一行，而不是全部竖着堆在左列
+  const [colCount, setColCount] = useState(2);
+  useEffect(() => {
+    const queries = [
+      window.matchMedia("(min-width: 1280px)"),
+      window.matchMedia("(min-width: 640px)"),
+    ];
+    const update = () => setColCount(queries[0].matches ? 4 : queries[1].matches ? 3 : 2);
+    update();
+    queries.forEach((q) => q.addEventListener("change", update));
+    return () => queries.forEach((q) => q.removeEventListener("change", update));
   }, []);
 
+  // 状态一变就回写模块缓存，下次进来直接有图
   useEffect(() => {
+    if (assets !== null) galleryCache = { assets, total, nextCursor };
+  }, [assets, total, nextCursor]);
+
+  /** 回到第一页重新拉（上传 / 同步之后新文件排最前） */
+  const refresh = useCallback(async () => {
+    const page = await fetchPage().catch(() => null);
+    if (!page) {
+      setAssets((prev) => prev ?? []);
+      return;
+    }
+    setAssets(page.items);
+    setTotal(page.total);
+    setNextCursor(page.nextCursor);
+  }, []);
+
+  // 挂载：有缓存就静默校验首页（头部没变则原样保留已加载的列表），没缓存才现拉
+  useEffect(() => {
+    const cached = galleryCache;
     let cancelled = false;
-    void fetch("/api/assets")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list) => {
-        if (!cancelled) setAssets(list);
+    void fetchPage()
+      .then((page) => {
+        if (cancelled) return;
+        if (!page) {
+          if (!cached) setAssets([]);
+          return;
+        }
+        const sameHead =
+          cached &&
+          cached.assets.length >= page.items.length &&
+          page.items.every((it, i) => cached.assets[i]?.id === it.id);
+        if (sameHead) {
+          setTotal(page.total);
+          return;
+        }
+        setAssets(page.items);
+        setTotal(page.total);
+        setNextCursor(page.nextCursor);
       })
       .catch(() => {
-        if (!cancelled) setAssets([]);
+        if (!cancelled && !cached) setAssets([]);
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !nextCursor) return;
+    loadingMoreRef.current = true;
+    try {
+      const page = await fetchPage(nextCursor).catch(() => null);
+      if (!page) return;
+      setAssets((prev) => {
+        const seen = new Set((prev ?? []).map((a) => a.id));
+        return [...(prev ?? []), ...page.items.filter((a) => !seen.has(a.id))];
+      });
+      setTotal(page.total);
+      setNextCursor(page.nextCursor);
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, [nextCursor]);
+
+  // 滚动哨兵：离底部还有一段距离就预取下一页
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !nextCursor) return;
+    const ob = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMore();
+      },
+      { rootMargin: "600px 0px" }
+    );
+    ob.observe(el);
+    return () => ob.disconnect();
+  }, [nextCursor, loadMore]);
+
+  // 大图里按 → 快翻到已加载的末尾时，提前把下一页补上
+  useEffect(() => {
+    if (lightbox !== null && assets && lightbox >= assets.length - 2 && nextCursor) {
+      void loadMore();
+    }
+  }, [lightbox, assets, nextCursor, loadMore]);
 
   // 打开大图时反查这个素材被哪些文章引用（查过的走缓存）
   useEffect(() => {
@@ -169,6 +290,7 @@ export function AssetsGallery({
     const res = await fetch(`/api/assets/${asset.id}`, { method: "DELETE" });
     if (res.ok) {
       setAssets((prev) => prev?.filter((a) => a.id !== asset.id) ?? null);
+      setTotal((t) => Math.max(0, t - 1));
       setLightbox(null);
       toast("已删除", "success");
     } else {
@@ -181,7 +303,7 @@ export function AssetsGallery({
       {/* 工具栏 */}
       <div className="flex items-center gap-3">
         <p className="text-[13px] text-[var(--ink-faint)]">
-          {assets === null ? "加载中…" : `共 ${assets.length} 个文件`}
+          {assets === null ? "加载中…" : `共 ${total} 个文件`}
         </p>
         <span className="flex-1" />
         {isAdmin ? (
@@ -241,72 +363,93 @@ export function AssetsGallery({
           </p>
         </div>
       ) : (
-        <div className="mt-4 columns-2 gap-3 sm:columns-3 xl:columns-4 [&>*]:mb-3">
-          {assets.map((asset, i) => (
-            <div
-              key={asset.id}
-              className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_10px_30px_-8px_rgba(0,0,0,0.25)]"
-              onClick={() => setLightbox(i)}
-            >
-              {isVideo(asset) ? (
-                <div className="relative">
-                  <video src={asset.url} muted playsInline preload="metadata" className="w-full" />
-                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <span className="rounded-full bg-black/45 p-2.5 text-white">
-                      <Play size={16} fill="currentColor" />
-                    </span>
-                  </span>
-                </div>
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={asset.url} alt={asset.key} loading="lazy" className="w-full" />
-              )}
-              {/* 悬停信息层 */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/70 to-black/0 px-3 pb-2 pt-8 transition-transform group-hover:translate-y-0 [@media(hover:none)]:translate-y-0">
-                <div className="pointer-events-auto flex items-center gap-1">
-                  {asset.source === "ai" ? (
-                    <span className="flex items-center gap-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px] text-white">
-                      <Sparkles size={9} />
-                      AI
-                    </span>
-                  ) : null}
-                  <span className="text-[11px] text-white/85">{formatSize(asset.size)}</span>
-                  <span className="flex-1" />
-                  <button
-                    className="cursor-pointer rounded p-1.5 text-white/80 hover:bg-white/20 hover:text-white"
-                    title="复制链接"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      copyText(asset.url, "链接");
-                    }}
-                  >
-                    <Link2 size={13} />
-                  </button>
-                  <button
-                    className="cursor-pointer rounded p-1.5 text-white/80 hover:bg-white/20 hover:text-white"
-                    title="复制 Markdown"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      copyText(`![](${asset.url})`, "Markdown ");
-                    }}
-                  >
-                    <Code2 size={13} />
-                  </button>
-                  <button
-                    className="cursor-pointer rounded p-1.5 text-white/80 hover:bg-red-500/70 hover:text-white"
-                    title="删除"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void removeAsset(asset);
-                    }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+        <>
+          <div className="mt-4 flex items-start gap-3">
+            {Array.from({ length: colCount }, (_, col) => (
+              <div key={col} className="flex min-w-0 flex-1 flex-col gap-3">
+                {assets.map((asset, i) =>
+                  i % colCount === col ? (
+                    <div
+                      key={asset.id}
+                      className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_10px_30px_-8px_rgba(0,0,0,0.25)]"
+                      onClick={() => setLightbox(i)}
+                    >
+                      {isVideo(asset) ? (
+                        <div className="relative">
+                          <video
+                            src={asset.url}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="w-full"
+                          />
+                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                            <span className="rounded-full bg-black/45 p-2.5 text-white">
+                              <Play size={16} fill="currentColor" />
+                            </span>
+                          </span>
+                        </div>
+                      ) : (
+                        <Thumb asset={asset} />
+                      )}
+                      {/* 悬停信息层 */}
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/70 to-black/0 px-3 pb-2 pt-8 transition-transform group-hover:translate-y-0 [@media(hover:none)]:translate-y-0">
+                        <div className="pointer-events-auto flex items-center gap-1">
+                          {asset.source === "ai" ? (
+                            <span className="flex items-center gap-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px] text-white">
+                              <Sparkles size={9} />
+                              AI
+                            </span>
+                          ) : null}
+                          <span className="text-[11px] text-white/85">{formatSize(asset.size)}</span>
+                          <span className="flex-1" />
+                          <button
+                            className="cursor-pointer rounded p-1.5 text-white/80 hover:bg-white/20 hover:text-white"
+                            title="复制链接"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyText(asset.url, "链接");
+                            }}
+                          >
+                            <Link2 size={13} />
+                          </button>
+                          <button
+                            className="cursor-pointer rounded p-1.5 text-white/80 hover:bg-white/20 hover:text-white"
+                            title="复制 Markdown"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyText(`![](${asset.url})`, "Markdown ");
+                            }}
+                          >
+                            <Code2 size={13} />
+                          </button>
+                          <button
+                            className="cursor-pointer rounded p-1.5 text-white/80 hover:bg-red-500/70 hover:text-white"
+                            title="删除"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void removeAsset(asset);
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null
+                )}
               </div>
+            ))}
+          </div>
+          {nextCursor ? (
+            <div
+              ref={sentinelRef}
+              className="flex items-center justify-center gap-2 py-8 text-[12px] text-[var(--ink-faint)]"
+            >
+              <Loader2 size={13} className="animate-spin" /> 加载更多…
             </div>
-          ))}
-        </div>
+          ) : null}
+        </>
       )}
 
       {/* 大图预览 */}
@@ -320,7 +463,7 @@ export function AssetsGallery({
               {assets[lightbox].key.split("/").pop()}
             </span>
             <span className="text-[11.5px] text-white/40">
-              {formatSize(assets[lightbox].size)} · {lightbox + 1}/{assets.length}
+              {formatSize(assets[lightbox].size)} · {lightbox + 1}/{total}
             </span>
             <span className="flex-1" />
             <button
