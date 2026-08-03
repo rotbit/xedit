@@ -271,17 +271,32 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
             for (const m of marks) hide(m.from, m.to);
             if (url) hide(url.from, url.to);
             if (title) hide(title.from, title.to);
-            // 链接文字提示 URL，Cmd/Ctrl+点击打开
+            // 链接文字提示 URL，点击直接打开（⌥+点击进入源码编辑）
             const href = url ? state.sliceDoc(url.from, url.to) : "";
             if (href && marks.length >= 2 && marks[1].from > marks[0].to) {
               decos.push(
                 Decoration.mark({
                   class: "cm-lp-link",
-                  attributes: { "data-lp-href": href, title: `${href}\nCmd+点击打开` },
+                  attributes: { "data-lp-href": href, title: `${href}\n点击打开 · ⌥+点击编辑` },
                 }).range(marks[0].to, marks[1].from)
               );
             }
           }
+          return;
+        }
+        if (name === "URL") {
+          // 裸链接 / 自动链接：Link、Image 里的 URL 已由整体处理，这里只管独立出现的
+          const parent = node.node.parent?.name;
+          if (parent === "Link" || parent === "Image") return;
+          if (caretTouches(caret, node.from, node.to)) return; // 编辑中不拦点击
+          const raw = state.sliceDoc(node.from, node.to);
+          const href = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+          decos.push(
+            Decoration.mark({
+              class: "cm-lp-link",
+              attributes: { "data-lp-href": href, title: "点击打开 · ⌥+点击编辑" },
+            }).range(node.from, node.to)
+          );
           return;
         }
         if (name === "Image") {
@@ -462,7 +477,8 @@ export const livePreview: Extension = [
   EditorView.editorAttributes.of({ class: "cm-live-preview" }),
   EditorView.domEventHandlers({
     mousedown: (e) => {
-      if (!(e.metaKey || e.ctrlKey)) return false;
+      // 链接点击即打开；⌥+点击放行给 CodeMirror 定位光标（还原源码可编辑）
+      if (e.button !== 0 || e.altKey) return false;
       const el = (e.target as HTMLElement).closest?.("[data-lp-href]");
       const href = el?.getAttribute("data-lp-href");
       if (href) {
