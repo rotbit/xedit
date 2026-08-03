@@ -37,18 +37,24 @@ export interface SyncBatchResult {
   nextUp: string[];
 }
 
+/** 导入分类树的根：文章还在这棵子树下就跟随飞书目录，挪出去即视为用户认领 */
+const ROOT_CAT = "飞书知识库";
+
 /** 目录层级 → 分类路径：`飞书知识库/空间名/祖先…`，段内斜杠替换掉，超长丢弃深层级 */
 function buildCategory(spaceName: string, path: string[]): string {
   const segs = [spaceName, ...path]
     .map((s) => s.replaceAll("/", "／").trim().slice(0, 24))
     .filter(Boolean);
-  let out = "飞书知识库";
+  let out = ROOT_CAT;
   for (const seg of segs) {
     if (out.length + 1 + seg.length > 100) break;
     out += `/${seg}`;
   }
   return out;
 }
+
+/** 文章当前是否还在「飞书知识库」镜像子树下 */
+const inMirrorTree = (cat: string): boolean => cat === ROOT_CAT || cat.startsWith(`${ROOT_CAT}/`);
 
 /** 图片转存：同一飞书素材只存一次（按 source 复用），OSS 未配置时直接放弃 */
 function makeImageResolver(userId: string, token: string) {
@@ -114,7 +120,10 @@ export async function syncFeishuSpace(
   result.total = docxNodes.length;
   result.unsupported = nodes.length - docxNodes.length;
 
-  const links = await prisma.feishuDocLink.findMany({ where: { userId } });
+  const links = await prisma.feishuDocLink.findMany({
+    where: { userId },
+    include: { document: { select: { category: true } } },
+  });
   const linkOf = new Map(links.map((l) => [l.nodeToken, l]));
 
   const skip = new Set(skipTokens);
@@ -145,11 +154,13 @@ export async function syncFeishuSpace(
 
       const link = linkOf.get(node.nodeToken);
       if (link) {
-        // 从 xedit 推送出去的文章：拉取更新内容但不动分类（它的家在 xedit 这边）
+        // 分类只在文章仍留在「飞书知识库」镜像子树里时跟随飞书目录；
+        // 推送来源的、以及被用户挪到自己分类下的（视为认领），拉取都只更新内容不动分类
+        const followCategory = link.origin !== "push" && inMirrorTree(link.document.category);
         const ok = await updateDocument(userId, link.documentId, {
           title,
           content,
-          ...(link.origin === "push" ? {} : { category }),
+          ...(followCategory ? { category } : {}),
         });
         if (ok) {
           result.updated++;
