@@ -337,21 +337,17 @@ body {
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  padding: 1px 8px;
+  padding: 1px 9px;
   border-radius: 999px;
   border: 1px solid var(--hairline);
   background: var(--panel);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: border-color 0.15s ease;
-}
-.cm-live-preview .cm-lp-codefence:hover {
-  border-color: var(--hairline-strong);
 }
 .cm-live-preview .cm-lp-codefence select {
   appearance: none;
   border: none;
   background: transparent;
-  padding: 0 2px;
+  padding: 0;
   color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 11px;
@@ -359,17 +355,17 @@ body {
   cursor: pointer;
   outline: none;
 }
+/* 下拉箭头：边框画的标准 chevron，随 flex 垂直居中（字形三角在不同字体下会歪） */
 .cm-live-preview .cm-lp-codefence::after {
-  content: "⌄";
-  margin-left: 2px;
-  color: var(--ink-faint);
-  font-size: 10px;
-  line-height: 1;
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-left: 5px;
+  margin-top: -3px;
+  border-right: 1.5px solid var(--ink-faint);
+  border-bottom: 1.5px solid var(--ink-faint);
+  transform: rotate(45deg);
   pointer-events: none;
-}
-.cm-live-preview .cm-lp-codefence:hover select,
-.cm-live-preview .cm-lp-codefence:hover::after {
-  color: var(--ink);
 }
 
 /* 行内代码：小胶囊（配色来自语法高亮，这里补底色、内衬与圆角） */

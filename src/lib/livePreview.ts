@@ -137,6 +137,10 @@ class CodeLangWidget extends WidgetType {
       if (l === this.lang) opt.selected = true;
       select.appendChild(opt);
     }
+    // 原生 select 会按最长选项撑宽：改成按当前值的实际宽度收紧（等宽字体下 ch 精确，中文按 2ch）
+    const label = this.lang || "纯文本";
+    const units = [...label].reduce((n, ch) => n + (ch.charCodeAt(0) > 127 ? 2 : 1), 0);
+    select.style.width = `${units + 1}ch`;
     select.addEventListener("mousedown", (e) => e.stopPropagation());
     select.addEventListener("change", () => {
       view.dispatch({
