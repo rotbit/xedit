@@ -279,6 +279,8 @@ model FeishuConnection {
   /// 上次同步选择的知识空间（回显与默认值）
   spaceId         String   @default("")
   spaceName       String   @default("")
+  /// 实际授予的 OAuth scope（空串 = 旧的只读授权）；推送前据此判断是否已开写入权限
+  scopes          String   @default("")
   lastSyncAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -295,6 +297,8 @@ model FeishuDocLink {
   document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   /// 上次同步时飞书侧的编辑时间戳（秒），未变则整篇跳过
   objEditTime String   @default("")
+  /// 关联来源：pull=从飞书导入，push=从 xedit 推送——推送来源的拉取时不改分类
+  origin      String   @default("pull")
   syncedAt    DateTime @updatedAt
 
   @@id([userId, nodeToken])

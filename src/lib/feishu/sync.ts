@@ -145,7 +145,12 @@ export async function syncFeishuSpace(
 
       const link = linkOf.get(node.nodeToken);
       if (link) {
-        const ok = await updateDocument(userId, link.documentId, { title, content, category });
+        // 从 xedit 推送出去的文章：拉取更新内容但不动分类（它的家在 xedit 这边）
+        const ok = await updateDocument(userId, link.documentId, {
+          title,
+          content,
+          ...(link.origin === "push" ? {} : { category }),
+        });
         if (ok) {
           result.updated++;
           result.items.push({ title, action: "updated" });

@@ -42,6 +42,28 @@ async function apiGet<T>(
   return body.data as T;
 }
 
+/** 写方向的调用：docx 编辑接口频控更紧（单文档 3 QPS），间隔放大一档 */
+async function apiSend<T>(
+  token: string,
+  method: "POST" | "PATCH" | "DELETE",
+  path: string,
+  payload: unknown
+): Promise<T> {
+  await throttle();
+  await throttle(); // 两个节流槽 = 500ms 间隔
+  const res = await fetch(`${FEISHU.apiBase}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30000),
+  });
+  const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
+  if (!body || body.code !== 0) {
+    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`);
+  }
+  return body.data as T;
+}
+
 // ---- 知识空间 ----
 
 export interface FeishuSpace {
@@ -174,4 +196,147 @@ export async function downloadFeishuMedia(
   if (!res.ok) throw new Error(`图片下载失败: HTTP ${res.status}`);
   const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim();
   return { buffer: Buffer.from(await res.arrayBuffer()), mime };
+}
+
+// ---- 写方向：推送 / 写回 ----
+
+export interface WikiNodeInfo {
+  nodeToken: string;
+  objToken: string;
+  objEditTime: string;
+  spaceId: string;
+  title: string;
+}
+
+interface RawNodeInfo {
+  node_token: string;
+  obj_token: string;
+  obj_edit_time?: string;
+  space_id: string;
+  title?: string;
+}
+
+/** 按节点 token 取单个节点（冲突检查与推送后回读编辑时间用） */
+export async function getWikiNode(token: string, nodeToken: string): Promise<WikiNodeInfo> {
+  const data = await apiGet<{ node?: RawNodeInfo }>(token, "/wiki/v2/spaces/get_node", {
+    token: nodeToken,
+    obj_type: "wiki",
+  });
+  const n = data.node;
+  if (!n) throw new Error("飞书侧找不到该节点");
+  return {
+    nodeToken: n.node_token,
+    objToken: n.obj_token,
+    objEditTime: n.obj_edit_time ?? "",
+    spaceId: n.space_id,
+    title: n.title ?? "",
+  };
+}
+
+/** 在知识空间根下新建一个 docx 节点（推送新文章用） */
+export async function createWikiDocNode(
+  token: string,
+  spaceId: string,
+  title: string
+): Promise<{ nodeToken: string; objToken: string }> {
+  const data = await apiSend<{ node?: RawNodeInfo }>(
+    token,
+    "POST",
+    `/wiki/v2/spaces/${spaceId}/nodes`,
+    { obj_type: "docx", node_type: "origin", title }
+  );
+  if (!data.node) throw new Error("创建知识库节点失败");
+  return { nodeToken: data.node.node_token, objToken: data.node.obj_token };
+}
+
+/** 写回时同步节点标题；失败不致命，调用方自行吞错 */
+export async function renameWikiNode(
+  token: string,
+  spaceId: string,
+  nodeToken: string,
+  title: string
+): Promise<void> {
+  await apiSend(token, "POST", `/wiki/v2/spaces/${spaceId}/nodes/${nodeToken}/update_title`, {
+    title,
+  });
+}
+
+/** 清空某块的子块（整篇覆盖前先清空正文）；分片删避免单次范围过大 */
+export async function deleteDocChildren(
+  token: string,
+  documentId: string,
+  blockId: string,
+  count: number
+): Promise<void> {
+  let remaining = count;
+  while (remaining > 0) {
+    const step = Math.min(remaining, 50);
+    await apiSend(
+      token,
+      "DELETE",
+      `/docx/v1/documents/${documentId}/blocks/${blockId}/children/batch_delete`,
+      { start_index: 0, end_index: step }
+    );
+    remaining -= step;
+  }
+}
+
+/** 创建嵌套块：一次调用写入一批顶层块及其子树（列表嵌套、表格单元格都靠它） */
+export async function createDocDescendants(
+  token: string,
+  documentId: string,
+  blockId: string,
+  index: number,
+  childrenId: string[],
+  descendants: unknown[]
+): Promise<void> {
+  await apiSend(
+    token,
+    "POST",
+    `/docx/v1/documents/${documentId}/blocks/${blockId}/descendants`,
+    { children_id: childrenId, index, descendants }
+  );
+}
+
+/** 上传图片素材，挂到指定 image 块名下；返回 file_token */
+export async function uploadFeishuMedia(
+  token: string,
+  buffer: Buffer,
+  mime: string,
+  imageBlockId: string
+): Promise<string> {
+  await throttle();
+  await throttle();
+  const ext = mime.split("/")[1]?.split("+")[0] || "png";
+  const form = new FormData();
+  form.set("file_name", `image.${ext}`);
+  form.set("parent_type", "docx_image");
+  form.set("parent_node", imageBlockId);
+  form.set("size", String(buffer.byteLength));
+  form.set("file", new Blob([new Uint8Array(buffer)], { type: mime }), `image.${ext}`);
+  const res = await fetch(`${FEISHU.apiBase}/drive/v1/medias/upload_all`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+    signal: AbortSignal.timeout(60000),
+  });
+  const body = (await res.json().catch(() => null)) as ApiEnvelope<{
+    file_token?: string;
+  }> | null;
+  if (!body || body.code !== 0 || !body.data?.file_token) {
+    throw new Error(`图片上传失败：${body?.msg ?? `HTTP ${res.status}`}`);
+  }
+  return body.data.file_token;
+}
+
+/** 把上传好的素材 token 填进空 image 块 */
+export async function fillImageBlock(
+  token: string,
+  documentId: string,
+  imageBlockId: string,
+  fileToken: string
+): Promise<void> {
+  await apiSend(token, "PATCH", `/docx/v1/documents/${documentId}/blocks/${imageBlockId}`, {
+    replace_image: { token: fileToken },
+  });
 }
