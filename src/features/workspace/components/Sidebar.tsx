@@ -24,11 +24,27 @@ export function Sidebar({
   const { nav, prefs, library, docActions, totalChars } = ws;
   const { docs } = library;
 
+  /** 右缘手柄拖拽调宽：过程中只改状态，松手才落盘 */
+  const onResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = prefs.sidebarWidth;
+    const onMove = (ev: PointerEvent) => prefs.setSidebarWidth(startW + ev.clientX - startX, false);
+    const onUp = (ev: PointerEvent) => {
+      prefs.setSidebarWidth(startW + ev.clientX - startX);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 flex w-[248px] shrink-0 flex-col bg-[var(--sidebar)] transition-transform duration-200 md:static md:translate-x-0 ${
+      className={`fixed inset-y-0 left-0 z-40 flex max-w-[85vw] shrink-0 flex-col bg-[var(--sidebar)] transition-transform duration-200 md:relative md:translate-x-0 ${
         prefs.sidebarOpen ? "" : "-translate-x-full md:hidden"
       }`}
+      style={{ width: prefs.sidebarWidth }}
     >
       <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
         <span className="text-[15px] font-semibold tracking-wide [font-family:var(--serif)]">
@@ -91,6 +107,14 @@ export function Sidebar({
 
       <CategoryTree ws={ws} />
       <SidebarFooter ws={ws} onOpenSettings={onOpenSettings} onOpenFeishu={onOpenFeishu} />
+
+      {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}
+      <div
+        className="absolute inset-y-0 -right-px z-10 hidden w-[5px] cursor-col-resize hover:bg-[var(--accent)]/25 active:bg-[var(--accent)]/40 md:block"
+        title="拖动调整侧栏宽度，双击恢复默认"
+        onPointerDown={onResizeStart}
+        onDoubleClick={prefs.resetSidebarWidth}
+      />
     </aside>
   );
 }

@@ -9,6 +9,11 @@ const K_SIDEBAR = "xedit-sidebar-open";
 const K_EXPANDED = "xedit-cat-expanded";
 const K_ROOT = "xedit-root-open";
 const K_VIEW = "xedit-doc-view";
+const K_WIDTH = "xedit-sidebar-width";
+
+export const SIDEBAR_DEFAULT_W = 248;
+const SIDEBAR_MIN_W = 200;
+const SIDEBAR_MAX_W = 420;
 
 /**
  * 侧栏与列表的展示偏好，全部本地记忆：
@@ -42,6 +47,21 @@ export function useSidebarPrefs() {
     if (typeof window === "undefined") return "card";
     return readLocal(K_VIEW) === "list" ? "list" : "card";
   });
+
+  const [sidebarWidth, setSidebarWidthState] = useState(() => {
+    if (typeof window === "undefined") return SIDEBAR_DEFAULT_W;
+    const n = Number(readLocal(K_WIDTH));
+    return Number.isFinite(n) ? clampWidth(n) : SIDEBAR_DEFAULT_W;
+  });
+
+  /** 拖拽过程中高频调用不落盘（persist=false），松手时那次再写 */
+  const setSidebarWidth = (px: number, persist = true) => {
+    const w = clampWidth(px);
+    setSidebarWidthState(w);
+    if (persist) writeLocal(K_WIDTH, String(w));
+  };
+
+  const resetSidebarWidth = () => setSidebarWidth(SIDEBAR_DEFAULT_W);
 
   const persistExpanded = (next: Set<string>) => {
     setExpanded(next);
@@ -110,7 +130,14 @@ export function useSidebarPrefs() {
     toggleRoot,
     docView,
     switchDocView,
+    sidebarWidth,
+    setSidebarWidth,
+    resetSidebarWidth,
   };
+}
+
+function clampWidth(px: number): number {
+  return Math.round(Math.min(Math.max(px, SIDEBAR_MIN_W), SIDEBAR_MAX_W));
 }
 
 export type SidebarPrefs = ReturnType<typeof useSidebarPrefs>;
