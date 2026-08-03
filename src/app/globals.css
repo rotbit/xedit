@@ -326,6 +326,35 @@ body {
 .cm-live-preview .cm-line.cm-lp-code-last::before {
   border-radius: 0 0 8px 8px;
 }
+/* 代码块开栏行的语言下拉：替代裸露的 ```lang，选择即改写围栏标记 */
+.cm-live-preview .cm-lp-codefence {
+  display: inline-flex;
+  align-items: center;
+}
+.cm-live-preview .cm-lp-codefence select {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+.cm-live-preview .cm-lp-codefence::after {
+  content: "⌄";
+  margin-left: 1px;
+  color: var(--ink-faint);
+  font-size: 10px;
+  pointer-events: none;
+}
+.cm-live-preview .cm-lp-codefence:hover select,
+.cm-live-preview .cm-lp-codefence:hover::after {
+  color: var(--ink);
+}
+
 /* 行内代码：小胶囊（配色来自语法高亮，这里补底色、内衬与圆角） */
 .cm-live-preview .cm-lp-ic {
   position: relative;
