@@ -7,6 +7,7 @@ import {
   List,
   Loader2,
   PanelLeftOpen,
+  X,
 } from "lucide-react";
 import { ALL, ASSETS, STATS } from "../constants";
 import type { DocMeta } from "../types";
@@ -26,7 +27,7 @@ const VIEW_MODES: [DocView, typeof LayoutGrid, string][] = [
 /** 面包屑：阅读态显示「全部文章 / 分类 / 标题」，列表态显示当前分类路径 */
 function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | null }) {
   const { nav } = ws;
-  const { activeCat, readingId, isTrash, openCategory } = nav;
+  const { activeCat, readingId, isTrash, openCategory, setReadingId } = nav;
 
   if (readingDoc) {
     return (
@@ -44,6 +45,14 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
         ) : null}
         {sep}
         <span className={crumbNow}>{readingDoc.title || "未命名文章"}</span>
+        {/* 关闭文章：回到打开前所在的目录列表 */}
+        <button
+          className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+          title="关闭文章"
+          onClick={() => setReadingId(null)}
+        >
+          <X size={14} />
+        </button>
       </>
     );
   }
