@@ -12,8 +12,16 @@ export function isVirtualCat(path: string): boolean {
 /** 无分类文章的归属；同时是保留名，不允许用户新建同名分类 */
 export const UNCATEGORIZED = "未分类";
 
-/** 分类树最大层级 */
-export const MAX_DEPTH = 3;
+/** 分类树最大层级：飞书知识库导入的目录树实际会到 5~6 层，上限须容得下 */
+export const MAX_DEPTH = 6;
+
+/** 树缩进：前两层每层 14px 保留层级感，更深每层只加 6px 并封顶——
+ *  否则深层级把标题挤到只剩几个字（数据里可能存在超过 MAX_DEPTH 的历史路径，故仍设总上限） */
+export function treeIndent(depth: number): number {
+  const full = Math.min(depth, 2);
+  const compact = Math.max(depth - 2, 0);
+  return Math.min(full * 14 + compact * 6, 76);
+}
 
 /** 拖拽悬停时落点行的高亮样式 */
 export const DROP_HL = "bg-[var(--accent-wash)] shadow-[inset_0_0_0_1.5px_var(--accent)]";
