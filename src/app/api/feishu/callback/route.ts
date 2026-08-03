@@ -23,6 +23,7 @@ setTimeout(function () { window.close(); }, 1200);
   });
   // 与设置时相同的 path 才能删掉
   res.cookies.set("feishu_oauth_state", "", { path: "/api/feishu", maxAge: 0 });
+  res.cookies.set("feishu_oauth_scope", "", { path: "/api/feishu", maxAge: 0 });
   return res;
 }
 
@@ -46,7 +47,8 @@ export async function GET(req: NextRequest) {
   const err = await exchangeFeishuCode(
     session.user.id,
     code,
-    feishuRedirectUri(publicOrigin(req))
+    feishuRedirectUri(publicOrigin(req)),
+    req.cookies.get("feishu_oauth_scope")?.value ?? ""
   );
   if (err) return resultPage(false, `${err}，请回到 xedit 重试。`);
   return resultPage(true, "已连接飞书，此窗口即将自动关闭。");
