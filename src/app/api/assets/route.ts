@@ -5,16 +5,38 @@ import { adminSessionUserId } from "@/lib/admin";
 import { ossConfigured, ossList, ossUrlOf } from "@/lib/oss";
 import { MIME_BY_EXT } from "@/lib/media";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
-  const assets = await prisma.asset.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
+  const where = { userId: session.user.id };
+  const { searchParams } = new URL(req.url);
+  const limitParam = searchParams.get("limit");
+  // 不带 limit 保持旧的全量数组形态，桌面端等旧调用方不受影响
+  if (!limitParam) {
+    const assets = await prisma.asset.findMany({ where, orderBy: { createdAt: "desc" } });
+    return NextResponse.json(assets);
+  }
+  const limit = Math.min(Math.max(Number(limitParam) || 24, 1), 100);
+  const cursor = searchParams.get("cursor");
+  const [rows, total] = await Promise.all([
+    prisma.asset.findMany({
+      where,
+      // createdAt 可能同秒重复，补 id 兜底保证 cursor 顺序稳定
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    }),
+    prisma.asset.count({ where }),
+  ]);
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  return NextResponse.json({
+    items,
+    total,
+    nextCursor: hasMore ? items[items.length - 1].id : null,
   });
-  return NextResponse.json(assets);
 }
 
 /** 同步 OSS 历史文件：把 xedit/ 前缀下未入库的对象补录到当前账号。
