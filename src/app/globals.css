@@ -26,10 +26,14 @@
   --seal: #c0392b;
   --seal-deep: #a53125;
   --seal-wash: #faeae7;
-  /* 选区半透明：选区画在文字之下，纯色 #e4e4e4 压在代码块灰底（--sidebar）上几乎看不出，
-     用透明度叠加才能在正文、代码块、引用块上都看得见选中范围 */
-  --cm-selection: rgb(23 23 23 / 0.14);
+  /* 选区半透明：选区画在文字之下，且必须选中性灰——纯黑压在深色代码卡上会隐身，
+     半透明中灰在白纸和炭黑代码窗上都看得见选中范围 */
+  --cm-selection: rgb(127 127 127 / 0.35);
   --cm-active-line: #f5f5f5;
+  /* 代码块深色终端卡：日间也用炭黑底，代码像嵌在纸面上的一扇终端小窗 */
+  --codeblock-bg: #1c1c1c;
+  --codeblock-fg: #dcdad6;
+  --codeblock-faint: #8f8d89;
   /* 热力图色阶：未活跃 → 高产 */
   --heat-0: #efe9e2;
   --heat-1: #f3d9d4;
@@ -101,6 +105,8 @@
   --seal-wash: #3b211b;
   --cm-selection: rgb(255 255 255 / 0.16);
   --cm-active-line: #222222;
+  /* 夜间代码卡比面板再深一档，保持“终端窗”的辨识度 */
+  --codeblock-bg: #111112;
   --heat-0: #292520;
   --heat-1: #43261f;
   --heat-2: #6b3527;
@@ -198,6 +204,11 @@ body {
 .cm-editor .cm-cursor {
   border-left-color: var(--accent);
   border-left-width: 2px;
+  /* 墨色光标进深色代码卡会隐身：包一圈半透白描边，白纸上不可见，炭黑底上勾出轮廓 */
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.55);
+}
+[data-theme="dark"] .cm-editor .cm-cursor {
+  box-shadow: none;
 }
 .cm-editor .cm-selectionBackground,
 .cm-editor.cm-focused .cm-selectionBackground {
@@ -284,7 +295,7 @@ body {
   border-left: 2px solid var(--hairline-strong);
   color: var(--ink-soft);
 }
-/* 代码块：等宽字体 + 体系灰底 + 统一内衬。
+/* 代码块：深色终端卡——日间也用炭黑底，代码像嵌在纸面上的一扇终端小窗。
    底色一律画在伪元素上并压到 z-index -3——drawSelection 画的选区是 .cm-scroller 里的
    负层级（-2），直接给 .cm-line / 行内 span 上背景会盖住它：选中后看不见高亮，
    用起来就像“代码块选不中、复制不了”。伪元素比选区层更低一层，选区才浮得上来。 */
@@ -292,33 +303,44 @@ body {
   position: relative;
   font-family: var(--mono);
   font-size: 13px;
-  padding-left: 18px;
-  padding-right: 18px;
+  padding-left: 20px;
+  padding-right: 20px;
+  color: var(--codeblock-fg);
+  /* 卡内 token 配色固定走深色系（与夜间主题同一套，调整时两处同步）；
+     行内代码不在 .cm-lp-code 行里，不受这组覆盖影响 */
+  --md-code: #e6e4e1;
+  --md-code-tint: transparent;
+  --code-keyword: #d68fd6;
+  --code-string: #8ec98f;
+  --code-comment: #8a827a;
+  --code-number: #e0a458;
+  --code-func: #6ba3e8;
+  --code-type: #4fd0c0;
 }
 .cm-live-preview .cm-line.cm-lp-code::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -3;
-  background: var(--sidebar);
+  background: var(--codeblock-bg);
 }
 /* 围栏行（``` 与语言标记）弱化成结构注记，不再像裸露的符号 */
 .cm-live-preview .cm-line.cm-lp-code-first,
 .cm-live-preview .cm-line.cm-lp-code-last {
   font-size: 11px;
-  color: var(--ink-faint);
+  color: var(--codeblock-faint);
 }
 .cm-live-preview .cm-line.cm-lp-code-first {
-  padding-top: 8px;
+  padding-top: 10px;
 }
 .cm-live-preview .cm-line.cm-lp-code-first::before {
-  border-radius: 8px 8px 0 0;
+  border-radius: 10px 10px 0 0;
 }
 .cm-live-preview .cm-line.cm-lp-code-last {
-  padding-bottom: 8px;
+  padding-bottom: 10px;
 }
 .cm-live-preview .cm-line.cm-lp-code-last::before {
-  border-radius: 0 0 8px 8px;
+  border-radius: 0 0 10px 10px;
 }
 /* 代码块开栏行的语言下拉：替代裸露的 ```lang。
    嵌在代码块右上角的安静标签（开栏行是 position:relative 的容器）：
@@ -337,14 +359,14 @@ body {
   transition: background-color 0.12s;
 }
 .cm-live-preview .cm-lp-codefence:hover {
-  background: var(--sidebar-active);
+  background: rgb(255 255 255 / 0.09);
 }
 .cm-live-preview .cm-lp-codefence select {
   appearance: none;
   border: none;
   background: transparent;
   padding: 0;
-  color: var(--ink-faint);
+  color: var(--codeblock-faint);
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
@@ -352,7 +374,7 @@ body {
   outline: none;
 }
 .cm-live-preview .cm-lp-codefence:hover select {
-  color: var(--ink-soft);
+  color: var(--codeblock-fg);
 }
 /* 下拉箭头：边框画的标准 chevron，随 flex 垂直居中（字形三角在不同字体下会歪） */
 .cm-live-preview .cm-lp-codefence::after {
@@ -361,8 +383,8 @@ body {
   height: 5px;
   margin-left: 5px;
   margin-top: -3px;
-  border-right: 1.5px solid var(--ink-faint);
-  border-bottom: 1.5px solid var(--ink-faint);
+  border-right: 1.5px solid var(--codeblock-faint);
+  border-bottom: 1.5px solid var(--codeblock-faint);
   transform: rotate(45deg);
   opacity: 0.7;
   pointer-events: none;
