@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { Check, MessageSquarePlus, RotateCcw, Trash2, X } from "lucide-react";
 import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
@@ -21,70 +19,34 @@ import {
   type AnchorInput,
   type AnchorRange,
 } from "./anchors";
-import { isVideoUrl } from "@/lib/media";
 import { Toaster, toast } from "@/components/Toast";
 import { loadIdentity, saveIdentityName, type GuestIdentity } from "./identity";
 import type { AnchorType, ShareCommentJson, SharePayload } from "./types";
-
-/** 高亮与批注 UI 自身的样式（正文主题之外） */
-const ANNO_CSS = `
-#nice .xe-anno { background-color: rgba(250, 173, 20, 0.24); border-bottom: 2px solid rgba(224, 152, 8, 0.8); cursor: pointer; }
-#nice .xe-anno-active { background-color: rgba(250, 173, 20, 0.45); }
-#nice img.xe-anno-media, #nice video.xe-anno-media { outline: 3px solid rgba(245, 166, 35, 0.65); outline-offset: 2px; }
-#nice img.xe-anno-media { cursor: pointer; }
-#nice img.xe-anno-active, #nice video.xe-anno-active { outline-color: rgba(224, 144, 8, 0.95); }
-`;
+import { ANNO_CSS } from "./lib/constants";
+import { ArticleHeader } from "./components/ArticleHeader";
+import { OutlineNav } from "./components/OutlineNav";
+import { CommentSidebar } from "./components/CommentSidebar";
+import { AnnotationOverlay } from "./components/AnnotationOverlay";
 
 /** 待提交的批注锚点（文字选区或媒体） */
-interface PendingAnchor extends AnchorInput {
+export interface PendingAnchor extends AnchorInput {
   type: AnchorType;
 }
 
-/** 引用区：文字锚点截取原文，媒体锚点显示缩略图/类型标签 */
-function AnchorQuote({ anchorType, anchorText }: { anchorType: AnchorType; anchorText: string }) {
-  if (anchorType === "media") {
-    const video = isVideoUrl(anchorText);
-    return (
-      <span className="flex min-w-0 items-center gap-1.5 border-l-2 border-amber-400 pl-2 text-[12px] text-[var(--ink-faint)]">
-      {video ? null : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={anchorText} alt="" className="h-6 w-6 shrink-0 rounded object-cover" />
-      )}
-      {video ? "视频" : "图片"}
-      </span>
-    );
-  }
-  return (
-    <span className="min-w-0 flex-1 truncate border-l-2 border-amber-400 pl-2 text-[12px] text-[var(--ink-faint)]">
-      {anchorText}
-    </span>
-  );
-}
-
-interface Thread {
+export interface Thread {
   root: ShareCommentJson;
   replies: ShareCommentJson[];
   range: AnchorRange | null;
 }
 
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  const diff = Date.now() - d.getTime();
-  if (diff < 60_000) return "刚刚";
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`;
-  return d.toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }) +
-    " " + d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-}
-
-/** 距失效的剩余时长文案 */
-function fmtRemaining(expiresAt: string): string {
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  if (ms <= 0) return "已失效";
-  const hours = Math.floor(ms / 3600_000);
-  if (hours >= 1) return `${hours} 小时后失效`;
-  return `${Math.max(1, Math.floor(ms / 60_000))} 分钟后失效`;
-}
+/** 选区「批注」浮动按钮的位置与锚点 */
+export type SelBtnState = { x: number; y: number; anchor: AnchorInput & AnchorRange } | null;
+/** 媒体「批注」浮标的位置与锚点 */
+export type MediaBtnState = { x: number; y: number; anchor: AnchorInput; video: boolean } | null;
+/** 新批注编辑卡的位置与待提交锚点 */
+export type ComposerState = { x: number; y: number; anchor: PendingAnchor } | null;
+/** 线程面板的定位坐标 */
+export type PanelPos = { x: number; y: number } | null;
 
 export function SharedArticle(props: SharePayload) {
   const {
@@ -98,16 +60,10 @@ export function SharedArticle(props: SharePayload) {
   const [mathReady, setMathReady] = useState(false);
   const [ranges, setRanges] = useState<Map<string, AnchorRange | null>>(new Map());
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null);
-  const [selBtn, setSelBtn] = useState<{
-    x: number; y: number; anchor: AnchorInput & AnchorRange;
-  } | null>(null);
-  const [mediaBtn, setMediaBtn] = useState<{
-    x: number; y: number; anchor: AnchorInput; video: boolean;
-  } | null>(null);
-  const [composer, setComposer] = useState<{
-    x: number; y: number; anchor: PendingAnchor;
-  } | null>(null);
+  const [panelPos, setPanelPos] = useState<PanelPos>(null);
+  const [selBtn, setSelBtn] = useState<SelBtnState>(null);
+  const [mediaBtn, setMediaBtn] = useState<MediaBtnState>(null);
+  const [composer, setComposer] = useState<ComposerState>(null);
   const [guestName, setGuestName] = useState("");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -463,52 +419,13 @@ export function SharedArticle(props: SharePayload) {
       <style>{ANNO_CSS}</style>
 
       {/* 顶栏 */}
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4">
-        <Link href="/" className="text-[15px] font-bold tracking-tight text-[var(--ink)]">
-          xedit
-        </Link>
-        <span className="text-[12px] text-[var(--ink-faint)]">文章分享</span>
-        <span className="flex-1" />
-        <span className="hidden text-[12px] text-[var(--ink-faint)] sm:block">
-          {fmtRemaining(expiresAt)}
-        </span>
-        {allowComment ? (
-          <span className="hidden rounded-full bg-[var(--accent-wash)] px-2.5 py-0.5 text-[12px] text-[var(--ink-soft)] sm:block">
-            {openCount > 0 ? `${openCount} 条批注` : "选中文字即可批注"}
-          </span>
-        ) : null}
-        <Link
-          href="/"
-          className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90"
-        >
-          用 xedit 写作
-        </Link>
-      </header>
+      <ArticleHeader expiresAt={expiresAt} allowComment={allowComment} openCount={openCount} />
 
       {/* 内容区（body 是 overflow-hidden，这里自建滚动） */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-[1060px] justify-center gap-8 px-4 py-8">
           {/* 大纲（桌面）：从渲染结果提取 h1~h3，点击平滑跳转 */}
-          {outline.length > 0 ? (
-            <nav className="hidden w-[190px] shrink-0 lg:block">
-              <div className="sticky top-0 pt-1">
-                <p className="mb-3 text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">大纲</p>
-                <div className="flex flex-col gap-0.5">
-                  {outline.map((h, i) => (
-                    <button
-                      key={`${i}-${h.text}`}
-                      className="cursor-pointer truncate rounded-md px-2 py-1 text-left text-[12px] leading-relaxed text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-                      style={{ paddingLeft: 8 + (h.level - 1) * 14 }}
-                      title={h.text}
-                      onClick={() => jumpToHeading(i)}
-                    >
-                      {h.text}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </nav>
-          ) : null}
+          {outline.length > 0 ? <OutlineNav outline={outline} onJump={jumpToHeading} /> : null}
           {/* 文章列：与编辑器预览一致的手机阅读宽度 */}
           <div ref={wrapRef} className="relative w-full max-w-[440px]">
             <div className="light-lock rounded-xl bg-white px-2.5 py-6 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)]">
@@ -536,295 +453,41 @@ export function SharedArticle(props: SharePayload) {
               {allowComment ? " · 选中文字或点击图片、视频即可批注" : ""}
             </p>
 
-            {/* 选中后的「批注」浮动按钮 */}
-            {selBtn && !composer ? (
-              <button
-                className="absolute z-30 flex -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full bg-[var(--ink)] py-1.5 pl-2.5 pr-3 text-[12px] font-medium text-[var(--panel)] shadow-lg hover:opacity-90"
-                style={{ left: selBtn.x, top: selBtn.y }}
-                onPointerDown={(e) => e.preventDefault() /* 保住选区 */}
-                onClick={() => {
-                  // 位置在这里就钳好（渲染期不许读 ref）
-                  const width = wrapRef.current?.clientWidth ?? 440;
-                  setComposer({
-                    y: selBtn.y,
-                    x: Math.min(Math.max(8, selBtn.x - 150), width - 308),
-                    anchor: { ...selBtn.anchor, type: "text" },
-                  });
-                  setDraft("");
-                  setActiveId(null);
-                  setPanelPos(null);
-                }}
-              >
-                <MessageSquarePlus size={13} />
-                批注
-              </button>
-            ) : null}
-
-            {/* 悬停/点按图片视频出现的「批注」浮标 */}
-            {mediaBtn && !composer ? (
-              <button
-                className="absolute z-30 flex -translate-x-full cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--ink)] py-1.5 pl-2.5 pr-3 text-[12px] font-medium text-[var(--panel)] shadow-lg hover:opacity-90"
-                style={{ left: mediaBtn.x, top: mediaBtn.y }}
-                onPointerEnter={cancelMediaHide}
-                onPointerLeave={scheduleMediaHide}
-                onClick={() => {
-                  const width = wrapRef.current?.clientWidth ?? 440;
-                  setComposer({
-                    x: Math.min(Math.max(8, mediaBtn.x - 300), width - 308),
-                    y: mediaBtn.y + 34,
-                    anchor: { ...mediaBtn.anchor, type: "media" },
-                  });
-                  setDraft("");
-                  setActiveId(null);
-                  setPanelPos(null);
-                  setMediaBtn(null);
-                }}
-              >
-                <MessageSquarePlus size={13} />
-                批注{mediaBtn.video ? "视频" : "图片"}
-              </button>
-            ) : null}
-
-            {/* 新批注编辑卡 */}
-            {composer ? (
-              <div
-                className="absolute z-40 w-[300px] rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-3 shadow-[0_12px_40px_rgba(0,0,0,0.16)]"
-                style={{ left: composer.x, top: composer.y }}
-              >
-                <div className="mb-2 flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <AnchorQuote
-                      anchorType={composer.anchor.type}
-                      anchorText={composer.anchor.anchorText}
-                    />
-                  </div>
-                  <button
-                    className="cursor-pointer text-[var(--ink-faint)] hover:text-[var(--ink)]"
-                    onClick={() => setComposer(null)}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-                {nameInput}
-                <textarea
-                  autoFocus
-                  className="h-20 w-full resize-none rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-2.5 py-1.5 text-[13px] leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
-                  placeholder="写下批注…（⌘/Ctrl+Enter 提交）"
-                  value={draft}
-                  maxLength={2000}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                      void submit(null, composer.anchor);
-                    }
-                  }}
-                />
-                <div className="mt-2 flex justify-end gap-2">
-                  <button
-                    className="cursor-pointer rounded-md px-3 py-1.5 text-[12px] text-[var(--ink-soft)] hover:bg-[var(--paper)]"
-                    onClick={() => setComposer(null)}
-                  >
-                    取消
-                  </button>
-                  <button
-                    className="cursor-pointer rounded-md bg-[var(--accent)] px-3.5 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-45"
-                    disabled={!draft.trim() || (needName && !guestName.trim()) || busy}
-                    onClick={() => void submit(null, composer.anchor)}
-                  >
-                    批注
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* 线程面板：点高亮弹出 */}
-            {activeThread && panelPos ? (
-              <div
-                className="absolute z-40 w-[308px] rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_12px_40px_rgba(0,0,0,0.16)]"
-                style={{ left: panelPos.x, top: panelPos.y }}
-              >
-                <div className="flex items-center justify-between border-b border-[var(--hairline-soft)] px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <AnchorQuote
-                      anchorType={activeThread.root.anchorType}
-                      anchorText={activeThread.root.anchorText}
-                    />
-                  </div>
-                  <div className="ml-2 flex items-center gap-1">
-                    {activeThread.root.mine && !activeThread.root.resolvedAt ? (
-                      <button
-                        className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[12px] text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                        title="标记已解决"
-                        onClick={() => void resolveThread(activeThread.root.id, true)}
-                      >
-                        <Check size={13} />
-                        解决
-                      </button>
-                    ) : null}
-                    <button
-                      className="cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:text-[var(--ink)]"
-                      onClick={() => {
-                        setActiveId(null);
-                        setPanelPos(null);
-                      }}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                </div>
-                <div className="max-h-72 overflow-y-auto px-3 py-2">
-                  {[activeThread.root, ...activeThread.replies].map((c) => (
-                    <div key={c.id} className="group py-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-medium text-[var(--ink)]">
-                          {c.author}
-                        </span>
-                        {c.isOwner ? (
-                          <span className="rounded bg-[var(--accent-wash)] px-1 text-[10px] text-[var(--accent)]">
-                            作者
-                          </span>
-                        ) : null}
-                        <span className="text-[11px] text-[var(--ink-faint)]">
-                          {fmtTime(c.createdAt)}
-                        </span>
-                        <span className="flex-1" />
-                        {c.mine ? (
-                          <button
-                            className="cursor-pointer text-[var(--ink-faint)] hover:text-red-500"
-                            title="删除批注"
-                            onClick={() => void removeComment(c)}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        ) : null}
-                      </div>
-                      <p className="mt-0.5 whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--ink)]">
-                        {c.body}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                {allowComment ? (
-                  <div className="border-t border-[var(--hairline-soft)] p-2.5">
-                    {nameInput}
-                    <div className="flex items-end gap-2">
-                      <textarea
-                        className="h-9 min-h-9 flex-1 resize-none rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-2.5 py-1.5 text-[13px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
-                        placeholder="回复…"
-                        value={draft}
-                        maxLength={2000}
-                        onChange={(e) => setDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                            void submit(activeThread.root.id);
-                          }
-                        }}
-                      />
-                      <button
-                        className="cursor-pointer rounded-md bg-[var(--accent)] px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-45"
-                        disabled={!draft.trim() || (needName && !guestName.trim()) || busy}
-                        onClick={() => void submit(activeThread.root.id)}
-                      >
-                        回复
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            <AnnotationOverlay
+              wrapRef={wrapRef}
+              selBtn={selBtn}
+              mediaBtn={mediaBtn}
+              composer={composer}
+              setComposer={setComposer}
+              setMediaBtn={setMediaBtn}
+              cancelMediaHide={cancelMediaHide}
+              scheduleMediaHide={scheduleMediaHide}
+              setDraft={setDraft}
+              setActiveId={setActiveId}
+              setPanelPos={setPanelPos}
+              draft={draft}
+              guestName={guestName}
+              busy={busy}
+              needName={needName}
+              nameInput={nameInput}
+              submit={submit}
+              activeThread={activeThread}
+              panelPos={panelPos}
+              resolveThread={resolveThread}
+              removeComment={removeComment}
+              allowComment={allowComment}
+            />
           </div>
 
           {/* 批注侧栏（桌面） */}
-          <aside className="hidden w-[280px] shrink-0 lg:block">
-            <div className="sticky top-0 pt-1">
-              <p className="mb-3 text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">
-                批注 {openCount > 0 ? `· ${openCount}` : ""}
-              </p>
-              {sortedThreads.open.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-[var(--hairline)] px-3 py-4 text-[12px] leading-relaxed text-[var(--ink-faint)]">
-                  {allowComment
-                    ? "还没有批注。选中正文文字，或把鼠标移到图片、视频上，点「批注」即可发表意见。"
-                    : "该分享未开放批注。"}
-                </p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {sortedThreads.open.map((t) => (
-                    <button
-                      key={t.root.id}
-                      className={`cursor-pointer rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                        activeId === t.root.id
-                          ? "border-amber-400 bg-amber-50/60 dark:bg-amber-950/20"
-                          : "border-[var(--hairline)] bg-[var(--panel)] hover:border-amber-300"
-                      }`}
-                      onClick={() => openThread(t.root.id, true)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-medium text-[var(--ink)]">
-                          {t.root.author}
-                        </span>
-                        <span className="text-[11px] text-[var(--ink-faint)]">
-                          {fmtTime(t.root.createdAt)}
-                        </span>
-                        {!t.range ? (
-                          <span className="rounded bg-[var(--paper)] px-1 text-[10px] text-[var(--ink-faint)]">
-                            原文已修改
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-1">
-                        <AnchorQuote
-                          anchorType={t.root.anchorType}
-                          anchorText={t.root.anchorText}
-                        />
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-[var(--ink-soft)]">
-                        {t.root.body}
-                      </p>
-                      {t.replies.length > 0 ? (
-                        <p className="mt-1 text-[11px] text-[var(--ink-faint)]">
-                          {t.replies.length} 条回复
-                        </p>
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {sortedThreads.resolved.length > 0 ? (
-                <>
-                  <p className="mb-2 mt-5 text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">
-                    已解决 · {sortedThreads.resolved.length}
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {sortedThreads.resolved.map((t) => (
-                      <div
-                        key={t.root.id}
-                        className="rounded-lg border border-[var(--hairline-soft)] px-3 py-2 opacity-70"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Check size={12} className="text-emerald-600" />
-                          <span className="text-[12px] text-[var(--ink-soft)]">{t.root.author}</span>
-                          <span className="flex-1" />
-                          {t.root.mine ? (
-                            <button
-                              className="flex cursor-pointer items-center gap-1 text-[11px] text-[var(--ink-faint)] hover:text-[var(--ink)]"
-                              onClick={() => void resolveThread(t.root.id, false)}
-                            >
-                              <RotateCcw size={11} />
-                              恢复
-                            </button>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 line-clamp-1 text-[12px] text-[var(--ink-faint)]">
-                          {t.root.body}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-            </div>
-          </aside>
+          <CommentSidebar
+            allowComment={allowComment}
+            openCount={openCount}
+            sortedThreads={sortedThreads}
+            activeId={activeId}
+            openThread={openThread}
+            resolveThread={resolveThread}
+          />
         </div>
       </div>
     </div>
