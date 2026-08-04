@@ -47,9 +47,11 @@ function writeIndex(list: LocalDocMeta[]) {
   localStorage.setItem(INDEX_KEY, JSON.stringify(list));
 }
 
-/** 摘要与字数口径与服务端列表接口保持一致 */
+/** 摘要与字数口径与服务端列表接口保持一致。
+ *  摘要只要前 90 个字，先截前 2000 字符再跑正则（服务端同款），别把整篇长文扫 5 遍 */
 export function summarize(content: string): { excerpt: string; chars: number } {
   const plain = content
+    .slice(0, 2000)
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")

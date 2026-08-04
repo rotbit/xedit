@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Palette, Settings2, Download, History, Sparkles, ShieldCheck } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { resolveTheme } from "@/lib/themes";
@@ -41,6 +41,9 @@ export function EditorTools({ onOpenVersions }: { onOpenVersions: () => void }) 
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
 
+  // 只为 title 文案取主题名：resolveTheme 遇到自定义主题会全量重建 CSS，别每次渲染都跑
+  const themeName = useMemo(() => resolveTheme(themeId, customThemes).name, [themeId, customThemes]);
+
   /** 内容审查依赖文本平台密钥，未配置时直接引导到 AI 设置 */
   const startReview = () => {
     if (!useStore.getState().content.trim()) {
@@ -61,7 +64,7 @@ export function EditorTools({ onOpenVersions }: { onOpenVersions: () => void }) 
       <Dropdown
         width={430}
         trigger={
-          <button className={iconBtn} title={`排版主题：${resolveTheme(themeId, customThemes).name}`}>
+          <button className={iconBtn} title={`排版主题：${themeName}`}>
             <Palette size={16} strokeWidth={1.75} />
           </button>
         }

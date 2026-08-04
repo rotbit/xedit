@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 import type { CustomThemeSpec } from "@/lib/themes/custom";
 
 /** pending：已存本地镜像、等待联网后同步云端 */
@@ -97,6 +97,48 @@ interface EditorState extends SettingsSlice {
   setAiStatus: (s: { aiChatReady: boolean }) => void;
 }
 
+/** 防抖落盘的 persist 存储。middleware 每次 set 都会「全量 partialize → 序列化 → 同步写
+ *  localStorage」，而正文也在持久化清单里，等于每敲一键就把整篇文章序列化写一次盘。
+ *  这里攒 400ms 一起写，页面隐藏/关闭时强制冲刷；最坏丢最后 400ms 的击键，
+ *  且本地文库镜像另有独立落盘，不依赖这一份。 */
+let pendingWrite: unknown = null;
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+const flushWrite = () => {
+  writeTimer = null;
+  if (pendingWrite === null) return;
+  try {
+    localStorage.setItem("xedit-store", JSON.stringify(pendingWrite));
+  } catch {
+    // 私密模式 / 配额满：写不进就算了，内存态不受影响
+  }
+  pendingWrite = null;
+};
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", flushWrite);
+}
+
+function debouncedStorage<S>(): PersistStorage<S> {
+  return {
+    getItem: (name) => {
+      if (typeof window === "undefined") return null;
+      try {
+        const raw = localStorage.getItem(name);
+        return raw ? (JSON.parse(raw) as StorageValue<S>) : null;
+      } catch {
+        return null;
+      }
+    },
+    setItem: (_name, value) => {
+      pendingWrite = value;
+      if (writeTimer === null) writeTimer = setTimeout(flushWrite, 400);
+    },
+    removeItem: (name) => {
+      pendingWrite = null;
+      if (typeof window !== "undefined") localStorage.removeItem(name);
+    },
+  };
+}
+
 export const useStore = create<EditorState>()(
   persist(
     (set) => ({
@@ -157,6 +199,7 @@ export const useStore = create<EditorState>()(
     {
       name: "xedit-store",
       version: 4,
+      storage: debouncedStorage(),
       // v1 起代码主题固定 VS 2015、Mac 风格固定开启；v2 起移除手机预览模式，清掉历史持久化值；
       // v3 起专注模式下线：即时渲染并入首页文章视图，编辑页固定分屏；
       // v4 起 AI 密钥改为服务端按账号加密存储，清掉本地遗留的接口地址/密钥/模型；

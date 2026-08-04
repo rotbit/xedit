@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, useEffect, useMemo, useState } from "react";
 import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
@@ -55,7 +55,8 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onSc
     };
   }, [codeThemeId]);
 
-  const theme = resolveTheme(themeId, customThemes);
+  // 自定义主题的 resolveTheme 会全量重建 CSS 字符串，别跟着每次击键渲染跑
+  const theme = useMemo(() => resolveTheme(themeId, customThemes), [themeId, customThemes]);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
