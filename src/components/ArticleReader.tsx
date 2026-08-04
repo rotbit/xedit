@@ -365,7 +365,7 @@ export function ArticleReader({
               <div className="shrink-0">
                 <div className={`w-full pt-5 ${split ? "px-6" : "mx-auto max-w-[760px] px-4"}`}>
                   <input
-                    className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] [font-family:var(--serif)]"
+                    className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
                     value={title}
                     placeholder="未命名文章"
                     onChange={(e) => setTitle(e.target.value)}

@@ -268,12 +268,24 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
           return;
         }
         if (name === "ListMark") {
-          if (caretTouches(caret, node.from, node.to)) return;
-          if (node.node.parent?.parent?.name !== "BulletList") return; // 有序列表数字保留
+          const listType = node.node.parent?.parent?.name;
+          if (listType === "OrderedList") {
+            // 数字保留原文可编辑，只弱化成等宽编号
+            decos.push(Decoration.mark({ class: "cm-lp-olnum" }).range(node.from, node.to));
+            return;
+          }
+          if (listType !== "BulletList" || caretTouches(caret, node.from, node.to)) return;
           if (/^ \[[ xX]\]/.test(state.sliceDoc(node.to, node.to + 4))) {
             hide(node.from, node.to + 1); // 任务项只留 checkbox
           } else {
-            decos.push(Decoration.replace({ widget: new BulletWidget() }).range(node.from, node.to));
+            // 嵌套深度决定圆点形态（实心/空心/方点循环），与 Notion 的层级语汇一致
+            let depth = 0;
+            for (let p = node.node.parent; p; p = p.parent)
+              if (p.name === "BulletList" || p.name === "OrderedList") depth++;
+            const level = ((depth - 1) % 3) + 1;
+            decos.push(
+              Decoration.replace({ widget: new BulletWidget(level) }).range(node.from, node.to)
+            );
           }
           return;
         }

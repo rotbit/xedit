@@ -156,13 +156,17 @@ export class HrWidget extends WidgetType {
 }
 
 export class BulletWidget extends WidgetType {
-  eq() {
-    return true;
+  /** 视觉层级 1/2/3（实心点/空心圈/方点），嵌套更深时循环复用 */
+  constructor(readonly level: number) {
+    super();
+  }
+  eq(other: BulletWidget) {
+    return other.level === this.level;
   }
   toDOM() {
     const el = document.createElement("span");
     el.className = "cm-lp-bullet";
-    el.textContent = "•";
+    el.dataset.level = String(this.level);
     return el;
   }
   ignoreEvent() {
