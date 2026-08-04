@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useDeferredValue, useMemo } from "react";
 import { ListTree } from "lucide-react";
 import { useStore } from "@/store/useStore";
 
@@ -34,9 +34,21 @@ function parseOutline(content: string): Heading[] {
   return headings;
 }
 
-export function OutlinePanel({ onJump }: { onJump: (line: number) => void }) {
+export function OutlinePanel({
+  onJump,
+  active = true,
+}: {
+  onJump: (line: number) => void;
+  /** 面板是否展开：组件常驻（w-0 动画隐藏），收起时跳过全文解析 */
+  active?: boolean;
+}) {
   const content = useStore((s) => s.content);
-  const outline = useMemo(() => parseOutline(content), [content]);
+  // 低优先级取值：连续打字时先渲编辑器，大纲慢一拍再补
+  const deferredContent = useDeferredValue(content);
+  const outline = useMemo(
+    () => (active ? parseOutline(deferredContent) : []),
+    [deferredContent, active]
+  );
 
   return (
     <aside className="flex h-full w-52 shrink-0 flex-col border-r border-[var(--hairline-soft)] bg-[var(--panel)]">
@@ -54,7 +66,7 @@ export function OutlinePanel({ onJump }: { onJump: (line: number) => void }) {
         ) : (
           outline.map((h, i) => (
             <button
-              key={i}
+              key={h.line}
               className={`block w-full cursor-pointer truncate rounded-md py-[5px] pr-2 text-left leading-5 transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${
                 h.level === 1
                   ? "text-[13px] font-medium text-[var(--ink)] [font-family:var(--serif)]"

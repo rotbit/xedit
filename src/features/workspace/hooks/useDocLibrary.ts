@@ -23,6 +23,20 @@ interface Params {
   activeCat: string;
 }
 
+/** 两份列表在侧栏可见字段上是否一致（顺序敏感，列表本身已排好序） */
+function sameDocList(a: DocMeta[], b: DocMeta[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((d, i) => {
+    const e = b[i];
+    return (
+      d.id === e.id &&
+      d.title === e.title &&
+      d.category === e.category &&
+      d.updatedAt === e.updatedAt
+    );
+  });
+}
+
 /**
  * 文章库与分类的数据装载。完全本地优先：登录态列表先从本地镜像
  * （+ 待上云的本地文档）秒出，同步引擎每轮完成后再刷新。
@@ -70,8 +84,14 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
   // 不用等同步引擎跑完一整轮——侧栏文件名要跟着编辑实时变
   useEffect(() => {
     const refresh = () => {
-      if (localMode) setDocs(listLocalDocs());
-      else if (loggedIn || offlineAuthed) setDocs(mergedCloudList());
+      const next = localMode
+        ? listLocalDocs()
+        : loggedIn || offlineAuthed
+          ? mergedCloudList()
+          : null;
+      // 内容没变就复用旧引用：DOCS_CHANGED 广播比实际变化频繁，
+      // 空换新数组会打穿侧栏树/筛选的所有 useMemo 引发全树重渲染
+      if (next) setDocs((prev) => (prev && sameDocList(prev, next) ? prev : next));
     };
     window.addEventListener(DOCS_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(DOCS_CHANGED_EVENT, refresh);

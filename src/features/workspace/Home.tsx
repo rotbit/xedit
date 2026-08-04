@@ -56,8 +56,10 @@ export function Home({ landing }: HomeProps) {
     setTimeout(() => void ws.docActions.createDoc(), 0);
   }, [searchParams, auth.status, ws]);
 
-  const localDraft = useStore((s) => s.content);
-  const hasLocalDraft = Boolean(localDraft.trim()) && localDraft !== DEFAULT_MARKDOWN;
+  // 只订阅「有无本地草稿」这个布尔值：直接订阅 content 会让每次击键都重渲染整个工作台树
+  const hasLocalDraft = useStore(
+    (s) => Boolean(s.content.trim()) && s.content !== DEFAULT_MARKDOWN
+  );
 
   /** 未登录直接写作：把旧版单篇草稿收编进本地文档库，否则新建一篇欢迎文档 */
   const startLocalWriting = () => {

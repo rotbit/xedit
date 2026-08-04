@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Loader2,
@@ -208,6 +208,9 @@ export function ArticleReader({
     }
   };
 
+  // 字数只在正文变化时重扫（wordCount 内部要过 4 遍正则，别跟着每次渲染跑）
+  const chars = useMemo(() => wordCount(content), [content]);
+
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-[13px] text-[var(--ink-faint)]">
@@ -216,7 +219,6 @@ export function ArticleReader({
     );
   }
 
-  const chars = wordCount(content);
   const docKey = `${docId}:${docVersion}`;
 
   return (
@@ -352,7 +354,10 @@ export function ArticleReader({
                 outlineOpen ? "w-52" : "w-0"
               }`}
             >
-              <OutlinePanel onJump={(line) => editorRef.current?.scrollToLine(line)} />
+              <OutlinePanel
+                active={outlineOpen}
+                onJump={(line) => editorRef.current?.scrollToLine(line)}
+              />
             </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {/* 标题 + 元信息（固定于源码上方）：左缘与正文文字对齐

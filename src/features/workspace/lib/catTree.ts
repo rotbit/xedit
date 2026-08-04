@@ -11,11 +11,14 @@ export function catColorOf(cat: string): string {
   return `var(--cat-${(h % 6) + 1})`;
 }
 
+/** 中文排序用的 collator：localeCompare 每次比较都要重建排序器，提到模块级复用 */
+const zhCollator = new Intl.Collator("zh");
+
 /** 现存的全部分类路径（文章已用 ∪ 自建），按中文排序去重 */
 export function allCategories(customCats: string[], docs: DocMeta[] | null): string[] {
   return Array.from(
     new Set([...customCats, ...(docs ?? []).map((d) => d.category || UNCATEGORIZED)])
-  ).sort((a, b) => a.localeCompare(b, "zh"));
+  ).sort((a, b) => zhCollator.compare(a, b));
 }
 
 /** 按路径在树里找节点（排序落点需要拿到某父级下的显示序列） */
