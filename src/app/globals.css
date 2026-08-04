@@ -204,11 +204,11 @@ body {
 .cm-editor .cm-cursor {
   border-left-color: var(--accent);
   border-left-width: 2px;
-  /* 墨色光标进深色代码卡会隐身：包一圈半透白描边，白纸上不可见，炭黑底上勾出轮廓 */
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.55);
 }
-[data-theme="dark"] .cm-editor .cm-cursor {
-  box-shadow: none;
+/* 光标落进深色代码卡时（livePreview 的插件在编辑器根上打 cm-caret-in-code）：
+   换成浅色实心光标，卡外仍是墨色实心 */
+.cm-editor.cm-caret-in-code .cm-cursor {
+  border-left-color: #f5f4f1;
 }
 .cm-editor .cm-selectionBackground,
 .cm-editor.cm-focused .cm-selectionBackground {

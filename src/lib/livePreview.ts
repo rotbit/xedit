@@ -1,3 +1,4 @@
+import type { SyntaxNode } from "@lezer/common";
 import { syntaxTree } from "@codemirror/language";
 import {
   RangeSet,
@@ -307,6 +308,45 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
   };
 }
 
+/** 光标是否落在围栏代码块内（含两侧边界行）：深色终端卡里墨色光标会隐身，
+    要换成浅色实心光标。光标层是绝对定位的独立图层，CSS 选不到“代码块里的光标”，
+    只能由插件在编辑器根元素上打标记类 */
+function caretInFencedCode(state: EditorState): boolean {
+  const pos = state.selection.main.head;
+  for (const side of [-1, 1] as const) {
+    let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, side);
+    for (; n; n = n.parent) if (n.name === "FencedCode") return true;
+  }
+  return false;
+}
+
+const caretInCodePlugin = ViewPlugin.fromClass(
+  class {
+    private last = false;
+    constructor(readonly view: EditorView) {
+      this.apply(caretInFencedCode(view.state));
+    }
+    update(update: ViewUpdate) {
+      if (update.selectionSet || update.docChanged) {
+        const now = caretInFencedCode(update.state);
+        if (now !== this.last) this.apply(now);
+      }
+    }
+    /** DOM 类的写入放进 measure 的写阶段，避开 update 周期内改 DOM 的限制 */
+    private apply(on: boolean) {
+      this.last = on;
+      const dom = this.view.dom;
+      this.view.requestMeasure({
+        read: () => null,
+        write: () => dom.classList.toggle("cm-caret-in-code", on),
+      });
+    }
+    destroy() {
+      this.view.dom.classList.remove("cm-caret-in-code");
+    }
+  }
+);
+
 /** 用轻量 effect 触发一次装饰重算（鼠标点击结束并收回为单光标时使用）。 */
 const refreshLivePreview = StateEffect.define<null>();
 
@@ -403,6 +443,7 @@ const livePreviewPlugin = ViewPlugin.fromClass(
 
 export const livePreview: Extension = [
   livePreviewPlugin,
+  caretInCodePlugin,
   // 图片/分割线按整体跳过：上下键路过时光标停在两侧边界，部件不还原、不跳动
   EditorView.atomicRanges.of((view) => view.plugin(livePreviewPlugin)?.atomics ?? RangeSet.empty),
   EditorView.editorAttributes.of({ class: "cm-live-preview" }),
