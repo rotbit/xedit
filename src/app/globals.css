@@ -263,15 +263,9 @@ body {
   font-size: 12px;
   font-weight: 400;
 }
-/* 标题：宋体刊物风 + 层级呼吸空间（静态行级类，不随光标变化，零位移）。
-   字号由语法高亮的 em 值控制，这里只负责字体气质与块级节奏 */
-.cm-live-preview .cm-line.cm-lp-h1,
-.cm-live-preview .cm-line.cm-lp-h2,
-.cm-live-preview .cm-line.cm-lp-h3,
-.cm-live-preview .cm-line.cm-lp-h4 {
-  font-family: var(--serif);
-  letter-spacing: 0.01em;
-}
+/* 标题：无衬线粗体（与正文同族，屏显干净）+ 层级呼吸空间
+   （静态行级类，不随光标变化，零位移）。字号字重由语法高亮的 em 值控制，
+   这里只负责块级节奏；宋体刊物气质留给品牌处（刊头/落地页/卡片名） */
 .cm-live-preview .cm-line.cm-lp-h1 {
   padding-top: 22px;
   padding-bottom: 6px;
@@ -456,11 +450,45 @@ body {
   border-top: 1px solid var(--hairline-strong);
   vertical-align: middle;
 }
-/* 无序列表圆点 */
+/* 无序列表圆点：CSS 自绘、对行垂直居中，层级用形态区分（实心 → 空心 → 方点），
+   不再依赖字体里 "•" 的大小与基线（各字体差异大，显得又小又沉） */
 .cm-live-preview .cm-lp-bullet {
+  /* inline-block 空盒的基线就是盒底，垂直位置可精确推算；
+     盒高 1em、下沉 0.125em 后盒中心恰好落在汉字的视觉中心（基线上方约 0.375em） */
   display: inline-block;
+  position: relative;
+  width: 1ch;
+  height: 1em;
+  vertical-align: -0.125em;
   color: var(--ink-soft);
-  font-weight: 700;
+}
+.cm-live-preview .cm-lp-bullet::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 0.32em;
+  height: 0.32em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cm-live-preview .cm-lp-bullet[data-level="2"]::before {
+  width: 0.38em;
+  height: 0.38em;
+  background: transparent;
+  border: 1.5px solid currentColor;
+  box-sizing: border-box;
+}
+.cm-live-preview .cm-lp-bullet[data-level="3"]::before {
+  width: 0.28em;
+  height: 0.28em;
+  border-radius: 1px;
+}
+/* 有序列表编号：保留原文数字，弱化上色 + 等宽数字对齐 */
+.cm-live-preview .cm-lp-olnum {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
 }
 /* 任务清单复选框（可点击勾选） */
 .cm-live-preview .cm-lp-checkbox {
