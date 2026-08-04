@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { ASSETS, STATS } from "../constants";
@@ -75,6 +75,12 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
   const readingDoc = readingId
     ? ((library.docs ?? []).find((d) => d.id === readingId) ?? null)
     : null;
+  // 分类全集只在文库/自建分类变化时重算：中文 collator 排序不便宜，
+  // 且稳定的数组引用能避免把新引用每次都喂给 ArticleReader
+  const categories = useMemo(
+    () => allCategories(library.customCats, library.docs),
+    [library.customCats, library.docs]
+  );
 
   return (
     <main className="flex min-w-0 flex-1 flex-col">
@@ -84,7 +90,7 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
         <ArticleReader
           docId={readingId}
           actionSlot={actionSlot}
-          categories={allCategories(library.customCats, library.docs)}
+          categories={categories}
           onCategoryChange={(category) => {
             library.setDocs(
               (prev) => prev?.map((d) => (d.id === readingId ? { ...d, category } : d)) ?? null
