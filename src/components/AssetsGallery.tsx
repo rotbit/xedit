@@ -9,45 +9,22 @@ import {
   Trash2,
   Link2,
   Code2,
-  X,
   Images,
   Sparkles,
   Play,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
 } from "lucide-react";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { VIDEO_EXT } from "@/lib/media";
 import { toast } from "./Toast";
 import { askConfirm } from "./PromptDialog";
-
-interface Asset {
-  id: string;
-  key: string;
-  url: string;
-  size: number;
-  mime: string;
-  source: string;
-  createdAt: string;
-}
-
-/** 引用该素材的文章（/api/assets/[id]/usage） */
-interface UsageDoc {
-  id: string;
-  title: string;
-  category: string;
-  updatedAt: string;
-  deletedAt: string | null;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
-}
-
-const isVideo = (asset: Asset) => asset.mime.startsWith("video/");
+import {
+  AssetsLightbox,
+  copyText,
+  formatSize,
+  isVideo,
+  type Asset,
+  type UsageDoc,
+} from "./AssetsLightbox";
 
 const PAGE_SIZE = 24;
 
@@ -228,19 +205,6 @@ export function AssetsGallery({
     };
   }, [lightbox, assets, usage]);
 
-  // 键盘导航大图
-  useEffect(() => {
-    if (lightbox === null) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightbox(null);
-      if (e.key === "ArrowLeft") setLightbox((i) => (i !== null && i > 0 ? i - 1 : i));
-      if (e.key === "ArrowRight")
-        setLightbox((i) => (i !== null && assets && i < assets.length - 1 ? i + 1 : i));
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [lightbox, assets]);
-
   const syncHistory = async () => {
     setSyncing(true);
     try {
@@ -273,10 +237,6 @@ export function AssetsGallery({
       await refresh();
     }
     setUploading(false);
-  };
-
-  const copyText = (text: string, label: string) => {
-    void navigator.clipboard.writeText(text).then(() => toast(`${label}已复制`, "success"));
   };
 
   const removeAsset = async (asset: Asset) => {
@@ -454,139 +414,16 @@ export function AssetsGallery({
 
       {/* 大图预览 */}
       {lightbox !== null && assets && assets[lightbox] ? (
-        <div
-          className="fixed inset-0 z-[100] flex flex-col bg-black/85 backdrop-blur-sm"
-          onClick={() => setLightbox(null)}
-        >
-          <div className="flex h-14 shrink-0 items-center gap-2 px-5" onClick={(e) => e.stopPropagation()}>
-            <span className="truncate text-[12.5px] text-white/70">
-              {assets[lightbox].key.split("/").pop()}
-            </span>
-            <span className="text-[11.5px] text-white/40">
-              {formatSize(assets[lightbox].size)} · {lightbox + 1}/{total}
-            </span>
-            <span className="flex-1" />
-            <button
-              className="cursor-pointer rounded-md px-2.5 py-1.5 text-[12px] text-white/80 hover:bg-white/15"
-              onClick={() => copyText(assets[lightbox].url, "链接")}
-            >
-              复制链接
-            </button>
-            <button
-              className="cursor-pointer rounded-md px-2.5 py-1.5 text-[12px] text-white/80 hover:bg-white/15"
-              onClick={() => copyText(`![](${assets[lightbox].url})`, "Markdown ")}
-            >
-              复制 Markdown
-            </button>
-            <button
-              className="cursor-pointer rounded-md px-2.5 py-1.5 text-[12px] text-red-300 hover:bg-red-500/30"
-              onClick={() => void removeAsset(assets[lightbox])}
-            >
-              删除
-            </button>
-            <button
-              className="cursor-pointer rounded-md p-2 text-white/80 hover:bg-white/15"
-              onClick={() => setLightbox(null)}
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <div className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-8">
-            {lightbox > 0 ? (
-              <button
-                className="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-white/10 p-2.5 text-white/80 hover:bg-white/25"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightbox(lightbox - 1);
-                }}
-              >
-                <ChevronLeft size={18} />
-              </button>
-            ) : null}
-            {isVideo(assets[lightbox]) ? (
-              <video
-                src={assets[lightbox].url}
-                controls
-                autoPlay
-                playsInline
-                className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={assets[lightbox].url}
-                alt=""
-                className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-            {lightbox < assets.length - 1 ? (
-              <button
-                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-white/10 p-2.5 text-white/80 hover:bg-white/25"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightbox(lightbox + 1);
-                }}
-              >
-                <ChevronRight size={18} />
-              </button>
-            ) : null}
-          </div>
-          {/* 引用反查：这个素材出现在哪些文章里 */}
-          <div className="shrink-0 px-6 pb-5" onClick={(e) => e.stopPropagation()}>
-            {(() => {
-              const docs = usage[assets[lightbox].id];
-              if (!docs) {
-                return <p className="text-center text-[12px] text-white/40">正在查询引用…</p>;
-              }
-              if (docs.length === 0) {
-                return <p className="text-center text-[12px] text-white/40">未被任何文章引用</p>;
-              }
-              return (
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <span className="text-[12px] text-white/50">用于 {docs.length} 篇文章：</span>
-                  {docs.map((d) =>
-                    d.deletedAt ? (
-                      <span
-                        key={d.id}
-                        className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/50"
-                        title="在回收站中"
-                      >
-                        <FileText size={11} className="shrink-0" />
-                        <span className="truncate">{d.title}</span>
-                        <span className="shrink-0 text-white/40">回收站</span>
-                      </span>
-                    ) : onOpenDoc ? (
-                      <button
-                        key={d.id}
-                        className="flex max-w-[240px] cursor-pointer items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/85 transition-colors hover:bg-white/25 hover:text-white"
-                        title={`打开「${d.title}」`}
-                        onClick={() => {
-                          setLightbox(null);
-                          onOpenDoc(d.id);
-                        }}
-                      >
-                        <FileText size={11} className="shrink-0" />
-                        <span className="truncate">{d.title}</span>
-                      </button>
-                    ) : (
-                      <a
-                        key={d.id}
-                        href={`/?doc=${d.id}`}
-                        className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/85 transition-colors hover:bg-white/25 hover:text-white"
-                        title={`打开「${d.title}」`}
-                      >
-                        <FileText size={11} className="shrink-0" />
-                        <span className="truncate">{d.title}</span>
-                      </a>
-                    )
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
+        <AssetsLightbox
+          assets={assets}
+          index={lightbox}
+          total={total}
+          usage={usage}
+          onClose={() => setLightbox(null)}
+          onNavigate={setLightbox}
+          onDelete={(a) => void removeAsset(a)}
+          onOpenDoc={onOpenDoc}
+        />
       ) : null}
     </div>
   );
