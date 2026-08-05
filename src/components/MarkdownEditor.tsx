@@ -20,6 +20,7 @@ import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { searchKeymap } from "@codemirror/search";
 import { livePreview } from "@/lib/livePreview";
+import { lineSelectionWithoutNewline } from "@/lib/lineSelection";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { extractVideoPoster } from "@/lib/videoPoster";
 import { VIDEO_EXT, isVideoMime } from "@/lib/media";
@@ -310,6 +311,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       extensions: [
         history(),
         drawSelection(),
+        lineSelectionWithoutNewline,
         EditorView.lineWrapping,
         placeholder("在这里输入…"),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
