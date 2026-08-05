@@ -15,6 +15,7 @@ import {
   Table,
   Minus,
   ListTree,
+  ListTodo,
 } from "lucide-react";
 import { menuItemCls } from "./Dropdown";
 import type { FormatCommand } from "./MarkdownEditor";
@@ -43,6 +44,7 @@ const BUTTONS: Btn[] = [
   { cmd: "h2", icon: <HeadingGlyph level={2} />, label: "二级标题" },
   { cmd: "h3", icon: <HeadingGlyph level={3} />, label: "三级标题" },
   { cmd: "quote", icon: <Quote size={ICON} strokeWidth={STROKE} />, label: "引用" },
+  { cmd: "tasklist", icon: <ListTodo size={ICON} strokeWidth={STROKE} />, label: "任务列表" },
   { cmd: "code", icon: <Code size={ICON} strokeWidth={STROKE} />, label: "行内代码" },
   { cmd: "codeblock", icon: <SquareCode size={ICON} strokeWidth={STROKE} />, label: "代码块" },
   { cmd: "link", icon: <Link2 size={ICON} strokeWidth={STROKE} />, label: "链接" },
@@ -53,7 +55,7 @@ const BUTTONS: Btn[] = [
 ];
 
 /** 分组分隔线：在这些下标前插入一根细竖线，让功能按类聚拢 */
-const GROUP_BREAKS = new Set([3, 6, 9]);
+const GROUP_BREAKS = new Set([3, 6, 10]);
 
 const btnBase =
   "flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-soft)] transition-colors duration-100 hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] active:scale-90";

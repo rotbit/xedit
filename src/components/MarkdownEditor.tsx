@@ -6,7 +6,7 @@ import {
   useImperativeHandle,
   useRef,
 } from "react";
-import { EditorState, EditorSelection, Compartment } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -24,6 +24,14 @@ import { lineSelectionWithoutNewline } from "@/lib/lineSelection";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { extractVideoPoster } from "@/lib/videoPoster";
 import { VIDEO_EXT, isVideoMime } from "@/lib/media";
+import {
+  wrapSelection,
+  applyColor,
+  prefixLines,
+  toggleTaskLines,
+  insertBlock,
+  TABLE_TEMPLATE,
+} from "@/lib/editorFormat";
 import type TurndownService from "turndown";
 import { toast } from "./Toast";
 
@@ -66,6 +74,7 @@ export type FormatCommand =
   | "h2"
   | "h3"
   | "quote"
+  | "tasklist"
   | "code"
   | "codeblock"
   | "link"
@@ -148,92 +157,6 @@ const codeHighlight = HighlightStyle.define([
   },
   { tag: [tags.regexp, tags.escape], color: "var(--code-number)" },
 ]);
-
-function wrapSelection(view: EditorView, before: string, after: string, placeholderText: string) {
-  const { state } = view;
-  const changes = state.changeByRange((range) => {
-    const text = state.doc.sliceString(range.from, range.to) || placeholderText;
-    const insert = `${before}${text}${after}`;
-    return {
-      changes: { from: range.from, to: range.to, insert },
-      range: EditorSelection.range(
-        range.from + before.length,
-        range.from + before.length + text.length
-      ),
-    };
-  });
-  view.dispatch(changes);
-  view.focus();
-}
-
-/** 字体颜色：Markdown 没有颜色语法，用内联 <span style="color:…"> 承载
- *  （预览、公众号复制链路已放行该形态）。color 传 null 表示清除颜色。
- *  选区恰好是一个颜色 span、或恰好是其内部文字时，就地改写/剥掉原标签，避免嵌套套娃 */
-function applyColor(view: EditorView, color: string | null) {
-  const openTagOf = (c: string) => `<span style="color:${c}">`;
-  const CLOSE_TAG = "</span>";
-  const { state } = view;
-  const changes = state.changeByRange((range) => {
-    let { from, to } = range;
-    // 选区两侧紧贴着一对颜色标签（比如刚上完色又换色）：扩到整个标签一起改写
-    const beforeText = state.doc.sliceString(Math.max(0, from - 60), from);
-    const openAtLeft = beforeText.match(/<span style="color:[^"]*">$/);
-    if (openAtLeft && state.doc.sliceString(to, to + CLOSE_TAG.length) === CLOSE_TAG) {
-      from -= openAtLeft[0].length;
-      to += CLOSE_TAG.length;
-    }
-    const text = state.doc.sliceString(from, to);
-    const wrapped = text.match(/^<span style="color:[^"]*">([\s\S]*)<\/span>$/);
-    if (color === null && !wrapped) return { range }; // 没颜色可清，原样不动
-    const inner = (wrapped ? wrapped[1] : text) || "有色文字";
-    const open = color === null ? "" : openTagOf(color);
-    const insert = color === null ? inner : `${open}${inner}${CLOSE_TAG}`;
-    return {
-      changes: { from, to, insert },
-      range: EditorSelection.range(from + open.length, from + open.length + inner.length),
-    };
-  });
-  view.dispatch(changes);
-  view.focus();
-}
-
-function prefixLines(view: EditorView, prefix: string) {
-  const { state } = view;
-  const range = state.selection.main;
-  const fromLine = state.doc.lineAt(range.from);
-  const toLine = state.doc.lineAt(range.to);
-  const changes = [];
-  for (let n = fromLine.number; n <= toLine.number; n++) {
-    const line = state.doc.line(n);
-    // 已有相同前缀则移除（toggle）
-    if (line.text.startsWith(prefix)) {
-      changes.push({ from: line.from, to: line.from + prefix.length, insert: "" });
-    } else {
-      changes.push({ from: line.from, insert: prefix });
-    }
-  }
-  view.dispatch({ changes });
-  view.focus();
-}
-
-function insertBlock(view: EditorView, text: string) {
-  const { state } = view;
-  const range = state.selection.main;
-  const line = state.doc.lineAt(range.from);
-  const needLeadingNewline = line.text.trim() !== "";
-  const insert = `${needLeadingNewline ? "\n\n" : ""}${text}\n`;
-  const pos = line.to;
-  view.dispatch({
-    changes: { from: pos, insert },
-    selection: { anchor: pos + insert.length },
-  });
-  view.focus();
-}
-
-const TABLE_TEMPLATE = `| 表头 | 表头 |
-| --- | --- |
-| 内容 | 内容 |
-| 内容 | 内容 |`;
 
 async function uploadMedia(file: File): Promise<string | null> {
   try {
@@ -468,6 +391,8 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
           return prefixLines(view, "### ");
         case "quote":
           return prefixLines(view, "> ");
+        case "tasklist":
+          return toggleTaskLines(view);
         case "codeblock":
           return insertBlock(view, "```javascript\nconst hello = 'world';\n```");
         case "link":
