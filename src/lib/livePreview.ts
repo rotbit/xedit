@@ -42,6 +42,13 @@ function hasTextSelection(state: EditorState) {
   return state.selection.ranges.some((range) => !range.empty);
 }
 
+/** 任一选区（含非空）与 [from, to] 有交叠 —— 围栏行的还原判定要用它：
+    被选中的行必须现出原文，否则选区落在被隐藏的文本上（如双击选中
+    看不见的闭合 ```），用户既看不到选了什么，也看不到光标 */
+function selectionTouches(state: EditorState, from: number, to: number) {
+  return state.selection.ranges.some((r) => r.to >= from && r.from <= to);
+}
+
 /** 光标落在 [from, to]（含边界）内 —— 行内语法的还原判定 */
 function caretTouches(caret: number[], from: number, to: number) {
   return caret.some((p) => p >= from && p <= to);
@@ -246,7 +253,11 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
           const marks = node.node.getChildren("CodeMark");
           const info = node.node.getChild("CodeInfo");
           const firstLine = state.doc.lineAt(node.from);
-          if (marks.length > 0 && !caretTouches(caret, firstLine.from, firstLine.to)) {
+          if (
+            marks.length > 0 &&
+            !caretTouches(caret, firstLine.from, firstLine.to) &&
+            !selectionTouches(state, firstLine.from, firstLine.to)
+          ) {
             const lang = info ? state.sliceDoc(info.from, info.to).trim() : "";
             const deco = Decoration.replace({
               widget: new CodeLangWidget(lang, marks[0].to, firstLine.to),
@@ -259,7 +270,8 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
             if (
               lastLine.number !== firstLine.number &&
               lastLine.from < lastLine.to &&
-              !caretTouches(caret, lastLine.from, lastLine.to)
+              !caretTouches(caret, lastLine.from, lastLine.to) &&
+              !selectionTouches(state, lastLine.from, lastLine.to)
             ) {
               const deco = Decoration.replace({}).range(lastLine.from, lastLine.to);
               decos.push(deco);
@@ -378,10 +390,10 @@ const livePreviewPlugin = ViewPlugin.fromClass(
         this.caret = caretPositions(update.state);
       }
 
-      // 鼠标拖选和非空选区调整期间不因 selectionSet 重建装饰。
+      // 鼠标拖选期间不因 selectionSet 重建装饰（布局冻结，避免拖选中途跳动）；
+      // 键盘扩选/全选也要重建：选区扫到围栏行时得现出被隐藏的 ``` 原文。
       // viewport 变化仍按冻结的光标位置补齐新进入视口的装饰。
-      const selectionNeedsRebuild =
-        update.selectionSet && !this.selectingWithMouse && !hasTextSelection(update.state);
+      const selectionNeedsRebuild = update.selectionSet && !this.selectingWithMouse;
       if (update.docChanged || update.viewportChanged || selectionNeedsRebuild || forced) {
         const built = buildDecorations(update.view, this.caret);
         this.decorations = built.decorations;
@@ -410,11 +422,11 @@ const livePreviewPlugin = ViewPlugin.fromClass(
       this.removeMouseListeners?.();
       this.removeMouseListeners = null;
 
-      // 单击定位光标后再按节点还原；真正的拖选沿用按下前的稳定布局。
-      if (!hasTextSelection(view.state)) {
-        this.caret = caretPositions(view.state);
-        view.dispatch({ effects: refreshLivePreview.of(null) });
-      }
+      // 单击定位光标后再按节点还原；拖选/双击结束时同样重算一次，
+      // 让选区覆盖到的围栏行现出原文（拖选过程中仍冻结布局）。
+      // 光标位置只在空选区时更新：留住选择前的还原状态，选完不跳动。
+      if (!hasTextSelection(view.state)) this.caret = caretPositions(view.state);
+      view.dispatch({ effects: refreshLivePreview.of(null) });
     }
 
     destroy() {
