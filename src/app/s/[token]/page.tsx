@@ -29,7 +29,7 @@ function Gone() {
     <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--paper)] px-6 text-center">
       <p className="text-[17px] font-medium text-[var(--ink)]">分享不存在或已失效</p>
       <p className="text-[13px] leading-relaxed text-[var(--ink-faint)]">
-        链接有效期为 48 小时，可能已到期或被作者关闭。
+        这个分享链接已被作者关闭，或文章已删除。
       </p>
       <Link
         href="/"
@@ -79,7 +79,6 @@ export default async function SharePage({ params }: Params) {
       title={doc.title}
       authorName={owner?.name?.trim() || "xedit 作者"}
       updatedAt={doc.updatedAt.toISOString()}
-      expiresAt={share.expiresAt.toISOString()}
       content={doc.content}
       themeName={theme.name}
       themeCss={theme.css}

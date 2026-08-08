@@ -2,31 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  Loader2,
-  Columns2,
-  Folder,
-  Copy,
-  ChevronDown,
-  MoreHorizontal,
-  RefreshCw,
-  Share2,
-  Trash2,
-} from "lucide-react";
+import { Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
 import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
-import { buildWechatHtml } from "@/lib/copy/wechat";
 import { wordCount } from "@/lib/wordCount";
 import { askInput } from "./PromptDialog";
-import { buildZhihuHtml } from "@/lib/copy/zhihu";
-import { copyRichHtml } from "@/lib/copy/clipboard";
 import { toast } from "./Toast";
-import { buildRenderOptions } from "@/features/editor/lib/renderOptions";
 import { useStore } from "@/store/useStore";
 import { useEditorDoc } from "@/hooks/useEditorDoc";
 import { useSyncScroll } from "@/hooks/useSyncScroll";
 import { MarkdownEditor, type EditorHandle } from "./MarkdownEditor";
 import { EditorToolbar } from "./EditorToolbar";
-import { EditorTools } from "@/features/editor/components/EditorTools";
+import { ReaderActions } from "@/features/editor/components/ReaderActions";
 import { ShareDialog } from "@/features/share/ShareDialog";
 import { isLocalId } from "@/lib/localDocs";
 import { OutlinePanel } from "./OutlinePanel";
@@ -42,9 +28,10 @@ const SAVE_LABEL: Record<string, string> = {
 };
 
 /**
- * 首页右侧的文章视图：默认是纯 Markdown 源码编辑器（不做即时渲染）；
- * 点「双屏」在同一窗口内切出右侧公众号真实主题预览（左源码 / 右效果），再点收起，
- * 不再跳转到独立编辑页。
+ * 首页右侧的文章视图，三种形态：
+ * - 默认：纯 Markdown 源码编辑器（不做即时渲染）；
+ * - 双屏（⌘E）：同一窗口内切出右侧公众号真实主题预览（左源码 / 右效果）；
+ * - 阅读模式（⌘⇧E）：整块编辑区换成渲染后的成品，宽栏通读，退出即回编辑。
  */
 export function ArticleReader({
   docId,
@@ -76,13 +63,12 @@ export function ArticleReader({
   const setSplitRatio = useStore((s) => s.setSplitRatio);
   const sourceMode = useStore((s) => s.sourceMode);
 
-  const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
-  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   // 默认单屏 Markdown 编辑；开启后右侧切出真实主题预览
   const [split, setSplit] = useState(false);
+  // 阅读模式：整块编辑区换成渲染成品，与双屏互斥
+  const [reading, setReading] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
   // 预览列延迟卸载：收起时先让宽度动画走完再卸载，避免右栏瞬间消失
   const [previewMounted, setPreviewMounted] = useState(false);
@@ -104,6 +90,8 @@ export function ArticleReader({
   const toggleSplit = useCallback(() => {
     const next = !split;
     setSplit(next);
+    // 双屏与阅读模式互斥：开双屏就退出阅读
+    if (next) setReading(false);
     if (closeTimer.current) {
       clearTimeout(closeTimer.current);
       closeTimer.current = null;
@@ -115,13 +103,31 @@ export function ArticleReader({
     }
   }, [split]);
 
-  // ⌘E 切换双屏预览、⌘/ 切换源码模式（capture 阶段，优先于页面内其他监听）
+  /** 进阅读模式时把双屏收掉：两者都是「看成品」，同时开着没有意义 */
+  const toggleReading = useCallback(() => {
+    setReading((v) => {
+      const next = !v;
+      if (next) {
+        setSplit(false);
+        setPreviewMounted(false);
+        if (closeTimer.current) {
+          clearTimeout(closeTimer.current);
+          closeTimer.current = null;
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  // ⌘E 切换双屏、⌘⇧E 切换阅读模式、⌘/ 切换源码模式
+  // （capture 阶段，优先于页面内其他监听）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.key.toLowerCase() === "e") {
         e.preventDefault();
-        toggleSplit();
+        if (e.shiftKey) toggleReading();
+        else toggleSplit();
       } else if (e.key === "/") {
         e.preventDefault();
         const s = useStore.getState();
@@ -130,7 +136,7 @@ export function ArticleReader({
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [toggleSplit]);
+  }, [toggleSplit, toggleReading]);
 
   const onDividerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -178,34 +184,13 @@ export function ArticleReader({
     if (target) moveToCategory(target);
   };
 
-  /** 直接复制到公众号，与编辑页的复制管线一致 */
-  const copyWechat = async () => {
-    if (copying) return;
-    setCopying("wechat");
-    try {
-      const s = useStore.getState();
-      const html = await buildWechatHtml(s.content, await buildRenderOptions());
-      await copyRichHtml(html, s.content);
-      toast("已复制！打开公众号后台编辑器直接粘贴", "success");
-    } catch (e) {
-      toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
-    } finally {
-      setCopying(null);
+  /** 分享要求登录 + 云端文档，本地草稿先提示 */
+  const openShare = () => {
+    if (!loggedIn || isLocalId(docId)) {
+      toast("登录后才能分享文章", "error");
+      return;
     }
-  };
-
-  const copyZhihu = async () => {
-    if (copying) return;
-    setCopying("zhihu");
-    try {
-      const s = useStore.getState();
-      await copyRichHtml(await buildZhihuHtml(s.content), s.content);
-      toast("已复制！打开知乎编辑器直接粘贴", "success");
-    } catch (e) {
-      toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
-    } finally {
-      setCopying(null);
-    }
+    setShareOpen(true);
   };
 
   // 字数只在正文变化时重扫（wordCount 内部要过 4 遍正则，别跟着每次渲染跑）
@@ -223,113 +208,29 @@ export function ArticleReader({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 顶部操作栏：一键复制 / 双屏 / 更多 —— portal 到面包屑顶栏右侧，与之共用一行，省掉一整条横栏 */}
+      {/* 顶部操作栏：功能簇 / 分享 / 复制 / 阅读 / 双屏 / 更多
+          —— portal 到面包屑顶栏右侧，与之共用一行，省掉一整条横栏 */}
       {actionSlot
         ? createPortal(
-            <>
-        {/* 排版主题 / 设置 / AI / 版本 / 导出 —— 从老编辑页搬来的功能簇 */}
-        <EditorTools onOpenVersions={() => setVersionsOpen(true)} />
-        <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
-        {/* 分享：公开链接（48h）+ 访客批注 */}
-        <button
-          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-          title="分享给他人查看与批注"
-          onClick={() => {
-            if (!loggedIn || isLocalId(docId)) {
-              toast("登录后才能分享文章", "error");
-              return;
-            }
-            setShareOpen(true);
-          }}
-        >
-          <Share2 size={15} />
-        </button>
-        {/* 一键复制：点开选择平台（纯图标） */}
-        <div className="relative">
-          <button
-            className="flex h-8 cursor-pointer items-center gap-0.5 rounded-lg pl-2 pr-1.5 text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-45"
-            onClick={() => setCopyMenuOpen((v) => !v)}
-            disabled={chars === 0 || copying !== null}
-            title="一键复制"
-          >
-            {copying !== null ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Copy size={15} />
-            )}
-            <ChevronDown size={13} className="opacity-70" />
-          </button>
-          {copyMenuOpen ? (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setCopyMenuOpen(false)} />
-              <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                <button
-                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                  onClick={() => {
-                    setCopyMenuOpen(false);
-                    void copyWechat();
-                  }}
-                >
-                  复制到公众号
-                </button>
-                <button
-                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]"
-                  onClick={() => {
-                    setCopyMenuOpen(false);
-                    void copyZhihu();
-                  }}
-                >
-                  复制到知乎
-                </button>
-              </div>
-            </>
-          ) : null}
-        </div>
-        <button
-          className={`flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors ${
-            split
-              ? "bg-[var(--accent-wash)] text-[var(--accent)]"
-              : "text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-          }`}
-          title="双屏：左源码、右公众号真实效果（⌘E）"
-          onClick={toggleSplit}
-        >
-          <Columns2 size={15} />
-        </button>
-        <div className="relative">
-          <button
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
-            title="更多操作"
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            <MoreHorizontal size={16} />
-          </button>
-          {menuOpen ? (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-44 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                {onDelete ? (
-                  <button
-                    className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onDelete();
-                    }}
-                  >
-                    <Trash2 size={13} />
-                    删除文章
-                  </button>
-                ) : null}
-              </div>
-            </>
-          ) : null}
-        </div>
-            </>,
+            <ReaderActions
+              chars={chars}
+              split={split}
+              onToggleSplit={toggleSplit}
+              reading={reading}
+              onToggleReading={toggleReading}
+              onOpenVersions={() => setVersionsOpen(true)}
+              onOpenShare={openShare}
+              onDelete={onDelete}
+            />,
             actionSlot
           )
         : null}
 
-      {/* 编辑区（默认单屏）/ 双屏（左源码 + 右预览） */}
+      {/* 阅读模式：整块编辑区换成渲染后的成品（双屏右栏那一面，宽栏通读） */}
+      {reading ? (
+        <Preview variant="reading" onExit={toggleReading} />
+      ) : (
+      /* 编辑区（默认单屏）/ 双屏（左源码 + 右预览） */
       <div ref={splitAreaRef} className="flex min-h-0 min-w-0 flex-1">
         {/* 源码编辑列 */}
         <div
@@ -455,6 +356,7 @@ export function ArticleReader({
           </>
         ) : null}
       </div>
+      )}
 
       {/* 版本历史抽屉：由功能簇里的「版本」按钮唤起 */}
       <VersionsPanel

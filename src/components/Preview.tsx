@@ -1,88 +1,82 @@
 "use client";
 
-import { forwardRef, useEffect, useMemo, useState } from "react";
-import { renderMarkdown } from "@/lib/markdown/renderer";
-import { ensureMathJax } from "@/lib/markdown/mathjax";
-import { sanitizeHtml } from "@/lib/markdown/sanitize";
+import { forwardRef } from "react";
+import { ChevronLeft } from "lucide-react";
 import { BASE_CSS } from "@/lib/themes/base";
-import { resolveTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
-import { useStore } from "@/store/useStore";
+import { usePreviewRender } from "@/hooks/usePreviewRender";
+import { ReadingMeta, ReadingTitle } from "@/features/editor/components/ReadingChrome";
 
 interface Props {
   onScroll?: () => void;
+  /** split：双屏右栏，手机窄栏 + 「公众号效果」顶栏；
+   *  reading：阅读模式，整块编辑区换成 720px 宽栏成品，顶栏可退出 */
+  variant?: "split" | "reading";
+  /** 阅读模式的退出回调 */
+  onExit?: () => void;
 }
 
-export const Preview = forwardRef<HTMLDivElement, Props>(function Preview({ onScroll }, ref) {
-  const content = useStore((s) => s.content);
-  const themeId = useStore((s) => s.themeId);
-  const customThemes = useStore((s) => s.customThemes);
-  const codeThemeId = useStore((s) => s.codeThemeId);
-  const customCss = useStore((s) => s.customCss);
-  const macCode = useStore((s) => s.macCode);
-  const tuneFontSize = useStore((s) => s.tuneFontSize);
-  const tuneLineHeight = useStore((s) => s.tuneLineHeight);
-  const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
-
-  const [html, setHtml] = useState("");
-  const [codeCss, setCodeCss] = useState("");
-  const [mathReady, setMathReady] = useState(false);
-
-  // MathJax（连字体 1MB+）只在正文疑似有公式时才拉，加载完成后重渲染一次，
-  // 公式从降级原文变为 SVG。用 $ 粗筛：偶尔误判（价格符号）也只是多下一次，
-  // 与从前的无条件加载相比只赚不亏。
-  const mayHaveMath = content.includes("$");
-  useEffect(() => {
-    if (!mayHaveMath) return;
-    void ensureMathJax().then(() => setMathReady(true));
-  }, [mayHaveMath]);
-
-  // 渲染防抖：输入停顿 180ms 后更新预览。
-  // renderMarkdown 结果统一经 sanitizeHtml（DOMPurify）消毒后才进入 DOM。
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setHtml(sanitizeHtml(renderMarkdown(content, { macCode })));
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [content, macCode, mathReady]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void getCodeThemeCss(codeThemeId).then((css) => {
-      if (!cancelled) setCodeCss(css);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [codeThemeId]);
-
-  // 自定义主题的 resolveTheme 会全量重建 CSS 字符串，别跟着每次击键渲染跑
-  const theme = useMemo(() => resolveTheme(themeId, customThemes), [themeId, customThemes]);
+export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
+  { onScroll, variant = "split", onExit },
+  ref
+) {
+  const reading = variant === "reading";
+  // 渲染管线（含 DOMPurify 消毒）：阅读模式不跟着击键跑，进来即渲染，不必防抖
+  const { html, codeCss, themeCss, themeName, tuneCss, customCss } = usePreviewRender(
+    reading ? 0 : 180
+  );
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
-      {/* 顶栏：与左侧编辑工具栏同高、同底、同一条下边线，双屏在同一水平线上衔接 */}
+      {/* 顶栏：与左侧编辑工具栏同高、同底、同一条下边线，切换模式时这条线不跳 */}
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4">
-        <span className="text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">公众号效果</span>
-        <span className="max-w-[50%] truncate text-[12px] text-[var(--ink-soft)]">
-          {theme.name}
-        </span>
+        {reading ? (
+          <button
+            className="-ml-1.5 flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[12px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+            onClick={onExit}
+            title="退出阅读模式（⌘⇧E）"
+          >
+            <ChevronLeft size={14} />
+            退出阅读
+          </button>
+        ) : (
+          <span className="text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">公众号效果</span>
+        )}
+        {reading ? (
+          <ReadingMeta themeName={themeName} />
+        ) : (
+          <span className="max-w-[50%] truncate text-[12px] text-[var(--ink-soft)]">
+            {themeName}
+          </span>
+        )}
       </div>
-      <div ref={ref} className="min-h-0 flex-1 overflow-y-auto px-6 py-8" onScroll={onScroll}>
+      <div
+        ref={ref}
+        className={`min-h-0 flex-1 overflow-y-auto px-6 ${reading ? "py-10" : "py-8"}`}
+        onScroll={onScroll}
+      >
         <style>{BASE_CSS}</style>
         <style>{codeCss}</style>
-        <style>{theme.css}</style>
-        <style>{buildTuneCss({ tuneFontSize, tuneLineHeight, tuneParaSpacing })}</style>
+        <style>{themeCss}</style>
+        <style>{tuneCss}</style>
         {customCss ? <style>{customCss}</style> : null}
-        {/* 手机阅读宽度：公众号文章以读者手机上的真实比例呈现，
-            窄列 + 两侧留白让右栏与宽幅编辑区一眼可辨；夜间模式下文章面依旧保持日间白 */}
-        <div className="light-lock mx-auto max-w-[420px] bg-white">
+        {/* 双屏：手机阅读宽度，公众号文章以读者手机上的真实比例呈现，窄列 + 两侧留白
+            让右栏与宽幅编辑区一眼可辨。阅读模式：宽出一截的 720px 白卡通读长文。
+            两者夜间模式下文章面都保持日间白 */}
+        <div
+          className={
+            reading
+              ? "light-lock mx-auto w-full max-w-[720px] rounded-xl bg-white px-6 py-8 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)]"
+              : "light-lock mx-auto max-w-[420px] bg-white"
+          }
+        >
+          {reading ? <ReadingTitle /> : null}
           <section
             id="nice"
             data-tool="xedit"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </div>
-        <div className="h-[40vh]" />
+        <div className={reading ? "h-[30vh]" : "h-[40vh]"} />
       </div>
     </div>
   );
