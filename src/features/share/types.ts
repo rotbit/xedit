@@ -24,7 +24,6 @@ export interface SharePayload {
   title: string;
   authorName: string;
   updatedAt: string;
-  expiresAt: string;
   content: string;
   themeName: string;
   themeCss: string;
