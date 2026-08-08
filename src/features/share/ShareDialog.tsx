@@ -9,26 +9,18 @@ interface ShareState {
   enabled: boolean;
   token?: string;
   allowComment?: boolean;
-  expiresAt?: string;
   commentCount?: number;
 }
 
-function fmtRemaining(expiresAt?: string): string {
-  if (!expiresAt) return "";
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  if (ms <= 0) return "已到期";
-  const hours = Math.floor(ms / 3600_000);
-  if (hours >= 1) return `${hours} 小时后到期`;
-  return `${Math.max(1, Math.floor(ms / 60_000))} 分钟后到期`;
-}
-
 /**
- * 分享设置弹窗：开启后生成 48 小时有效的公开链接，
+ * 分享设置弹窗：开启后生成永久有效的公开链接（只由作者手动关闭），
  * 访客打开即看到公众号真实渲染效果，无需登录即可选中文字批注。
  */
 export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => void }) {
   const [state, setState] = useState<ShareState | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 尚未开启时的批注意向：开启那一刻随请求带上，省得开完再回来勾一次 */
+  const [wantComment, setWantComment] = useState(true);
   useEscape(onClose);
 
   const load = useCallback(async (): Promise<ShareState | null> => {
@@ -69,8 +61,13 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
 
   const enable = () =>
     call(
-      () => fetch(`/api/documents/${docId}/share`, { method: "POST" }),
-      "分享已开启，48 小时内有效"
+      () =>
+        fetch(`/api/documents/${docId}/share`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ allowComment: wantComment }),
+        }),
+      "分享已开启，链接永久有效"
     );
   const disable = () =>
     call(() =>
@@ -126,16 +123,31 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
                 <b>公众号真实渲染效果</b>，并可以像飞书一样对文字、图片、视频批注——无需注册登录。
               </p>
               <ul className="mt-3 flex flex-col gap-1.5 text-[12px] leading-relaxed text-[var(--ink-faint)]">
-                <li>· 链接 48 小时内有效，到期自动失效，可随时重新开启</li>
+                <li>· 链接永久有效，不会自动过期，随时可以手动关闭</li>
                 <li>· 分享页按你当前的排版主题渲染，正文实时跟随文章更新</li>
-                <li>· 每次重新开启都会生成新链接，旧链接立刻失效；已有批注保留</li>
+                <li>· 关闭后重新开启会生成新链接，旧链接立刻失效；已有批注保留</li>
               </ul>
+              <label className="mt-3 flex cursor-pointer items-center justify-between rounded-lg border border-[var(--hairline)] px-3 py-2.5">
+                <span className="text-[13px] text-[var(--ink)]">
+                  允许访客批注
+                  <span className="ml-2 text-[12px] text-[var(--ink-faint)]">
+                    关闭则正文更宽
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 cursor-pointer accent-[var(--accent)]"
+                  checked={wantComment}
+                  disabled={busy}
+                  onChange={(e) => setWantComment(e.target.checked)}
+                />
+              </label>
               <button
-                className="mt-4 w-full cursor-pointer rounded-lg bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-45"
+                className="mt-3 w-full cursor-pointer rounded-lg bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-45"
                 disabled={busy}
                 onClick={() => void enable()}
               >
-                开启分享（48 小时有效）
+                开启分享（永久有效）
               </button>
             </>
           ) : (
@@ -156,24 +168,20 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
                 </button>
               </div>
 
-              <div className="mt-3 flex items-center justify-between text-[12px] text-[var(--ink-faint)]">
-                <span>
-                  {fmtRemaining(state.expiresAt)}
-                  {typeof state.commentCount === "number" && state.commentCount > 0
-                    ? ` · ${state.commentCount} 条批注`
-                    : ""}
-                </span>
-                <button
-                  className="cursor-pointer text-[var(--accent)] hover:underline disabled:opacity-45"
-                  disabled={busy}
-                  onClick={() => void enable()}
-                >
-                  续期 48 小时
-                </button>
-              </div>
+              <p className="mt-3 text-[12px] text-[var(--ink-faint)]">
+                链接永久有效
+                {typeof state.commentCount === "number" && state.commentCount > 0
+                  ? ` · ${state.commentCount} 条批注`
+                  : ""}
+              </p>
 
               <label className="mt-3 flex cursor-pointer items-center justify-between rounded-lg border border-[var(--hairline)] px-3 py-2.5">
-                <span className="text-[13px] text-[var(--ink)]">允许访客批注</span>
+                <span className="text-[13px] text-[var(--ink)]">
+                  允许访客批注
+                  <span className="ml-2 text-[12px] text-[var(--ink-faint)]">
+                    关闭则正文更宽
+                  </span>
+                </span>
                 <input
                   type="checkbox"
                   className="h-4 w-4 cursor-pointer accent-[var(--accent)]"

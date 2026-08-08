@@ -1,16 +1,13 @@
 "use client";
 
-// 分享页顶栏：品牌入口、剩余时效、批注数、CTA（从 SharedArticle 搬出）
+// 分享页顶栏：品牌入口、批注数、CTA（从 SharedArticle 搬出）
 
 import Link from "next/link";
-import { fmtRemaining } from "../lib/format";
 
 export function ArticleHeader({
-  expiresAt,
   allowComment,
   openCount,
 }: {
-  expiresAt: string;
   allowComment: boolean;
   openCount: number;
 }) {
@@ -21,9 +18,6 @@ export function ArticleHeader({
       </Link>
       <span className="text-[12px] text-[var(--ink-faint)]">文章分享</span>
       <span className="flex-1" />
-      <span className="hidden text-[12px] text-[var(--ink-faint)] sm:block">
-        {fmtRemaining(expiresAt)}
-      </span>
       {allowComment ? (
         <span className="hidden rounded-full bg-[var(--accent-wash)] px-2.5 py-0.5 text-[12px] text-[var(--ink-soft)] sm:block">
           {openCount > 0 ? `${openCount} 条批注` : "选中文字即可批注"}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
@@ -19,8 +20,8 @@ import {
   type AnchorInput,
   type AnchorRange,
 } from "./anchors";
-import { Toaster, toast } from "@/components/Toast";
-import { loadIdentity, saveIdentityName, type GuestIdentity } from "./identity";
+import { Toaster } from "@/components/Toast";
+import { useShareComments } from "./hooks/useShareComments";
 import type { AnchorType, ShareCommentJson, SharePayload } from "./types";
 import { ANNO_CSS } from "./lib/constants";
 import { ArticleHeader } from "./components/ArticleHeader";
@@ -50,11 +51,16 @@ export type PanelPos = { x: number; y: number } | null;
 
 export function SharedArticle(props: SharePayload) {
   const {
-    token, title, authorName, updatedAt, expiresAt, content,
+    token, title, authorName, updatedAt, content,
     themeCss, codeThemeId, customCss, macCode, allowComment, viewerIsOwner,
   } = props;
 
-  const [comments, setComments] = useState<ShareCommentJson[]>(props.initialComments);
+  // 阅读区宽度随批注开关走：关批注时右侧 280px 批注栏整条不渲染，
+  // 省下的横向空间全给正文，读起来比原先的手机窄栏舒服得多
+  const layout = allowComment
+    ? { page: "max-w-[1160px]", column: "max-w-[620px]", pad: "px-4" }
+    : { page: "max-w-[1010px]", column: "max-w-[780px]", pad: "px-6" };
+
   const [html, setHtml] = useState("");
   const [codeCss, setCodeCss] = useState("");
   const [mathReady, setMathReady] = useState(false);
@@ -64,12 +70,34 @@ export function SharedArticle(props: SharePayload) {
   const [selBtn, setSelBtn] = useState<SelBtnState>(null);
   const [mediaBtn, setMediaBtn] = useState<MediaBtnState>(null);
   const [composer, setComposer] = useState<ComposerState>(null);
-  const [guestName, setGuestName] = useState("");
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
   const [outline, setOutline] = useState<{ level: number; text: string }[]>([]);
 
-  const identityRef = useRef<GuestIdentity | null>(null);
+  /** 线程收起：解决或删除后，浮层与激活态一起清掉 */
+  const closeThread = useCallback(() => {
+    setActiveId(null);
+    setPanelPos(null);
+  }, []);
+
+  /** 新批注发表成功：收掉编辑卡与选区按钮，把新线程点亮 */
+  const onRootPosted = useCallback((id: string) => {
+    setComposer(null);
+    setSelBtn(null);
+    setActiveId(id);
+  }, []);
+
+  // 批注的读写（身份、轮询、发表、解决、删除）全在这个 hook 里
+  const {
+    comments, guestName, setGuestName, draft, setDraft, busy,
+    submit, resolveThread, removeComment,
+  } = useShareComments({
+    token,
+    viewerIsOwner,
+    initialComments: props.initialComments,
+    activeId,
+    onRootPosted,
+    onThreadClosed: closeThread,
+  });
+
   const articleRef = useRef<HTMLElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   /** 正文由我们手动写入 innerHTML（React 不管理其子树），高亮 span 才不会被重渲染抹掉 */
@@ -96,26 +124,6 @@ export function SharedArticle(props: SharePayload) {
     });
     return () => { cancelled = true; };
   }, [codeThemeId]);
-
-  // —— 访客身份与批注刷新 ——
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/share/${token}/comments`, {
-        headers: identityRef.current ? { "x-guest-key": identityRef.current.key } : {},
-      });
-      if (res.ok) setComments(await res.json());
-    } catch {
-      // 网络失败保持现状，下轮再试
-    }
-  }, [token]);
-
-  useEffect(() => {
-    identityRef.current = loadIdentity();
-    setGuestName(identityRef.current.name);
-    void refresh();
-    const timer = setInterval(() => void refresh(), 30_000);
-    return () => clearInterval(timer);
-  }, [refresh]);
 
   // —— 线程组装 ——
   const threads = useMemo<Thread[]>(() => {
@@ -155,7 +163,9 @@ export function SharedArticle(props: SharePayload) {
         if (el) {
           const off = textOffsetBefore(root, el);
           next.set(c.id, { start: off, end: off });
-          if (!c.resolvedAt) markMedia(el, c.id);
+          // 关批注后正文不再露出任何批注痕迹：既没有侧栏也点不开线程，
+          // 高亮留着只会变成读者点不动的怪框
+          if (!c.resolvedAt && allowComment) markMedia(el, c.id);
         } else {
           next.set(c.id, null);
         }
@@ -163,10 +173,10 @@ export function SharedArticle(props: SharePayload) {
       }
       const range = locateAnchor(root, c);
       next.set(c.id, range);
-      if (range && !c.resolvedAt) highlightRange(root, range, c.id);
+      if (range && !c.resolvedAt && allowComment) highlightRange(root, range, c.id);
     }
     setRanges(next);
-  }, [html, comments]);
+  }, [html, comments, allowComment]);
 
   // —— 大纲：正文变化时从渲染结果里提取 h1~h3 ——
   // 声明在正文写入 effect 之后：同一次 html 变更的提交里，先写正文再提取
@@ -248,7 +258,7 @@ export function SharedArticle(props: SharePayload) {
     } else {
       setPanelPos(null); // 失效/已解决批注：无高亮，仅侧栏展开
     }
-  }, []);
+  }, [setDraft]);
 
   // —— 媒体「批注」浮标的显示与延迟隐藏 ——
   const cancelMediaHide = useCallback(() => {
@@ -307,93 +317,8 @@ export function SharedArticle(props: SharePayload) {
     [openThread, comments]
   );
 
-  // —— 提交批注 / 回复 ——
+  // —— 访客署名 ——
   const needName = !viewerIsOwner && !guestName.trim();
-  const submit = useCallback(
-    async (parentId: string | null, anchor?: PendingAnchor) => {
-      const body = draft.trim();
-      if (!body || busy) return;
-      setBusy(true);
-      try {
-        const name = guestName.trim().slice(0, 30);
-        if (!viewerIsOwner && name) saveIdentityName(name);
-        const res = await fetch(`/api/share/${token}/comments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            body,
-            author: name,
-            key: identityRef.current?.key ?? "",
-            parentId,
-            ...(anchor
-              ? {
-                  anchorType: anchor.type,
-                  anchorText: anchor.anchorText,
-                  anchorPrefix: anchor.anchorPrefix,
-                  anchorIndex: anchor.anchorIndex,
-                }
-              : {}),
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          toast(data.error ?? "批注失败，请稍后再试", "error");
-          return;
-        }
-        const created: ShareCommentJson = await res.json();
-        setComments((prev) => [...prev, created]);
-        setDraft("");
-        if (!parentId) {
-          setComposer(null);
-          setSelBtn(null);
-          window.getSelection()?.removeAllRanges();
-          setActiveId(created.id);
-        }
-      } finally {
-        setBusy(false);
-      }
-    },
-    [draft, busy, guestName, viewerIsOwner, token]
-  );
-
-  const resolveThread = useCallback(
-    async (id: string, resolved: boolean) => {
-      const res = await fetch(`/api/share/${token}/comments/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resolved, key: identityRef.current?.key ?? "" }),
-      });
-      if (res.ok) {
-        setComments((prev) =>
-          prev.map((c) =>
-            c.id === id ? { ...c, resolvedAt: resolved ? new Date().toISOString() : null } : c
-          )
-        );
-        if (resolved) {
-          setActiveId(null);
-          setPanelPos(null);
-        }
-      }
-    },
-    [token]
-  );
-
-  const removeComment = useCallback(
-    async (c: ShareCommentJson) => {
-      const res = await fetch(`/api/share/${token}/comments/${c.id}`, {
-        method: "DELETE",
-        headers: identityRef.current ? { "x-guest-key": identityRef.current.key } : {},
-      });
-      if (res.ok) {
-        setComments((prev) => prev.filter((x) => x.id !== c.id && x.parentId !== c.id));
-        if (activeId === c.id) {
-          setActiveId(null);
-          setPanelPos(null);
-        }
-      }
-    },
-    [token, activeId]
-  );
 
   const activeThread = threads.find((t) => t.root.id === activeId) ?? null;
   const openCount = sortedThreads.open.length;
@@ -419,16 +344,18 @@ export function SharedArticle(props: SharePayload) {
       <style>{ANNO_CSS}</style>
 
       {/* 顶栏 */}
-      <ArticleHeader expiresAt={expiresAt} allowComment={allowComment} openCount={openCount} />
+      <ArticleHeader allowComment={allowComment} openCount={openCount} />
 
       {/* 内容区（body 是 overflow-hidden，这里自建滚动） */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[1060px] justify-center gap-8 px-4 py-8">
+        <div className={`mx-auto flex ${layout.page} justify-center gap-8 px-4 py-8`}>
           {/* 大纲（桌面）：从渲染结果提取 h1~h3，点击平滑跳转 */}
           {outline.length > 0 ? <OutlineNav outline={outline} onJump={jumpToHeading} /> : null}
-          {/* 文章列：与编辑器预览一致的手机阅读宽度 */}
-          <div ref={wrapRef} className="relative w-full max-w-[440px]">
-            <div className="light-lock rounded-xl bg-white px-2.5 py-6 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)]">
+          {/* 文章列：宽度见 layout —— 批注开着让位给侧栏，关着则放宽 */}
+          <div ref={wrapRef} className={`relative w-full ${layout.column}`}>
+            <div
+              className={`light-lock rounded-xl bg-white ${layout.pad} py-6 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)]`}
+            >
               <div className="px-4">
                 <h1 className="text-[22px] font-bold leading-[1.4] text-[#1a1a1a] [font-family:var(--serif)]">
                   {title}
@@ -448,10 +375,16 @@ export function SharedArticle(props: SharePayload) {
                 <section id="nice" ref={articleRef} />
               </div>
             </div>
-            <p className="py-6 text-center text-[12px] text-[var(--ink-faint)]">
-              本页由 xedit 生成 · 链接 48 小时内有效
-              {allowComment ? " · 选中文字或点击图片、视频即可批注" : ""}
-            </p>
+            {/* 落款：整条可点，回 xedit 首页。href 用相对路径，
+                自部署或 Mac 客户端下也不会把读者甩到别的域名去 */}
+            <div className="py-6 text-center text-[12px] leading-relaxed text-[var(--ink-faint)]">
+              <Link href="/" className="hover:text-[var(--accent)] hover:underline">
+                本页由 xedit 生成 · xedit.me
+              </Link>
+              {allowComment ? (
+                <p className="mt-1">选中文字或点击图片、视频即可批注</p>
+              ) : null}
+            </div>
 
             <AnnotationOverlay
               wrapRef={wrapRef}
@@ -479,15 +412,16 @@ export function SharedArticle(props: SharePayload) {
             />
           </div>
 
-          {/* 批注侧栏（桌面） */}
-          <CommentSidebar
-            allowComment={allowComment}
-            openCount={openCount}
-            sortedThreads={sortedThreads}
-            activeId={activeId}
-            openThread={openThread}
-            resolveThread={resolveThread}
-          />
+          {/* 批注侧栏（桌面）：关批注时整条不渲染，把宽度让给正文 */}
+          {allowComment ? (
+            <CommentSidebar
+              openCount={openCount}
+              sortedThreads={sortedThreads}
+              activeId={activeId}
+              openThread={openThread}
+              resolveThread={resolveThread}
+            />
+          ) : null}
         </div>
       </div>
     </div>

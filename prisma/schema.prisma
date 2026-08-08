@@ -98,10 +98,11 @@ model DocShare {
   document     Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
   userId       String
   enabled      Boolean        @default(true)
-  /// 是否允许访客批注
+  /// 是否允许访客批注；关闭后分享页不渲染批注栏，正文列更宽
   allowComment Boolean        @default(true)
-  /// 到期时刻（开启/重开时顺延 48 小时），过期后访问与批注都拒绝
-  expiresAt    DateTime
+  /// 到期时刻；null 表示永久有效（现为默认，链接只由作者手动关闭）。
+  /// 字段保留是为将来可能的限时分享，逻辑上 null 与未来时刻都算有效
+  expiresAt    DateTime?
   createdAt    DateTime       @default(now())
   comments     ShareComment[]
 }

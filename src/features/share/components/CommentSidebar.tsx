@@ -8,14 +8,12 @@ import type { Thread } from "../SharedArticle";
 import { AnchorQuote } from "./AnchorQuote";
 
 export function CommentSidebar({
-  allowComment,
   openCount,
   sortedThreads,
   activeId,
   openThread,
   resolveThread,
 }: {
-  allowComment: boolean;
   openCount: number;
   sortedThreads: { open: Thread[]; resolved: Thread[] };
   activeId: string | null;
@@ -30,9 +28,7 @@ export function CommentSidebar({
         </p>
         {sortedThreads.open.length === 0 ? (
           <p className="rounded-lg border border-dashed border-[var(--hairline)] px-3 py-4 text-[12px] leading-relaxed text-[var(--ink-faint)]">
-            {allowComment
-              ? "还没有批注。选中正文文字，或把鼠标移到图片、视频上，点「批注」即可发表意见。"
-              : "该分享未开放批注。"}
+            还没有批注。选中正文文字，或把鼠标移到图片、视频上，点「批注」即可发表意见。
           </p>
         ) : (
           <div className="flex flex-col gap-2">
