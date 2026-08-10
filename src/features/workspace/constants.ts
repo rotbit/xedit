@@ -27,9 +27,9 @@ export function treeIndent(depth: number): number {
 
 /** 拖拽悬停时落点行的高亮样式（放入该分类） */
 export const DROP_HL = "bg-[var(--accent-wash)] shadow-[inset_0_0_0_1.5px_var(--accent)]";
-/** 拖拽排序的插入指示线：插到该行之前/之后 */
-export const DROP_LINE_TOP = "shadow-[0_-2px_0_0_var(--accent)]";
-export const DROP_LINE_BOTTOM = "shadow-[0_2px_0_0_var(--accent)]";
+/** 拖拽排序的插入指示线：插到该行之前/之后。3px 才在浅色侧栏里一眼可见 */
+export const DROP_LINE_TOP = "shadow-[0_-3px_0_0_var(--accent)]";
+export const DROP_LINE_BOTTOM = "shadow-[0_3px_0_0_var(--accent)]";
 
 /** 侧栏行的基础样式：选中态强调，未选中态 hover 提亮 */
 export function rowCls(active: boolean): string {

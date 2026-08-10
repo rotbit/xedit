@@ -39,6 +39,8 @@ interface Params {
   reorderCategory: (path: string, targetPath: string, zone: "before" | "after") => void;
   /** 把文章插到 target 文章的前/后（跨分类时连带移动） */
   reorderDoc: (id: string, targetId: string, zone: "before" | "after") => void;
+  /** 把文章排到某分类文章区的首位（只排序，不改分类） */
+  placeDocFirst: (doc: DocMeta, category: string) => void;
 }
 
 const parentOf = (path: string) =>
@@ -56,6 +58,7 @@ function zoneOf(e: React.DragEvent, edge: number): "before" | "after" | "into" {
 /**
  * 鼠标拖拽：文章/分类拖到侧栏行上。
  * 行中部=移入该分类；行边缘=插到该行前后调整先后顺序（跨父级/跨分类时连带迁移）。
+ * 文章拖到文件夹行只有中段才「移入」——边缘留缓冲，避免瞄准排序时被文件夹吞掉。
  */
 export function useDragMove({
   docs,
@@ -66,6 +69,7 @@ export function useDragMove({
   moveCategory,
   reorderCategory,
   reorderDoc,
+  placeDocFirst,
 }: Params) {
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [dropSpot, setDropSpot] = useState<DropSpot | null>(null);
@@ -93,8 +97,20 @@ export function useDragMove({
   const spotOnCat = (e: React.DragEvent, target: string): DropSpot | null => {
     if (!dragItem) return null;
     if (dragItem.kind === "doc") {
-      // 文章拖到分类行：整行都是「移入」
-      return docCanMoveTo(dragItem.id, target) ? { kind: "cat", key: target, zone: "into" } : null;
+      // 文章拖到分类行：只有中段算「移入」。上下边缘留作缓冲——瞄准相邻文章排序时
+      // 手抖压到文件夹行，本不该把文件吞进那个文件夹。
+      if (zoneOf(e, 0.25) === "into") {
+        return docCanMoveTo(dragItem.id, target) ? { kind: "cat", key: target, zone: "into" } : null;
+      }
+      // 缓冲区不是死区：文章总渲染在子文件夹之后，子文件夹行紧邻的合法落点就是
+      // 「该文件夹所属分类的文章区首位」。只在那正是本文章当前所在分类时接受，
+      // 于是边缘永远只排序、绝不改变文章归属。
+      if (target === ALL) return null;
+      const doc = (docs ?? []).find((d) => d.id === dragItem.id);
+      const host = parentOf(target);
+      return doc && host && (doc.category || UNCATEGORIZED) === host
+        ? { kind: "cat", key: target, zone: "after" }
+        : null;
     }
     const path = dragItem.path;
     if (path === UNCATEGORIZED) return null;
@@ -179,7 +195,10 @@ export function useDragMove({
       e.stopPropagation();
       if (item.kind === "doc") {
         const doc = (docs ?? []).find((d) => d.id === item.id);
-        if (doc) moveDoc(doc, target === ALL ? UNCATEGORIZED : target);
+        if (!doc) return;
+        // 中段=移入该分类；边缘=排到该文件夹所属分类的文章区首位
+        if (spot.zone === "into") moveDoc(doc, target === ALL ? UNCATEGORIZED : target);
+        else placeDocFirst(doc, parentOf(target));
         return;
       }
       if (spot.zone === "into") {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { buildTree, findNode } from "../lib/catTree";
 import { reorderList } from "../lib/sidebarOrder";
-import type { CatNode } from "../types";
+import type { CatNode, DocMeta } from "../types";
 import { useAppConfig } from "./useAppConfig";
 import { useAuthMode } from "./useAuthMode";
 import { useCategoryActions } from "./useCategoryActions";
@@ -67,6 +67,14 @@ export function useWorkspace() {
     if ((dragged.category || UNCATEGORIZED) !== cat) void docActions.moveDoc(dragged, cat);
   };
 
+  /** 文章排到某分类文章区首位；拖到子文件夹行边缘时用，落点保证同分类，只排序不搬家 */
+  const placeDocFirst = (doc: DocMeta, cat: string) => {
+    const ids = (findNode(treeRef.current, cat)?.docs ?? [])
+      .map((d) => d.id)
+      .filter((x) => x !== doc.id);
+    library.updateOrder((o) => ({ ...o, docs: { ...o.docs, [cat]: [doc.id, ...ids] } }));
+  };
+
   const drag = useDragMove({
     docs: library.docs,
     customCats: library.customCats,
@@ -76,6 +84,7 @@ export function useWorkspace() {
     moveCategory: catActions.moveCategory,
     reorderCategory,
     reorderDoc,
+    placeDocFirst,
   });
 
   const { docs, customCats, trashDocs, order } = library;
