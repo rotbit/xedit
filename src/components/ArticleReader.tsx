@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
 import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
@@ -10,8 +10,13 @@ import { toast } from "./Toast";
 import { useStore } from "@/store/useStore";
 import { useEditorDoc } from "@/hooks/useEditorDoc";
 import { useSyncScroll } from "@/hooks/useSyncScroll";
-import { MarkdownEditor, type EditorHandle } from "./MarkdownEditor";
-import { EditorToolbar } from "./EditorToolbar";
+import {
+  MarkdownEditor,
+  type EditorHandle,
+  type FormatCommand,
+  type SelectionInfo,
+} from "./MarkdownEditor";
+import { FloatingToolbar } from "./FloatingToolbar";
 import { ReaderActions } from "@/features/editor/components/ReaderActions";
 import { ShareDialog } from "@/features/share/ShareDialog";
 import { isLocalId } from "@/lib/localDocs";
@@ -82,6 +87,24 @@ export function ArticleReader({
   const editorRef = useRef<EditorHandle>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const splitAreaRef = useRef<HTMLDivElement>(null);
+  // 标题 + 正文的共同滚动容器：用 state 而非 ref，挂载后要重新渲染把它传给编辑器
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  // 选区上报走订阅而不是 state：光标每动一下都 setState 会白白重渲染整个文章视图，
+  // 而浮动工具条只是挂在 body 上的旁路组件，让它自己订阅这条流就够了
+  const selectionSubRef = useRef<((info: SelectionInfo | null) => void) | null>(null);
+  const emitSelection = useCallback((info: SelectionInfo | null) => {
+    selectionSubRef.current?.(info);
+  }, []);
+  const subscribeSelection = useCallback((cb: (info: SelectionInfo | null) => void) => {
+    selectionSubRef.current = cb;
+    return () => {
+      if (selectionSubRef.current === cb) selectionSubRef.current = null;
+    };
+  }, []);
+
+  const applyFormat = useCallback((cmd: FormatCommand, arg?: string) => {
+    editorRef.current?.applyFormat(cmd, arg);
+  }, []);
   const { setActive, onEditorScrollLine, onPreviewScroll } = useSyncScroll(
     editorRef,
     previewRef
@@ -184,17 +207,23 @@ export function ArticleReader({
     if (target) moveToCategory(target);
   };
 
-  /** 分享要求登录 + 云端文档，本地草稿先提示 */
-  const openShare = () => {
+  /** 分享要求登录 + 云端文档，本地草稿先提示。
+      下面这几个回调都裹 useCallback：ReaderActions 已 memo，回调引用一变 memo 就白做了 */
+  const openShare = useCallback(() => {
     if (!loggedIn || isLocalId(docId)) {
       toast("登录后才能分享文章", "error");
       return;
     }
     setShareOpen(true);
-  };
+  }, [loggedIn, docId]);
+  const toggleOutline = useCallback(() => setOutlineOpen((v) => !v), []);
+  const openVersions = useCallback(() => setVersionsOpen(true), []);
 
-  // 字数只在正文变化时重扫（wordCount 内部要过 4 遍正则，别跟着每次渲染跑）
-  const chars = useMemo(() => wordCount(content), [content]);
+  // 字数只在正文变化时重扫（wordCount 内部要过 4 遍正则，别跟着每次渲染跑）。
+  // 再套一层 useDeferredValue：字数是「顺带看一眼」的信息，让它落在低优先级渲染里，
+  // 连打时先把光标与正文画出来，全文扫描往后排
+  const deferredContent = useDeferredValue(content);
+  const chars = useMemo(() => wordCount(deferredContent), [deferredContent]);
 
   if (loading) {
     return (
@@ -213,12 +242,15 @@ export function ArticleReader({
       {actionSlot
         ? createPortal(
             <ReaderActions
-              chars={chars}
+              empty={chars === 0}
               split={split}
               onToggleSplit={toggleSplit}
               reading={reading}
               onToggleReading={toggleReading}
-              onOpenVersions={() => setVersionsOpen(true)}
+              outlineOpen={outlineOpen}
+              onToggleOutline={toggleOutline}
+              onInsert={applyFormat}
+              onOpenVersions={openVersions}
               onOpenShare={openShare}
               onDelete={onDelete}
             />,
@@ -230,7 +262,8 @@ export function ArticleReader({
       {reading ? (
         <Preview variant="reading" onExit={toggleReading} />
       ) : (
-      /* 编辑区（默认单屏）/ 双屏（左源码 + 右预览） */
+      <>
+      {/* 编辑区（默认单屏）/ 双屏（左源码 + 右预览） */}
       <div ref={splitAreaRef} className="flex min-h-0 min-w-0 flex-1">
         {/* 源码编辑列 */}
         <div
@@ -242,12 +275,6 @@ export function ArticleReader({
           style={{ width: split ? `${splitRatio * 100}%` : "100%" }}
           onPointerEnter={() => setActive("editor")}
         >
-          <EditorToolbar
-            onCommand={(cmd, arg) => editorRef.current?.applyFormat(cmd, arg)}
-            outlineOpen={outlineOpen}
-            onToggleOutline={() => setOutlineOpen((v) => !v)}
-            centered={!split}
-          />
           <div className="flex min-h-0 flex-1">
             {/* 大纲面板：宽度过渡开合，面板本体定宽避免文字随宽度挤压 */}
             <div
@@ -261,10 +288,13 @@ export function ArticleReader({
               />
             </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {/* 标题 + 元信息（固定于源码上方）：左缘与正文文字对齐
-                  （单屏 16px = .cm-doc 行内缩，双屏 24px = .cm-split 行内缩） */}
-              <div className="shrink-0">
-                <div className={`w-full pt-5 ${split ? "px-6" : "mx-auto max-w-[760px] px-4"}`}>
+              {/* 标题区与正文共用一个滚动容器：标题随正文一起滚出视野，
+                  正文不再从固定标题下方被硬切。编辑器自身改为高度自适应（.reader-live），
+                  滚动读写由 MarkdownEditor 的 scrollParent 接管 */}
+              <div ref={setScrollEl} className="min-h-0 flex-1 overflow-y-auto">
+                {/* 标题 + 元信息：左缘与正文文字对齐（28px = .cm-doc/.cm-split 的行内缩） */}
+                {/* pt 比原来多 12px：常驻工具栏撤掉后，标题不能直接顶在面包屑下沿 */}
+                <div className={`w-full pt-8 ${split ? "px-7" : "mx-auto max-w-[760px] px-7"}`}>
                   <input
                     className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
                     value={title}
@@ -314,12 +344,12 @@ export function ArticleReader({
                   </div>
                   <div className="mt-3 h-px w-10 bg-[var(--hairline-strong)]" />
                 </div>
-              </div>
-              {/* Markdown 编辑器：填满整列宽高，默认即时渲染（设置里可切回源码模式）。
-                  单屏时加 .cm-doc → 正文居中在可读宽度、滚动条落到列最右缘；
-                  双屏时加 .cm-split → 填满左栏但加大行内缩，不贴分隔条 */}
-              <div className="min-h-0 flex-1">
-                <div className={`h-full w-full cm-reader ${split ? "cm-split" : "cm-doc"}`}>
+                {/* Markdown 编辑器：默认即时渲染（设置里可切回源码模式）。
+                    单屏时加 .cm-doc → 正文居中在可读宽度；双屏时加 .cm-split → 填满左栏但加大行内缩。
+                    .reader-live 让编辑器高度自适应，滚动交给上面的外层容器 */}
+                <div
+                  className={`w-full cm-reader reader-live ${split ? "cm-split" : "cm-doc"}`}
+                >
                   <MarkdownEditor
                     key={docKey}
                     ref={editorRef}
@@ -328,6 +358,8 @@ export function ArticleReader({
                     live={!sourceMode}
                     onChange={setContent}
                     onScrollLine={onEditorScrollLine}
+                    onSelectionChange={emitSelection}
+                    scrollParent={scrollEl}
                   />
                 </div>
               </div>
@@ -356,6 +388,15 @@ export function ArticleReader({
           </>
         ) : null}
       </div>
+
+      {/* Notion 式浮动工具条：选中正文才浮出，portal 到 body、fixed 跟随选区 */}
+      <FloatingToolbar
+        subscribe={subscribeSelection}
+        editorRef={editorRef}
+        scrollEl={scrollEl}
+        onCommand={applyFormat}
+      />
+      </>
       )}
 
       {/* 版本历史抽屉：由功能簇里的「版本」按钮唤起 */}

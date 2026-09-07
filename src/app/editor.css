@@ -1,0 +1,210 @@
+/* CodeMirror 编辑器的外壳样式：尺寸、滚动容器、光标、滚动条。
+   整块从 globals.css 搬来（语义未变），只为把「主题变量」和「编辑器外观」分开维护；
+   即时渲染的排版规则另见 live-preview.css。 */
+
+/* —— CodeMirror 编辑器外观 —— */
+.cm-editor {
+  height: 100%;
+  background: var(--panel);
+  font-size: 14px;
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-editor .cm-content {
+  font-family: var(--mono);
+  line-height: 1.8;
+  padding: 20px 4px 45vh 4px;
+  caret-color: var(--accent);
+}
+/* 首页阅读态：正文居中约束在可读宽度内，滚动容器仍铺满整列，
+   于是滚动条落到列最右缘（贴面板边），右侧留白变成对称的正常边距 */
+.cm-doc .cm-editor .cm-content {
+  max-width: 760px;
+  margin-inline: auto;
+}
+/* 标题区到正文的空隙收紧（仅首页文章视图，不影响 /edit 老编辑页） */
+.cm-reader .cm-editor .cm-content {
+  padding-top: 10px;
+}
+/* 行内缩与标题区对齐：单屏 12+4=16px（标题 px-4）、双屏 20+4=24px（标题 px-6，
+   同时让正文不贴分隔条） */
+.cm-doc .cm-editor .cm-line {
+  padding: 0 12px;
+}
+.cm-split .cm-editor .cm-line {
+  padding: 0 20px;
+}
+.cm-editor .cm-line {
+  padding: 0 14px;
+}
+.cm-editor .cm-cursor {
+  border-left-color: var(--accent);
+  border-left-width: 2px;
+}
+/* 光标平滑滑到新位置（点击定位、上下翻行）。只在根元素挂着 cm-caret-smooth 时生效：
+   打字那一拍插件会把类摘掉（见 editorCaret.ts），否则光标追不上字符，拖出残影 */
+.cm-editor.cm-caret-smooth .cm-cursor {
+  transition:
+    left 80ms,
+    top 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-editor.cm-caret-smooth .cm-cursor {
+    transition: none;
+  }
+}
+/* 光标落进深色代码卡时（livePreview 的插件在编辑器根上打 cm-caret-in-code）：
+   换成浅色实心光标，卡外仍是墨色实心 */
+.cm-editor.cm-caret-in-code .cm-cursor {
+  border-left-color: #f5f4f1;
+}
+/* 选区圆角：整块直角在中文行里显得生硬，3px 刚好收住四角又不显圆润 */
+.cm-editor .cm-selectionBackground,
+.cm-editor.cm-focused .cm-selectionBackground {
+  background: var(--cm-selection) !important;
+  border-radius: 3px;
+}
+/* 当前行：极淡的一层底，用来定位「我在哪一行」，淡到不构成第二种版式元素。
+   选择器多垫一级 .cm-content，是为了压过 CodeMirror 自带基础主题里那层浅蓝底 */
+.cm-editor .cm-content .cm-line.cm-activeLine {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+/* 有非空选区时当前行底色让位：两层浅底叠在一起，选中范围的边界就读不出来了
+   （cm-has-selection 由 editorCaret.ts 随选区状态下发） */
+.cm-editor.cm-has-selection .cm-content .cm-line.cm-activeLine {
+  background: transparent;
+}
+.cm-editor .cm-scroller {
+  overflow: auto;
+  /* Firefox：细滚动条，默认隐藏，进入编辑区/滚动时才浮现 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.cm-editor .cm-scroller:hover,
+.cm-editor .cm-scroller:focus-within {
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+/* WebKit：内缩成一根悬浮胶囊（约 5px），默认透明，避免在正文右侧空白里孤零零地突兀 */
+.cm-editor .cm-scroller::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+.cm-editor .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+.cm-editor .cm-scroller:hover::-webkit-scrollbar-thumb,
+.cm-editor .cm-scroller:focus-within::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  background-clip: padding-box;
+}
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+  background-clip: padding-box;
+}
+
+/* —— 首页文章视图的即时渲染编辑器：随内容自然增高、透明底、跟随页面滚动 —— */
+.reader-live .cm-editor {
+  height: auto;
+  background: transparent;
+}
+.reader-live .cm-scroller {
+  overflow: visible;
+}
+.reader-live .cm-content {
+  padding: 4px 0 25vh;
+}
+.reader-live .cm-line {
+  padding: 0 16px;
+}
+
+/* ================= 第一期：版式节奏重建带来的外壳调整 ================= */
+
+/* 行首标记（# / >）改成悬挂在文字左缘之外（见 live-preview.css 的 .cm-lp-mark），
+   行内缩必须留够一个标记的宽度，否则 H1 的 "# " 会被滚动容器裁掉。
+   28px 同时是标题输入框的左内缩（ArticleReader 的 px-7），两者左缘对齐 */
+.cm-doc .cm-editor .cm-line,
+.cm-split .cm-editor .cm-line {
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+/* 标题区与正文合用一个滚动容器后，正文顶部只留极小的一点缓冲：
+   标题区到 H1 的距离由 .cm-lp-first 的 12px 补齐（合计 16px） */
+.cm-reader.reader-live .cm-editor .cm-content {
+  padding-top: 4px;
+}
+
+/* ============ 浮出层（Notion 式）：浮动工具条 .float-toolbar 与斜杠菜单 .slash-menu ============ */
+
+/* 阴影与出入场动画两者同一套，抽成 .float-pop 复用。
+   阴影带主题差：夜间面板本身就深，日间那档 12% 的投影会糊成一团，要加重到 50% 才浮得起来。
+   两者都 portal 到 body，只能靠 [data-theme]（挂在 <html> 上）区分明暗 */
+.float-toolbar,
+.float-pop {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  animation: float-pop-in 120ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+[data-theme="dark"] .float-toolbar,
+[data-theme="dark"] .float-pop {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+/* 收起时先播完淡出再卸载（React 侧延迟 80ms 卸载，两边时长一致） */
+.float-toolbar[data-closing="true"],
+.float-pop[data-closing="true"] {
+  animation: float-pop-out 80ms ease both;
+}
+@keyframes float-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes float-pop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .float-toolbar,
+  .float-toolbar[data-closing="true"],
+  .float-pop,
+  .float-pop[data-closing="true"] {
+    animation: none;
+  }
+}
+
+/* 斜杠菜单：行高与项数由组件定（8 行封顶后内部滚动），这里只收拾滚动条 ——
+   默认那根粗白条压在 240px 宽的卡片上太抢眼，收成一根细的发丝色胶囊 */
+.slash-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+  overscroll-behavior: contain;
+}
+.slash-menu::-webkit-scrollbar {
+  width: 8px;
+}
+.slash-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.slash-menu::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+/* 高亮行的底色用 --accent-wash（两套主题各自定义过），行内不再另设 hover 色：
+   hover 会直接改 CodeMirror 侧的高亮下标，键鼠共用同一份高亮，不会出现两处同时亮 */
