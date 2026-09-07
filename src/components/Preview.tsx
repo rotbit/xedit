@@ -27,8 +27,8 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
-      {/* 顶栏：与左侧编辑工具栏同高、同底、同一条下边线，切换模式时这条线不跳 */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4">
+      {/* 顶栏：左侧常驻工具栏撤成浮动工具条后，这条只剩标识作用，压到 40px 少占版面 */}
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4">
         {reading ? (
           <button
             className="-ml-1.5 flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[12px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"

@@ -1,0 +1,96 @@
+/* 即时渲染里的块级组件：表格与行间公式。
+   与 live-preview.css 分开只为控制单文件长度——这两块由 StateField 提供的
+   block widget 渲染（见 lib/livePreviewBlocks.ts），排版规则也自成一体。 */
+
+/* —— 表格 —— */
+/* 圆角画在外层 div 上：table 自身开了 border-collapse，外边框会从圆角里露出直角，
+   所以外框交给 wrapper，单元格只负责内部网格线 */
+.cm-live-preview .cm-lp-table {
+  overflow: hidden;
+  margin: 6px 0;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  cursor: text;
+}
+.cm-live-preview .cm-lp-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.cm-live-preview .cm-lp-table th,
+.cm-live-preview .cm-lp-table td {
+  padding: 6px 12px;
+  border: 1px solid var(--hairline);
+  text-align: left;
+}
+.cm-live-preview .cm-lp-table th {
+  background: var(--accent-wash);
+  font-weight: 600;
+}
+/* 贴边的那一圈交给 wrapper 的边框，避免双线 */
+.cm-live-preview .cm-lp-table tr > *:first-child {
+  border-left: none;
+}
+.cm-live-preview .cm-lp-table tr > *:last-child {
+  border-right: none;
+}
+.cm-live-preview .cm-lp-table thead tr:first-child > * {
+  border-top: none;
+}
+.cm-live-preview .cm-lp-table tbody tr:last-child > * {
+  border-bottom: none;
+}
+/* 单元格里的行内代码沿用正文的胶囊配色，但不带绝对定位的伪元素背景 */
+.cm-live-preview .cm-lp-table code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--md-code-bg);
+  color: var(--md-code);
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.cm-live-preview .cm-lp-table a {
+  color: var(--md-link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* —— 行间公式 —— */
+/* SVG 里的字形用 currentColor 填充，所以只要给容器上墨色，夜间自动跟着翻 */
+.cm-live-preview .cm-lp-math {
+  display: block;
+  padding: 10px 0;
+  overflow-x: auto;
+  text-align: center;
+  color: var(--ink);
+  cursor: text;
+}
+/* Tailwind 的 preflight 把 svg 设成了 display:block，父级的 text-align 管不到它，
+   居中只能靠自动外边距 */
+.cm-live-preview .cm-lp-math svg {
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+/* MathJax 还在异步加载：先把原文摆出来占位，加载完由 refreshLivePreview 重建 */
+.cm-live-preview .cm-lp-math-loading {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+/* 公式写错时不吞内容：原样显示并垫一层极淡的红，提示这里没渲染成功 */
+.cm-live-preview .cm-lp-math-error {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgb(224 72 76 / 0.1);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+[data-theme="dark"] .cm-live-preview .cm-lp-math-error {
+  background: rgb(224 72 76 / 0.16);
+}

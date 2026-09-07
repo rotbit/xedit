@@ -1,19 +1,29 @@
 "use client";
 
-// 文章视图顶栏右侧的操作簇：功能簇 / 分享 / 一键复制 / 双屏 / 阅读模式 / 更多。
+// 文章视图顶栏右侧的操作簇：大纲 / 插入 / 功能簇 / 分享 / 一键复制 / 双屏 / 阅读模式 / 更多。
 // 由 ArticleReader portal 到面包屑顶栏，与面包屑共用一行（从 ArticleReader 搬出）。
+// 常驻工具栏改成浮动工具条后，大纲开关与插入类操作没了去处，一并收进这里。
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
   Columns2,
   Copy,
+  Film,
+  Image as ImageIcon,
+  ListTodo,
+  ListTree,
   Loader2,
+  Minus,
   MoreHorizontal,
+  Plus,
   Share2,
+  SquareCode,
+  Table,
   Trash2,
 } from "lucide-react";
+import type { FormatCommand } from "@/components/MarkdownEditor";
 import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
@@ -29,29 +39,51 @@ const iconBtnOn = `${iconBtn} bg-[var(--accent-wash)] text-[var(--accent)]`;
 const menuItem =
   "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]";
 const menuCard =
-  "absolute right-0 top-[calc(100%+6px)] z-20 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)]";
+  "absolute right-0 top-[calc(100%+6px)] z-20 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]";
 
-export function ReaderActions({
-  chars,
+/** 插入类操作：不依赖选区，放在浮动工具条里既占地方又难点，收进 + 菜单 */
+const INSERT_ITEMS: { cmd: FormatCommand; icon: React.ReactNode; label: string }[] = [
+  { cmd: "image", icon: <ImageIcon size={14} />, label: "图片" },
+  { cmd: "video", icon: <Film size={14} />, label: "视频（上传）" },
+  { cmd: "table", icon: <Table size={14} />, label: "表格" },
+  { cmd: "codeblock", icon: <SquareCode size={14} />, label: "代码块" },
+  { cmd: "tasklist", icon: <ListTodo size={14} />, label: "任务列表" },
+  { cmd: "hr", icon: <Minus size={14} />, label: "分割线" },
+];
+
+// memo：这一簇按钮跟正文无关，却和编辑区共处同一棵树，打字时不该跟着重渲染。
+// 前提是父级把回调都 useCallback 住了（见 ArticleReader），且不再接收逐字变化的字数——
+// 它只需要知道「有没有内容」来决定复制按钮的可用态，于是收成一个布尔量
+export const ReaderActions = memo(function ReaderActions({
+  empty,
   split,
   onToggleSplit,
   reading,
   onToggleReading,
+  outlineOpen,
+  onToggleOutline,
+  onInsert,
   onOpenVersions,
   onOpenShare,
   onDelete,
 }: {
-  chars: number;
+  /** 正文是否为空：为空时禁用一键复制 */
+  empty: boolean;
   split: boolean;
   onToggleSplit: () => void;
   reading: boolean;
   onToggleReading: () => void;
+  outlineOpen: boolean;
+  onToggleOutline: () => void;
+  /** 插入类命令直通编辑器的 applyFormat */
+  onInsert: (cmd: FormatCommand) => void;
   onOpenVersions: () => void;
   onOpenShare: () => void;
   onDelete?: () => void;
 }) {
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  const [insertOpen, setInsertOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   /** 直接复制到公众号，与编辑页的复制管线一致 */
@@ -86,6 +118,45 @@ export function ReaderActions({
 
   return (
     <>
+      {/* 大纲开关：原在常驻工具栏最左，横栏撤掉后并入这里，激活态与双屏按钮同款 */}
+      <button
+        className={outlineOpen ? iconBtnOn : iconBtnIdle}
+        title="大纲"
+        onClick={onToggleOutline}
+      >
+        <ListTree size={15} />
+      </button>
+      {/* 插入：图片 / 视频 / 表格 / 代码块 / 任务列表 / 分割线 */}
+      <div className="relative">
+        <button
+          className={insertOpen ? iconBtnOn : iconBtnIdle}
+          title="插入"
+          onClick={() => setInsertOpen((v) => !v)}
+        >
+          <Plus size={16} />
+        </button>
+        {insertOpen ? (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setInsertOpen(false)} />
+            <div className={`${menuCard} w-40`}>
+              {INSERT_ITEMS.map((it) => (
+                <button
+                  key={it.cmd}
+                  className={menuItem}
+                  onClick={() => {
+                    setInsertOpen(false);
+                    onInsert(it.cmd);
+                  }}
+                >
+                  {it.icon}
+                  {it.label}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+      </div>
+      <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
       {/* 排版主题 / 设置 / AI / 版本 / 导出 —— 从老编辑页搬来的功能簇 */}
       <EditorTools onOpenVersions={onOpenVersions} />
       <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
@@ -102,7 +173,7 @@ export function ReaderActions({
         <button
           className="flex h-8 cursor-pointer items-center gap-0.5 rounded-lg pl-2 pr-1.5 text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-45"
           onClick={() => setCopyMenuOpen((v) => !v)}
-          disabled={chars === 0 || copying !== null}
+          disabled={empty || copying !== null}
           title="一键复制"
         >
           {copying !== null ? (
@@ -183,4 +254,4 @@ export function ReaderActions({
       </div>
     </>
   );
-}
+});

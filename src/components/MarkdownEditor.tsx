@@ -2,6 +2,7 @@
 
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -16,24 +17,23 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
-import { tags } from "@lezer/highlight";
+import { syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import { livePreview } from "@/lib/livePreview";
+import { codeHighlight, mdHighlight, sourceHeadingHighlight } from "@/lib/editorHighlight";
+import { caretAndActiveLine } from "@/lib/editorCaret";
+import { reportScrollLine, scrollLineIntoView } from "@/lib/editorScroll";
+import { useThrottledCallback } from "@/hooks/useThrottledCallback";
 import { lineSelectionWithoutNewline } from "@/lib/lineSelection";
-import { uploadMediaFile } from "@/lib/uploadMedia";
-import { extractVideoPoster } from "@/lib/videoPoster";
-import { VIDEO_EXT, isVideoMime } from "@/lib/media";
+import { wrapSelection } from "@/lib/editorFormat";
 import {
-  wrapSelection,
-  applyColor,
-  prefixLines,
-  toggleTaskLines,
-  insertBlock,
-  TABLE_TEMPLATE,
-} from "@/lib/editorFormat";
+  handleMediaFiles,
+  runFormatCommand,
+  type FormatCommand,
+} from "@/lib/editorCommands";
+import { slashMenu, type SlashState } from "@/lib/slashMenu";
+import { SlashMenu } from "./SlashMenu";
 import type TurndownService from "turndown";
-import { toast } from "./Toast";
 
 // 富文本粘贴 → Markdown。turndown 不小且只有粘贴用得到，不进编辑器主包：
 // 编辑器挂载后空闲预载，粘贴时同步取用；万一抢在加载完成前粘贴，退化为纯文本粘贴
@@ -65,30 +65,29 @@ function htmlToMd(html: string): string {
   }
 }
 
-export type FormatCommand =
-  | "bold"
-  | "italic"
-  | "strike"
-  | "color"
-  | "h1"
-  | "h2"
-  | "h3"
-  | "quote"
-  | "tasklist"
-  | "code"
-  | "codeblock"
-  | "link"
-  | "image"
-  | "video"
-  | "table"
-  | "hr";
+// 命令表已搬到 lib/editorCommands（斜杠菜单要在 CodeMirror 层直接执行，不能依赖组件），
+// 类型在这里原样转出，老的引入点（ReaderActions / FloatingToolbar）不动
+export type { FormatCommand } from "@/lib/editorCommands";
+
+/** 选区快照：浮动工具条据此决定出现/隐藏与落点 */
+export interface SelectionInfo {
+  from: number;
+  to: number;
+  empty: boolean;
+  /** 编辑器当前是否持有焦点（失焦要收起工具条，除非焦点落在工具条自己身上） */
+  hasFocus: boolean;
+  /** 本次上报是否伴随文档变化（打字时要收起工具条） */
+  docChanged: boolean;
+}
 
 export interface EditorHandle {
   /** arg：color 命令的色值（缺省 = 清除颜色），其余命令忽略 */
   applyFormat: (cmd: FormatCommand, arg?: string) => void;
   view: () => EditorView | null;
-  /** 跳转到指定行（0 基） */
+  /** 跳转到指定行（0 基）：移动光标并平滑滚动，大纲点击用 */
   scrollToLine: (line: number) => void;
+  /** 只把某行滚到容器顶端，不动光标、不抢焦点（预览→编辑器的同步滚动用） */
+  scrollLineToTop: (line: number) => void;
 }
 
 interface Props {
@@ -97,133 +96,79 @@ interface Props {
   initialContent: string;
   /** 即时渲染模式（类 Obsidian）：编辑区内直接呈现排版 */
   live?: boolean;
+  /**
+   * 外层滚动容器。首页文章视图把标题区与正文放进同一个滚动容器一起滚，
+   * 此时 .cm-scroller 不再滚动（overflow:visible），滚动读写都要改指向它。
+   */
+  scrollParent?: HTMLElement | null;
   onChange: (content: string) => void;
   onScrollLine?: (line: number, ratio: number) => void;
+  /** 选区/焦点变化时上报（编辑器卸载时上报 null），供浮动工具条订阅 */
+  onSelectionChange?: (info: SelectionInfo | null) => void;
 }
 
-const mdHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.5em", fontWeight: "700", color: "var(--ink)" },
-  { tag: tags.heading2, fontSize: "1.25em", fontWeight: "700", color: "var(--ink)" },
-  { tag: tags.heading3, fontSize: "1.1em", fontWeight: "700", color: "var(--ink)" },
-  { tag: tags.heading4, fontWeight: "700", color: "var(--ink)" },
-  { tag: tags.strong, fontWeight: "700", color: "var(--accent-deep)" },
-  { tag: tags.emphasis, fontStyle: "italic", color: "var(--accent-deep)" },
-  { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--ink-faint)" },
-  { tag: tags.link, color: "var(--md-link)" },
-  { tag: tags.url, color: "var(--md-link)" },
-  {
-    // 底色用半透明：这层背景画在选区（drawSelection 的负层级）之上，
-    // 不透光就会把代码上的选中高亮整块挡掉，看着像选不中
-    tag: tags.monospace,
-    color: "var(--md-code)",
-    background: "var(--md-code-tint)",
-    fontFamily: "var(--mono)",
-    borderRadius: "3px",
-  },
-  { tag: tags.quote, color: "var(--ink-soft)" },
-  { tag: tags.meta, color: "var(--ink-faint)" },
-  { tag: tags.processingInstruction, color: "var(--accent)" },
-  { tag: tags.contentSeparator, color: "var(--accent)", fontWeight: "700" },
-]);
-
-/** 代码块内嵌语言的 token 配色：随主题变量明暗切换。
- *  这些 tag 只由围栏里的嵌套语法树产出，Markdown 自身的标记不受影响 */
-const codeHighlight = HighlightStyle.define([
-  {
-    tag: [tags.keyword, tags.operatorKeyword, tags.modifier, tags.self],
-    color: "var(--code-keyword)",
-  },
-  {
-    tag: [tags.string, tags.special(tags.string), tags.character],
-    color: "var(--code-string)",
-  },
-  {
-    tag: [tags.comment, tags.lineComment, tags.blockComment, tags.docComment],
-    color: "var(--code-comment)",
-    fontStyle: "italic",
-  },
-  {
-    tag: [tags.number, tags.integer, tags.float, tags.bool, tags.null, tags.atom],
-    color: "var(--code-number)",
-  },
-  {
-    tag: [tags.function(tags.variableName), tags.function(tags.propertyName), tags.macroName],
-    color: "var(--code-func)",
-  },
-  { tag: [tags.propertyName, tags.attributeName], color: "var(--code-func)" },
-  {
-    tag: [tags.typeName, tags.className, tags.namespace, tags.definition(tags.typeName)],
-    color: "var(--code-type)",
-  },
-  { tag: [tags.regexp, tags.escape], color: "var(--code-number)" },
-]);
-
-async function uploadMedia(file: File): Promise<string | null> {
-  try {
-    return await uploadMediaFile(file);
-  } catch (e) {
-    toast(e instanceof Error ? e.message : "上传失败", "error");
-    return null;
-  }
-}
-
-function insertAtCursor(view: EditorView, text: string) {
-  const pos = view.state.selection.main.head;
-  view.dispatch({ changes: { from: pos, insert: text } });
-}
-
-/** 上传视频并插入：正片与封面帧并行上传，封面写进 title 位（poster= 约定） */
-async function uploadVideoAndInsert(view: EditorView, file: File) {
-  const [url, posterUrl] = await Promise.all([
-    uploadMedia(file),
-    extractVideoPoster(file).then((poster) => (poster ? uploadMedia(poster) : null)),
-  ]);
-  if (!url) return;
-  const name = file.name.replace(/\.[^.]+$/, "");
-  const posterPart = posterUrl ? ` "poster=${posterUrl}"` : "";
-  insertAtCursor(view, `\n![${name}](${url}${posterPart})\n`);
-  toast("视频已插入", "success");
-}
-
-function handleMediaFiles(view: EditorView, files: FileList | File[]): boolean {
-  const all = Array.from(files);
-  const images = all.filter((f) => f.type.startsWith("image/"));
-  const videos = all.filter((f) => isVideoMime(f.type));
-  const unsupported = all.filter((f) => f.type.startsWith("video/") && !isVideoMime(f.type));
-  for (const f of unsupported) {
-    toast(`「${f.name}」格式不支持，视频请用 mp4 / webm / mov`, "error");
-  }
-  if (images.length === 0 && videos.length === 0) return unsupported.length > 0;
-
-  if (images.length > 0) toast("图片上传中…");
-  for (const file of images) {
-    void uploadMedia(file).then((url) => {
-      if (!url) return;
-      const name = file.name.replace(/\.[^.]+$/, "");
-      insertAtCursor(view, `\n![${name}](${url})\n`);
-      toast("图片已插入", "success");
-    });
-  }
-  if (videos.length > 0) toast("视频上传中，大文件可能要一会儿…");
-  for (const file of videos) {
-    void uploadVideoAndInsert(view, file);
-  }
-  return true;
-}
+/** onChange 的节流窗口：合并一次连打的多次变更。太长会让「保存中…」迟迟不亮，
+    120ms 大约是一次快速击键的间隔，既压掉了重渲染又察觉不到延迟 */
+const CHANGE_THROTTLE_MS = 120;
 
 export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownEditor(
-  { docKey, initialContent, live = false, onChange, onScrollLine },
+  {
+    docKey,
+    initialContent,
+    live = false,
+    scrollParent,
+    onChange,
+    onScrollLine,
+    onSelectionChange,
+  },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onScrollLineRef = useRef(onScrollLine);
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  const scrollParentRef = useRef<HTMLElement | null>(null);
   const liveCompartment = useRef(new Compartment());
   const liveRef = useRef(live);
   onChangeRef.current = onChange;
   onScrollLineRef.current = onScrollLine;
+  onSelectionChangeRef.current = onSelectionChange;
+  scrollParentRef.current = scrollParent ?? null;
   liveRef.current = live;
+
+  // 斜杠菜单状态走订阅下发：真相在 CodeMirror 的 StateField 里，这里只把变化转给
+  // <SlashMenu> 自己 setState。若改成 props 往上抬，每敲一个过滤字符都要重渲染整篇文章视图
+  const slashCbRef = useRef<((s: SlashState | null) => void) | null>(null);
+  const slashStateRef = useRef<SlashState | null>(null);
+  const emitSlash = useRef((s: SlashState | null) => {
+    slashStateRef.current = s;
+    slashCbRef.current?.(s);
+  }).current;
+  const subscribeSlash = useCallback(
+    (cb: (s: SlashState | null) => void) => {
+      slashCbRef.current = cb;
+      cb(slashStateRef.current);
+      return () => {
+        slashCbRef.current = null;
+      };
+    },
+    []
+  );
+
+  // 每次击键都把整篇正文推上去 = 整个文章视图跟着重渲染，合并成 ~120ms 一次
+  const pushChange = useThrottledCallback<string>(
+    (text) => onChangeRef.current(text),
+    CHANGE_THROTTLE_MS
+  );
+
+  // ⌘S 走的是 window 事件，保存方读的是 store：先把压着的那一次内容吐出去再让它读。
+  // 编辑器自己发的那一次在 keymap 里已同步 flush 过，这里兜的是别处发来的保存请求
+  useEffect(() => {
+    const onSaveNow = () => pushChange.flush();
+    window.addEventListener("xedit:save-now", onSaveNow);
+    return () => window.removeEventListener("xedit:save-now", onSaveNow);
+  }, [pushChange]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -235,12 +180,18 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         history(),
         drawSelection(),
         lineSelectionWithoutNewline,
+        caretAndActiveLine,
         EditorView.lineWrapping,
         placeholder("在这里输入…"),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(mdHighlight),
         syntaxHighlighting(codeHighlight),
-        liveCompartment.current.of(liveRef.current ? livePreview : []),
+        liveCompartment.current.of(
+          liveRef.current ? livePreview : syntaxHighlighting(sourceHeadingHighlight)
+        ),
+        // 斜杠菜单：放在主 keymap 之前只是书写顺序，真正的优先级由它内部的 Prec.highest 决定，
+        // 这样 Enter / Tab / ↑↓ / Esc 在菜单打开时才被消费，其余情况原样落到默认按键表
+        slashMenu(emitSlash),
         keymap.of([
           {
             key: "Mod-b",
@@ -267,6 +218,8 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
             // 拦截浏览器保存对话框，改为立即保存并存档版本
             key: "Mod-s",
             run: () => {
+              // 节流窗口里可能压着最后一次输入，先同步吐给 store 再触发保存
+              pushChange.flush();
               window.dispatchEvent(new CustomEvent("xedit:save-now"));
               return true;
             },
@@ -278,10 +231,27 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         ]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
-            onChangeRef.current(update.state.doc.toString());
+            pushChange(update.state.doc.toString());
+          }
+          // 选区 / 文档 / 焦点任一变化都上报：浮动工具条的出现与隐藏全靠这一路信号
+          if (update.selectionSet || update.docChanged || update.focusChanged) {
+            const sel = update.state.selection.main;
+            onSelectionChangeRef.current?.({
+              from: sel.from,
+              to: sel.to,
+              empty: sel.empty,
+              hasFocus: update.view.hasFocus,
+              docChanged: update.docChanged,
+            });
           }
         }),
         EditorView.domEventHandlers({
+          // 失焦通常意味着用户要去点别处（切文档、点保存、开分享），
+          // 内容马上会被别人读走，压着的那一次必须先落地
+          blur: () => {
+            pushChange.flush();
+            return false;
+          },
           paste: (event, view) => {
             const files = event.clipboardData?.files;
             if (files && files.length > 0 && handleMediaFiles(view, files)) {
@@ -321,14 +291,9 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
             return false;
           },
           scroll: (_event, view) => {
-            const scroller = view.scrollDOM;
-            if (!onScrollLineRef.current) return false;
-            const top = scroller.scrollTop;
-            const block = view.lineBlockAtHeight(top);
-            const line = view.state.doc.lineAt(block.from).number - 1;
-            const ratio =
-              block.height > 0 ? Math.min(1, Math.max(0, (top - block.top) / block.height)) : 0;
-            onScrollLineRef.current(line, ratio);
+            if (onScrollLineRef.current) {
+              reportScrollLine(view, scrollParentRef.current, onScrollLineRef.current);
+            }
             return false;
           },
         }),
@@ -340,8 +305,13 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     view.focus();
 
     return () => {
+      // 切文档/卸载前先把节流窗口里压着的最后一次编辑交出去
+      pushChange.flush();
       view.destroy();
       viewRef.current = null;
+      // 切文档/卸载后旧选区已失效，明确清一次，别让工具条/斜杠菜单挂在空中
+      onSelectionChangeRef.current?.(null);
+      emitSlash(null);
     };
     // docKey 变化时整体重建编辑器（切换文档）
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -350,9 +320,25 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   // 切换视图模式时热插拔即时渲染扩展，保留光标与撤销历史
   useEffect(() => {
     viewRef.current?.dispatch({
-      effects: liveCompartment.current.reconfigure(live ? livePreview : []),
+      effects: liveCompartment.current.reconfigure(
+        live ? livePreview : syntaxHighlighting(sourceHeadingHighlight)
+      ),
     });
   }, [live]);
+
+  // 滚动容器在编辑器外层时，scroll 事件不会经过 CodeMirror，得单独挂一份监听
+  useEffect(() => {
+    const parent = scrollParent ?? null;
+    if (!parent) return;
+    const onScroll = () => {
+      const view = viewRef.current;
+      if (view && onScrollLineRef.current) {
+        reportScrollLine(view, parent, onScrollLineRef.current);
+      }
+    };
+    parent.addEventListener("scroll", onScroll, { passive: true });
+    return () => parent.removeEventListener("scroll", onScroll);
+  }, [scrollParent]);
 
   useImperativeHandle(ref, () => ({
     view: () => viewRef.current,
@@ -365,58 +351,24 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       view.dispatch({ selection: { anchor: pos } });
       // 平滑滚动到目标行（rAF 等 CodeMirror 量完几何再取坐标；同步滚动会带预览一起跟过去）
       requestAnimationFrame(() => {
-        const top = Math.max(0, view.lineBlockAt(pos).top - 12);
-        view.scrollDOM.scrollTo({ top, behavior: "smooth" });
+        scrollLineIntoView(view, scrollParentRef.current, line, 12, true);
       });
     },
-    applyFormat: (cmd: FormatCommand, arg?: string) => {
+    scrollLineToTop: (line: number) => {
       const view = viewRef.current;
-      if (!view) return;
-      switch (cmd) {
-        case "bold":
-          return wrapSelection(view, "**", "**", "加粗文字");
-        case "italic":
-          return wrapSelection(view, "*", "*", "斜体文字");
-        case "strike":
-          return wrapSelection(view, "~~", "~~", "删除线");
-        case "color":
-          return applyColor(view, arg ?? null);
-        case "code":
-          return wrapSelection(view, "`", "`", "code");
-        case "h1":
-          return prefixLines(view, "# ");
-        case "h2":
-          return prefixLines(view, "## ");
-        case "h3":
-          return prefixLines(view, "### ");
-        case "quote":
-          return prefixLines(view, "> ");
-        case "tasklist":
-          return toggleTaskLines(view);
-        case "codeblock":
-          return insertBlock(view, "```javascript\nconst hello = 'world';\n```");
-        case "link":
-          return wrapSelection(view, "[", "](https://)", "链接文字");
-        case "image":
-          return insertBlock(view, "![图片描述](https://)");
-        case "video": {
-          // 直接拉起文件选择上传，比让用户手填视频 URL 更顺手
-          const input = document.createElement("input");
-          input.type = "file";
-          input.accept = Object.keys(VIDEO_EXT).join(",");
-          input.onchange = () => {
-            if (input.files?.length) handleMediaFiles(view, input.files);
-          };
-          input.click();
-          return;
-        }
-        case "table":
-          return insertBlock(view, TABLE_TEMPLATE);
-        case "hr":
-          return insertBlock(view, "---");
-      }
+      if (view) scrollLineIntoView(view, scrollParentRef.current, line, 0, false);
+    },
+    applyFormat: (cmd, arg) => {
+      const view = viewRef.current;
+      if (view) runFormatCommand(view, cmd, arg);
     },
   }));
 
-  return <div ref={containerRef} className="h-full min-h-0" />;
+  return (
+    <>
+      <div ref={containerRef} className="h-full min-h-0" />
+      {/* 菜单 portal 到 body，放在这里只是为了拿到 viewRef，不参与布局 */}
+      <SlashMenu subscribe={subscribeSlash} viewRef={viewRef} scrollEl={scrollParent ?? null} />
+    </>
+  );
 });

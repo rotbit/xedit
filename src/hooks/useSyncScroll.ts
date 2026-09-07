@@ -99,11 +99,10 @@ export function useSyncScroll(
       targetLine = prev.line + (next.line - prev.line) * frac;
     }
 
+    // 滚动容器可能是编辑器外层（标题区与正文同滚），统一交给编辑器句柄换算
     const doc = view.state.doc;
-    const lineNumber = Math.min(doc.lines, Math.max(1, Math.floor(targetLine) + 1));
-    const pos = doc.line(lineNumber).from;
-    const block = view.lineBlockAt(pos);
-    view.scrollDOM.scrollTo({ top: Math.max(0, block.top) });
+    const line = Math.min(doc.lines - 1, Math.max(0, Math.floor(targetLine)));
+    editorRef.current?.scrollLineToTop(line);
   }, [editorRef, previewRef]);
 
   return { setActive, onEditorScrollLine, onPreviewScroll };
