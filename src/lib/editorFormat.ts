@@ -69,7 +69,14 @@ export function prefixLines(view: EditorView, prefix: string) {
       changes.push({ from: line.from, insert: prefix });
     }
   }
-  view.dispatch({ changes });
+  // 空选区时光标要落到前缀之后：事务默认按 assoc=-1 映射选区，光标恰在行首（斜杠菜单
+  // 删完 "/query" 就是这种情况）时会被留在插入的 "# " 前面，接着打字就成了 "标题# "。
+  // 显式按 assoc=1 映射，与 toggleTaskLines 同一套处理
+  const changeSet = state.changes(changes);
+  view.dispatch({
+    changes: changeSet,
+    ...(range.empty ? { selection: { anchor: changeSet.mapPos(range.head, 1) } } : {}),
+  });
   view.focus();
 }
 
