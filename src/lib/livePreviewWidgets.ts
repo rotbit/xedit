@@ -1,4 +1,5 @@
 import { EditorView, WidgetType } from "@codemirror/view";
+import { deleteFencedBlock, fencedCodeAt } from "@/lib/livePreviewFenceKeys";
 
 /** 即时渲染用到的替换部件（图片/视频/代码语言下拉/分割线/列表点/复选框），
  *  装饰构建逻辑见 livePreview.ts */
@@ -86,6 +87,35 @@ const FENCE_LANGS = [
   "ruby", "rust", "scss", "shell", "sql", "swift", "toml", "typescript", "xml", "yaml",
 ];
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+/** lucide trash-2 的路径（部件是纯 DOM，用不了 React 图标，只能自己搭一棵 SVG） */
+const TRASH_PATHS = [
+  "M3 6h18",
+  "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6",
+  "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2",
+  "M10 11v6",
+  "M14 11v6",
+];
+
+function trashIcon(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("width", "14");
+  svg.setAttribute("height", "14");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.75");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of TRASH_PATHS) {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
 /** 代码块开栏行（```lang）：光标不在时换成语言下拉，选择即改写围栏语言标记 */
 export class CodeLangWidget extends WidgetType {
   constructor(
@@ -105,6 +135,26 @@ export class CodeLangWidget extends WidgetType {
   toDOM(view: EditorView) {
     const wrap = document.createElement("span");
     wrap.className = "cm-lp-codefence";
+    // 删除整块：围栏被渲染掉之后，光标删法再周全也不如一个明摆着的按钮
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "cm-lp-codefence-del";
+    del.title = "删除代码块";
+    del.setAttribute("aria-label", "删除代码块");
+    del.appendChild(trashIcon());
+    // mousedown 不能落到编辑器：否则焦点/光标先被抢走，click 时定位到的已不是这一块
+    del.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    del.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = fencedCodeAt(view.state, view.posAtDOM(wrap), 1);
+      if (block) deleteFencedBlock(view, block);
+      view.focus();
+    });
+    wrap.appendChild(del);
     const select = document.createElement("select");
     select.title = "代码语言";
     const langs = FENCE_LANGS.includes(this.lang) ? FENCE_LANGS : [this.lang, ...FENCE_LANGS];
