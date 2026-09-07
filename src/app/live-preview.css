@@ -375,12 +375,6 @@
   opacity: 0.6;
 }
 
-/* 当前行底色（本体在 editor.css）在代码卡内不加：卡本身已有底色，
-   再叠一层就成了色块拼接 */
-.cm-editor .cm-content .cm-line.cm-lp-code.cm-activeLine {
-  background: transparent;
-}
-
 /* 代码块：行高钉成整数像素，行与行之间不再攒出半像素的缝；
    中间行的底色伪元素上下各溢出 1px 与相邻行叠住，把亚像素缝彻底盖死 */
 .cm-live-preview .cm-line.cm-lp-code {

@@ -65,16 +65,6 @@
   background: var(--cm-selection) !important;
   border-radius: 3px;
 }
-/* 当前行：极淡的一层底，用来定位「我在哪一行」，淡到不构成第二种版式元素。
-   选择器多垫一级 .cm-content，是为了压过 CodeMirror 自带基础主题里那层浅蓝底 */
-.cm-editor .cm-content .cm-line.cm-activeLine {
-  background: color-mix(in srgb, var(--ink) 3%, transparent);
-}
-/* 有非空选区时当前行底色让位：两层浅底叠在一起，选中范围的边界就读不出来了
-   （cm-has-selection 由 editorCaret.ts 随选区状态下发） */
-.cm-editor.cm-has-selection .cm-content .cm-line.cm-activeLine {
-  background: transparent;
-}
 .cm-editor .cm-scroller {
   overflow: auto;
   /* Firefox：细滚动条，默认隐藏，进入编辑区/滚动时才浮现 */
