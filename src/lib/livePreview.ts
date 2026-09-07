@@ -20,6 +20,7 @@ import {
 } from "@/lib/livePreviewContext";
 import { INLINE_NODE_NAMES, inlineDecorations } from "@/lib/livePreviewInline";
 import { fencedCodeDecorations } from "@/lib/livePreviewFence";
+import { fenceKeymap } from "@/lib/livePreviewFenceKeys";
 import { livePreviewBlocks, renderedBlockRanges } from "@/lib/livePreviewBlocks";
 
 /**
@@ -283,4 +284,6 @@ export const livePreview: Extension = [
       return false;
     },
   }),
+  // 围栏代码块的删除键接管：开栏/闭栏行是 atomic 的，默认删除会把 ``` 删穿
+  fenceKeymap,
 ];

@@ -115,6 +115,29 @@
 .cm-live-preview .cm-lp-codefence:hover select {
   color: var(--codeblock-fg);
 }
+/* 删除整块的按钮：常态隐形（只占位不显形，浮出时标签不跳），
+   悬停开栏行或下拉获得焦点才现身 —— 围栏被渲染掉之后，删除得有个明摆着的入口 */
+.cm-live-preview .cm-lp-codefence-del {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--codeblock-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    color 0.12s;
+}
+.cm-live-preview .cm-line.cm-lp-code-first:hover .cm-lp-codefence-del,
+.cm-live-preview .cm-lp-codefence:focus-within .cm-lp-codefence-del {
+  opacity: 1;
+}
+.cm-live-preview .cm-lp-codefence-del:hover {
+  color: var(--codeblock-fg);
+}
 /* 下拉箭头：边框画的标准 chevron，随 flex 垂直居中（字形三角在不同字体下会歪） */
 .cm-live-preview .cm-lp-codefence::after {
   content: "";
