@@ -1,11 +1,11 @@
 import { StateField, type Extension } from "@codemirror/state";
-import { EditorView, highlightActiveLine } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 
 /**
- * 光标与当前行的观感扩展：平滑光标 + 当前行底色的开关条件。
- * 样式本体在 editor.css / live-preview.css，这里只负责下发状态类。
+ * 光标观感扩展：平滑光标的开关条件。样式本体在 editor.css，这里只负责下发状态类。
+ * 当前行底色已去掉：文档感排版里光标本身足够定位，多一层底反而成了第二种版式元素。
  *
- * 三个状态类全部走 editorAttributes.compute 下发，不手动改 classList：
+ * 状态类走 editorAttributes.compute 下发，不手动改 classList：
  * CodeMirror 同步根元素属性是整串 setAttribute("class")，手动加的类会在别处任何一次
  * 属性重算时被抹掉；而且 compute 在 update 阶段就把类写好，先于光标层的 measure 绘制，
  * 时序天然正确，不需要定时器，也不受后台标签页 rAF 停摆影响。
@@ -25,17 +25,7 @@ const smoothCaretClass = EditorView.editorAttributes.compute([lastTrChangedDoc],
   class: state.field(lastTrChangedDoc) ? "" : "cm-caret-smooth",
 }));
 
-/**
- * 有非空选区时给编辑器根打 cm-has-selection：当前行底色要让位给选区高亮，
- * 否则一块淡底压在选区上，选中范围的边界就读不清了。
- */
-const selectionRootClass = EditorView.editorAttributes.compute(["selection"], (state) => ({
-  class: state.selection.ranges.some((r) => !r.empty) ? "cm-has-selection" : "",
-}));
-
 export const caretAndActiveLine: Extension = [
-  highlightActiveLine(),
   lastTrChangedDoc,
   smoothCaretClass,
-  selectionRootClass,
 ];
