@@ -1,6 +1,4 @@
-// 编辑器的格式化命令总表：浮动工具条、+ 菜单、斜杠菜单三处入口都收敛到这里。
-// 从 MarkdownEditor 搬出（语义未变），一是给 MarkdownEditor 腾出 500 行的余量，
-// 二是斜杠菜单要在 CodeMirror 扩展层直接执行命令，不能反过来依赖 React 组件。
+// 编辑器格式命令的统一入口：快捷键、浮动工具条、插入菜单和斜杠菜单共用。
 
 import { EditorView } from "@codemirror/view";
 import { uploadMediaFile } from "@/lib/uploadMedia";
@@ -8,9 +6,10 @@ import { extractVideoPoster } from "@/lib/videoPoster";
 import { VIDEO_EXT, isVideoMime } from "@/lib/media";
 import {
   wrapSelection,
+  toggleInlineFormat,
   applyColor,
   prefixLines,
-  setHeading,
+  toggleHeading,
   toggleTaskLines,
   insertBlock,
   TABLE_TEMPLATE,
@@ -92,21 +91,21 @@ export function handleMediaFiles(view: EditorView, files: FileList | File[]): bo
 export function runFormatCommand(view: EditorView, cmd: FormatCommand, arg?: string) {
   switch (cmd) {
     case "bold":
-      return wrapSelection(view, "**", "**", "加粗文字");
+      return toggleInlineFormat(view, "**", "加粗文字");
     case "italic":
-      return wrapSelection(view, "*", "*", "斜体文字");
+      return toggleInlineFormat(view, "*", "斜体文字");
     case "strike":
-      return wrapSelection(view, "~~", "~~", "删除线");
+      return toggleInlineFormat(view, "~~", "删除线");
     case "color":
       return applyColor(view, arg ?? null);
     case "code":
-      return wrapSelection(view, "`", "`", "code");
+      return toggleInlineFormat(view, "`", "code");
     case "h1":
-      return setHeading(view, 1);
+      return toggleHeading(view, 1);
     case "h2":
-      return setHeading(view, 2);
+      return toggleHeading(view, 2);
     case "h3":
-      return setHeading(view, 3);
+      return toggleHeading(view, 3);
     case "quote":
       return prefixLines(view, "> ");
     case "tasklist":
