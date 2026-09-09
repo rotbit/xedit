@@ -10,6 +10,7 @@ import {
   wrapSelection,
   applyColor,
   prefixLines,
+  setHeading,
   toggleTaskLines,
   insertBlock,
   TABLE_TEMPLATE,
@@ -101,11 +102,11 @@ export function runFormatCommand(view: EditorView, cmd: FormatCommand, arg?: str
     case "code":
       return wrapSelection(view, "`", "`", "code");
     case "h1":
-      return prefixLines(view, "# ");
+      return setHeading(view, 1);
     case "h2":
-      return prefixLines(view, "## ");
+      return setHeading(view, 2);
     case "h3":
-      return prefixLines(view, "### ");
+      return setHeading(view, 3);
     case "quote":
       return prefixLines(view, "> ");
     case "tasklist":

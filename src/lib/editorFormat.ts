@@ -1,5 +1,32 @@
-import { EditorSelection } from "@codemirror/state";
+import { EditorSelection, type EditorState, type SelectionRange } from "@codemirror/state";
+import { syntaxTree } from "@codemirror/language";
+import type { SyntaxNode } from "@lezer/common";
 import { EditorView } from "@codemirror/view";
+
+/** 用语法节点识别已有格式，避免把加粗的两个星号误当成斜体标记。 */
+function selectedMarkup(state: EditorState, range: SelectionRange, marker: string) {
+  const name = { "**": "StrongEmphasis", "*": "Emphasis", "~~": "Strikethrough", "`": "InlineCode" }[marker];
+  if (!name) return null;
+  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(range.from, 1); node; node = node.parent) {
+    if (node.name !== name || node.to < range.to) continue;
+    const marks = node.getChildren(marker === "`" ? "CodeMark" : marker === "~~" ? "StrikethroughMark" : "EmphasisMark");
+    if (marks.length !== 2) continue;
+    const [open, close] = marks;
+    const innerSelected = range.from === open.to && range.to === close.from;
+    const wholeSelected = range.from === node.from && range.to === node.to;
+    if (range.empty || innerSelected || wholeSelected) return { open, close };
+  }
+  return null;
+}
+
+/** 选区止于下一行行首时，不把未选中文字的下一行也转换格式。 */
+function selectedLines(state: EditorState) {
+  const range = state.selection.main;
+  return {
+    first: state.doc.lineAt(range.from).number,
+    last: state.doc.lineAt(range.empty ? range.to : range.to - 1).number,
+  };
+}
 
 export function wrapSelection(
   view: EditorView,
@@ -9,6 +36,17 @@ export function wrapSelection(
 ) {
   const { state } = view;
   const changes = state.changeByRange((range) => {
+    const marked = before === after ? selectedMarkup(state, range, before) : null;
+    if (marked) {
+      const { open, close } = marked;
+      // 只删定界符，内容和嵌套格式保留；原先选中内容时继续保持选中。
+      const innerLength = close.from - open.to;
+      const anchor = range.empty ? Math.max(0, Math.min(innerLength, range.head - open.to)) : 0;
+      return {
+        changes: [{ from: open.from, to: open.to }, { from: close.from, to: close.to }],
+        range: EditorSelection.range(open.from + anchor, open.from + (range.empty ? anchor : innerLength)),
+      };
+    }
     const text = state.doc.sliceString(range.from, range.to) || placeholderText;
     const insert = `${before}${text}${after}`;
     return {
@@ -57,10 +95,9 @@ export function applyColor(view: EditorView, color: string | null) {
 export function prefixLines(view: EditorView, prefix: string) {
   const { state } = view;
   const range = state.selection.main;
-  const fromLine = state.doc.lineAt(range.from);
-  const toLine = state.doc.lineAt(range.to);
+  const { first, last } = selectedLines(state);
   const changes = [];
-  for (let n = fromLine.number; n <= toLine.number; n++) {
+  for (let n = first; n <= last; n++) {
     const line = state.doc.line(n);
     // 已有相同前缀则移除（toggle）
     if (line.text.startsWith(prefix)) {
@@ -80,6 +117,32 @@ export function prefixLines(view: EditorView, prefix: string) {
   view.focus();
 }
 
+/** 标题级别互相替换；保留引用、列表及缩进前缀，重复应用同级标题则回到正文。 */
+export function setHeading(view: EditorView, level: number) {
+  const { state } = view;
+  const { first, last } = selectedLines(state);
+  const prefix = `${"#".repeat(level)} `;
+  const changes = [];
+  for (let n = first; n <= last; n++) {
+    const line = state.doc.line(n);
+    const container = line.text.match(/^[ \t]*(?:>[ \t]*)*(?:(?:[-+*]|\d+[.)])[ \t]+)?/)![0];
+    const existing = line.text.slice(container.length).match(/^(#{1,6})[ \t]+/);
+    const from = line.from + container.length;
+    changes.push({
+      from,
+      to: from + (existing?.[0].length ?? 0),
+      insert: existing?.[1].length === level ? "" : prefix,
+    });
+  }
+  const changeSet = state.changes(changes);
+  const range = state.selection.main;
+  view.dispatch({
+    changes: changeSet,
+    ...(range.empty ? { selection: { anchor: changeSet.mapPos(range.head, 1) } } : {}),
+  });
+  view.focus();
+}
+
 const TASK_ITEM = /^(\s*)[-*+] \[[ xX]\] /;
 const BULLET_ITEM = /^\s*[-*+] /;
 
@@ -89,10 +152,9 @@ const BULLET_ITEM = /^\s*[-*+] /;
 export function toggleTaskLines(view: EditorView) {
   const { state } = view;
   const range = state.selection.main;
-  const fromLine = state.doc.lineAt(range.from);
-  const toLine = state.doc.lineAt(range.to);
+  const { first, last } = selectedLines(state);
   const changes = [];
-  for (let n = fromLine.number; n <= toLine.number; n++) {
+  for (let n = first; n <= last; n++) {
     const line = state.doc.line(n);
     const task = line.text.match(TASK_ITEM);
     if (task) {

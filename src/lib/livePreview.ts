@@ -47,8 +47,7 @@ function headMark(ctx: LpContext, from: number, to: number) {
   }
 }
 
-/** 语法树里没有「空行」这种节点，只能逐行看文本。空行压到正文行高的 0.55 倍；
-    光标停在该行时不压，否则光标看着像被压扁 */
+/** 空行保持统一高度，包括光标所在行；移动光标不能推动后面的正文。 */
 function scanBlankLines(ctx: LpContext, view: EditorView) {
   const { state } = ctx;
   const blocks = renderedBlockRanges(state);
@@ -60,7 +59,6 @@ function scanBlankLines(ctx: LpContext, view: EditorView) {
       if (line.length !== 0) continue;
       // 代码块里的空行是代码的一部分；被块级部件替换掉的行压根不显示
       if (inCodeRanges(ctx.codeRanges, line.from) || inCodeRanges(blocks, line.from)) continue;
-      if (caretTouches(ctx.caret, line.from, line.to)) continue;
       ctx.lineClass(line.from, "cm-lp-blank");
     }
   }

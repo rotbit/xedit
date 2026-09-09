@@ -34,7 +34,7 @@ const SAVE_LABEL: Record<string, string> = {
 
 /**
  * 首页右侧的文章视图，三种形态：
- * - 默认：纯 Markdown 源码编辑器（不做即时渲染）；
+ * - 默认：Markdown 即时渲染编辑器；
  * - 双屏（⌘E）：同一窗口内切出右侧公众号真实主题预览（左源码 / 右效果）；
  * - 阅读模式（⌘⇧E）：整块编辑区换成渲染后的成品，宽栏通读，退出即回编辑。
  */
@@ -89,6 +89,20 @@ export function ArticleReader({
   const splitAreaRef = useRef<HTMLDivElement>(null);
   // 标题 + 正文的共同滚动容器：用 state 而非 ref，挂载后要重新渲染把它传给编辑器
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const readingScrollRef = useRef(0);
+  const wasReadingRef = useRef(false);
+  // 阅读只隐藏编辑器，返回时复用选区、撤销历史和原来的滚动位置。
+  useEffect(() => {
+    if (wasReadingRef.current && !reading) {
+      const frame = requestAnimationFrame(() => {
+        editorRef.current?.view()?.focus();
+        if (scrollEl) scrollEl.scrollTop = readingScrollRef.current;
+      });
+      wasReadingRef.current = reading;
+      return () => cancelAnimationFrame(frame);
+    }
+    wasReadingRef.current = reading;
+  }, [reading, scrollEl]);
   // 选区上报走订阅而不是 state：光标每动一下都 setState 会白白重渲染整个文章视图，
   // 而浮动工具条只是挂在 body 上的旁路组件，让它自己订阅这条流就够了
   const selectionSubRef = useRef<((info: SelectionInfo | null) => void) | null>(null);
@@ -128,19 +142,19 @@ export function ArticleReader({
 
   /** 进阅读模式时把双屏收掉：两者都是「看成品」，同时开着没有意义 */
   const toggleReading = useCallback(() => {
-    setReading((v) => {
-      const next = !v;
-      if (next) {
-        setSplit(false);
-        setPreviewMounted(false);
-        if (closeTimer.current) {
-          clearTimeout(closeTimer.current);
-          closeTimer.current = null;
-        }
+    if (!reading) {
+      editorRef.current?.flush();
+      readingScrollRef.current = scrollEl?.scrollTop ?? 0;
+      editorRef.current?.view()?.contentDOM.blur();
+      setSplit(false);
+      setPreviewMounted(false);
+      if (closeTimer.current) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = null;
       }
-      return next;
-    });
-  }, []);
+    }
+    setReading(!reading);
+  }, [reading, scrollEl]);
 
   // ⌘E 切换双屏、⌘⇧E 切换阅读模式、⌘/ 切换源码模式
   // （capture 阶段，优先于页面内其他监听）
@@ -258,13 +272,10 @@ export function ArticleReader({
           )
         : null}
 
-      {/* 阅读模式：整块编辑区换成渲染后的成品（双屏右栏那一面，宽栏通读） */}
-      {reading ? (
-        <Preview variant="reading" onExit={toggleReading} />
-      ) : (
-      <>
+      {/* 阅读视图独立挂载，编辑器始终保留，避免丢失选区和撤销历史。 */}
+      {reading ? <Preview variant="reading" onExit={toggleReading} /> : null}
       {/* 编辑区（默认单屏）/ 双屏（左源码 + 右预览） */}
-      <div ref={splitAreaRef} className="flex min-h-0 min-w-0 flex-1">
+      <div ref={splitAreaRef} className={`${reading ? "hidden" : "flex"} min-h-0 min-w-0 flex-1`}>
         {/* 源码编辑列 */}
         <div
           className={`flex min-w-0 flex-col bg-[var(--panel)] ${
@@ -278,6 +289,8 @@ export function ArticleReader({
           <div className="flex min-h-0 flex-1">
             {/* 大纲面板：宽度过渡开合，面板本体定宽避免文字随宽度挤压 */}
             <div
+              inert={!outlineOpen}
+              aria-hidden={!outlineOpen}
               className={`shrink-0 overflow-hidden transition-[width] duration-[260ms] ease-[cubic-bezier(0.22,0.9,0.26,1)] ${
                 outlineOpen ? "w-52" : "w-0"
               }`}
@@ -390,14 +403,12 @@ export function ArticleReader({
       </div>
 
       {/* Notion 式浮动工具条：选中正文才浮出，portal 到 body、fixed 跟随选区 */}
-      <FloatingToolbar
+      {!reading ? <FloatingToolbar
         subscribe={subscribeSelection}
         editorRef={editorRef}
         scrollEl={scrollEl}
         onCommand={applyFormat}
-      />
-      </>
-      )}
+      /> : null}
 
       {/* 版本历史抽屉：由功能簇里的「版本」按钮唤起 */}
       <VersionsPanel
