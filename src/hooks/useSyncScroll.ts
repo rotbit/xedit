@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import type { RefObject } from "react";
-import type { EditorHandle } from "@/components/MarkdownEditor";
+import type { EditorHandle } from "@/lib/editorTypes";
 import { useStore } from "@/store/useStore";
 
 interface Anchor {

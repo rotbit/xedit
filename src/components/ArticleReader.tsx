@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
 import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
@@ -10,12 +10,10 @@ import { toast } from "./Toast";
 import { useStore } from "@/store/useStore";
 import { useEditorDoc } from "@/hooks/useEditorDoc";
 import { useSyncScroll } from "@/hooks/useSyncScroll";
-import {
-  MarkdownEditor,
-  type EditorHandle,
-  type FormatCommand,
-  type SelectionInfo,
-} from "./MarkdownEditor";
+import { MarkdownEditor } from "./MarkdownEditor";
+import type { EditorHandle, SelectionInfo } from "@/lib/editorTypes";
+import type { FormatCommand } from "@/lib/editorCommands";
+import { useEditorViewMode } from "@/hooks/useEditorViewMode";
 import { FloatingToolbar } from "./FloatingToolbar";
 import { ReaderActions } from "@/features/editor/components/ReaderActions";
 import { ShareDialog } from "@/features/share/ShareDialog";
@@ -70,39 +68,18 @@ export function ArticleReader({
 
   const [shareOpen, setShareOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
-  // 默认单屏 Markdown 编辑；开启后右侧切出真实主题预览
-  const [split, setSplit] = useState(false);
-  // 阅读模式：整块编辑区换成渲染成品，与双屏互斥
-  const [reading, setReading] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
-  // 预览列延迟卸载：收起时先让宽度动画走完再卸载，避免右栏瞬间消失
-  const [previewMounted, setPreviewMounted] = useState(false);
-  // 拖拽分隔条期间关闭宽度过渡，否则拖动会"追帧"发飘
+  // 拖拽分隔条期间关闭宽度过渡，避免宽度动画滞后于鼠标。
   const [draggingSplit, setDraggingSplit] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-  }, []);
 
   const editorRef = useRef<EditorHandle>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const splitAreaRef = useRef<HTMLDivElement>(null);
   // 标题 + 正文的共同滚动容器：用 state 而非 ref，挂载后要重新渲染把它传给编辑器
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
-  const readingScrollRef = useRef(0);
-  const wasReadingRef = useRef(false);
-  // 阅读只隐藏编辑器，返回时复用选区、撤销历史和原来的滚动位置。
-  useEffect(() => {
-    if (wasReadingRef.current && !reading) {
-      const frame = requestAnimationFrame(() => {
-        editorRef.current?.view()?.focus();
-        if (scrollEl) scrollEl.scrollTop = readingScrollRef.current;
-      });
-      wasReadingRef.current = reading;
-      return () => cancelAnimationFrame(frame);
-    }
-    wasReadingRef.current = reading;
-  }, [reading, scrollEl]);
+  const { mode, previewMounted, toggleSplit, toggleReading } = useEditorViewMode(editorRef, scrollEl);
+  const split = mode === "split";
+  const reading = mode === "read";
   // 选区上报走订阅而不是 state：光标每动一下都 setState 会白白重渲染整个文章视图，
   // 而浮动工具条只是挂在 body 上的旁路组件，让它自己订阅这条流就够了
   const selectionSubRef = useRef<((info: SelectionInfo | null) => void) | null>(null);
@@ -123,57 +100,6 @@ export function ArticleReader({
     editorRef,
     previewRef
   );
-
-  const toggleSplit = useCallback(() => {
-    const next = !split;
-    setSplit(next);
-    // 双屏与阅读模式互斥：开双屏就退出阅读
-    if (next) setReading(false);
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-    if (next) {
-      setPreviewMounted(true);
-    } else {
-      closeTimer.current = setTimeout(() => setPreviewMounted(false), 300);
-    }
-  }, [split]);
-
-  /** 进阅读模式时把双屏收掉：两者都是「看成品」，同时开着没有意义 */
-  const toggleReading = useCallback(() => {
-    if (!reading) {
-      editorRef.current?.flush();
-      readingScrollRef.current = scrollEl?.scrollTop ?? 0;
-      editorRef.current?.view()?.contentDOM.blur();
-      setSplit(false);
-      setPreviewMounted(false);
-      if (closeTimer.current) {
-        clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
-    }
-    setReading(!reading);
-  }, [reading, scrollEl]);
-
-  // ⌘E 切换双屏、⌘⇧E 切换阅读模式、⌘/ 切换源码模式
-  // （capture 阶段，优先于页面内其他监听）
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key.toLowerCase() === "e") {
-        e.preventDefault();
-        if (e.shiftKey) toggleReading();
-        else toggleSplit();
-      } else if (e.key === "/") {
-        e.preventDefault();
-        const s = useStore.getState();
-        s.setSourceMode(!s.sourceMode);
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [toggleSplit, toggleReading]);
 
   const onDividerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -403,12 +329,14 @@ export function ArticleReader({
       </div>
 
       {/* Notion 式浮动工具条：选中正文才浮出，portal 到 body、fixed 跟随选区 */}
-      {!reading ? <FloatingToolbar
-        subscribe={subscribeSelection}
-        editorRef={editorRef}
-        scrollEl={scrollEl}
-        onCommand={applyFormat}
-      /> : null}
+      {!reading ? (
+        <FloatingToolbar
+          subscribe={subscribeSelection}
+          editorRef={editorRef}
+          scrollEl={scrollEl}
+          onCommand={applyFormat}
+        />
+      ) : null}
 
       {/* 版本历史抽屉：由功能簇里的「版本」按钮唤起 */}
       <VersionsPanel
