@@ -26,18 +26,21 @@ interface BlockRange extends CodeRange {
   payload: string;
 }
 
-interface BlockState {
-  ranges: BlockRange[];
-  /** 原文中独占行的 $$ 位置；普通输入只更新改动涉及的行。 */
-  mathLines: number[];
+interface BlockDecorations {
   /** 本次真正被替换掉的区间：插件那边的逐行扫描要跳过（隐藏行不该再加行级类） */
   rendered: CodeRange[];
   deco: DecorationSet;
   atomics: DecorationSet;
 }
 
+interface BlockState extends BlockDecorations {
+  ranges: BlockRange[];
+  /** 原文中独占行的 $$ 偏移；普通输入只更新改动涉及的行。 */
+  mathDelimiters: number[];
+}
+
 /** 首次装载全文建立索引；后续只扫描事务覆盖的行，避免每个按键遍历所有正文行。 */
-function collectMathLines(state: EditorState, from = 0, to = state.doc.length): number[] {
+function collectMathDelimiters(state: EditorState, from = 0, to = state.doc.length): number[] {
   const positions: number[] = [];
   const first = state.doc.lineAt(from);
   const last = state.doc.lineAt(to).number;
@@ -49,13 +52,13 @@ function collectMathLines(state: EditorState, from = 0, to = state.doc.length): 
   return positions;
 }
 
-function updateMathLines(previous: number[], tr: Transaction): number[] {
+function updateMathDelimiters(previous: number[], tr: Transaction): number[] {
   if (!tr.docChanged) return previous;
   const changed: { from: number; to: number }[] = [];
   const added = new Set<number>();
   tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
     changed.push({ from: tr.startState.doc.lineAt(fromA).from, to: tr.startState.doc.lineAt(toA).to });
-    for (const pos of collectMathLines(tr.state, fromB, toB)) added.add(pos);
+    for (const pos of collectMathDelimiters(tr.state, fromB, toB)) added.add(pos);
   });
   for (const pos of previous) {
     if (!changed.some((range) => pos >= range.from && pos <= range.to)) {
@@ -66,11 +69,11 @@ function updateMathLines(previous: number[], tr: Transaction): number[] {
 }
 
 /** 将分隔行配对成公式块；代码块内部或跨越代码块的分隔符不配对。 */
-function scanMathBlocks(state: EditorState, codeRanges: CodeRange[], mathLines: number[]): BlockRange[] {
+function scanMathBlocks(state: EditorState, codeRanges: CodeRange[], mathDelimiters: number[]): BlockRange[] {
   const out: BlockRange[] = [];
   const doc = state.doc;
   let openFrom = -1;
-  for (const from of mathLines) {
+  for (const from of mathDelimiters) {
     if (inCodeRanges(codeRanges, from)) {
       openFrom = -1;
       continue;
@@ -89,7 +92,7 @@ function scanMathBlocks(state: EditorState, codeRanges: CodeRange[], mathLines: 
   return out;
 }
 
-function scanBlocks(state: EditorState, mathLines: number[]): BlockRange[] {
+function scanBlocks(state: EditorState, mathDelimiters: number[]): BlockRange[] {
   const codeRanges: CodeRange[] = [];
   const tables: BlockRange[] = [];
   syntaxTree(state).iterate({
@@ -112,10 +115,10 @@ function scanBlocks(state: EditorState, mathLines: number[]): BlockRange[] {
       return undefined;
     },
   });
-  return [...tables, ...scanMathBlocks(state, codeRanges, mathLines)].sort((a, b) => a.from - b.from);
+  return [...tables, ...scanMathBlocks(state, codeRanges, mathDelimiters)].sort((a, b) => a.from - b.from);
 }
 
-function buildBlockDecorations(state: EditorState, ranges: BlockRange[]): Omit<BlockState, "ranges" | "mathLines"> {
+function buildBlockDecorations(state: EditorState, ranges: BlockRange[]): BlockDecorations {
   const caret = caretPositions(state);
   const decos: Range<Decoration>[] = [];
   const rendered: CodeRange[] = [];
@@ -134,9 +137,9 @@ function buildBlockDecorations(state: EditorState, ranges: BlockRange[]): Omit<B
 
 const livePreviewBlockField = StateField.define<BlockState>({
   create(state) {
-    const mathLines = collectMathLines(state);
-    const ranges = scanBlocks(state, mathLines);
-    return { ranges, mathLines, ...buildBlockDecorations(state, ranges) };
+    const mathDelimiters = collectMathDelimiters(state);
+    const ranges = scanBlocks(state, mathDelimiters);
+    return { ranges, mathDelimiters, ...buildBlockDecorations(state, ranges) };
   },
   update(value, tr) {
     // 语法树是后台增量解析的：树换了也要重扫，否则大文档滚到后半程表格不渲染
@@ -144,9 +147,9 @@ const livePreviewBlockField = StateField.define<BlockState>({
     const forced = tr.effects.some((e) => e.is(refreshLivePreview));
     const rescan = tr.docChanged || treeChanged;
     if (!rescan && !tr.selection && !forced) return value;
-    const mathLines = updateMathLines(value.mathLines, tr);
-    const ranges = rescan ? scanBlocks(tr.state, mathLines) : value.ranges;
-    return { ranges, mathLines, ...buildBlockDecorations(tr.state, ranges) };
+    const mathDelimiters = updateMathDelimiters(value.mathDelimiters, tr);
+    const ranges = rescan ? scanBlocks(tr.state, mathDelimiters) : value.ranges;
+    return { ranges, mathDelimiters, ...buildBlockDecorations(tr.state, ranges) };
   },
   provide: (f) => [
     EditorView.decorations.from(f, (v) => v.deco),

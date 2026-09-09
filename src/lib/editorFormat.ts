@@ -3,13 +3,20 @@ import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import { EditorView } from "@codemirror/view";
 
+const INLINE_MARKUP = {
+  "**": { node: "StrongEmphasis", mark: "EmphasisMark" },
+  "*": { node: "Emphasis", mark: "EmphasisMark" },
+  "~~": { node: "Strikethrough", mark: "StrikethroughMark" },
+  "`": { node: "InlineCode", mark: "CodeMark" },
+} as const;
+type InlineMarker = keyof typeof INLINE_MARKUP;
+
 /** 用语法节点识别已有格式，避免把加粗的两个星号误当成斜体标记。 */
-function selectedMarkup(state: EditorState, range: SelectionRange, marker: string) {
-  const name = { "**": "StrongEmphasis", "*": "Emphasis", "~~": "Strikethrough", "`": "InlineCode" }[marker];
-  if (!name) return null;
+function selectedMarkup(state: EditorState, range: SelectionRange, marker: InlineMarker) {
+  const syntax = INLINE_MARKUP[marker];
   for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(range.from, 1); node; node = node.parent) {
-    if (node.name !== name || node.to < range.to) continue;
-    const marks = node.getChildren(marker === "`" ? "CodeMark" : marker === "~~" ? "StrikethroughMark" : "EmphasisMark");
+    if (node.name !== syntax.node || node.to < range.to) continue;
+    const marks = node.getChildren(syntax.mark);
     if (marks.length !== 2) continue;
     const [open, close] = marks;
     const innerSelected = range.from === open.to && range.to === close.from;
@@ -28,33 +35,34 @@ function selectedLines(state: EditorState) {
   };
 }
 
-export function wrapSelection(
-  view: EditorView,
-  before: string,
-  after: string,
-  placeholderText: string
-) {
+/** 构造包裹选区的事务片段，普通插入与格式切换共用。 */
+function wrapRange(state: EditorState, range: SelectionRange, before: string, after: string, placeholder: string) {
+  const text = state.doc.sliceString(range.from, range.to) || placeholder;
+  return {
+    changes: { from: range.from, to: range.to, insert: `${before}${text}${after}` },
+    range: EditorSelection.range(range.from + before.length, range.from + before.length + text.length),
+  };
+}
+
+/** 添加前后缀，保留内容选区；用于链接等不具备切换语义的插入命令。 */
+export function wrapSelection(view: EditorView, before: string, after: string, placeholder: string) {
+  const { state } = view;
+  view.dispatch(state.changeByRange((range) => wrapRange(state, range, before, after, placeholder)));
+  view.focus();
+}
+
+/** 添加或取消行内格式；取消时只删除定界符，保留内容和嵌套格式。 */
+export function toggleInlineFormat(view: EditorView, marker: InlineMarker, placeholder: string) {
   const { state } = view;
   const changes = state.changeByRange((range) => {
-    const marked = before === after ? selectedMarkup(state, range, before) : null;
-    if (marked) {
-      const { open, close } = marked;
-      // 只删定界符，内容和嵌套格式保留；原先选中内容时继续保持选中。
-      const innerLength = close.from - open.to;
-      const anchor = range.empty ? Math.max(0, Math.min(innerLength, range.head - open.to)) : 0;
-      return {
-        changes: [{ from: open.from, to: open.to }, { from: close.from, to: close.to }],
-        range: EditorSelection.range(open.from + anchor, open.from + (range.empty ? anchor : innerLength)),
-      };
-    }
-    const text = state.doc.sliceString(range.from, range.to) || placeholderText;
-    const insert = `${before}${text}${after}`;
+    const marked = selectedMarkup(state, range, marker);
+    if (!marked) return wrapRange(state, range, marker, marker, placeholder);
+    const { open, close } = marked;
+    const innerLength = close.from - open.to;
+    const anchor = range.empty ? Math.max(0, Math.min(innerLength, range.head - open.to)) : 0;
     return {
-      changes: { from: range.from, to: range.to, insert },
-      range: EditorSelection.range(
-        range.from + before.length,
-        range.from + before.length + text.length
-      ),
+      changes: [{ from: open.from, to: open.to }, { from: close.from, to: close.to }],
+      range: EditorSelection.range(open.from + anchor, open.from + (range.empty ? anchor : innerLength)),
     };
   });
   view.dispatch(changes);
@@ -118,7 +126,7 @@ export function prefixLines(view: EditorView, prefix: string) {
 }
 
 /** 标题级别互相替换；保留引用、列表及缩进前缀，重复应用同级标题则回到正文。 */
-export function setHeading(view: EditorView, level: number) {
+export function toggleHeading(view: EditorView, level: number) {
   const { state } = view;
   const { first, last } = selectedLines(state);
   const prefix = `${"#".repeat(level)} `;

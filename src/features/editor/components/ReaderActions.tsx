@@ -23,7 +23,7 @@ import {
   Table,
   Trash2,
 } from "lucide-react";
-import type { FormatCommand } from "@/components/MarkdownEditor";
+import type { FormatCommand } from "@/lib/editorCommands";
 import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
