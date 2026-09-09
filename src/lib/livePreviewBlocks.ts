@@ -1,5 +1,5 @@
 import { syntaxTree } from "@codemirror/language";
-import { RangeSet, StateField, type EditorState, type Extension, type Range } from "@codemirror/state";
+import { RangeSet, StateField, type EditorState, type Extension, type Range, type Transaction } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { MathBlockWidget, TableWidget } from "@/lib/livePreviewBlockWidgets";
 import {
@@ -16,8 +16,8 @@ import {
  * CodeMirror 明令「跨行的 replace 装饰不能由插件提供」（会抛 RangeError），
  * 而整块表格/公式天然跨行。
  *
- * 代价是字段看不到 visibleRanges，只能整篇扫；因此把「扫区间」与「按光标决定是否还原」
- * 拆成两步：区间只在文档或语法树变化时重扫，光标移动只重跑第二步。
+ * 字段看不到 visibleRanges，因此缓存全文块区间，光标移动只重跑还原判定。
+ * 公式分隔行使用增量索引；文档或语法树变化时再结合块级语法节点重新配对。
  */
 
 interface BlockRange extends CodeRange {
@@ -28,31 +28,59 @@ interface BlockRange extends CodeRange {
 
 interface BlockState {
   ranges: BlockRange[];
+  /** 原文中独占行的 $$ 位置；普通输入只更新改动涉及的行。 */
+  mathLines: number[];
   /** 本次真正被替换掉的区间：插件那边的逐行扫描要跳过（隐藏行不该再加行级类） */
   rendered: CodeRange[];
   deco: DecorationSet;
   atomics: DecorationSet;
 }
 
-/** 扫出所有 $$ 独占行围起来的公式块；代码块里的 $$ 不算 */
-function scanMathBlocks(state: EditorState, codeRanges: CodeRange[]): BlockRange[] {
+/** 首次装载全文建立索引；后续只扫描事务覆盖的行，避免每个按键遍历所有正文行。 */
+function collectMathLines(state: EditorState, from = 0, to = state.doc.length): number[] {
+  const positions: number[] = [];
+  const first = state.doc.lineAt(from);
+  const last = state.doc.lineAt(to).number;
+  let pos = first.from;
+  for (const text of state.doc.iterLines(first.number, last + 1)) {
+    if (text.trim() === "$$") positions.push(pos);
+    pos += text.length + 1;
+  }
+  return positions;
+}
+
+function updateMathLines(previous: number[], tr: Transaction): number[] {
+  if (!tr.docChanged) return previous;
+  const changed: { from: number; to: number }[] = [];
+  const added = new Set<number>();
+  tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    changed.push({ from: tr.startState.doc.lineAt(fromA).from, to: tr.startState.doc.lineAt(toA).to });
+    for (const pos of collectMathLines(tr.state, fromB, toB)) added.add(pos);
+  });
+  for (const pos of previous) {
+    if (!changed.some((range) => pos >= range.from && pos <= range.to)) {
+      added.add(tr.changes.mapPos(pos, 1));
+    }
+  }
+  return [...added].sort((a, b) => a - b);
+}
+
+/** 将分隔行配对成公式块；代码块内部或跨越代码块的分隔符不配对。 */
+function scanMathBlocks(state: EditorState, codeRanges: CodeRange[], mathLines: number[]): BlockRange[] {
   const out: BlockRange[] = [];
   const doc = state.doc;
   let openFrom = -1;
-  let pos = 0;
-  for (const text of doc.iterLines()) {
-    const from = pos;
-    pos += text.length + 1;
+  for (const from of mathLines) {
     if (inCodeRanges(codeRanges, from)) {
       openFrom = -1;
       continue;
     }
-    if (text.trim() !== "$$") continue;
+    if (openFrom >= 0 && codeRanges.some((range) => range.from > openFrom && range.from < from)) openFrom = -1;
     if (openFrom < 0) {
       openFrom = from;
       continue;
     }
-    const to = from + text.length;
+    const to = doc.lineAt(from).to;
     // 首尾两行是定界符，中间才是 TeX
     const tex = doc.sliceString(openFrom, to).split("\n").slice(1, -1).join("\n").trim();
     if (tex) out.push({ kind: "math", from: openFrom, to, payload: tex });
@@ -61,7 +89,7 @@ function scanMathBlocks(state: EditorState, codeRanges: CodeRange[]): BlockRange
   return out;
 }
 
-function scanBlocks(state: EditorState): BlockRange[] {
+function scanBlocks(state: EditorState, mathLines: number[]): BlockRange[] {
   const codeRanges: CodeRange[] = [];
   const tables: BlockRange[] = [];
   syntaxTree(state).iterate({
@@ -79,13 +107,15 @@ function scanBlocks(state: EditorState): BlockRange[] {
         });
         return false;
       }
+      // 行内格式不可能包含块级表格/围栏，不必逐个访问其中的强调、链接等节点。
+      if (node.name === "Paragraph" || /^ATXHeading/.test(node.name)) return false;
       return undefined;
     },
   });
-  return [...tables, ...scanMathBlocks(state, codeRanges)].sort((a, b) => a.from - b.from);
+  return [...tables, ...scanMathBlocks(state, codeRanges, mathLines)].sort((a, b) => a.from - b.from);
 }
 
-function buildBlockDecorations(state: EditorState, ranges: BlockRange[]): Omit<BlockState, "ranges"> {
+function buildBlockDecorations(state: EditorState, ranges: BlockRange[]): Omit<BlockState, "ranges" | "mathLines"> {
   const caret = caretPositions(state);
   const decos: Range<Decoration>[] = [];
   const rendered: CodeRange[] = [];
@@ -104,8 +134,9 @@ function buildBlockDecorations(state: EditorState, ranges: BlockRange[]): Omit<B
 
 const livePreviewBlockField = StateField.define<BlockState>({
   create(state) {
-    const ranges = scanBlocks(state);
-    return { ranges, ...buildBlockDecorations(state, ranges) };
+    const mathLines = collectMathLines(state);
+    const ranges = scanBlocks(state, mathLines);
+    return { ranges, mathLines, ...buildBlockDecorations(state, ranges) };
   },
   update(value, tr) {
     // 语法树是后台增量解析的：树换了也要重扫，否则大文档滚到后半程表格不渲染
@@ -113,8 +144,9 @@ const livePreviewBlockField = StateField.define<BlockState>({
     const forced = tr.effects.some((e) => e.is(refreshLivePreview));
     const rescan = tr.docChanged || treeChanged;
     if (!rescan && !tr.selection && !forced) return value;
-    const ranges = rescan ? scanBlocks(tr.state) : value.ranges;
-    return { ranges, ...buildBlockDecorations(tr.state, ranges) };
+    const mathLines = updateMathLines(value.mathLines, tr);
+    const ranges = rescan ? scanBlocks(tr.state, mathLines) : value.ranges;
+    return { ranges, mathLines, ...buildBlockDecorations(tr.state, ranges) };
   },
   provide: (f) => [
     EditorView.decorations.from(f, (v) => v.deco),

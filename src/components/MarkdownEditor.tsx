@@ -7,7 +7,7 @@ import {
   useImperativeHandle,
   useRef,
 } from "react";
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, Compartment, type Text } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -81,6 +81,8 @@ export interface SelectionInfo {
 }
 
 export interface EditorHandle {
+  /** 切换阅读前同步最后一次输入，不触发版本保存。 */
+  flush: () => void;
   /** arg：color 命令的色值（缺省 = 清除颜色），其余命令忽略 */
   applyFormat: (cmd: FormatCommand, arg?: string) => void;
   view: () => EditorView | null;
@@ -157,8 +159,9 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   );
 
   // 每次击键都把整篇正文推上去 = 整个文章视图跟着重渲染，合并成 ~120ms 一次
-  const pushChange = useThrottledCallback<string>(
-    (text) => onChangeRef.current(text),
+  // Text 是不可变快照：只在节流窗口结束时转换全文，避免每个按键分配大字符串。
+  const pushChange = useThrottledCallback<Text>(
+    (doc) => onChangeRef.current(doc.toString()),
     CHANGE_THROTTLE_MS
   );
 
@@ -231,7 +234,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         ]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
-            pushChange(update.state.doc.toString());
+            pushChange(update.state.doc);
           }
           // 选区 / 文档 / 焦点任一变化都上报：浮动工具条的出现与隐藏全靠这一路信号
           if (update.selectionSet || update.docChanged || update.focusChanged) {
@@ -341,6 +344,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   }, [scrollParent]);
 
   useImperativeHandle(ref, () => ({
+    flush: () => pushChange.flush(),
     view: () => viewRef.current,
     scrollToLine: (line: number) => {
       const view = viewRef.current;
