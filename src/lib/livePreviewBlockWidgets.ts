@@ -15,29 +15,26 @@ function renderCell(source: string): string {
   return sanitizeHtml(inlineMd.renderInline(source));
 }
 
-/** 按未转义的 `|` 切一行单元格；首尾管道产生的空格子丢掉，中间的空格子要留 */
-function splitRow(line: string): string[] {
-  const text = line.trim();
-  const cells: string[] = [];
-  let cur = "";
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === "\\" && text[i + 1] === "|") {
-      cur += "|";
+/** 单元格同时保留原文偏移，点击时直接定位到对应行列；转义交给 Markdown 渲染。 */
+function splitRow(line: string): { text: string; from: number }[] {
+  const cells: { text: string; from: number }[] = [];
+  let start = 0;
+  const addCell = (end: number) => {
+    const raw = line.slice(start, end);
+    cells.push({ text: raw.trim(), from: start + raw.length - raw.trimStart().length });
+    start = end + 1;
+  };
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === "\\") {
       i++;
       continue;
     }
-    if (ch === "|") {
-      cells.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += ch;
+    if (line[i] === "|") addCell(i);
   }
-  cells.push(cur);
-  if (text.startsWith("|")) cells.shift();
-  if (cells.length > 0 && /(^|[^\\])\|$/.test(text)) cells.pop();
-  return cells.map((c) => c.trim());
+  addCell(line.length);
+  if (line.trimStart().startsWith("|")) cells.shift();
+  if (cells.length > 0 && cells[cells.length - 1].text === "" && line.trimEnd().endsWith("|")) cells.pop();
+  return cells;
 }
 
 /** 第二行分隔行决定各列对齐（:-- / --: / :-:） */
@@ -57,7 +54,9 @@ function editOnClick(el: HTMLElement, view: EditorView, offset: number) {
     e.preventDefault();
     e.stopPropagation();
     const pos = view.posAtDOM(el);
-    view.dispatch({ selection: { anchor: pos + offset }, scrollIntoView: true });
+    const cell = (e.target as Element).closest<HTMLElement>("[data-source-offset]");
+    const target = cell ? Number(cell.dataset.sourceOffset) : offset;
+    view.dispatch({ selection: { anchor: pos + target }, scrollIntoView: true });
     view.focus();
   });
 }
@@ -76,19 +75,23 @@ export class TableWidget extends WidgetType {
     const wrap = document.createElement("div");
     wrap.className = "cm-lp-table";
     const table = document.createElement("table");
-    const rows = this.source.split("\n").filter((l) => l.trim() !== "");
-    const aligns = (rows[1] ? splitRow(rows[1]) : []).map(parseAlign);
+    const rows = this.source.split("\n");
+    const aligns = (rows[1] ? splitRow(rows[1]) : []).map((cell) => parseAlign(cell.text));
     const head = document.createElement("thead");
     const body = document.createElement("tbody");
 
+    let lineOffset = 0;
     rows.forEach((line, index) => {
+      const rowOffset = lineOffset;
+      lineOffset += line.length + 1;
       if (index === 1) return; // 分隔行只提供对齐信息，不出现在表里
       const tr = document.createElement("tr");
       splitRow(line).forEach((cell, col) => {
         const td = document.createElement(index === 0 ? "th" : "td");
         const align = aligns[col];
         if (align) td.style.textAlign = align;
-        td.innerHTML = renderCell(cell);
+        td.dataset.sourceOffset = String(rowOffset + cell.from);
+        td.innerHTML = renderCell(cell.text);
         tr.appendChild(td);
       });
       (index === 0 ? head : body).appendChild(tr);
