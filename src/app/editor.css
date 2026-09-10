@@ -54,10 +54,10 @@
     transition: none;
   }
 }
-/* 光标落进深色代码卡时（livePreview 的插件在编辑器根上打 cm-caret-in-code）：
-   换成浅色实心光标，卡外仍是墨色实心 */
+/* 光标落进代码卡时（livePreview 的插件在编辑器根上打 cm-caret-in-code）：
+   跟随卡内文字色，浅色卡上是墨色、夜间深色卡上是浅色，不会与卡底同色隐身 */
 .cm-editor.cm-caret-in-code .cm-cursor {
-  border-left-color: #f5f4f1;
+  border-left-color: var(--codeblock-fg);
 }
 /* 选区圆角：整块直角在中文行里显得生硬，3px 刚好收住四角又不显圆润 */
 .cm-editor .cm-selectionBackground,
