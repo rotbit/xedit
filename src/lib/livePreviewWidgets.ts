@@ -160,6 +160,12 @@ export class CodeLangWidget extends WidgetType {
       if (block) deleteFencedBlock(view, block);
       view.focus();
     });
+    // 可见的是文字 + 箭头，原生 select 透明铺满整个标签：点标签任何位置都能打开菜单，
+    // 否则 select 只有文字那么宽，点到箭头或留白就落进编辑器、光标跳到围栏行，标签当场变回源码
+    const label = document.createElement("span");
+    label.className = "cm-lp-codefence-label";
+    label.textContent = this.lang || "纯文本";
+    wrap.appendChild(label);
     const select = document.createElement("select");
     select.title = "代码语言";
     const langs = FENCE_LANGS.includes(this.lang) ? FENCE_LANGS : [this.lang, ...FENCE_LANGS];
@@ -170,11 +176,8 @@ export class CodeLangWidget extends WidgetType {
       if (l === this.lang) opt.selected = true;
       select.appendChild(opt);
     }
-    // 原生 select 会按最长选项撑宽：改成按当前值的实际宽度收紧（等宽字体下 ch 精确，中文按 2ch）
-    const label = this.lang || "纯文本";
-    const units = [...label].reduce((n, ch) => n + (ch.charCodeAt(0) > 127 ? 2 : 1), 0);
-    select.style.width = `${units + 1}ch`;
-    select.addEventListener("mousedown", (e) => e.stopPropagation());
+    // 标签整体都不能把 mousedown 漏给编辑器，否则光标先被抢走
+    wrap.addEventListener("mousedown", (e) => e.stopPropagation());
     select.addEventListener("change", () => {
       view.dispatch({
         changes: { from: this.infoFrom, to: this.infoTo, insert: select.value },
