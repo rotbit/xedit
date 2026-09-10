@@ -17,11 +17,6 @@ import { WorkspaceContent } from "./components/WorkspaceContent";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { useHydrated } from "@/hooks/useHydrated";
 
-const AiSettingsDialog = dynamic(
-  () => import("@/components/AiDialogs").then((m) => m.AiSettingsDialog),
-  { ssr: false }
-);
-
 const FeishuDialog = dynamic(
   () => import("@/components/FeishuDialog").then((m) => m.FeishuDialog),
   { ssr: false }
@@ -39,7 +34,6 @@ interface HomeProps {
 export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
   const { auth, prefs, library, nav } = ws;
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [feishuOpen, setFeishuOpen] = useState(false);
   const feishuSync = useFeishuSync();
   const hydrated = useHydrated();
@@ -124,11 +118,7 @@ export function Home({ landing }: HomeProps) {
           onClick={() => prefs.setSidebarOpen(false)}
         />
       ) : null}
-      <Sidebar
-        ws={ws}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenFeishu={() => setFeishuOpen(true)}
-      />
+      <Sidebar ws={ws} onOpenFeishu={() => setFeishuOpen(true)} />
       <WorkspaceContent ws={ws} />
       {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
       {!auth.online && !auth.localMode ? (
@@ -159,7 +149,6 @@ export function Home({ landing }: HomeProps) {
         </button>
       ) : null}
       <CategoryContextMenu ws={ws} />
-      {settingsOpen ? <AiSettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       {feishuOpen ? (
         <FeishuDialog
           onClose={() => {

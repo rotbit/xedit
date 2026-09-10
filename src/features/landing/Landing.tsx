@@ -274,7 +274,7 @@ export function Landing() {
               id="features"
               eyebrow="能力全景"
               title="从写作到发布，需要的都在里面"
-              note="不是「一个 Markdown 预览器」——排版、素材、版本、同步、审查、AI 接口，写公众号真正会用到的环节都做完了。"
+              note="不是「一个 Markdown 预览器」——排版、素材、版本、同步、AI 接口，写公众号真正会用到的环节都做完了。"
             />
             <div className="mt-14 space-y-14">
               {FEATURE_GROUPS.map((group) => (

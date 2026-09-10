@@ -71,8 +71,6 @@ interface EditorState extends SettingsSlice {
   cssDialogOpen: boolean;
   /** 主题编辑器：closed 未打开；"new" 新建；其余为在编辑的自定义主题 id */
   themeStudio: "closed" | "new" | string;
-  /** 文本 AI（内容审查用）是否已配置密钥（服务端拉取，不持久化） */
-  aiChatReady: boolean;
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -94,7 +92,6 @@ interface EditorState extends SettingsSlice {
   setSplitRatio: (r: number) => void;
   setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
   setCategory: (c: string) => void;
-  setAiStatus: (s: { aiChatReady: boolean }) => void;
 }
 
 /** 防抖落盘的 persist 存储。middleware 每次 set 都会「全量 partialize → 序列化 → 同步写
@@ -162,7 +159,6 @@ export const useStore = create<EditorState>()(
       saveState: "local",
       cssDialogOpen: false,
       themeStudio: "closed" as const,
-      aiChatReady: false,
 
       setContent: (content) => set({ content }),
       setTitle: (title) => set({ title }),
@@ -194,7 +190,6 @@ export const useStore = create<EditorState>()(
         set({ splitRatio: Math.min(0.75, Math.max(0.25, splitRatio)) }),
       setTune: (t) => set(t),
       setCategory: (category) => set({ category }),
-      setAiStatus: (s) => set(s),
     }),
     {
       name: "xedit-store",
