@@ -41,11 +41,9 @@ function SimpleRow({
 /** 侧栏底部：登录态是工具入口 + 账户，离线态是提示，本地模式是登录引导 */
 export function SidebarFooter({
   ws,
-  onOpenSettings,
   onOpenFeishu,
 }: {
   ws: Workspace;
-  onOpenSettings: () => void;
   onOpenFeishu: () => void;
 }) {
   const { auth, menus, library } = ws;
@@ -91,7 +89,6 @@ export function SidebarFooter({
                 anchor={menus.accountMenu}
                 user={auth.session?.user}
                 onClose={menus.closeAccountMenu}
-                onOpenSettings={onOpenSettings}
                 onOpenFeishu={onOpenFeishu}
               />
             ) : null}

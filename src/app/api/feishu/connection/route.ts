@@ -6,7 +6,7 @@ import { encryptSecret, decryptSecret, keyLast4 } from "@/lib/ai/crypto";
 
 export const runtime = "nodejs";
 
-/** 掩码：前端「不改动 App Secret」时回传的哨兵值（与 AI 设置同款约定） */
+/** 掩码：前端「不改动 App Secret」时回传的哨兵值 */
 const KEY_MASK = "__keep__";
 
 async function buildView(userId: string) {

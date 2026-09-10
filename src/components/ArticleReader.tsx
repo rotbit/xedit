@@ -177,7 +177,7 @@ export function ArticleReader({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 顶部操作栏：功能簇 / 分享 / 复制 / 阅读 / 双屏 / 更多
+      {/* 顶部操作栏：大纲 / 插入 / 主题 / 版本 / 复制 / 双屏 / 阅读 / 更多
           —— portal 到面包屑顶栏右侧，与之共用一行，省掉一整条横栏 */}
       {actionSlot
         ? createPortal(

@@ -240,7 +240,6 @@ export function Showcase() {
           "9 个文档与图床工具，覆盖增删改查",
           "自托管 OAuth 2.1 授权，支持动态客户端注册与 PKCE",
           "access token 按账号签发，授权可在设置里逐个撤销",
-          "另有 AI 内容审查：按运营规范与广告法给文章体检",
         ]}
       >
         <McpMock />
