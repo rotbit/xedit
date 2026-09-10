@@ -109,20 +109,28 @@
 .cm-live-preview .cm-lp-codefence:hover {
   background: rgb(127 127 127 / 0.14);
 }
-.cm-live-preview .cm-lp-codefence select {
-  appearance: none;
-  border: none;
-  background: transparent;
-  padding: 0;
+.cm-live-preview .cm-lp-codefence-label {
   color: var(--codeblock-faint);
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
-  cursor: pointer;
-  outline: none;
+  transition: color 0.12s;
 }
-.cm-live-preview .cm-lp-codefence:hover select {
+.cm-live-preview .cm-lp-codefence:hover .cm-lp-codefence-label {
   color: var(--codeblock-fg);
+}
+/* 原生 select 透明铺满整个标签（文字 + 箭头 + 内衬），只负责接点击和弹菜单 */
+.cm-live-preview .cm-lp-codefence select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 11px;
 }
 /* 删除整块的按钮：独占块的右上角（与左侧的语言下拉分居标题条两端），
    常态隐形，悬停开栏行或下拉获得焦点才现身 —— 围栏被渲染掉之后，删除得有个明摆着的入口 */
@@ -294,15 +302,16 @@
   accent-color: var(--accent);
   cursor: pointer;
 }
-/* 链接文字：淡下划线示意可交互，点击打开（⌥+点击进入源码编辑） */
+/* 链接文字：只靠链接色示意可交互，不画下划线（长 URL 带下划线很花）；
+   悬停时再淡淡加一条，提示可点击打开（⌥+点击进入源码编辑） */
 .cm-live-preview .cm-lp-link {
   cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--md-link) 35%, transparent);
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 .cm-live-preview .cm-lp-link:hover {
-  text-decoration-color: var(--md-link);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--md-link) 45%, transparent);
+  text-underline-offset: 3px;
 }
 
 /* ================= 第一期：版式节奏重建 ================= */
