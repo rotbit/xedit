@@ -3,7 +3,7 @@ import { CodeLangWidget } from "@/lib/livePreviewWidgets";
 import { caretTouches, selectionTouches, type LpContext } from "@/lib/livePreviewContext";
 
 /**
- * 围栏代码块的即时渲染：整块铺深色终端卡、开栏行换语言下拉、闭栏行折成块底内边距。
+ * 围栏代码块的即时渲染：整块铺随主题的浅色卡片、开栏行换成带语言下拉的标题条、闭栏行折成块底内边距。
  *
  * 行缝的成因值得记一笔：底色画在每行的 ::before 上，而行高是分数像素，相邻行之间
  * 会漏出亮线。解决办法是让相邻行的伪元素上下各外扩 1px 互相重叠（CSS 里的

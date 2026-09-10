@@ -12,6 +12,7 @@ import {
   toggleHeading,
   toggleTaskLines,
   insertBlock,
+  insertCodeBlock,
   TABLE_TEMPLATE,
 } from "@/lib/editorFormat";
 import { toast } from "@/components/Toast";
@@ -111,7 +112,7 @@ export function runFormatCommand(view: EditorView, cmd: FormatCommand, arg?: str
     case "tasklist":
       return toggleTaskLines(view);
     case "codeblock":
-      return insertBlock(view, "```javascript\nconst hello = 'world';\n```");
+      return insertCodeBlock(view);
     case "link":
       return wrapSelection(view, "[", "](https://)", "链接文字");
     case "image":

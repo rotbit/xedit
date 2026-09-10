@@ -204,6 +204,34 @@ export function insertBlock(view: EditorView, text: string) {
   view.focus();
 }
 
+/** 插入围栏代码块：不塞示例代码，光标落到块内空行；有选区时把选中文字收进块里 */
+export function insertCodeBlock(view: EditorView): void {
+  const { state } = view;
+  const range = state.selection.main;
+  const line = state.doc.lineAt(range.from);
+  if (!range.empty) {
+    // 选中的文字直接收进围栏；只有当选区左边还压着正文时才另起一行，免得凭空多出空行
+    const body = state.sliceDoc(range.from, range.to);
+    const head = `${line.text.slice(0, range.from - line.from).trim() ? "\n" : ""}\`\`\`\n`;
+    view.dispatch({
+      changes: { from: range.from, to: range.to, insert: `${head}${body}\n\`\`\`\n` },
+      selection: { anchor: range.from + head.length + body.length },
+      scrollIntoView: true,
+    });
+    view.focus();
+    return;
+  }
+  // 空选区：与 insertBlock 一样落在行尾，光标停在开栏与闭栏之间那行空行上，直接开写
+  const head = `${line.text.trim() ? "\n\n" : ""}\`\`\`\n`;
+  const pos = line.to;
+  view.dispatch({
+    changes: { from: pos, insert: `${head}\n\`\`\`\n` },
+    selection: { anchor: pos + head.length },
+    scrollIntoView: true,
+  });
+  view.focus();
+}
+
 export const TABLE_TEMPLATE = `| 表头 | 表头 |
 | --- | --- |
 | 内容 | 内容 |
