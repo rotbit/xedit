@@ -35,7 +35,8 @@
   color: var(--ink-soft);
 }
 /* 代码块：随主题走的浅色/深色卡片——纸面上一张略深的卡，安静地待着不抢眼。
-   左右内缩与正文同为 28px，代码文字才和正文对齐（选区高亮也随之对齐）。
+   卡片左右缘与正文文字列对齐（正文行内缩 28px，卡的底色伪元素也从 28px 起画），
+   代码文字在卡内再缩 16px；正文列之外不再有东西，块才不会比标题和段落更"宽"。
    底色一律画在伪元素上并压到 z-index -3——drawSelection 画的选区是 .cm-scroller 里的
    负层级（-2），直接给 .cm-line / 行内 span 上背景会盖住它：选中后看不见高亮，
    用起来就像“代码块选不中、复制不了”。伪元素比选区层更低一层，选区才浮得上来。 */
@@ -43,14 +44,14 @@
   position: relative;
   font-family: var(--mono);
   font-size: 13px;
-  padding-left: 28px;
-  padding-right: 28px;
+  padding-left: 44px;
+  padding-right: 44px;
   color: var(--codeblock-fg);
 }
 .cm-live-preview .cm-line.cm-lp-code::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: 0 28px;
   z-index: -3;
   background: var(--codeblock-bg);
 }
@@ -94,7 +95,7 @@
 .cm-live-preview .cm-lp-codefence {
   position: absolute;
   top: 50%;
-  left: 28px;
+  left: 44px;
   transform: translateY(-50%);
   z-index: 1;
   display: inline-flex;
@@ -128,7 +129,7 @@
 .cm-live-preview .cm-lp-codefence-del {
   position: absolute;
   top: 50%;
-  right: 10px;
+  right: 38px;
   transform: translateY(-50%);
   z-index: 1;
   display: inline-flex;
