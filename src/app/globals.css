@@ -34,10 +34,11 @@
      半透明中灰在白纸和炭黑代码窗上都看得见选中范围 */
   --cm-selection: rgb(127 127 127 / 0.35);
   --cm-active-line: #f5f5f5;
-  /* 代码块深色终端卡：日间也用炭黑底，代码像嵌在纸面上的一扇终端小窗 */
-  --codeblock-bg: #1c1c1c;
-  --codeblock-fg: #dcdad6;
-  --codeblock-faint: #8f8d89;
+  /* 代码块是随主题的浅色卡片：纸面上一张略深的卡，安静地待着不抢眼 */
+  --codeblock-bg: #f4f4f1;
+  --codeblock-fg: #2a2a2a;
+  --codeblock-faint: #8c8c8c;
+  --codeblock-border: #e4e4e0;
   /* 热力图色阶：未活跃 → 高产 */
   --heat-0: #efe9e2;
   --heat-1: #f3d9d4;
@@ -89,7 +90,7 @@
 
 /* —— 夜间：中性炭黑 —— */
 [data-theme="dark"] {
-  /* 三层明度拉开：代码卡(#0f0f10) < 纸面(#141415) < 面板(#1b1b1c)。
+  /* 三层明度拉开：纸面(#141415) < 面板(#1b1b1c) < 代码卡(#1c1c1e)。
      原来的 #161616 / #1e1e1e 差得太近，夜间看不出「纸上放着一张卡」的层次 */
   --paper: #141415;
   --panel: #1b1b1c;
@@ -111,8 +112,11 @@
   --seal-wash: #3b211b;
   --cm-selection: rgb(255 255 255 / 0.16);
   --cm-active-line: #222222;
-  /* 夜间代码卡是三层里最深的一档，保持“终端窗”的辨识度 */
-  --codeblock-bg: #0f0f10;
+  /* 夜间是同一张卡的深色版：比纸面稍抬一档，卡的边界主要靠边框交代 */
+  --codeblock-bg: #1c1c1e;
+  --codeblock-fg: #e6e4e1;
+  --codeblock-faint: #8a8a8a;
+  --codeblock-border: #2e2e31;
   --heat-0: #292520;
   --heat-1: #43261f;
   --heat-2: #6b3527;

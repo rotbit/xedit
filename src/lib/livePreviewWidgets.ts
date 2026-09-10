@@ -116,7 +116,11 @@ function trashIcon(): SVGSVGElement {
   return svg;
 }
 
-/** 代码块开栏行（```lang）：光标不在时换成语言下拉，选择即改写围栏语言标记 */
+/**
+ * 代码块开栏行（```lang）：光标不在时换成整块的标题条，选择即改写围栏语言标记。
+ * 标题条里左边是语言下拉、右边是删除按钮，两者互为兄弟并各自绝对定位到块的两角；
+ * 外层容器只负责在文档里占位（也是 posAtDOM 的锚点，用来回查这是哪一块）。
+ */
 export class CodeLangWidget extends WidgetType {
   constructor(
     readonly lang: string,
@@ -133,6 +137,8 @@ export class CodeLangWidget extends WidgetType {
     );
   }
   toDOM(view: EditorView) {
+    const bar = document.createElement("span");
+    bar.className = "cm-lp-codefence-bar";
     const wrap = document.createElement("span");
     wrap.className = "cm-lp-codefence";
     // 删除整块：围栏被渲染掉之后，光标删法再周全也不如一个明摆着的按钮
@@ -150,11 +156,10 @@ export class CodeLangWidget extends WidgetType {
     del.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const block = fencedCodeAt(view.state, view.posAtDOM(wrap), 1);
+      const block = fencedCodeAt(view.state, view.posAtDOM(bar), 1);
       if (block) deleteFencedBlock(view, block);
       view.focus();
     });
-    wrap.appendChild(del);
     const select = document.createElement("select");
     select.title = "代码语言";
     const langs = FENCE_LANGS.includes(this.lang) ? FENCE_LANGS : [this.lang, ...FENCE_LANGS];
@@ -176,7 +181,10 @@ export class CodeLangWidget extends WidgetType {
       });
     });
     wrap.appendChild(select);
-    return wrap;
+    // 下拉在前、删除按钮在后：CSS 用 ~ 选择器让下拉获得焦点时也把按钮点亮
+    bar.appendChild(wrap);
+    bar.appendChild(del);
+    return bar;
   }
   ignoreEvent() {
     return true;
