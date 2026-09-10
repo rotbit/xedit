@@ -34,7 +34,8 @@
   border-left: 2px solid var(--hairline-strong);
   color: var(--ink-soft);
 }
-/* 代码块：深色终端卡——日间也用炭黑底，代码像嵌在纸面上的一扇终端小窗。
+/* 代码块：随主题走的浅色/深色卡片——纸面上一张略深的卡，安静地待着不抢眼。
+   左右内缩与正文同为 28px，代码文字才和正文对齐（选区高亮也随之对齐）。
    底色一律画在伪元素上并压到 z-index -3——drawSelection 画的选区是 .cm-scroller 里的
    负层级（-2），直接给 .cm-line / 行内 span 上背景会盖住它：选中后看不见高亮，
    用起来就像“代码块选不中、复制不了”。伪元素比选区层更低一层，选区才浮得上来。 */
@@ -42,19 +43,9 @@
   position: relative;
   font-family: var(--mono);
   font-size: 13px;
-  padding-left: 20px;
-  padding-right: 20px;
+  padding-left: 28px;
+  padding-right: 28px;
   color: var(--codeblock-fg);
-  /* 卡内 token 配色固定走深色系（与夜间主题同一套，调整时两处同步）；
-     行内代码不在 .cm-lp-code 行里，不受这组覆盖影响 */
-  --md-code: #e6e4e1;
-  --md-code-tint: transparent;
-  --code-keyword: #d68fd6;
-  --code-string: #8ec98f;
-  --code-comment: #8a827a;
-  --code-number: #e0a458;
-  --code-func: #6ba3e8;
-  --code-type: #4fd0c0;
 }
 .cm-live-preview .cm-line.cm-lp-code::before {
   content: "";
@@ -63,42 +54,59 @@
   z-index: -3;
   background: var(--codeblock-bg);
 }
+/* 卡片描边同样画在底色伪元素上：中间行只有左右两条，首尾行各补一条封口 */
+.cm-live-preview .cm-line.cm-lp-code-mid::before,
+.cm-live-preview .cm-line.cm-lp-code-first::before,
+.cm-live-preview .cm-line.cm-lp-code-last::before {
+  border-left: 1px solid var(--codeblock-border);
+  border-right: 1px solid var(--codeblock-border);
+}
+.cm-live-preview .cm-line.cm-lp-code-first::before {
+  border-top: 1px solid var(--codeblock-border);
+}
+.cm-live-preview .cm-line.cm-lp-code-last::before {
+  border-bottom: 1px solid var(--codeblock-border);
+}
 /* 围栏行（``` 与语言标记）弱化成结构注记，不再像裸露的符号 */
 .cm-live-preview .cm-line.cm-lp-code-first,
 .cm-live-preview .cm-line.cm-lp-code-last {
   font-size: 11px;
   color: var(--codeblock-faint);
 }
+/* 开栏行不再是块顶留白，而是块的标题条（行高在文末的节奏段里钉死） */
 .cm-live-preview .cm-line.cm-lp-code-first {
-  padding-top: 10px;
+  padding-bottom: 2px;
 }
 .cm-live-preview .cm-line.cm-lp-code-first::before {
-  border-radius: 10px 10px 0 0;
+  border-radius: 8px 8px 0 0;
 }
 .cm-live-preview .cm-line.cm-lp-code-last {
   padding-bottom: 10px;
 }
 .cm-live-preview .cm-line.cm-lp-code-last::before {
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 8px 8px;
 }
 /* 代码块开栏行的语言下拉：替代裸露的 ```lang。
-   嵌在代码块右上角的安静标签（开栏行是 position:relative 的容器）：
-   默认只是块底色上的一枚灰字，悬停才浮出圆角底提示可点，不再是压边的白色浮块；
-   开栏行本身留空作块顶留白；光标点到那一行仍会还原 ``` 源码 */
+   贴着代码左缘挂在块顶（开栏行是 position:relative 的容器），整行读作卡片的标题条：
+   默认只是块底色上的一枚灰字，悬停才浮出圆角底提示可点；
+   负 margin 抵掉自身内衬，标签文字与下方代码严格左对齐；
+   光标点到那一行仍会还原 ``` 源码 */
 .cm-live-preview .cm-lp-codefence {
   position: absolute;
   top: 50%;
-  right: 12px;
+  left: 28px;
   transform: translateY(-50%);
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  margin-left: -6px;
+  padding: 2px 6px;
   border-radius: 6px;
   transition: background-color 0.12s;
 }
+/* 悬停底色用中性灰：卡片是浅色的，白色高光在上面根本看不见 */
 .cm-live-preview .cm-lp-codefence:hover {
-  background: rgb(255 255 255 / 0.09);
+  background: rgb(127 127 127 / 0.14);
 }
 .cm-live-preview .cm-lp-codefence select {
   appearance: none;
@@ -115,12 +123,16 @@
 .cm-live-preview .cm-lp-codefence:hover select {
   color: var(--codeblock-fg);
 }
-/* 删除整块的按钮：常态隐形（只占位不显形，浮出时标签不跳），
-   悬停开栏行或下拉获得焦点才现身 —— 围栏被渲染掉之后，删除得有个明摆着的入口 */
+/* 删除整块的按钮：独占块的右上角（与左侧的语言下拉分居标题条两端），
+   常态隐形，悬停开栏行或下拉获得焦点才现身 —— 围栏被渲染掉之后，删除得有个明摆着的入口 */
 .cm-live-preview .cm-lp-codefence-del {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  z-index: 1;
   display: inline-flex;
   align-items: center;
-  margin-right: 6px;
   padding: 2px;
   border: 0;
   background: transparent;
@@ -132,7 +144,7 @@
     color 0.12s;
 }
 .cm-live-preview .cm-line.cm-lp-code-first:hover .cm-lp-codefence-del,
-.cm-live-preview .cm-lp-codefence:focus-within .cm-lp-codefence-del {
+.cm-live-preview .cm-lp-codefence:focus-within ~ .cm-lp-codefence-del {
   opacity: 1;
 }
 .cm-live-preview .cm-lp-codefence-del:hover {
@@ -401,6 +413,10 @@
    中间行的底色伪元素上下各溢出 1px 与相邻行叠住，把亚像素缝彻底盖死 */
 .cm-live-preview .cm-line.cm-lp-code {
   line-height: 22px;
+}
+/* 开栏行比代码行高一档，撑成卡片的标题条（必须写在上一条之后才压得住） */
+.cm-live-preview .cm-line.cm-lp-code-first {
+  line-height: 30px;
 }
 .cm-live-preview .cm-line.cm-lp-code-mid::before {
   top: -1px;
