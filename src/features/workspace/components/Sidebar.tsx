@@ -14,11 +14,9 @@ const toolBtn =
  */
 export function Sidebar({
   ws,
-  onOpenSettings,
   onOpenFeishu,
 }: {
   ws: Workspace;
-  onOpenSettings: () => void;
   onOpenFeishu: () => void;
 }) {
   const { nav, prefs, library, docActions, totalChars } = ws;
@@ -106,7 +104,7 @@ export function Sidebar({
       </div>
 
       <CategoryTree ws={ws} />
-      <SidebarFooter ws={ws} onOpenSettings={onOpenSettings} onOpenFeishu={onOpenFeishu} />
+      <SidebarFooter ws={ws} onOpenFeishu={onOpenFeishu} />
 
       {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}
       <div

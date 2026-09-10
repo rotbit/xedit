@@ -1,22 +1,26 @@
 "use client";
 
-// 文章视图顶栏右侧的操作簇：大纲 / 插入 / 功能簇 / 分享 / 一键复制 / 双屏 / 阅读模式 / 更多。
+// 文章视图顶栏右侧的操作簇：大纲 / 插入 / 排版主题 / 版本 / 一键复制 / 双屏 / 阅读 / 更多。
 // 由 ArticleReader portal 到面包屑顶栏，与面包屑共用一行（从 ArticleReader 搬出）。
 // 常驻工具栏改成浮动工具条后，大纲开关与插入类操作没了去处，一并收进这里。
+// 低频项（分享 / 导出 / 三个开关 / 删除）统一收进 ⋯ 菜单，顶栏只留常用动作。
 
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
   Columns2,
   Copy,
   Film,
+  History,
   Image as ImageIcon,
   ListTodo,
   ListTree,
   Loader2,
   Minus,
   MoreHorizontal,
+  Palette,
+  PenLine,
   Plus,
   Share2,
   SquareCode,
@@ -28,9 +32,13 @@ import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { toast } from "@/components/Toast";
+import { Dropdown } from "@/components/Dropdown";
+import { ThemePickerPanel } from "@/components/ThemePicker";
+import { resolveTheme } from "@/lib/themes";
 import { buildRenderOptions } from "@/features/editor/lib/renderOptions";
 import { useStore } from "@/store/useStore";
-import { EditorTools } from "./EditorTools";
+import { ToggleRow } from "./MenuControls";
+import { runExport, type ExportKind } from "../lib/exportDoc";
 
 const iconBtn =
   "flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors";
@@ -40,6 +48,8 @@ const menuItem =
   "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]";
 const menuCard =
   "absolute right-0 top-[calc(100%+6px)] z-20 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]";
+const menuCaption = "px-3.5 pb-0.5 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]";
+const menuDivider = "my-1 border-t border-[var(--hairline)]";
 
 /** 插入类操作：不依赖选区，放在浮动工具条里既占地方又难点，收进 + 菜单 */
 const INSERT_ITEMS: { cmd: FormatCommand; icon: React.ReactNode; label: string }[] = [
@@ -49,6 +59,15 @@ const INSERT_ITEMS: { cmd: FormatCommand; icon: React.ReactNode; label: string }
   { cmd: "codeblock", icon: <SquareCode size={14} />, label: "代码块" },
   { cmd: "tasklist", icon: <ListTodo size={14} />, label: "任务列表" },
   { cmd: "hr", icon: <Minus size={14} />, label: "分割线" },
+];
+
+/** 导出格式：低频动作，收进 ⋯ 菜单的「导出」小节 */
+const EXPORT_ITEMS: { kind: ExportKind; label: string }[] = [
+  { kind: "md", label: "导出 Markdown" },
+  { kind: "html", label: "导出 HTML" },
+  { kind: "docx", label: "导出 Word（可导入飞书）" },
+  { kind: "pdf", label: "导出 PDF（打印）" },
+  { kind: "image", label: "导出长图（PNG）" },
 ];
 
 // memo：这一簇按钮跟正文无关，却和编辑区共处同一棵树，打字时不该跟着重渲染。
@@ -81,10 +100,22 @@ export const ReaderActions = memo(function ReaderActions({
   onOpenShare: () => void;
   onDelete?: () => void;
 }) {
+  const themeId = useStore((s) => s.themeId);
+  const customThemes = useStore((s) => s.customThemes);
+  const linkFootnote = useStore((s) => s.linkFootnote);
+  const setLinkFootnote = useStore((s) => s.setLinkFootnote);
+  const syncScroll = useStore((s) => s.syncScroll);
+  const setSyncScroll = useStore((s) => s.setSyncScroll);
+  const sourceMode = useStore((s) => s.sourceMode);
+  const setSourceMode = useStore((s) => s.setSourceMode);
+
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [insertOpen, setInsertOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // 只为 title 文案取主题名：resolveTheme 遇到自定义主题会全量重建 CSS，别每次渲染都跑
+  const themeName = useMemo(() => resolveTheme(themeId, customThemes).name, [themeId, customThemes]);
 
   /** 直接复制到公众号，与编辑页的复制管线一致 */
   const copyWechat = async () => {
@@ -157,16 +188,20 @@ export const ReaderActions = memo(function ReaderActions({
         ) : null}
       </div>
       <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
-      {/* 排版主题 / 设置 / AI / 版本 / 导出 —— 从老编辑页搬来的功能簇 */}
-      <EditorTools onOpenVersions={onOpenVersions} />
-      <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
-      {/* 分享：公开链接（永久）+ 访客批注 */}
-      <button
-        className={iconBtnIdle}
-        title="分享给他人查看与批注"
-        onClick={onOpenShare}
+      {/* 排版主题：面板底部还挂着字号/行高/段距的排版微调 */}
+      <Dropdown
+        width={430}
+        trigger={
+          <button className={iconBtnIdle} title={`排版主题：${themeName}`}>
+            <Palette size={16} strokeWidth={1.75} />
+          </button>
+        }
       >
-        <Share2 size={15} />
+        <ThemePickerPanel />
+      </Dropdown>
+      {/* 版本历史 */}
+      <button className={iconBtnIdle} onClick={onOpenVersions} title="版本历史">
+        <History size={16} strokeWidth={1.75} />
       </button>
       {/* 一键复制：点开选择平台（纯图标） */}
       <div className="relative">
@@ -209,20 +244,21 @@ export const ReaderActions = memo(function ReaderActions({
           </>
         ) : null}
       </div>
-      {/* 阅读模式：整块编辑区换成渲染后的成品，宽栏通读 */}
-      <button
-        className={reading ? iconBtnOn : iconBtnIdle}
-        title="阅读模式：全屏只看渲染后的成品（⌘⇧E）"
-        onClick={onToggleReading}
-      >
-        <BookOpen size={15} />
-      </button>
       <button
         className={split ? iconBtnOn : iconBtnIdle}
         title="双屏：左源码、右公众号真实效果（⌘E）"
         onClick={onToggleSplit}
       >
         <Columns2 size={15} />
+      </button>
+      {/* 阅读模式：整块编辑区换成渲染后的成品，宽栏通读。
+          进出同一个按钮，图标自己说明当前该往哪走，不再另加高亮态 */}
+      <button
+        className={iconBtnIdle}
+        title={reading ? "返回编辑（⌘⇧E）" : "阅读模式：全屏只看渲染后的成品（⌘⇧E）"}
+        onClick={onToggleReading}
+      >
+        {reading ? <PenLine size={15} /> : <BookOpen size={15} />}
       </button>
       <div className="relative">
         <button
@@ -235,18 +271,51 @@ export const ReaderActions = memo(function ReaderActions({
         {menuOpen ? (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className={`${menuCard} w-44`}>
-              {onDelete ? (
+            <div className={`${menuCard} w-52`}>
+              {/* 分享：公开链接（永久）+ 访客批注 */}
+              <button
+                className={menuItem}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onOpenShare();
+                }}
+              >
+                <Share2 size={13} />
+                分享给他人查看与批注…
+              </button>
+              <div className={menuDivider} />
+              <p className={menuCaption}>导出</p>
+              {EXPORT_ITEMS.map(({ kind, label }) => (
                 <button
-                  className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                  key={kind}
+                  className={menuItem}
                   onClick={() => {
                     setMenuOpen(false);
-                    onDelete();
+                    void runExport(kind);
                   }}
                 >
-                  <Trash2 size={13} />
-                  删除文章
+                  {label}
                 </button>
+              ))}
+              <div className={menuDivider} />
+              {/* 开关行自带 stopPropagation，连续切换时菜单不收 */}
+              <ToggleRow label="外链转文末引用" value={linkFootnote} onChange={setLinkFootnote} />
+              <ToggleRow label="同步滚动" value={syncScroll} onChange={setSyncScroll} />
+              <ToggleRow label="源码模式（⌘/）" value={sourceMode} onChange={setSourceMode} />
+              {onDelete ? (
+                <>
+                  <div className={menuDivider} />
+                  <button
+                    className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete();
+                    }}
+                  >
+                    <Trash2 size={13} />
+                    删除文章
+                  </button>
+                </>
               ) : null}
             </div>
           </>
