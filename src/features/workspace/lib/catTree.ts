@@ -1,6 +1,6 @@
 import { MAX_DEPTH, UNCATEGORIZED } from "../constants";
-import { EMPTY_ORDER, type SidebarOrder } from "./sidebarOrder";
-import type { CatNode, DocMeta } from "../types";
+import { EMPTY_ORDER, catKey, docKey, type SidebarOrder } from "./sidebarOrder";
+import type { CatItem, CatNode, DocMeta } from "../types";
 
 /** 分类圆点色：顶级分类名哈希到固定色板（与写作足迹同源），子分类跟随父级；未分类恒为中性灰 */
 export function catColorOf(cat: string): string {
@@ -51,7 +51,8 @@ export function canNestCategory(path: string, parent: string, all: string[]): bo
 }
 
 /** 由「父/子」路径构建分类树；order 是侧栏手动排序——
- *  已手排的排前面（按列表次序），没排过的跟在后面维持默认规则 */
+ *  已手排的排前面（按列表次序），没排过的跟在后面维持默认规则。
+ *  每个节点的 items 是子分类与直属文章的混排显示序列（渲染按它走）。 */
 export function buildTree(
   docs: DocMeta[],
   customCats: string[],
@@ -64,7 +65,7 @@ export function buildTree(
     const existing = nodeMap.get(path);
     if (existing) return existing;
     const name = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
-    const node: CatNode = { name, path, children: [], docs: [], count: 0 };
+    const node: CatNode = { name, path, children: [], docs: [], items: [], count: 0 };
     nodeMap.set(path, node);
     if (path.includes("/")) {
       ensure(path.slice(0, path.lastIndexOf("/"))).children.push(node);
@@ -93,12 +94,23 @@ export function buildTree(
     });
   };
 
+  /** 混排序列里的键：子分类用名称、文章用 id */
+  const itemKey = (it: CatItem) =>
+    it.kind === "cat" ? catKey(it.node.name) : docKey(it.doc.id);
+
   const fill = (n: CatNode): number => {
     bySavedOrder(n.children, order.cats[n.path], (c) => c.name, (a, b) =>
       a.name.localeCompare(b.name, "zh")
     );
     // 文章默认次序 = 传入列表序（更新时间倒序），未手排时保持不变
     bySavedOrder(n.docs, order.docs[n.path], (d) => d.id, () => 0);
+    // 老规则「分类在前、文章在后」作为回退底序，再按混排序列重排：
+    // items 里记过的按记录走，没记过的跟在后面保持底序
+    n.items = [
+      ...n.children.map((node): CatItem => ({ kind: "cat", node })),
+      ...n.docs.map((doc): CatItem => ({ kind: "doc", doc })),
+    ];
+    bySavedOrder(n.items, order.items[n.path], itemKey, () => 0);
     n.count = n.docs.length + n.children.reduce((s, c) => s + fill(c), 0);
     return n.count;
   };
@@ -108,6 +120,8 @@ export function buildTree(
     if (b.path === UNCATEGORIZED) return -1;
     return a.name.localeCompare(b.name, "zh");
   });
+  // 顶级只有分类没有直属文章，但仍走 items 序列（与子级同一套记录）
+  bySavedOrder(roots, order.items[""], (c) => catKey(c.name), () => 0);
   roots.forEach(fill);
   return roots;
 }
