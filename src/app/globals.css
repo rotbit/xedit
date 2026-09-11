@@ -403,6 +403,25 @@ body {
   animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 
+/* —— 桌面端（Electron 隐藏系统标题栏）：顶栏充当标题栏 —— */
+/* 整条顶栏可拖动窗口；里面的控件排除，否则点不到 */
+html.desktop-mac .app-titlebar {
+  -webkit-app-region: drag;
+}
+html.desktop-mac .app-titlebar :is(button, input, a, [role="button"], [contenteditable]) {
+  -webkit-app-region: no-drag;
+}
+/* 阅读器的操作栏是 portal 进顶栏的，它的菜单卡片和全屏关闭层也就长在顶栏里。
+   这些浮层绝不能跟着变成拖拽区：否则菜单一开整个窗口都在拖，点空白还关不掉。
+   顶栏自身没有绝对定位的元素，这条只命中浮层。 */
+html.desktop-mac .app-titlebar :is(.fixed, .absolute) {
+  -webkit-app-region: no-drag;
+}
+/* 给 Mac 红绿灯留位 */
+html.desktop-mac .traffic-inset {
+  padding-left: 80px;
+}
+
 /* 预览区打印时只打印稿纸 */
 @media print {
   body * {
