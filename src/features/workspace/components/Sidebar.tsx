@@ -45,7 +45,8 @@ export function Sidebar({
       }`}
       style={{ width: prefs.sidebarWidth }}
     >
-      <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
+      {/* app-titlebar / traffic-inset：桌面壳里这条顶栏充当系统标题栏并给红绿灯留位 */}
+      <div className="app-titlebar traffic-inset flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
         <LogoMark className="h-7 w-auto shrink-0 text-[var(--ink)]" />
         <span className="flex-1" />
         <button
