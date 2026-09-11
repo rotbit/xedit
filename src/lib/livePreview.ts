@@ -48,20 +48,48 @@ function headMark(ctx: LpContext, from: number, to: number) {
   }
 }
 
-/** 嵌套条目的缩进引导线：每个祖先条目的标记所在列，在本条目首行对应的那个缩进字符
- *  打上 cm-lp-indent，CSS 把它撑成与圆点同宽的盒并在盒中心画竖线，正好落在祖先圆点正下方 */
-function indentGuides(ctx: LpContext, state: EditorState, item: SyntaxNode) {
+/** 列表条目首行的前缀装饰：
+ *  - 每个祖先条目的缩进段打 cm-lp-indent，按字符数定宽（N ch），并记下起始列 --lp-col，
+ *    CSS 据此把引导竖线画在祖先圆点正下方；
+ *  - 圆点后的那个空格打 cm-lp-gap（1ch 定宽），前缀总宽度于是恰为「前缀字符数 × 1ch」；
+ *  - 行级 cm-lp-hang 记下前缀宽度 --lp-hang，CSS 用它做悬挂缩进，续行与正文左缘对齐。
+ *  同一行里既有外层标记又有内层标记（如 "- - a"）时前缀不是纯空白，整套都不做。 */
+function listPrefix(ctx: LpContext, state: EditorState, item: SyntaxNode) {
   const mark = item.getChild("ListMark");
   if (!mark) return;
   const line = state.doc.lineAt(mark.from);
+  if (!/^\s*$/.test(state.sliceDoc(line.from, mark.from))) return;
+  const ownCol = mark.from - line.from;
+  const cols: number[] = [];
   for (let p = item.parent; p; p = p.parent) {
     if (p.name !== "ListItem") continue;
     const pm = p.getChild("ListMark");
-    if (!pm) continue;
-    const col = pm.from - state.doc.lineAt(pm.from).from;
-    const pos = line.from + col;
-    if (pos >= mark.from) continue;
-    ctx.decos.push(Decoration.mark({ class: "cm-lp-indent" }).range(pos, pos + 1));
+    if (pm) cols.push(pm.from - state.doc.lineAt(pm.from).from);
+  }
+  cols.sort((a, b) => a - b);
+  cols.forEach((from, i) => {
+    const to = cols[i + 1] ?? ownCol;
+    if (to <= from) return;
+    ctx.decos.push(
+      Decoration.mark({
+        class: "cm-lp-indent",
+        attributes: { style: `--lp-col:${from};width:${to - from}ch` },
+      }).range(line.from + from, line.from + to)
+    );
+  });
+  const task = /^ \[[ xX]\]/.test(state.sliceDoc(mark.to, mark.to + 4));
+  const hasGap = !task && state.sliceDoc(mark.to, mark.to + 1) === " ";
+  if (hasGap) {
+    ctx.decos.push(Decoration.mark({ class: "cm-lp-gap" }).range(mark.to, mark.to + 1));
+  }
+  // 任务项的 "- " 会被整段隐藏、复选框宽度不是 ch 的整数倍，续行只对齐到缩进处
+  const hang = task ? ownCol : mark.to - line.from + (hasGap ? 1 : 0);
+  if (hang > 0) {
+    ctx.decos.push(
+      Decoration.line({ class: "cm-lp-hang", attributes: { style: `--lp-hang:${hang}ch` } }).range(
+        line.from
+      )
+    );
   }
 }
 
@@ -130,7 +158,7 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
         if (name === "ListItem") {
           // 列表行距比正文紧一档：条目本来就短，按正文行距排会散
           ctx.eachLine(node.from, node.to, () => "cm-lp-li");
-          indentGuides(ctx, state, node.node);
+          listPrefix(ctx, state, node.node);
           return;
         }
         if (name === "FencedCode") {
@@ -140,11 +168,21 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
         if (name === "ListMark") {
           const listType = node.node.parent?.parent?.name;
           if (listType === "OrderedList") {
-            // 数字保留原文可编辑，只弱化成等宽编号
-            ctx.decos.push(Decoration.mark({ class: "cm-lp-olnum" }).range(node.from, node.to));
+            // 数字保留原文可编辑，只弱化成等宽编号；盒宽按字符数定死，前缀宽度可精确推算
+            ctx.decos.push(
+              Decoration.mark({
+                class: "cm-lp-olnum",
+                attributes: { style: `width:${node.to - node.from}ch` },
+              }).range(node.from, node.to)
+            );
             return;
           }
-          if (listType !== "BulletList" || caretTouches(caret, node.from, node.to)) return;
+          if (listType !== "BulletList") return;
+          if (caretTouches(caret, node.from, node.to)) {
+            // 光标在本行时露出原始 "-"，也占 1ch（与圆点同宽），光标进出行时正文零位移
+            ctx.decos.push(Decoration.mark({ class: "cm-lp-rawmark" }).range(node.from, node.to));
+            return;
+          }
           if (/^ \[[ xX]\]/.test(state.sliceDoc(node.to, node.to + 4))) {
             ctx.hide(node.from, node.to + 1); // 任务项只留 checkbox
           } else {
