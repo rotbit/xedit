@@ -4,7 +4,7 @@ import { forwardRef } from "react";
 import { ChevronLeft } from "lucide-react";
 import { BASE_CSS } from "@/lib/themes/base";
 import { usePreviewRender } from "@/hooks/usePreviewRender";
-import { ReadingMeta, ReadingTitle } from "@/features/editor/components/ReadingChrome";
+import { ReadingMeta, ReadingTitle, ThemeTrigger } from "@/features/editor/components/ReadingChrome";
 
 interface Props {
   onScroll?: () => void;
@@ -27,7 +27,7 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
-      {/* 顶栏：左侧常驻工具栏撤成浮动工具条后，这条只剩标识作用，压到 40px 少占版面 */}
+      {/* 顶栏：左侧标识 / 退出阅读，右侧是排版主题入口，压到 40px 少占版面 */}
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4">
         {reading ? (
           <button
@@ -41,13 +41,11 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
         ) : (
           <span className="text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">公众号效果</span>
         )}
-        {reading ? (
-          <ReadingMeta themeName={themeName} />
-        ) : (
-          <span className="max-w-[50%] truncate text-[12px] text-[var(--ink-soft)]">
-            {themeName}
-          </span>
-        )}
+        {/* 右侧：主题入口常驻，阅读模式再多一段字数/时长 */}
+        <span className="flex min-w-0 items-center gap-2">
+          {reading ? <ReadingMeta /> : null}
+          <ThemeTrigger themeName={themeName} />
+        </span>
       </div>
       <div
         ref={ref}

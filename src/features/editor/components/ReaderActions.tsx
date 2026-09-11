@@ -1,11 +1,12 @@
 "use client";
 
-// 文章视图顶栏右侧的操作簇：插入 / 排版主题 / 版本 / 一键复制 / 双屏 / 阅读 / 更多。
+// 文章视图顶栏右侧的操作簇：插入 / 版本 / 一键复制 / 双屏 / 阅读 / 更多。
+// 排版主题只影响渲染后的预览，切换入口放在预览顶栏（见 ThemeTrigger），编辑态不再露出。
 // 由 ArticleReader portal 到面包屑顶栏，与面包屑共用一行（从 ArticleReader 搬出）。
 // 常驻工具栏改成浮动工具条后，插入类操作没了去处，一并收进这里。
 // 低频项（分享 / 导出 / 三个开关 / 删除）统一收进 ⋯ 菜单，顶栏只留常用动作。
 
-import { memo, useMemo, useState } from "react";
+import { memo, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
@@ -18,7 +19,6 @@ import {
   Loader2,
   Minus,
   MoreHorizontal,
-  Palette,
   PenLine,
   Plus,
   Share2,
@@ -31,9 +31,6 @@ import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { toast } from "@/components/Toast";
-import { Dropdown } from "@/components/Dropdown";
-import { ThemePickerPanel } from "@/components/ThemePicker";
-import { resolveTheme } from "@/lib/themes";
 import { buildRenderOptions } from "@/features/editor/lib/renderOptions";
 import { useStore } from "@/store/useStore";
 import { ToggleRow } from "./MenuControls";
@@ -95,8 +92,6 @@ export const ReaderActions = memo(function ReaderActions({
   onOpenShare: () => void;
   onDelete?: () => void;
 }) {
-  const themeId = useStore((s) => s.themeId);
-  const customThemes = useStore((s) => s.customThemes);
   const linkFootnote = useStore((s) => s.linkFootnote);
   const setLinkFootnote = useStore((s) => s.setLinkFootnote);
   const syncScroll = useStore((s) => s.syncScroll);
@@ -108,9 +103,6 @@ export const ReaderActions = memo(function ReaderActions({
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [insertOpen, setInsertOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  // 只为 title 文案取主题名：resolveTheme 遇到自定义主题会全量重建 CSS，别每次渲染都跑
-  const themeName = useMemo(() => resolveTheme(themeId, customThemes).name, [themeId, customThemes]);
 
   /** 直接复制到公众号，与编辑页的复制管线一致 */
   const copyWechat = async () => {
@@ -175,17 +167,6 @@ export const ReaderActions = memo(function ReaderActions({
         ) : null}
       </div>
       <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
-      {/* 排版主题：面板底部还挂着字号/行高/段距的排版微调 */}
-      <Dropdown
-        width={430}
-        trigger={
-          <button className={iconBtnIdle} title={`排版主题：${themeName}`}>
-            <Palette size={16} strokeWidth={1.75} />
-          </button>
-        }
-      >
-        <ThemePickerPanel />
-      </Dropdown>
       {/* 版本历史 */}
       <button className={iconBtnIdle} onClick={onOpenVersions} title="版本历史">
         <History size={16} strokeWidth={1.75} />
