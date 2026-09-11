@@ -17,6 +17,8 @@ model User {
   passwordHash  String?
   /// 注册时间（历史用户由迁移回填为其最早一篇文档的创建时间）
   createdAt     DateTime          @default(now())
+  /// 最近一次登录（next-auth signIn 事件写入）；历史用户在下次登录前为空
+  lastLoginAt   DateTime?
   /// 只读封禁时间；非空表示仅可查看导出，不能写入上传
   bannedAt      DateTime?
   /// 封禁原因，随 403 提示展示给被封用户
