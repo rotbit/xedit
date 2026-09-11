@@ -60,4 +60,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
+  events: {
+    // 每次登录（OAuth 与密码都会触发）刷新最近登录时间；失败不影响登录流程
+    async signIn({ user }) {
+      if (!user.id) return;
+      await prisma.user
+        .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+        .catch((err) => console.error("[auth] 更新 lastLoginAt 失败", err));
+    },
+  },
 });

@@ -12,6 +12,10 @@ export interface AdminUser {
   email: string | null;
   image: string | null;
   createdAt: string;
+  /** 最近一次登录时间；从未登录过（含 signIn 事件上线前的老用户）为 null */
+  lastLoginAt: string | null;
+  /** 最近活跃日期（东八区 YYYY-MM-DD）；从未打过点为 null */
+  lastActiveDate: string | null;
   bannedAt: string | null;
   banReason: string | null;
   /** 字节；null=用全局默认，0=不限制 */
@@ -37,6 +41,10 @@ export interface UserDetailResp {
     email: string | null;
     image: string | null;
     createdAt: string;
+    /** 最近一次登录时间；从未登录过（含 signIn 事件上线前的老用户）为 null */
+    lastLoginAt: string | null;
+    /** 最近活跃日期（东八区 YYYY-MM-DD）；从未打过点为 null */
+    lastActiveDate: string | null;
     bannedAt: string | null;
     banReason: string | null;
     storageQuota: number | null;

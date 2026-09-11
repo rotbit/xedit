@@ -201,11 +201,12 @@ export function AdminDashboard() {
 
       {/* 账号列表 */}
       <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--hairline)] bg-[var(--panel)]">
-        <table className="w-full min-w-[820px] border-collapse text-[13px]">
+        <table className="w-full min-w-[900px] border-collapse text-[13px]">
           <thead>
             <tr className="border-b border-[var(--hairline)] text-left text-[12px] text-[var(--ink-faint)]">
               <th className="px-4 py-2.5 font-normal">用户</th>
               <th className="px-3 py-2.5 font-normal">注册时间</th>
+              <th className="px-3 py-2.5 font-normal">最近登录</th>
               <th className="px-3 py-2.5 text-right font-normal">文章</th>
               <th className="px-3 py-2.5 text-right font-normal">素材</th>
               <th className="px-3 py-2.5 font-normal">存储用量</th>
@@ -249,6 +250,12 @@ export function AdminDashboard() {
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-[var(--ink-soft)]">
                   {formatDate(u.createdAt)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-[var(--ink-soft)]">
+                  {u.lastLoginAt ? formatDate(u.lastLoginAt) : "—"}
+                  {u.lastActiveDate ? (
+                    <p className="text-[11.5px] text-[var(--ink-faint)]">活跃 {u.lastActiveDate}</p>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2.5 text-right text-[var(--ink-soft)]">{u.docCount}</td>
                 <td className="px-3 py-2.5 text-right text-[var(--ink-soft)]">{u.assetCount}</td>
@@ -312,7 +319,7 @@ export function AdminDashboard() {
             ))}
             {list === null ? (
               <tr>
-                <td colSpan={7} className="px-4 py-14">
+                <td colSpan={8} className="px-4 py-14">
                   <span className="flex items-center justify-center gap-2 text-[var(--ink-faint)]">
                     <Loader2 size={15} className="animate-spin" /> 加载中…
                   </span>
@@ -320,7 +327,7 @@ export function AdminDashboard() {
               </tr>
             ) : list.users.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-14 text-center text-[var(--ink-faint)]">
+                <td colSpan={8} className="px-4 py-14 text-center text-[var(--ink-faint)]">
                   没有匹配的账号
                 </td>
               </tr>
