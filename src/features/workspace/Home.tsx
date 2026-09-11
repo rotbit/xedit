@@ -168,7 +168,7 @@ export function Home({ landing }: HomeProps) {
 function SignedOutFallback({ onStart }: { onStart: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 bg-[var(--paper)] px-6 text-center">
-      <LogoMark className="h-10 w-auto text-[var(--ink)]" />
+      <LogoMark className="h-12 w-auto text-[var(--ink)]" />
       <p className="text-[15px] text-[var(--ink-soft)]">登录状态已失效，重新开始吧</p>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button
