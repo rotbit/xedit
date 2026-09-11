@@ -6,7 +6,7 @@
 // 常驻工具栏改成浮动工具条后，插入类操作没了去处，一并收进这里。
 // 低频项（分享 / 导出 / 三个开关 / 删除）统一收进 ⋯ 菜单，顶栏只留常用动作。
 
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
@@ -19,6 +19,7 @@ import {
   Loader2,
   Minus,
   MoreHorizontal,
+  Palette,
   PenLine,
   Plus,
   Share2,
@@ -31,6 +32,8 @@ import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { toast } from "@/components/Toast";
+import { ThemePickerPanel } from "@/components/ThemePicker";
+import { resolveTheme } from "@/lib/themes";
 import { buildRenderOptions } from "@/features/editor/lib/renderOptions";
 import { useStore } from "@/store/useStore";
 import { ToggleRow } from "./MenuControls";
@@ -98,11 +101,18 @@ export const ReaderActions = memo(function ReaderActions({
   const setSyncScroll = useStore((s) => s.setSyncScroll);
   const sourceMode = useStore((s) => s.sourceMode);
   const setSourceMode = useStore((s) => s.setSourceMode);
+  const themeId = useStore((s) => s.themeId);
+  const customThemes = useStore((s) => s.customThemes);
 
   const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  /** 从复制菜单跳过来的主题面板：复制前顺手换主题，不必先切到预览 */
+  const [themeOpen, setThemeOpen] = useState(false);
   const [insertOpen, setInsertOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // 只为菜单里那行说明取主题名：resolveTheme 遇到自定义主题会全量重建 CSS，别每次渲染都跑
+  const themeName = useMemo(() => resolveTheme(themeId, customThemes).name, [themeId, customThemes]);
 
   /** 直接复制到公众号，与编辑页的复制管线一致 */
   const copyWechat = async () => {
@@ -189,7 +199,22 @@ export const ReaderActions = memo(function ReaderActions({
         {copyMenuOpen ? (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setCopyMenuOpen(false)} />
-            <div className={`${menuCard} w-40`}>
+            <div className={`${menuCard} w-48`}>
+              {/* 复制出去的排版由主题决定，编辑态看不到；在这里点一下就能换，不必先切到预览 */}
+              <div className="flex items-center gap-1 px-3.5 pb-1.5 pt-0.5 text-[11px] text-[var(--ink-faint)]">
+                <Palette size={11} strokeWidth={1.75} className="shrink-0" />
+                <span className="min-w-0 truncate">排版主题：{themeName}</span>
+                <button
+                  className="ml-auto shrink-0 cursor-pointer text-[var(--ink-soft)] underline decoration-[var(--hairline-strong)] underline-offset-2 hover:text-[var(--ink)]"
+                  onClick={() => {
+                    setCopyMenuOpen(false);
+                    setThemeOpen(true);
+                  }}
+                >
+                  切换
+                </button>
+              </div>
+              <div className={menuDivider} />
               <button
                 className={menuItem}
                 onClick={() => {
@@ -208,6 +233,19 @@ export const ReaderActions = memo(function ReaderActions({
               >
                 复制到知乎
               </button>
+            </div>
+          </>
+        ) : null}
+        {themeOpen ? (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setThemeOpen(false)} />
+            {/* 与预览顶栏的主题入口同一块面板；选中主题即收起，和 Dropdown 的行为一致 */}
+            <div
+              className={`${menuCard} w-[430px] max-w-[calc(100vw-16px)] overflow-y-auto`}
+              style={{ maxHeight: "calc(100vh - 64px)" }}
+              onClick={() => setThemeOpen(false)}
+            >
+              <ThemePickerPanel />
             </div>
           </>
         ) : null}
