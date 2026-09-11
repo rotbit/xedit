@@ -3,7 +3,7 @@
 import {
   ChevronRight,
   FilePlus2,
-  LayoutGrid,
+  CalendarDays,
   List,
   Loader2,
   PanelLeftOpen,
@@ -19,8 +19,8 @@ const crumbCls =
 const crumbNow = "truncate px-1.5 py-0.5 text-[13px] font-medium text-[var(--ink)]";
 const sep = <ChevronRight size={12} className="shrink-0 text-[var(--ink-faint)]" />;
 
-const VIEW_MODES: [DocView, typeof LayoutGrid, string][] = [
-  ["card", LayoutGrid, "卡片视图"],
+const VIEW_MODES: [DocView, typeof CalendarDays, string][] = [
+  ["card", CalendarDays, "时间流"],
   ["list", List, "列表视图"],
 ];
 

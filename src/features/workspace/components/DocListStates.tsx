@@ -3,16 +3,19 @@
 import { Inbox } from "lucide-react";
 import { ALL } from "../constants";
 
-/** 首次装载时的卡片骨架 */
+/** 首次装载时的时间流骨架：一个日期组 + 四行标题/摘要占位，形状对齐真实列表 */
 export function DocListSkeleton() {
   return (
-    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-[140px] animate-pulse rounded-xl bg-[var(--panel)]/70 ring-1 ring-black/[0.04] dark:ring-white/10"
-        />
-      ))}
+    <div className="mt-4 grid gap-1.5 pb-[22px] sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-6">
+      <div className="h-8 w-10 animate-pulse rounded bg-[var(--hairline-soft)] sm:mt-3" />
+      <div className="min-w-0">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="py-3.5">
+            <div className="h-[14px] w-2/5 animate-pulse rounded bg-[var(--hairline-soft)]" />
+            <div className="mt-1.5 h-[12px] w-[70%] animate-pulse rounded bg-[var(--hairline-soft)]" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
