@@ -47,7 +47,7 @@ export function Sidebar({
     >
       {/* app-titlebar / traffic-inset：桌面壳里这条顶栏充当系统标题栏并给红绿灯留位 */}
       <div className="app-titlebar traffic-inset flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
-        <LogoMark className="h-7 w-auto shrink-0 text-[var(--ink)]" />
+        <LogoMark className="sidebar-logo h-7 w-auto shrink-0 text-[var(--ink)]" />
         <span className="flex-1" />
         <button
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"

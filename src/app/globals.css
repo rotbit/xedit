@@ -421,6 +421,10 @@ html.desktop-mac .app-titlebar :is(.fixed, .absolute) {
 html.desktop-mac .traffic-inset {
   padding-left: 80px;
 }
+/* 桌面壳里 Dock 图标已经表明身份，侧栏顶栏不再重复放 logo，只留红绿灯与收起按钮 */
+html.desktop-mac .sidebar-logo {
+  display: none;
+}
 
 /* 预览区打印时只打印稿纸 */
 @media print {
