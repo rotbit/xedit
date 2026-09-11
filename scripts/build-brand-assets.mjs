@@ -1,4 +1,4 @@
-/** 从两份 SVG 源图生成网页与桌面资源，不重新绘制或改变已确认的字形。 */
+/** 从展页 SVG 源图生成网页与桌面资源，保留图标、字标各自的轮廓和颜色。 */
 import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,28 +7,30 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const ink = "#25262d";
 const paper = "#fafaf7";
 
 async function readOutline(file) {
   const svg = await readFile(path.join(root, file), "utf8");
   const viewBox = svg.match(/viewBox="([^"]+)"/)[1];
-  const outline = svg.match(/<path d="([^"]+)"/)[1];
-  return { svg, viewBox, outline };
+  const paths = [...svg.matchAll(/<path id="([^"]+)" d="([^"]+)" fill="([^"]+)"/g)]
+    .map(([, id, outline, fill]) => ({ id, outline, fill }));
+  return { svg, viewBox, paths };
 }
 
 function squareIcon(mark, desktop = false) {
   const size = desktop ? 1024 : 128;
   const inset = desktop ? 100 : 0;
   const radius = desktop ? 185 : 26;
-  const width = desktop ? 656 : 104;
+  // 展页接近正方形，留出图标安全区，避免铺满圆角底板。
+  const width = desktop ? 568 : 88;
+  const outline = mark.paths[0];
   const [, , sourceWidth, sourceHeight] = mark.viewBox.split(" ").map(Number);
   const height = width * sourceHeight / sourceWidth;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}">
   <rect x="${inset}" y="${inset}" width="${size - inset * 2}" height="${size - inset * 2}"
     rx="${radius}" fill="${paper}"/>
   <svg x="${(size - width) / 2}" y="${(size - height) / 2}" width="${width}" height="${height}"
-    viewBox="${mark.viewBox}" fill="${ink}"><path d="${mark.outline}" fill-rule="evenodd"/></svg>
+    viewBox="${mark.viewBox}" fill="${outline.fill}"><path d="${outline.outline}" fill-rule="evenodd"/></svg>
 </svg>\n`;
 }
 
@@ -58,14 +60,19 @@ async function createFavicon(svg) {
 }
 
 async function buildWeb(wordmark, icon) {
-  // 按 SVG 指令之间的空格分行，保持生成文件可读且便于比较。
-  const chunks = wordmark.outline.match(/.{1,110}(?:\s|$)/g).map((chunk) => chunk.trim());
+  // 分开导出图标与字标，使组件能在深色主题下分别适配颜色。
+  const outlines = wordmark.paths.flatMap(({ id, outline }) => {
+    const chunks = outline.match(/.{1,110}(?:\s|$)/g).map((chunk) => chunk.trim());
+    return [
+      `export const LOGO_${id.toUpperCase()}_PATH = [`,
+      ...chunks.map((chunk) => `  ${JSON.stringify(chunk)},`),
+      '].join(" ");',
+    ];
+  });
   const moduleSource = [
     "// 由 scripts/build-brand-assets.mjs 生成；源文件为 public/logo.svg。",
     `export const LOGO_VIEW_BOX = ${JSON.stringify(wordmark.viewBox)};`,
-    "export const LOGO_PATH = [",
-    ...chunks.map((chunk) => `  ${JSON.stringify(chunk)},`),
-    '].join(" ");',
+    ...outlines,
     "",
   ].join("\n");
   await writeFile(path.join(root, "src/lib/brand.ts"), moduleSource);

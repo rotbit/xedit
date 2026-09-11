@@ -7,7 +7,7 @@
  */
 
 // 品牌图标换版时刷新静态缓存，避免缓存优先的 favicon 保留旧图。
-const CACHE = "xedit-offline-v2";
+const CACHE = "xedit-offline-v3";
 
 self.addEventListener("install", () => {
   self.skipWaiting();

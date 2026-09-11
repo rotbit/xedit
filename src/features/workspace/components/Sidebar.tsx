@@ -46,7 +46,7 @@ export function Sidebar({
       style={{ width: prefs.sidebarWidth }}
     >
       <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
-        <LogoMark className="h-6 w-auto shrink-0 text-[var(--ink)]" />
+        <LogoMark className="h-8 w-auto shrink-0 text-[var(--ink)]" />
         <span className="flex-1" />
         <button
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
