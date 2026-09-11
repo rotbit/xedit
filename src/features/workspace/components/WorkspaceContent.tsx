@@ -6,9 +6,9 @@ import { Loader2 } from "lucide-react";
 import { ASSETS, STATS } from "../constants";
 import { allCategories } from "../lib/catTree";
 import { ContentHeader } from "./ContentHeader";
-import { DocCardGrid } from "./DocCardGrid";
 import { DocListEmpty, DocListSkeleton } from "./DocListStates";
 import { DocListView } from "./DocListView";
+import { DocTimeline } from "./DocTimeline";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /** 重型视图按需加载：阅读器连带 markdown 渲染/主题/复制管线，不该进首屏包 */
@@ -48,7 +48,7 @@ function usePrefetchReader() {
   }, []);
 }
 
-/** 文章列表区：装载中骨架 → 空态 → 列表 / 卡片 */
+/** 文章列表区：装载中骨架 → 空态 → 紧凑列表 / 时间流 */
 function DocList({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, filtered } = ws;
   const source = nav.isTrash ? library.trashDocs : library.docs;
@@ -59,9 +59,9 @@ function DocList({ ws }: { ws: Workspace }) {
       <DocListEmpty search={nav.search} isTrash={nav.isTrash} activeCat={nav.activeCat} />
     );
   }
-  // 回收站只有卡片形态（需要底部的恢复 / 彻底删除按钮）
+  // 回收站只有时间流形态（行右侧需要恢复 / 彻底删除按钮）
   if (prefs.docView === "list" && !nav.isTrash) return <DocListView ws={ws} />;
-  return <DocCardGrid ws={ws} />;
+  return <DocTimeline ws={ws} />;
 }
 
 /** 内容区：面包屑顶栏 + 独立滚动的视图主体 */
