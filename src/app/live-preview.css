@@ -290,13 +290,17 @@
   height: 0.28em;
   border-radius: 1px;
 }
-/* 嵌套列表的缩进引导线（Obsidian 式）：祖先圆点所在列的那个缩进字符撑成与圆点同宽（1ch）
-   的盒；竖线用绝对定位挂在行盒（.cm-lp-li 设了 relative）上，left:auto 取静态位置即盒的
-   左缘，再右移半个盒宽落到圆点正下方；top/bottom 贴行盒上下沿，相邻行的线首尾相接 */
+/* 列表前缀全部按 ch 定宽，位置可精确推算：
+   - .cm-lp-indent：祖先条目的缩进段，宽度与起始列由行内 style 给出（width / --lp-col）；
+     ::before 是引导竖线，横坐标 = 行基础内边距 + (起始列 + 0.5) ch，正好在祖先圆点正下方；
+     绝对定位挂在行盒（.cm-lp-li 设了 relative）上，top/bottom 贴行盒上下沿，相邻行首尾相接，
+     折行时也贯穿整条续行。left 必须显式算，静态位置会被行的负 text-indent 一起偏移。
+   - .cm-lp-gap：圆点后的空格；.cm-lp-rawmark：光标在本行时露出的原始 "-"，与圆点同宽不位移。
+   - 行内块会继承行的负 text-indent，必须归零，否则内容被推出盒子。 */
 .cm-live-preview .cm-lp-indent {
   display: inline-block;
-  width: 1ch;
   overflow: hidden;
+  text-indent: 0;
   vertical-align: bottom;
 }
 .cm-live-preview .cm-lp-indent::before {
@@ -304,13 +308,32 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: auto;
-  margin-left: calc(0.5ch - 0.5px);
+  left: calc(var(--lp-pad, 14px) + (var(--lp-col, 0) + 0.5) * 1ch - 0.5px);
   border-left: 1px solid var(--hairline-strong);
   pointer-events: none;
 }
-/* 有序列表编号：保留原文数字，弱化上色 + 等宽数字对齐 */
+.cm-live-preview .cm-lp-gap,
+.cm-live-preview .cm-lp-rawmark {
+  display: inline-block;
+  width: 1ch;
+  text-indent: 0;
+}
+.cm-live-preview .cm-lp-gap {
+  overflow: hidden;
+}
+.cm-live-preview .cm-lp-rawmark {
+  text-align: center;
+  color: var(--ink-soft);
+}
+/* 悬挂缩进：行的左内边距在 editor.css 里已加上 --lp-hang，这里把首行拉回同样的量，
+   前缀于是仍从基础内边距起排，续行则对齐到正文左缘 */
+.cm-live-preview .cm-line.cm-lp-hang {
+  text-indent: calc(-1 * var(--lp-hang));
+}
+/* 有序列表编号：保留原文数字，弱化上色 + 等宽数字对齐（宽度由行内 style 按字符数给） */
 .cm-live-preview .cm-lp-olnum {
+  display: inline-block;
+  text-indent: 0;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
