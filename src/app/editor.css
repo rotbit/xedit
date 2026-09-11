@@ -28,15 +28,23 @@
   padding-top: 10px;
 }
 /* 行内缩与标题区对齐：单屏 12+4=16px（标题 px-4）、双屏 20+4=24px（标题 px-6，
-   同时让正文不贴分隔条） */
+   同时让正文不贴分隔条）。
+   基础值同时存进 --lp-pad 供即时渲染的缩进引导线定位；--lp-hang 是即时渲染列表行的
+   悬挂缩进量（见 live-preview.css 的 .cm-lp-hang），非列表行没有该变量，退回 0 */
 .cm-doc .cm-editor .cm-line {
+  --lp-pad: 12px;
   padding: 0 12px;
+  padding-left: calc(var(--lp-pad) + var(--lp-hang, 0px));
 }
 .cm-split .cm-editor .cm-line {
+  --lp-pad: 20px;
   padding: 0 20px;
+  padding-left: calc(var(--lp-pad) + var(--lp-hang, 0px));
 }
 .cm-editor .cm-line {
+  --lp-pad: 14px;
   padding: 0 14px;
+  padding-left: calc(var(--lp-pad) + var(--lp-hang, 0px));
 }
 .cm-editor .cm-cursor {
   border-left-color: var(--accent);
@@ -111,17 +119,22 @@
   padding: 4px 0 25vh;
 }
 .reader-live .cm-line {
+  --lp-pad: 16px;
   padding: 0 16px;
+  padding-left: calc(var(--lp-pad) + var(--lp-hang, 0px));
 }
 
 /* ================= 第一期：版式节奏重建带来的外壳调整 ================= */
 
 /* 行首标记（# / >）改成悬挂在文字左缘之外（见 live-preview.css 的 .cm-lp-mark），
    行内缩必须留够一个标记的宽度，否则 H1 的 "# " 会被滚动容器裁掉。
-   28px 同时是标题输入框的左内缩（ArticleReader 的 px-7），两者左缘对齐 */
+   28px 同时是标题输入框的左内缩（ArticleReader 的 px-7），两者左缘对齐。
+   --lp-pad 是这里最终生效的基础内缩（即时渲染的缩进引导线据此定位），
+   --lp-hang 是即时渲染列表行的悬挂缩进量，非列表行没有该变量，退回 0 */
 .cm-doc .cm-editor .cm-line,
 .cm-split .cm-editor .cm-line {
-  padding-left: 28px;
+  --lp-pad: 28px;
+  padding-left: calc(var(--lp-pad) + var(--lp-hang, 0px));
   padding-right: 28px;
 }
 
