@@ -1,5 +1,6 @@
 import { syntaxTree } from "@codemirror/language";
-import { RangeSet, type Extension } from "@codemirror/state";
+import { RangeSet, type EditorState, type Extension } from "@codemirror/state";
+import type { SyntaxNode } from "@lezer/common";
 import {
   Decoration,
   DecorationSet,
@@ -44,6 +45,23 @@ function headMark(ctx: LpContext, from: number, to: number) {
     ctx.decos.push(Decoration.mark({ class: "cm-lp-mark" }).range(from, end));
   } else {
     ctx.hide(from, end);
+  }
+}
+
+/** 嵌套条目的缩进引导线：每个祖先条目的标记所在列，在本条目首行对应的那个缩进字符
+ *  打上 cm-lp-indent，CSS 把它撑成与圆点同宽的盒并在盒中心画竖线，正好落在祖先圆点正下方 */
+function indentGuides(ctx: LpContext, state: EditorState, item: SyntaxNode) {
+  const mark = item.getChild("ListMark");
+  if (!mark) return;
+  const line = state.doc.lineAt(mark.from);
+  for (let p = item.parent; p; p = p.parent) {
+    if (p.name !== "ListItem") continue;
+    const pm = p.getChild("ListMark");
+    if (!pm) continue;
+    const col = pm.from - state.doc.lineAt(pm.from).from;
+    const pos = line.from + col;
+    if (pos >= mark.from) continue;
+    ctx.decos.push(Decoration.mark({ class: "cm-lp-indent" }).range(pos, pos + 1));
   }
 }
 
@@ -112,6 +130,7 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
         if (name === "ListItem") {
           // 列表行距比正文紧一档：条目本来就短，按正文行距排会散
           ctx.eachLine(node.from, node.to, () => "cm-lp-li");
+          indentGuides(ctx, state, node.node);
           return;
         }
         if (name === "FencedCode") {
