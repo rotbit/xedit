@@ -1,7 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo } from "react";
-import { ListTree } from "lucide-react";
+import { ChevronsLeft } from "lucide-react";
 import { useStore } from "@/store/useStore";
 
 interface Heading {
@@ -36,9 +36,12 @@ function parseOutline(content: string): Heading[] {
 
 export function OutlinePanel({
   onJump,
+  onClose,
   active = true,
 }: {
   onJump: (line: number) => void;
+  /** 收起面板：收起后由正文列左上角的浮动入口接管 */
+  onClose: () => void;
   /** 面板是否展开：组件常驻（w-0 动画隐藏），收起时跳过全文解析 */
   active?: boolean;
 }) {
@@ -52,10 +55,19 @@ export function OutlinePanel({
 
   return (
     <aside className="flex h-full w-52 shrink-0 flex-col border-r border-[var(--hairline-soft)] bg-[var(--panel)]">
-      <p className="flex shrink-0 items-center gap-1.5 px-4 pb-2 pt-3.5 text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">
-        <ListTree size={12} strokeWidth={1.75} />
-        大纲
-      </p>
+      {/* 标题行：左边标一下这是什么，右边的《收回面板，与正文列左上角的浮动入口对调 */}
+      <div className="flex shrink-0 items-center justify-between px-3 pb-1 pt-3">
+        <span className="pl-1 text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">目录</span>
+        <button
+          type="button"
+          title="收起目录"
+          aria-label="收起目录"
+          onClick={onClose}
+          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+        >
+          <ChevronsLeft size={15} strokeWidth={1.75} />
+        </button>
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {outline.length === 0 ? (
           <p className="px-2 py-8 text-center text-[11.5px] leading-6 text-[var(--ink-faint)]">
