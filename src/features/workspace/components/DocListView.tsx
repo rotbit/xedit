@@ -26,7 +26,7 @@ export function DocListView({ ws }: { ws: Workspace }) {
             {...drag.dragSrcProps({ kind: "doc", id: doc.id })}
           >
             <FileText size={14} className="shrink-0 text-[var(--ink-faint)]" />
-            <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-[var(--ink)] [font-family:var(--serif)]">
+            <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-[var(--ink)]">
               {doc.title || "未命名文章"}
             </span>
             <span className="hidden max-w-[160px] items-center gap-1.5 text-[11.5px] text-[var(--ink-soft)] sm:flex">
