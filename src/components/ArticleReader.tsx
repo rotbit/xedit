@@ -260,9 +260,10 @@ export function ArticleReader({
                   />
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
                     {/* 深层级路径太长压垮元信息行：只显末级名，全路径挂在悬停提示里；
-                        点击弹带搜索的分类选择器（与文章列表右键菜单同款） */}
+                        点击弹带搜索的分类选择器（与文章列表右键菜单同款）。
+                        平时不带底色，和同行的保存状态、字数一种质感，悬停才浮出浅底提示可点 */}
                     <button
-                      className="flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md bg-[var(--accent-wash)] px-2 py-0.5 text-[var(--ink-soft)] hover:text-[var(--ink)]"
+                      className="-ml-1 flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
                       title={`${category || "未分类"}\n点击移动到分类`}
                       onClick={() => void pickCategory()}
                     >
