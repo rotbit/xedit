@@ -38,6 +38,7 @@ export async function GET(req: Request) {
         email: true,
         image: true,
         createdAt: true,
+        lastLoginAt: true,
         bannedAt: true,
         banReason: true,
         storageQuota: true,
@@ -46,15 +47,26 @@ export async function GET(req: Request) {
     }),
   ]);
 
-  // 每人已用存储：对本页用户一次 groupBy 汇总，别逐人查
-  const sums = users.length
-    ? await prisma.asset.groupBy({
+  // 每人已用存储与最近活跃日期：对本页用户各一次 groupBy 汇总，别逐人查
+  const ids = users.map((u) => u.id);
+  const usedBy = new Map<string, number>();
+  const activeBy = new Map<string, string>();
+  if (ids.length) {
+    const [sums, actives] = await Promise.all([
+      prisma.asset.groupBy({
         by: ["userId"],
-        where: { userId: { in: users.map((u) => u.id) } },
+        where: { userId: { in: ids } },
         _sum: { size: true },
-      })
-    : [];
-  const usedBy = new Map(sums.map((s) => [s.userId, s._sum.size ?? 0]));
+      }),
+      prisma.dailyActive.groupBy({
+        by: ["userId"],
+        where: { userId: { in: ids } },
+        _max: { date: true },
+      }),
+    ]);
+    for (const s of sums) usedBy.set(s.userId, s._sum.size ?? 0);
+    for (const a of actives) if (a._max.date) activeBy.set(a.userId, a._max.date);
+  }
 
   return NextResponse.json({
     total,
@@ -67,6 +79,8 @@ export async function GET(req: Request) {
       email: u.email,
       image: u.image,
       createdAt: u.createdAt,
+      lastLoginAt: u.lastLoginAt,
+      lastActiveDate: activeBy.get(u.id) ?? null,
       bannedAt: u.bannedAt,
       banReason: u.banReason,
       // BigInt 不能进 JSON，统一转 number（字节数在 2^53 内绰绰有余）

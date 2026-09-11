@@ -31,6 +31,7 @@ export async function GET(_req: Request, { params }: Params) {
       email: true,
       image: true,
       createdAt: true,
+      lastLoginAt: true,
       bannedAt: true,
       banReason: true,
       storageQuota: true,
@@ -40,7 +41,7 @@ export async function GET(_req: Request, { params }: Params) {
   });
   if (!user) return notFound();
 
-  const [used, docCount, trashCount, assetCount, docs, assets] = await Promise.all([
+  const [used, docCount, trashCount, assetCount, docs, assets, lastActive] = await Promise.all([
     storageUsed(id),
     prisma.document.count({ where: { userId: id, deletedAt: null } }),
     prisma.document.count({ where: { userId: id, deletedAt: { not: null } } }),
@@ -57,6 +58,12 @@ export async function GET(_req: Request, { params }: Params) {
       take: 200,
       select: { id: true, url: true, size: true, mime: true, source: true, createdAt: true },
     }),
+    // 最近活跃日期：DailyActive.date 是东八区 YYYY-MM-DD，字符串倒序即时间倒序
+    prisma.dailyActive.findFirst({
+      where: { userId: id },
+      orderBy: { date: "desc" },
+      select: { date: true },
+    }),
   ]);
 
   return NextResponse.json({
@@ -66,6 +73,8 @@ export async function GET(_req: Request, { params }: Params) {
       email: user.email,
       image: user.image,
       createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt,
+      lastActiveDate: lastActive?.date ?? null,
       bannedAt: user.bannedAt,
       banReason: user.banReason,
       storageQuota: user.storageQuota == null ? null : Number(user.storageQuota),

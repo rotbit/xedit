@@ -88,6 +88,8 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
 
               <dl className="mt-4 space-y-1.5 text-[12.5px]">
                 <InfoRow label="注册时间" value={formatDate(u.createdAt)} />
+                <InfoRow label="最近登录" value={u.lastLoginAt ? formatDate(u.lastLoginAt) : "—"} />
+                <InfoRow label="最近活跃" value={u.lastActiveDate ?? "—"} />
                 <InfoRow label="登录方式" value={u.logins.length ? u.logins.join(" / ") : "—"} />
                 {u.bannedAt ? (
                   <InfoRow
