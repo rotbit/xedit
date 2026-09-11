@@ -6,7 +6,8 @@
  * 网页版与桌面壳（Electron 加载 xedit.me）共用这一套，桌面端无需发版。
  */
 
-const CACHE = "xedit-offline-v1";
+// 品牌图标换版时刷新静态缓存，避免缓存优先的 favicon 保留旧图。
+const CACHE = "xedit-offline-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
