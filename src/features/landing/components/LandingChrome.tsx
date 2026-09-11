@@ -67,7 +67,7 @@ export function LandingHeader() {
     <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[var(--paper)]/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-[1140px] items-center gap-3 px-5 sm:px-8">
         <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label={SITE_NAME}>
-          <LogoMark className="h-7 w-auto text-[var(--ink)]" />
+          <LogoMark className="h-9 w-auto text-[var(--ink)]" />
           <span className="hidden text-[12.5px] text-[var(--ink-faint)] sm:inline">
             {SITE_TAGLINE}
           </span>
