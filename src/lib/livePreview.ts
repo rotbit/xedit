@@ -73,7 +73,7 @@ function listPrefix(ctx: LpContext, state: EditorState, item: SyntaxNode) {
     ctx.decos.push(
       Decoration.mark({
         class: "cm-lp-indent",
-        attributes: { style: `--lp-col:${from};width:${to - from}ch` },
+        attributes: { style: `--lp-col:${from};min-width:${to - from}ch` },
       }).range(line.from + from, line.from + to)
     );
   });
@@ -172,7 +172,7 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
             ctx.decos.push(
               Decoration.mark({
                 class: "cm-lp-olnum",
-                attributes: { style: `width:${node.to - node.from}ch` },
+                attributes: { style: `min-width:${node.to - node.from}ch` },
               }).range(node.from, node.to)
             );
             return;

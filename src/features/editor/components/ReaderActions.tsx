@@ -1,8 +1,8 @@
 "use client";
 
-// 文章视图顶栏右侧的操作簇：大纲 / 插入 / 排版主题 / 版本 / 一键复制 / 双屏 / 阅读 / 更多。
+// 文章视图顶栏右侧的操作簇：插入 / 排版主题 / 版本 / 一键复制 / 双屏 / 阅读 / 更多。
 // 由 ArticleReader portal 到面包屑顶栏，与面包屑共用一行（从 ArticleReader 搬出）。
-// 常驻工具栏改成浮动工具条后，大纲开关与插入类操作没了去处，一并收进这里。
+// 常驻工具栏改成浮动工具条后，插入类操作没了去处，一并收进这里。
 // 低频项（分享 / 导出 / 三个开关 / 删除）统一收进 ⋯ 菜单，顶栏只留常用动作。
 
 import { memo, useMemo, useState } from "react";
@@ -15,7 +15,6 @@ import {
   History,
   Image as ImageIcon,
   ListTodo,
-  ListTree,
   Loader2,
   Minus,
   MoreHorizontal,
@@ -79,8 +78,6 @@ export const ReaderActions = memo(function ReaderActions({
   onToggleSplit,
   reading,
   onToggleReading,
-  outlineOpen,
-  onToggleOutline,
   onInsert,
   onOpenVersions,
   onOpenShare,
@@ -92,8 +89,6 @@ export const ReaderActions = memo(function ReaderActions({
   onToggleSplit: () => void;
   reading: boolean;
   onToggleReading: () => void;
-  outlineOpen: boolean;
-  onToggleOutline: () => void;
   /** 插入类命令直通编辑器的 applyFormat */
   onInsert: (cmd: FormatCommand) => void;
   onOpenVersions: () => void;
@@ -149,14 +144,6 @@ export const ReaderActions = memo(function ReaderActions({
 
   return (
     <>
-      {/* 大纲开关：原在常驻工具栏最左，横栏撤掉后并入这里，激活态与双屏按钮同款 */}
-      <button
-        className={outlineOpen ? iconBtnOn : iconBtnIdle}
-        title="大纲"
-        onClick={onToggleOutline}
-      >
-        <ListTree size={15} />
-      </button>
       {/* 插入：图片 / 视频 / 表格 / 代码块 / 任务列表 / 分割线 */}
       <div className="relative">
         <button

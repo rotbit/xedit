@@ -89,8 +89,8 @@
 }
 /* 代码块开栏行的语言下拉：替代裸露的 ```lang。
    贴着代码左缘挂在块顶（开栏行是 position:relative 的容器），整行读作卡片的标题条：
-   默认只是块底色上的一枚灰字，悬停才浮出圆角底提示可点；
-   负 margin 抵掉自身内衬，标签文字与下方代码严格左对齐；
+   默认只是块底色上的一枚灰字，悬停只把字和箭头压深提示可点——不再铺底色，
+   卡片上再叠一块实心灰会显得又厚又重；
    光标点到那一行仍会还原 ``` 源码 */
 .cm-live-preview .cm-lp-codefence {
   position: absolute;
@@ -100,14 +100,8 @@
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  margin-left: -6px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  transition: background-color 0.12s;
-}
-/* 悬停底色用中性灰：卡片是浅色的，白色高光在上面根本看不见 */
-.cm-live-preview .cm-lp-codefence:hover {
-  background: rgb(127 127 127 / 0.14);
+  padding: 2px 0;
+  cursor: pointer;
 }
 .cm-live-preview .cm-lp-codefence-label {
   color: var(--codeblock-faint);
@@ -171,6 +165,11 @@
   transform: rotate(45deg);
   opacity: 0.7;
   pointer-events: none;
+  transition: opacity 0.12s, border-color 0.12s;
+}
+.cm-live-preview .cm-lp-codefence:hover::after {
+  opacity: 1;
+  border-color: var(--codeblock-fg);
 }
 
 /* 行内代码：小胶囊（配色来自语法高亮，这里补底色、内衬与圆角） */
@@ -296,10 +295,12 @@
      绝对定位挂在行盒（.cm-lp-li 设了 relative）上，top/bottom 贴行盒上下沿，相邻行首尾相接，
      折行时也贯穿整条续行。left 必须显式算，静态位置会被行的负 text-indent 一起偏移。
    - .cm-lp-gap：圆点后的空格；.cm-lp-rawmark：光标在本行时露出的原始 "-"，与圆点同宽不位移。
-   - 行内块会继承行的负 text-indent，必须归零，否则内容被推出盒子。 */
+   - 行内块会继承行的负 text-indent，必须归零，否则内容被推出盒子。
+   - 只定最小宽度、禁止换行，不能定死宽度再 overflow hidden：输入法组合中的文字会被浏览器
+     直接塞进光标所在的这些盒子里（装饰要等组合结束才重算），定死 1ch 就会一字一行竖着折。 */
 .cm-live-preview .cm-lp-indent {
   display: inline-block;
-  overflow: hidden;
+  white-space: nowrap;
   text-indent: 0;
   vertical-align: bottom;
 }
@@ -315,11 +316,9 @@
 .cm-live-preview .cm-lp-gap,
 .cm-live-preview .cm-lp-rawmark {
   display: inline-block;
-  width: 1ch;
+  min-width: 1ch;
+  white-space: nowrap;
   text-indent: 0;
-}
-.cm-live-preview .cm-lp-gap {
-  overflow: hidden;
 }
 .cm-live-preview .cm-lp-rawmark {
   text-align: center;
@@ -333,6 +332,7 @@
 /* 有序列表编号：保留原文数字，弱化上色 + 等宽数字对齐（宽度由行内 style 按字符数给） */
 .cm-live-preview .cm-lp-olnum {
   display: inline-block;
+  white-space: nowrap;
   text-indent: 0;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;

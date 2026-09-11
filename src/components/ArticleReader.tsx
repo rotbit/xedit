@@ -2,7 +2,7 @@
 
 import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
+import { AlignLeft, Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
 import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
 import { wordCount } from "@/lib/wordCount";
 import { askInput } from "./PromptDialog";
@@ -156,7 +156,8 @@ export function ArticleReader({
     }
     setShareOpen(true);
   }, [loggedIn, docId]);
-  const toggleOutline = useCallback(() => setOutlineOpen((v) => !v), []);
+  const openOutline = useCallback(() => setOutlineOpen(true), []);
+  const closeOutline = useCallback(() => setOutlineOpen(false), []);
   const openVersions = useCallback(() => setVersionsOpen(true), []);
 
   // 字数只在正文变化时重扫（wordCount 内部要过 4 遍正则，别跟着每次渲染跑）。
@@ -177,7 +178,7 @@ export function ArticleReader({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 顶部操作栏：大纲 / 插入 / 主题 / 版本 / 复制 / 双屏 / 阅读 / 更多
+      {/* 顶部操作栏：插入 / 主题 / 版本 / 复制 / 双屏 / 阅读 / 更多
           —— portal 到面包屑顶栏右侧，与之共用一行，省掉一整条横栏 */}
       {actionSlot
         ? createPortal(
@@ -187,8 +188,6 @@ export function ArticleReader({
               onToggleSplit={toggleSplit}
               reading={reading}
               onToggleReading={toggleReading}
-              outlineOpen={outlineOpen}
-              onToggleOutline={toggleOutline}
               onInsert={applyFormat}
               onOpenVersions={openVersions}
               onOpenShare={openShare}
@@ -223,10 +222,23 @@ export function ArticleReader({
             >
               <OutlinePanel
                 active={outlineOpen}
+                onClose={closeOutline}
                 onJump={(line) => editorRef.current?.scrollToLine(line)}
               />
             </div>
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+              {/* 飞书式目录入口，贴在正文列左上角的留白里，展开后由面板顶部的收起按钮接管 */}
+              {!outlineOpen ? (
+                <button
+                  type="button"
+                  title="目录"
+                  aria-label="展开目录"
+                  onClick={openOutline}
+                  className="absolute left-1.5 top-[38px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+                >
+                  <AlignLeft size={15} strokeWidth={1.75} />
+                </button>
+              ) : null}
               {/* 标题区与正文共用一个滚动容器：标题随正文一起滚出视野，
                   正文不再从固定标题下方被硬切。编辑器自身改为高度自适应（.reader-live），
                   滚动读写由 MarkdownEditor 的 scrollParent 接管 */}
