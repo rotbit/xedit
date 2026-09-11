@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { buildTree, findNode } from "../lib/catTree";
-import { reorderList } from "../lib/sidebarOrder";
-import type { CatNode, DocMeta } from "../types";
+import { catKey, docKey, reorderList } from "../lib/sidebarOrder";
+import type { CatNode, DragItem } from "../types";
 import { useAppConfig } from "./useAppConfig";
 import { useAuthMode } from "./useAuthMode";
 import { useCategoryActions } from "./useCategoryActions";
@@ -41,38 +41,35 @@ export function useWorkspace() {
   const nameOf = (path: string) =>
     path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
 
-  /** 分类插到 targetPath 前/后：先记显示顺序（立即生效），跨父级再连带迁移 */
-  const reorderCategory = (path: string, targetPath: string, zone: "before" | "after") => {
-    const parent = parentOf(targetPath);
-    const siblings = parent ? (findNode(treeRef.current, parent)?.children ?? []) : treeRef.current;
-    const names = siblings.map((n) => n.name);
-    const moved = nameOf(path);
-    if (!names.includes(moved)) names.push(moved); // 跨父级迁入
-    const list = reorderList(names, moved, nameOf(targetPath), zone);
-    library.updateOrder((o) => ({ ...o, cats: { ...o.cats, [parent]: list } }));
-    if (parentOf(path) !== parent) void catActions.moveCategory(path, parent);
-  };
-
-  /** 文章插到 targetId 前/后：记录该分类下的手动顺序，跨分类再连带移动 */
-  const reorderDoc = (id: string, targetId: string, zone: "before" | "after") => {
-    const all = library.docs ?? [];
-    const dragged = all.find((d) => d.id === id);
-    const target = all.find((d) => d.id === targetId);
-    if (!dragged || !target) return;
-    const cat = target.category || UNCATEGORIZED;
-    const ids = (findNode(treeRef.current, cat)?.docs ?? []).map((d) => d.id);
-    if (!ids.includes(id)) ids.push(id); // 跨分类迁入
-    const list = reorderList(ids, id, targetId, zone);
-    library.updateOrder((o) => ({ ...o, docs: { ...o.docs, [cat]: list } }));
-    if ((dragged.category || UNCATEGORIZED) !== cat) void docActions.moveDoc(dragged, cat);
-  };
-
-  /** 文章排到某分类文章区首位；拖到子文件夹行边缘时用，落点保证同分类，只排序不搬家 */
-  const placeDocFirst = (doc: DocMeta, cat: string) => {
-    const ids = (findNode(treeRef.current, cat)?.docs ?? [])
-      .map((d) => d.id)
-      .filter((x) => x !== doc.id);
-    library.updateOrder((o) => ({ ...o, docs: { ...o.docs, [cat]: [doc.id, ...ids] } }));
+  /** 把拖拽项插到 host 父级序列里 targetKey 的前/后：
+   *  先记显示顺序（立即生效），跨父级/跨分类再连带迁移。
+   *  host 下的子分类与文章共用一条序列，两者可以自由混排 */
+  const reorderItem = (
+    item: DragItem,
+    host: string,
+    targetKey: string,
+    zone: "before" | "after"
+  ) => {
+    const dragged = item.kind === "doc" ? (library.docs ?? []).find((d) => d.id === item.id) : null;
+    if (item.kind === "doc") {
+      if (!dragged) return;
+      if (host === "") return; // 顶级没有文章
+    }
+    const keys =
+      host === ""
+        ? treeRef.current.map((c) => catKey(c.name))
+        : (findNode(treeRef.current, host)?.items ?? []).map((it) =>
+            it.kind === "cat" ? catKey(it.node.name) : docKey(it.doc.id)
+          );
+    const movedKey = item.kind === "cat" ? catKey(nameOf(item.path)) : docKey(item.id);
+    if (!keys.includes(movedKey)) keys.push(movedKey); // 跨父级/跨分类迁入
+    const list = reorderList(keys, movedKey, targetKey, zone);
+    library.updateOrder((o) => ({ ...o, items: { ...o.items, [host]: list } }));
+    if (item.kind === "cat") {
+      if (parentOf(item.path) !== host) void catActions.moveCategory(item.path, host);
+    } else if (dragged && (dragged.category || UNCATEGORIZED) !== host) {
+      void docActions.moveDoc(dragged, host);
+    }
   };
 
   const drag = useDragMove({
@@ -82,9 +79,7 @@ export function useWorkspace() {
     expandOne: prefs.expandOne,
     moveDoc: docActions.moveDoc,
     moveCategory: catActions.moveCategory,
-    reorderCategory,
-    reorderDoc,
-    placeDocFirst,
+    reorderItem,
   });
 
   const { docs, customCats, trashDocs, order } = library;

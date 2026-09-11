@@ -2,19 +2,31 @@
 
 /**
  * 侧栏手动排序的数据形状与读写。
- * cats：父路径（顶级为空串）→ 子分类「名称」列表；用名称而非全路径，
- *       父级改名/迁移时子级顺序自动跟随，不需要重写。
- * docs：分类路径 → 文档 id 列表。
- * 未出现在列表里的项排在已排序项之后，维持原有次序（分类按拼音、文章按更新时间）。
+ * items：父路径（顶级为空串）→ 该父级下「子分类 + 直属文章」的混排键序列，
+ *        子分类记 `c:<名称>`、文章记 `d:<文档id>`。分类用名称而非全路径，
+ *        父级改名/迁移时子级顺序自动跟随，不需要重写。这是当前唯一写入的字段。
+ * cats/docs：老版本的两份独立序列（分类名列表 / 文档 id 列表），只读不再写。
+ *        某个父级有 items 记录就按 items 混排；没有则退回老规则——先分类后文章，
+ *        分类按 cats 排、文章按 docs 排。
+ * 未出现在序列里的项排在已排序项之后，维持原有次序（分类按拼音、文章按更新时间）。
  * 本地永远落 localStorage（秒开 + 离线可用），登录态再异步推给服务端跨设备同步。
  */
 
 export interface SidebarOrder {
+  items: Record<string, string[]>;
+  /** @deprecated 老数据回退，只读 */
   cats: Record<string, string[]>;
+  /** @deprecated 老数据回退，只读 */
   docs: Record<string, string[]>;
 }
 
-export const EMPTY_ORDER: SidebarOrder = { cats: {}, docs: {} };
+/** 混排序列里的子分类键（用名称，跟随父级改名） */
+export const catKey = (name: string) => `c:${name}`;
+
+/** 混排序列里的文章键 */
+export const docKey = (id: string) => `d:${id}`;
+
+export const EMPTY_ORDER: SidebarOrder = { items: {}, cats: {}, docs: {} };
 
 const KEY = "xedit-sidebar-order";
 
@@ -32,8 +44,8 @@ export function parseSidebarOrder(raw: unknown): SidebarOrder {
       }
       return out;
     };
-    const o = obj as { cats?: unknown; docs?: unknown };
-    return { cats: pickMap(o.cats), docs: pickMap(o.docs) };
+    const o = obj as { items?: unknown; cats?: unknown; docs?: unknown };
+    return { items: pickMap(o.items), cats: pickMap(o.cats), docs: pickMap(o.docs) };
   } catch {
     return EMPTY_ORDER;
   }

@@ -17,7 +17,7 @@ import type { Workspace } from "../hooks/useWorkspace";
 const actionBtn =
   "cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)]";
 
-/** 侧栏分类行；展开时递归渲染子分类与直属文章 */
+/** 侧栏分类行；展开时按 node.items 递归渲染子分类与直属文章（两者可混排） */
 export function CategoryRow({
   ws,
   node,
@@ -90,12 +90,13 @@ export function CategoryRow({
       </div>
       {isOpen ? (
         <div>
-          {node.children.map((c) => (
-            <CategoryRow key={c.path} ws={ws} node={c} depth={depth + 1} />
-          ))}
-          {node.docs.map((d) => (
-            <DocRow key={d.id} ws={ws} doc={d} depth={depth + 1} />
-          ))}
+          {node.items.map((it) =>
+            it.kind === "cat" ? (
+              <CategoryRow key={it.node.path} ws={ws} node={it.node} depth={depth + 1} />
+            ) : (
+              <DocRow key={it.doc.id} ws={ws} doc={it.doc} depth={depth + 1} />
+            )
+          )}
         </div>
       ) : null}
     </div>

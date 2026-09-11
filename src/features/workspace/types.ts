@@ -21,8 +21,13 @@ export interface CatNode {
   path: string;
   children: CatNode[];
   docs: DocMeta[];
+  /** 子分类与直属文章的显示序列（两者可混排）；children/docs 仍保留供计数、查找使用 */
+  items: CatItem[];
   count: number;
 }
+
+/** 分类节点下的一项：子分类或直属文章 */
+export type CatItem = { kind: "cat"; node: CatNode } | { kind: "doc"; doc: DocMeta };
 
 /** 正在拖拽的对象：文章，或分类（分类连同子树与其中文章整体随迁） */
 export type DragItem = { kind: "doc"; id: string } | { kind: "cat"; path: string };

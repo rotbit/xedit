@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { allCategories, canNestCategory } from "../lib/catTree";
+import { catKey, docKey } from "../lib/sidebarOrder";
 import type { DocMeta, DragItem } from "../types";
 
 /** 拖拽悬停自动展开折叠分类的计时器；同一时刻只有一个拖拽，模块级即可 */
@@ -35,16 +36,20 @@ interface Params {
   expandOne: (path: string) => void;
   moveDoc: (doc: DocMeta, category: string) => void;
   moveCategory: (path: string, parent: string) => void;
-  /** 把分类插到 target 的前/后（跨父级时连带迁移） */
-  reorderCategory: (path: string, targetPath: string, zone: "before" | "after") => void;
-  /** 把文章插到 target 文章的前/后（跨分类时连带移动） */
-  reorderDoc: (id: string, targetId: string, zone: "before" | "after") => void;
-  /** 把文章排到某分类文章区的首位（只排序，不改分类） */
-  placeDocFirst: (doc: DocMeta, category: string) => void;
+  /** 把拖拽项插到 host 父级序列里 targetKey 的前/后（跨父级/跨分类时连带迁移） */
+  reorderItem: (
+    item: DragItem,
+    host: string,
+    targetKey: string,
+    zone: "before" | "after"
+  ) => void;
 }
 
 const parentOf = (path: string) =>
   path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+
+const nameOf = (path: string) =>
+  path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
 
 /** 指针在行内的纵向位置 → 落区。edge 是上下边缘占比 */
 function zoneOf(e: React.DragEvent, edge: number): "before" | "after" | "into" {
@@ -58,7 +63,9 @@ function zoneOf(e: React.DragEvent, edge: number): "before" | "after" | "into" {
 /**
  * 鼠标拖拽：文章/分类拖到侧栏行上。
  * 行中部=移入该分类；行边缘=插到该行前后调整先后顺序（跨父级/跨分类时连带迁移）。
- * 文章拖到文件夹行只有中段才「移入」——边缘留缓冲，避免瞄准排序时被文件夹吞掉。
+ * 同一父级下文件夹与文章共用一条显示序列，可以自由混排——两种落点对两者一视同仁：
+ * 文件夹行边缘=插到该文件夹前/后，文章行边缘=插到该文章前/后。
+ * 文章拖到文件夹行只有中段才「移入」——边缘窄一些留缓冲，避免瞄准排序时被文件夹吞掉。
  */
 export function useDragMove({
   docs,
@@ -67,9 +74,7 @@ export function useDragMove({
   expandOne,
   moveDoc,
   moveCategory,
-  reorderCategory,
-  reorderDoc,
-  placeDocFirst,
+  reorderItem,
 }: Params) {
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [dropSpot, setDropSpot] = useState<DropSpot | null>(null);
@@ -97,20 +102,17 @@ export function useDragMove({
   const spotOnCat = (e: React.DragEvent, target: string): DropSpot | null => {
     if (!dragItem) return null;
     if (dragItem.kind === "doc") {
-      // 文章拖到分类行：只有中段算「移入」。上下边缘留作缓冲——瞄准相邻文章排序时
-      // 手抖压到文件夹行，本不该把文件吞进那个文件夹。
-      if (zoneOf(e, 0.25) === "into") {
+      // 文章拖到分类行：中段算「移入」，上下边缘窄——瞄准前后插排时手抖压到文件夹行，
+      // 本不该把文件吞进那个文件夹。
+      const zone = zoneOf(e, 0.25);
+      if (zone === "into") {
         return docCanMoveTo(dragItem.id, target) ? { kind: "cat", key: target, zone: "into" } : null;
       }
-      // 缓冲区不是死区：文章总渲染在子文件夹之后，子文件夹行紧邻的合法落点就是
-      // 「该文件夹所属分类的文章区首位」。只在那正是本文章当前所在分类时接受，
-      // 于是边缘永远只排序、绝不改变文章归属。
+      // 边缘=把文章插到这个文件夹的前/后（落点归属是文件夹所在的父分类）。
+      // 文章与文件夹混排，所以跨分类也接——drop 时连带 moveDoc。
       if (target === ALL) return null;
-      const doc = (docs ?? []).find((d) => d.id === dragItem.id);
       const host = parentOf(target);
-      return doc && host && (doc.category || UNCATEGORIZED) === host
-        ? { kind: "cat", key: target, zone: "after" }
-        : null;
+      return host ? { kind: "cat", key: target, zone } : null; // 顶级文件夹旁排不了文章
     }
     const path = dragItem.path;
     if (path === UNCATEGORIZED) return null;
@@ -129,9 +131,19 @@ export function useDragMove({
       : null;
   };
 
-  /** 判定文章行上的落点（只接文章拖拽）；null = 不可落 */
+  /** 判定文章行上的落点；文章与文件夹都能插到这篇文章的前/后。null = 不可落 */
   const spotOnDoc = (e: React.DragEvent, target: DocMeta): DropSpot | null => {
-    if (dragItem?.kind !== "doc" || dragItem.id === target.id) return null;
+    if (!dragItem) return null;
+    if (dragItem.kind === "doc") {
+      if (dragItem.id === target.id) return null;
+    } else {
+      const path = dragItem.path;
+      if (path === UNCATEGORIZED) return null;
+      const host = target.category || UNCATEGORIZED;
+      if (host === UNCATEGORIZED) return null; // 未分类不收子文件夹
+      if (host === path || host.startsWith(`${path}/`)) return null; // 自己或子孙
+      if (!catCanGo(path, host, true)) return null;
+    }
     const zone = zoneOf(e, 0.5);
     return { kind: "doc", key: target.id, zone: zone === "into" ? "after" : zone };
   };
@@ -193,23 +205,23 @@ export function useDragMove({
       if (!spot || !item) return;
       e.preventDefault();
       e.stopPropagation();
+      // 中段=移入该分类；边缘=插到这个文件夹的前/后（文章、文件夹同一套序列）
       if (item.kind === "doc") {
         const doc = (docs ?? []).find((d) => d.id === item.id);
         if (!doc) return;
-        // 中段=移入该分类；边缘=排到该文件夹所属分类的文章区首位
         if (spot.zone === "into") moveDoc(doc, target === ALL ? UNCATEGORIZED : target);
-        else placeDocFirst(doc, parentOf(target));
+        else reorderItem(item, parentOf(target), catKey(nameOf(target)), spot.zone);
         return;
       }
       if (spot.zone === "into") {
         moveCategory(item.path, target === ALL ? "" : target);
       } else {
-        reorderCategory(item.path, target, spot.zone);
+        reorderItem(item, parentOf(target), catKey(nameOf(target)), spot.zone);
       }
     },
   });
 
-  /** 侧栏文章行的落点属性：上/下半区插到该文章前/后 */
+  /** 侧栏文章行的落点属性：上/下半区插到该文章前/后（文章与文件夹都收） */
   const docDropProps = (target: DocMeta) => ({
     onDragOver: (e: React.DragEvent) => acceptSpot(e, spotOnDoc(e, target), "doc", target.id),
     onDragLeave: (e: React.DragEvent) => clearSpot(e, "doc", target.id),
@@ -217,10 +229,10 @@ export function useDragMove({
       const spot = spotOnDoc(e, target);
       const item = dragItem;
       endDrag();
-      if (!spot || !item || item.kind !== "doc" || spot.zone === "into") return;
+      if (!spot || !item || spot.zone === "into") return;
       e.preventDefault();
       e.stopPropagation();
-      reorderDoc(item.id, target.id, spot.zone);
+      reorderItem(item, target.category || UNCATEGORIZED, docKey(target.id), spot.zone);
     },
   });
 
