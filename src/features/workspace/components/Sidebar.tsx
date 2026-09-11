@@ -1,6 +1,7 @@
 "use client";
 
 import { FilePlus2, Loader2, PanelLeftClose, RotateCw, Search } from "lucide-react";
+import { LogoMark } from "@/components/LogoMark";
 import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -45,9 +46,7 @@ export function Sidebar({
       style={{ width: prefs.sidebarWidth }}
     >
       <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
-        <span className="text-[15px] font-semibold tracking-wide [font-family:var(--serif)]">
-          xEdit
-        </span>
+        <LogoMark className="h-6 w-auto shrink-0 text-[var(--ink)]" />
         <span className="flex-1" />
         <button
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"

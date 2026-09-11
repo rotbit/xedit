@@ -8,7 +8,6 @@ import {
   MAC_CTA,
   MAC_DOWNLOAD_URL,
   MAC_REQUIREMENT,
-  SITE_NAME,
   SITE_TAGLINE,
 } from "@/lib/site";
 import { FEATURE_GROUPS, MAC_FEATURES, STEPS } from "./data";
@@ -371,7 +370,7 @@ export function Landing() {
                   <span className="h-2.5 w-2.5 rounded-full bg-[#fdbc40]" />
                   <span className="h-2.5 w-2.5 rounded-full bg-[#35cd4b]" />
                 </span>
-                <span className="text-[11.5px] text-[var(--ink-faint)]">xEdit</span>
+                <LogoMark className="h-4 w-auto text-[var(--ink)]" />
               </div>
               <div className="grid grid-cols-[104px_1fr]">
                 <div className="space-y-1.5 border-r border-[var(--hairline)] bg-[var(--sidebar)] p-3">
@@ -448,10 +447,10 @@ export function Landing() {
           className={`${SHELL} flex flex-wrap items-center justify-between gap-x-10 gap-y-6 py-10`}
         >
           <div className="flex items-center gap-3">
-            <LogoMark className="h-8 w-8 shrink-0 text-[var(--seal)]" />
+            <LogoMark className="h-8 w-auto shrink-0 text-[var(--ink)]" />
             <div>
               <p className="text-[13.5px] font-semibold">
-                {SITE_NAME} · {SITE_TAGLINE}
+                {SITE_TAGLINE}
               </p>
               <p className="mt-1 text-[11.5px] text-[var(--ink-faint)]">
                 本地优先 · 登录后云端同步 · 排版样式不丢
