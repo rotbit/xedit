@@ -49,14 +49,17 @@ export const metadata: Metadata = {
 };
 
 /**
- * 首帧前的两件事，必须在浏览器绘制前跑完，否则会闪：
- * 1) 恢复夜间模式偏好（避免闪白）；
- * 2) 判断本机是否已有工作区（data-ws），老用户这一帧用 CSS 盖住落地页。
+ * 首帧前的三件事，必须在浏览器绘制前跑完，否则会闪：
+ * 1) 标记 macOS 桌面壳（Electron 隐藏了系统标题栏，顶栏要给红绿灯留位）——
+ *    preload 也会在 DOMContentLoaded 打这个标记，这里更早一步，避免顶栏跳一下；
+ * 2) 恢复夜间模式偏好（避免闪白）；
+ * 3) 判断本机是否已有工作区（data-ws），老用户这一帧用 CSS 盖住落地页。
+ * 2、3 单开一个 try：localStorage 不可用时（隐私模式）不能连带吞掉 1。
  * 内联而非外链 /theme-init.js：省掉一次渲染阻塞的网络往返。
  * （public/theme-init.js 仍保留，兜底 SW 离线壳里缓存的旧版 HTML。）
  * 编译期静态字符串，无任何运行时输入拼接，可安全注入。
  */
-const THEME_INIT_SCRIPT = `try{if(localStorage.getItem("xedit-dark")==="1")document.documentElement.dataset.theme="dark";var d=localStorage.getItem("xedit-local-docs");if(localStorage.getItem("xedit-was-authed")==="1"||(d&&d!=="[]"))document.documentElement.dataset.ws="1"}catch(e){}`;
+const THEME_INIT_SCRIPT = `try{if(window.xeditDesktop&&window.xeditDesktop.platform==="darwin")document.documentElement.classList.add("desktop-mac")}catch(e){}try{if(localStorage.getItem("xedit-dark")==="1")document.documentElement.dataset.theme="dark";var d=localStorage.getItem("xedit-local-docs");if(localStorage.getItem("xedit-was-authed")==="1"||(d&&d!=="[]"))document.documentElement.dataset.ws="1"}catch(e){}`;
 
 export const viewport: Viewport = {
   width: "device-width",

@@ -104,7 +104,13 @@ export function ContentHeader({
   const inList = !nav.readingId && nav.activeCat !== STATS && nav.activeCat !== ASSETS;
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-1 bg-[var(--panel)] px-4">
+    // app-titlebar：桌面壳里这条顶栏充当系统标题栏；
+    // 侧栏收起后红绿灯落在它上面，这时才需要 traffic-inset 留位
+    <div
+      className={`app-titlebar flex h-12 shrink-0 items-center gap-1 bg-[var(--panel)] px-4 ${
+        prefs.sidebarOpen ? "" : "traffic-inset"
+      }`}
+    >
       {!prefs.sidebarOpen ? (
         <>
           {/* 窄屏：抽屉式打开，不改动桌面记忆的折叠状态 */}
