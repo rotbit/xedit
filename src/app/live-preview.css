@@ -290,6 +290,25 @@
   height: 0.28em;
   border-radius: 1px;
 }
+/* 嵌套列表的缩进引导线（Obsidian 式）：祖先圆点所在列的那个缩进字符撑成与圆点同宽（1ch）
+   的盒；竖线用绝对定位挂在行盒（.cm-lp-li 设了 relative）上，left:auto 取静态位置即盒的
+   左缘，再右移半个盒宽落到圆点正下方；top/bottom 贴行盒上下沿，相邻行的线首尾相接 */
+.cm-live-preview .cm-lp-indent {
+  display: inline-block;
+  width: 1ch;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.cm-live-preview .cm-lp-indent::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: auto;
+  margin-left: calc(0.5ch - 0.5px);
+  border-left: 1px solid var(--hairline-strong);
+  pointer-events: none;
+}
 /* 有序列表编号：保留原文数字，弱化上色 + 等宽数字对齐 */
 .cm-live-preview .cm-lp-olnum {
   color: var(--ink-soft);
@@ -368,8 +387,10 @@
   padding-top: 12px;
 }
 
-/* 列表行比正文略紧，相邻条目才会读成一组而不是各自成段 */
+/* 列表行比正文略紧，相邻条目才会读成一组而不是各自成段；
+   relative 同时给缩进引导线（.cm-lp-indent::before）当定位参照 */
 .cm-live-preview .cm-line.cm-lp-li {
+  position: relative;
   line-height: 1.65;
 }
 
