@@ -2,7 +2,6 @@
 
 import { MoreHorizontal } from "lucide-react";
 import { UNCATEGORIZED } from "../constants";
-import { catColorOf } from "../lib/catTree";
 import { groupByDay } from "../lib/dayGroups";
 import { formatTime } from "../lib/docSource";
 import { DocContextMenu } from "./DocContextMenu";
@@ -75,14 +74,8 @@ function DocRow({ ws, doc, index }: { ws: Workspace; doc: DocMeta; index: number
       {...(isTrash ? {} : drag.dragSrcProps({ kind: "doc", id: doc.id }))}
     >
       <div className="min-w-0">
-        <p className="flex items-center gap-2 text-[15.5px] font-semibold leading-[1.4] text-[var(--ink)]">
-          {/* 完整分类路径挂在圆点的 title 上，行内只留颜色 */}
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full"
-            style={{ background: catColorOf(cat) }}
-            title={cat}
-          />
-          <span className="truncate">{doc.title || "未命名文章"}</span>
+        <p className="truncate text-[15.5px] font-semibold leading-[1.4] text-[var(--ink)]">
+          {doc.title || "未命名文章"}
         </p>
         <p
           className={`mt-0.5 truncate text-[13px] ${
@@ -98,7 +91,7 @@ function DocRow({ ws, doc, index }: { ws: Workspace; doc: DocMeta; index: number
         <>
           <div className="whitespace-nowrap pt-1 text-right text-[11.5px] leading-relaxed">
             {/* 只显示末级分类名；窄屏放不下就整行让位给时间 */}
-            <span className="hidden text-[var(--ink-soft)] sm:block">
+            <span className="hidden text-[var(--ink-soft)] sm:block" title={cat}>
               {cat.split("/").pop()}
             </span>
             <span className="block tabular-nums text-[var(--ink-faint)]">
