@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { sanitizeCustomThemes } from "@/lib/themes/custom";
 
-/** 侧栏手动排序：{ cats: { 父路径: [子名…] }, docs: { 分类: [文档id…] } }。
+/** 侧栏手动排序：{ items: { 父路径: [`c:子名` | `d:文档id`…] } } 是当前写入的混排序列，
+ *  cats/docs 是老版本的两份独立序列（父路径→子名 / 分类→文档id），仍收下以免旧端回写时丢数据。
  *  只收字符串数组的映射，条目与总量都设上限，返回序列化结果；不合法返回 null */
 function sanitizeSidebarOrder(raw: unknown): string | null {
   const pickMap = (v: unknown): Record<string, string[]> => {
@@ -22,8 +23,12 @@ function sanitizeSidebarOrder(raw: unknown): string | null {
     }
     return out;
   };
-  const obj = raw as { cats?: unknown; docs?: unknown };
-  const clean = JSON.stringify({ cats: pickMap(obj.cats), docs: pickMap(obj.docs) });
+  const obj = raw as { items?: unknown; cats?: unknown; docs?: unknown };
+  const clean = JSON.stringify({
+    items: pickMap(obj.items),
+    cats: pickMap(obj.cats),
+    docs: pickMap(obj.docs),
+  });
   return clean.length <= 256 * 1024 ? clean : null;
 }
 
