@@ -414,13 +414,13 @@ export function Landing() {
             <Link href="/themes" className="transition-colors hover:text-[var(--ink)]">
               排版主题
             </Link>
-            <Link href="/#features" className="transition-colors hover:text-[var(--ink)]">
+            <Link href="#features" className="transition-colors hover:text-[var(--ink)]">
               功能
             </Link>
-            <Link href="/#desktop" className="transition-colors hover:text-[var(--ink)]">
+            <Link href="#desktop" className="transition-colors hover:text-[var(--ink)]">
               Mac 客户端
             </Link>
-            <Link href="/#faq" className="transition-colors hover:text-[var(--ink)]">
+            <Link href="#faq" className="transition-colors hover:text-[var(--ink)]">
               常见问题
             </Link>
             <a

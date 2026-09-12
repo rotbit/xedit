@@ -55,10 +55,10 @@ export function StartWritingLink() {
 }
 
 const NAV = [
-  { href: "/#features", label: "功能" },
-  { href: "/#themes", label: "主题" },
-  { href: "/#desktop", label: "Mac 版" },
-  { href: "/#faq", label: "常见问题" },
+  { href: "#features", label: "功能" },
+  { href: "#themes", label: "主题" },
+  { href: "#desktop", label: "Mac 版" },
+  { href: "#faq", label: "常见问题" },
 ];
 
 export function LandingHeader() {
