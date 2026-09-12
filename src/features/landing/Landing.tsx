@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Apple, ArrowRight, Check, Download } from "lucide-react";
 import { GithubMark } from "@/components/GithubMark";
@@ -45,9 +44,9 @@ function SectionHead({
     <div className="max-w-[680px]">
       <p
         id={id}
-        className="flex items-center gap-2 text-[11.5px] font-medium tracking-[0.18em] text-[var(--seal)]"
+        className="flex items-center gap-2 text-[11.5px] font-medium tracking-[0.18em] text-[var(--brand)]"
       >
-        <span className="h-1 w-1 rounded-full bg-[var(--seal)]" />
+        <span className="h-1 w-1 rounded-full bg-[var(--brand)]" />
         {eyebrow}
       </p>
       <h2 className="mt-3.5 text-[clamp(23px,3.2vw,32px)] font-semibold leading-[1.3] tracking-tight">
@@ -97,141 +96,92 @@ export function Landing() {
       <LandingHeader />
 
       <main>
-        {/* ———— 主视觉 ———— */}
+        {/* ———— 主视觉：居中单栏，样机本身就是主视觉 ———— */}
         <section className="landing-hero relative overflow-hidden">
           <div
-            className="pointer-events-none absolute -left-32 top-0 h-[560px] w-[620px] rounded-full bg-[radial-gradient(closest-side,rgba(192,57,43,0.1),transparent)]"
+            className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_60%_55%_at_50%_0%,rgba(72,71,143,0.12),transparent)]"
             aria-hidden="true"
           />
-          <div className={`${SHELL} relative pb-16 pt-12 sm:pt-16 lg:pt-20`}>
-            <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:gap-16">
-              <div className="max-w-[560px]">
-                <p className="rise flex items-center gap-3 text-[12px] font-medium tracking-[0.14em] text-[var(--seal)]">
-                  <span className="h-px w-8 bg-[var(--seal)]" />
-                  为中文写作者做的排版工具
-                </p>
-                <h1
-                  className="rise mt-6 text-[clamp(40px,5.4vw,62px)] font-semibold leading-[1.08] tracking-[-0.045em]"
-                  style={{ animationDelay: "0.05s" }}
-                >
-                  <span className="font-[family-name:var(--serif)]">写 Markdown，</span>
-                  <br />
-                  一键排好公众号
-                </h1>
-                <p
-                  className="rise mt-6 max-w-[520px] text-[15.5px] leading-[1.9] text-[var(--ink-soft)]"
-                  style={{ animationDelay: "0.1s" }}
-                >
-                  左边写 Markdown，右边就是公众号里的成稿。选主题、点复制，粘进后台，
-                  标题、引用、公式和代码样式一个不丢。
-                </p>
-                <div
-                  className="rise mt-8 flex flex-wrap items-center gap-3"
-                  style={{ animationDelay: "0.14s" }}
-                >
-                  <StartWritingButton />
-                  <a
-                    className={BTN_GHOST}
-                    href={MAC_DOWNLOAD_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Apple size={16} />
-                    {MAC_CTA}
-                  </a>
-                </div>
-                <p
-                  className="rise mt-4 text-[12.5px] leading-5 text-[var(--ink-faint)]"
-                  style={{ animationDelay: "0.18s" }}
-                >
-                  无需注册，打开就写；文章先存在本设备，登录后自动同步云端
-                </p>
-
-                <dl
-                  className="rise mt-9 grid max-w-[460px] grid-cols-3 border-y border-[var(--hairline)] py-4"
-                  style={{ animationDelay: "0.22s" }}
-                >
-                  {[
-                    ["13", "套排版主题"],
-                    ["5", "种导出格式"],
-                    ["0 元", "核心排版免费"],
-                  ].map(([value, label], index) => (
-                    <div
-                      key={label}
-                      className={index ? "border-l border-[var(--hairline)] px-4" : "pr-4"}
-                    >
-                      <dt className="font-[family-name:var(--serif)] text-[20px] font-semibold text-[var(--ink)]">
-                        {value}
-                      </dt>
-                      <dd className="mt-1 text-[11.5px] text-[var(--ink-faint)]">{label}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-
-              <figure
-                className="rise relative mx-auto w-full max-w-[630px]"
+          <div className={`${SHELL} relative pb-14 pt-14 sm:pt-20 lg:pt-24`}>
+            <div className="mx-auto max-w-[760px] text-center">
+              <p className="rise flex items-center justify-center gap-3 text-[12px] font-medium tracking-[0.14em] text-[var(--brand)]">
+                <span className="h-px w-8 bg-[var(--brand)]" />
+                为中文写作者做的排版工具
+                <span className="h-px w-8 bg-[var(--brand)]" />
+              </p>
+              <h1
+                className="rise mt-6 text-[clamp(38px,6vw,68px)] font-semibold leading-[1.08] tracking-[-0.045em]"
+                style={{ animationDelay: "0.05s" }}
+              >
+                <span className="font-[family-name:var(--serif)]">写 Markdown，</span>
+                <br />
+                一键排好公众号
+              </h1>
+              <p
+                className="rise mx-auto mt-6 max-w-[560px] text-[15.5px] leading-[1.9] text-[var(--ink-soft)]"
                 style={{ animationDelay: "0.1s" }}
               >
-                <div
-                  className="pointer-events-none absolute -inset-3 rotate-[1.5deg] border border-[var(--hairline-strong)]"
-                  aria-hidden="true"
-                />
-                <div className="light-lock paper-drift relative aspect-[3/2] overflow-hidden bg-[#f7f3ec] shadow-[0_30px_80px_-38px_rgba(52,38,24,0.55)]">
-                  <Image
-                    src="/landing/editorial-paper-hero.webp"
-                    alt=""
-                    fill
-                    priority
-                    sizes="(max-width: 1023px) 100vw, 630px"
-                    className="object-cover"
-                  />
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(250,247,241,0.94)_0%,rgba(250,247,241,0.54)_30%,transparent_57%)]"
-                    aria-hidden="true"
-                  />
-                  <figcaption className="absolute left-6 top-7 max-w-[160px] sm:left-8 sm:top-9">
-                    <p className="font-mono text-[10px] tracking-[0.22em] text-[#a53125]">
-                      WRITE · STYLE · PUBLISH
-                    </p>
-                    <p className="mt-3 font-[family-name:var(--serif)] text-[clamp(22px,3vw,34px)] font-semibold leading-[1.25] text-[#222]">
-                      从符号
-                      <br />
-                      到成稿
-                    </p>
-                    <span className="mt-4 block h-px w-12 bg-[#c0392b]" />
-                  </figcaption>
-                  <div className="absolute bottom-5 left-6 flex items-center gap-2 text-[9.5px] tracking-[0.14em] text-[#777] sm:bottom-7 sm:left-8">
-                    <span>01 写作</span>
-                    <span className="h-px w-5 bg-[#aaa]" />
-                    <span>02 排版</span>
-                    <span className="h-px w-5 bg-[#aaa]" />
-                    <span>03 发布</span>
-                  </div>
-                </div>
-              </figure>
+                左边写 Markdown，右边就是公众号里的成稿。选主题、点复制，粘进后台，
+                标题、引用、公式和代码样式一个不丢。
+              </p>
+              <div
+                className="rise mt-8 flex flex-wrap items-center justify-center gap-3"
+                style={{ animationDelay: "0.14s" }}
+              >
+                <StartWritingButton />
+                <a
+                  className={BTN_GHOST}
+                  href={MAC_DOWNLOAD_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Apple size={16} />
+                  {MAC_CTA}
+                </a>
+              </div>
+              <p
+                className="rise mt-4 text-[12.5px] leading-5 text-[var(--ink-faint)]"
+                style={{ animationDelay: "0.18s" }}
+              >
+                无需注册，打开就写；文章先存在本设备，登录后自动同步云端
+              </p>
+              <p
+                className="rise mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12.5px] text-[var(--ink-faint)]"
+                style={{ animationDelay: "0.22s" }}
+              >
+                <span>
+                  <strong className="font-[family-name:var(--serif)] text-[17px] font-semibold text-[var(--ink)]">
+                    13
+                  </strong>{" "}
+                  套排版主题
+                </span>
+                <span>
+                  <strong className="font-[family-name:var(--serif)] text-[17px] font-semibold text-[var(--ink)]">
+                    5
+                  </strong>{" "}
+                  种导出格式
+                </span>
+                <span>
+                  <strong className="font-[family-name:var(--serif)] text-[17px] font-semibold text-[var(--ink)]">
+                    0 元
+                  </strong>{" "}
+                  核心排版免费
+                </span>
+              </p>
             </div>
 
-            <div className="rise mt-16 sm:mt-20" style={{ animationDelay: "0.26s" }}>
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <p className="text-[10.5px] font-medium tracking-[0.2em] text-[var(--seal)]">
-                    LIVE DEMO
-                  </p>
-                  <h2 className="mt-2 font-[family-name:var(--serif)] text-[clamp(20px,2.5vw,27px)] font-semibold tracking-tight">
-                    不是效果图，现在就能换主题、复制成稿
-                  </h2>
-                </div>
-                <p className="max-w-[340px] text-[12px] leading-5 text-[var(--ink-faint)] sm:text-right">
-                  样机和正式编辑器使用同一套渲染与复制逻辑
+            <div className="rise mt-12 sm:mt-14" style={{ animationDelay: "0.26s" }}>
+              <div className="mb-5 text-center">
+                <p className="text-[10.5px] font-medium tracking-[0.2em] text-[var(--brand)]">
+                  LIVE DEMO
+                </p>
+                <p className="mt-2 text-[13px] text-[var(--ink-faint)]">
+                  不是效果图：换主题即时生效，点「复制到公众号」会真的写进剪贴板
                 </p>
               </div>
               <HeroDemo themes={THEME_METAS}>
                 <HeroArticle />
               </HeroDemo>
-              <p className="mt-3.5 text-center text-[12px] text-[var(--ink-faint)]">
-                上面这个样机是真的：换主题即时生效，点「复制到公众号」会真的写进你的剪贴板
-              </p>
             </div>
           </div>
         </section>
@@ -285,7 +235,7 @@ export function Landing() {
                   <ul className="mt-6 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
                     {group.items.map(({ icon: Icon, title, desc }) => (
                       <li key={title}>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--seal-wash)] text-[var(--seal)]">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-wash)] text-[var(--brand)]">
                           <Icon size={16} />
                         </span>
                         <h4 className="mt-3 text-[14.5px] font-semibold">{title}</h4>
@@ -313,14 +263,17 @@ export function Landing() {
             {THEME_METAS.map((t) => (
               <ThemeCard key={t.id} {...t} />
             ))}
+            {/* 13 张卡在 4 列下会留一个孤儿，第 14 格改成去主题总览的入口，正好补齐 */}
+            <li>
+              <Link
+                href="/themes"
+                className="flex h-full min-h-[172px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--hairline-strong)] text-[13.5px] text-[var(--ink-soft)] transition-colors hover:border-[var(--brand)] hover:text-[var(--brand)]"
+              >
+                看每套主题的完整样张
+                <ArrowRight size={15} />
+              </Link>
+            </li>
           </ul>
-          <Link
-            href="/themes"
-            className="group mt-8 inline-flex items-center gap-1.5 text-[13.5px] text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]"
-          >
-            看每套主题的完整样张
-            <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
-          </Link>
         </section>
 
         {/* ———— Mac 客户端 ———— */}
@@ -339,7 +292,7 @@ export function Landing() {
                     key={f}
                     className="flex gap-2.5 text-[13.5px] leading-6 text-[var(--ink-soft)]"
                   >
-                    <Check size={15} className="mt-0.5 shrink-0 text-[var(--seal)]" />
+                    <Check size={15} className="mt-0.5 shrink-0 text-[var(--brand)]" />
                     <span>{f}</span>
                   </li>
                 ))}
@@ -374,7 +327,7 @@ export function Landing() {
               </div>
               <div className="grid grid-cols-[104px_1fr]">
                 <div className="space-y-1.5 border-r border-[var(--hairline)] bg-[var(--sidebar)] p-3">
-                  {["全部文章", "技术", "职场", "随笔", "图片素材", "写作足迹"].map((c, i) => (
+                  {["全部文章", "技术", "职场", "随笔", "图片素材"].map((c, i) => (
                     <p
                       key={c}
                       className={`truncate rounded px-2 py-1 text-[11px] ${

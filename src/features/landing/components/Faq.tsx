@@ -10,7 +10,7 @@ export function Faq() {
     <div className="mt-10 divide-y divide-[var(--hairline)] border-y border-[var(--hairline)]">
       {FAQ.map((item) => (
         <details key={item.q} className="group">
-          <summary className="flex cursor-pointer list-none items-start gap-4 py-5 text-[15px] font-medium leading-[1.6] transition-colors hover:text-[var(--seal)]">
+          <summary className="flex cursor-pointer list-none items-start gap-4 py-5 text-[15px] font-medium leading-[1.6] transition-colors hover:text-[var(--brand)]">
             <span className="flex-1">{item.q}</span>
             <ChevronDown
               size={17}

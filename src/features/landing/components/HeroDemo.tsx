@@ -85,7 +85,7 @@ export function HeroDemo({ themes, children }: Props) {
         <span className="flex-1" />
         <button
           onClick={onCopy}
-          className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-2.5 text-[11.5px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
+          className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 text-[11.5px] font-medium text-[var(--brand-fg)] transition-colors hover:bg-[var(--brand-deep)]"
         >
           {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
           {copied ? "已复制" : "复制到公众号"}

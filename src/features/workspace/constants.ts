@@ -2,11 +2,10 @@
 export const ALL = "__all__";
 export const TRASH = "__trash__";
 export const ASSETS = "__assets__";
-export const STATS = "__stats__";
 
 /** 是否为虚拟视图键（而非真实分类路径） */
 export function isVirtualCat(path: string): boolean {
-  return path === ALL || path === TRASH || path === ASSETS || path === STATS;
+  return path === ALL || path === TRASH || path === ASSETS;
 }
 
 /** 无分类文章的归属；同时是保留名，不允许用户新建同名分类 */

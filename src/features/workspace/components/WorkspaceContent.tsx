@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
-import { ASSETS, STATS } from "../constants";
+import { ASSETS } from "../constants";
 import { allCategories } from "../lib/catTree";
 import { ContentHeader } from "./ContentHeader";
 import { DocListEmpty, DocListSkeleton } from "./DocListStates";
@@ -19,10 +19,6 @@ const viewLoading = () => (
 );
 const ArticleReader = dynamic(
   () => import("@/components/ArticleReader").then((m) => m.ArticleReader),
-  { ssr: false, loading: viewLoading }
-);
-const WritingStats = dynamic(
-  () => import("@/features/stats/WritingStats").then((m) => m.WritingStats),
   { ssr: false, loading: viewLoading }
 );
 const AssetsGallery = dynamic(
@@ -104,9 +100,7 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[960px] px-4 pb-24 pt-6 sm:px-8">
-            {activeCat === STATS ? (
-              <WritingStats />
-            ) : activeCat === ASSETS ? (
+            {activeCat === ASSETS ? (
               <AssetsGallery ossConfigured={config?.oss ?? false} onOpenDoc={nav.openDoc} />
             ) : (
               <DocList ws={ws} />

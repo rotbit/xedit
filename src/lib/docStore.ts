@@ -141,8 +141,6 @@ export function clearMirror() {
   localStorage.removeItem(INDEX_KEY);
   localStorage.removeItem(AUTHED_KEY);
   localStorage.removeItem(SYNC_CURSOR_KEY);
-  // 账号维度的墨力缓存（useTotalChars）一并清掉，防止串号
-  localStorage.removeItem("xedit-exp-cache");
 }
 
 /** 「曾登录」标志：离线时 next-auth 拿不到会话，用它兜底进入离线工作区而非落地页 */
