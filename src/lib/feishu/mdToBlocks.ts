@@ -434,6 +434,7 @@ export function collectSubtree(build: MdBuild, id: string, out: OutBlock[]): voi
 
 export function markdownToFeishuBlocks(source: string): MdBuild {
   const md = new MarkdownIt({ html: true, linkify: false });
+  md.disable("lheading"); // 与编辑器、预览一致，不认 Setext 下划线标题
   const tokens = md.parse(source, {});
   return new Builder().build(buildTree(tokens));
 }
