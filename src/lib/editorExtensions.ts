@@ -48,7 +48,14 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
     caretAndActiveLine,
     EditorView.lineWrapping,
     placeholder("在这里输入…"),
-    markdown({ base: markdownLanguage, codeLanguages: languages }),
+    markdown({
+      base: markdownLanguage,
+      codeLanguages: languages,
+      // 关掉 Setext 下划线标题：在一行文字下面刚敲出 "-" 准备列列表时，
+      // CommonMark 会把上一行瞬间判成 H2，看起来像编辑器抽风。公众号写作只用 #。
+      // 预览渲染（renderer.ts）与飞书导出同步关闭，保证三处解析一致。
+      extensions: { remove: ["SetextHeading"] },
+    }),
     syntaxHighlighting(mdHighlight),
     syntaxHighlighting(codeHighlight),
     options.liveCompartment.of(editorModeExtension(options.live)),
