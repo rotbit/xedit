@@ -9,7 +9,7 @@ import {
   PanelLeftOpen,
   X,
 } from "lucide-react";
-import { ALL, ASSETS, STATS } from "../constants";
+import { ALL, ASSETS } from "../constants";
 import type { DocMeta } from "../types";
 import type { DocView } from "../hooks/useSidebarPrefs";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -56,7 +56,6 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
       </>
     );
   }
-  if (activeCat === STATS) return <span className={crumbNow}>写作足迹</span>;
   if (activeCat === ASSETS) return <span className={crumbNow}>图片库</span>;
   if (isTrash) return <span className={crumbNow}>回收站</span>;
   if (activeCat === ALL || readingId) return <span className={crumbNow}>全部文章</span>;
@@ -101,7 +100,7 @@ export function ContentHeader({
   onActionSlotRef: (el: HTMLDivElement | null) => void;
 }) {
   const { nav, prefs, docActions } = ws;
-  const inList = !nav.readingId && nav.activeCat !== STATS && nav.activeCat !== ASSETS;
+  const inList = !nav.readingId && nav.activeCat !== ASSETS;
 
   return (
     // app-titlebar：桌面壳里这条顶栏充当系统标题栏；

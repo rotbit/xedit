@@ -9,7 +9,7 @@ import { GITHUB_URL, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 import { useLandingActions } from "../LandingActions";
 
 export const BTN_PRIMARY =
-  "inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-6 text-[14.5px] font-medium text-[var(--accent-fg)] transition-all hover:bg-[var(--accent-deep)] hover:shadow-[0_6px_20px_-6px_rgba(0,0,0,0.35)]";
+  "inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-6 text-[14.5px] font-medium text-[var(--brand-fg)] transition-all hover:bg-[var(--brand-deep)] hover:shadow-[0_8px_22px_-8px_rgba(72,71,143,0.55)]";
 
 export const BTN_GHOST =
   "inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-6 text-[14.5px] text-[var(--ink)] transition-colors hover:bg-[var(--paper)]";
@@ -93,19 +93,19 @@ export function LandingHeader() {
           target="_blank"
           rel="noopener noreferrer"
           aria-label="在 GitHub 上查看 xEdit 源码"
-          className="hidden h-8 w-8 items-center justify-center rounded-md text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] sm:flex"
+          className="hidden h-8 w-8 items-center justify-center rounded-md text-[var(--ink-soft)] transition-colors hover:bg-[var(--brand-wash)] hover:text-[var(--ink)] sm:flex"
         >
           <GithubMark size={17} />
         </a>
         <DarkToggle />
         <button
-          className="hidden h-8 cursor-pointer items-center rounded-md px-3 text-[13px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] sm:flex"
+          className="hidden h-8 cursor-pointer items-center rounded-md px-3 text-[13px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--brand-wash)] hover:text-[var(--ink)] sm:flex"
           onClick={onLogin}
         >
           登录
         </button>
         <StartWritingButton
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-3.5 text-[13px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--brand)] px-3.5 text-[13px] font-medium text-[var(--brand-fg)] transition-colors hover:bg-[var(--brand-deep)]"
           icon={false}
         />
       </div>

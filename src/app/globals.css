@@ -13,6 +13,11 @@
   --panel: #ffffff;
   --ink: #191919;
   --brand-mark: #48478f;
+  /* 靛蓝品牌色：落地页的强调色与主行动按钮，与书页字标同源 */
+  --brand: #48478f;
+  --brand-deep: #38377a;
+  --brand-fg: #ffffff;
+  --brand-wash: #ecebf7;
   --ink-soft: #565656;
   --ink-faint: #8c8c8c;
   --hairline: #e8e8e8;
@@ -27,7 +32,7 @@
   --sidebar: #f4f4f2;
   --sidebar-hover: #ebebe9;
   --sidebar-active: #e6e6e3;
-  /* 朱砂只留给墨灵：成就体系专用色（吉祥物/火焰/进化仪式/经验条） */
+  /* 朱砂：登录框与提示等少量强调用色 */
   --seal: #c0392b;
   --seal-deep: #a53125;
   --seal-wash: #faeae7;
@@ -81,6 +86,10 @@
   --panel: #ffffff;
   --ink: #191919;
   --brand-mark: #48478f;
+  --brand: #48478f;
+  --brand-deep: #38377a;
+  --brand-fg: #ffffff;
+  --brand-wash: #ecebf7;
   --ink-soft: #565656;
   --ink-faint: #8c8c8c;
   --hairline: #e8e8e8;
@@ -98,6 +107,11 @@
   --panel: #1b1b1c;
   --ink: #ededed;
   --brand-mark: #ededed;
+  /* 夜间把靛蓝提亮成薰衣草，压在炭黑上仍读得出品牌色 */
+  --brand: #a3a2e6;
+  --brand-deep: #c0bff0;
+  --brand-fg: #141415;
+  --brand-wash: #26264a;
   --ink-soft: #a6a6a6;
   --ink-faint: #8a8a8a;
   --hairline: #2a2a2a;
@@ -231,78 +245,6 @@ body {
   }
 }
 
-/* —— 进化仪式 —— */
-@keyframes evo-backdrop {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.evo-backdrop {
-  animation: evo-backdrop 0.45s ease-out both;
-}
-@keyframes evo-burst {
-  0% {
-    transform: scale(0.15);
-    opacity: 0;
-  }
-  35% {
-    opacity: 0.55;
-  }
-  100% {
-    transform: scale(6.5);
-    opacity: 0;
-  }
-}
-.evo-burst {
-  animation: evo-burst 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) 0.35s both;
-}
-@keyframes evo-mascot {
-  0% {
-    transform: scale(0.1) rotate(-16deg);
-    opacity: 0;
-  }
-  55% {
-    transform: scale(1.12) rotate(3deg);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1) rotate(0deg);
-    opacity: 1;
-  }
-}
-.evo-mascot {
-  animation: evo-mascot 0.9s cubic-bezier(0.2, 0.8, 0.25, 1.1) 0.5s both;
-}
-@keyframes evo-item {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.evo-item {
-  animation: evo-item 0.5s ease-out both;
-}
-@keyframes evo-drop {
-  0% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.9;
-  }
-  100% {
-    transform: translate(var(--dx), var(--dy)) scale(0.25);
-    opacity: 0;
-  }
-}
-.evo-drop {
-  animation: evo-drop 1s ease-out both;
-}
-
 /* —— 落地页 —— */
 
 /* 首页对未登录会话一律服务端直出落地页（SEO 需要真实 DOM）。本机已有工作区的老用户
@@ -326,19 +268,6 @@ body {
     linear-gradient(to right, transparent 0, transparent calc(50% + 569px), var(--hairline-soft) calc(50% + 569px), var(--hairline-soft) calc(50% + 570px), transparent calc(50% + 570px));
 }
 
-/* 主视觉只做一次几乎察觉不到的纸张归位，避免持续漂浮干扰阅读。 */
-@keyframes paper-settle {
-  from {
-    transform: translate3d(0, 10px, 0) rotate(-0.35deg);
-  }
-  to {
-    transform: none;
-  }
-}
-.paper-drift {
-  animation: paper-settle 0.9s cubic-bezier(0.2, 0.72, 0.22, 1) 0.18s both;
-}
-
 /* 样机里的源码：Markdown 与 HTML 片段共用同一套等宽排版 */
 .xe-source {
   font-family: var(--mono);
@@ -348,9 +277,9 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
 }
-/* Markdown 标记符号（#、**、-、>）：朱砂点出，正文仍是墨色 */
+/* Markdown 标记符号（#、**、-、>）：品牌靛蓝点出，正文仍是墨色 */
 .xe-source .xe-mk {
-  color: var(--seal);
+  color: var(--brand);
 }
 .xe-source .xe-dim {
   color: var(--ink-soft);
@@ -381,9 +310,6 @@ body {
     scroll-behavior: auto;
   }
   .rise {
-    animation: none;
-  }
-  .paper-drift {
     animation: none;
   }
 }
