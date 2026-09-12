@@ -1,6 +1,7 @@
 "use client";
 
 import { FilePlus2, Loader2, PanelLeftClose, RotateCw, Search } from "lucide-react";
+import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
@@ -47,7 +48,14 @@ export function Sidebar({
     >
       {/* app-titlebar / traffic-inset：桌面壳里这条顶栏充当系统标题栏并给红绿灯留位 */}
       <div className="app-titlebar traffic-inset flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
-        <LogoMark className="sidebar-logo h-7 w-auto shrink-0 text-[var(--ink)]" />
+        <Link
+          href="/about"
+          className="sidebar-logo shrink-0 rounded-md transition-opacity hover:opacity-75"
+          title="产品介绍"
+          aria-label="查看 xEdit 产品介绍"
+        >
+          <LogoMark className="h-7 w-auto text-[var(--ink)]" />
+        </Link>
         <span className="flex-1" />
         <button
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
