@@ -2,7 +2,7 @@ import { MAX_DEPTH, UNCATEGORIZED } from "../constants";
 import { EMPTY_ORDER, catKey, docKey, type SidebarOrder } from "./sidebarOrder";
 import type { CatItem, CatNode, DocMeta } from "../types";
 
-/** 分类圆点色：顶级分类名哈希到固定色板（与写作足迹同源），子分类跟随父级；未分类恒为中性灰 */
+/** 分类圆点色：顶级分类名哈希到固定色板，子分类跟随父级；未分类恒为中性灰 */
 export function catColorOf(cat: string): string {
   if (cat === UNCATEGORIZED) return "var(--hairline-strong)";
   const root = cat.split("/")[0];

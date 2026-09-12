@@ -24,8 +24,8 @@ function Row({
   return (
     <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16">
       <div className={reverse ? "lg:order-2" : undefined}>
-        <p className="flex items-center gap-2 text-[11.5px] font-medium tracking-[0.18em] text-[var(--seal)]">
-          <span className="h-1 w-1 rounded-full bg-[var(--seal)]" />
+        <p className="flex items-center gap-2 text-[11.5px] font-medium tracking-[0.18em] text-[var(--brand)]">
+          <span className="h-1 w-1 rounded-full bg-[var(--brand)]" />
           {eyebrow}
         </p>
         <h2 className="mt-3.5 text-[clamp(22px,3vw,29px)] font-semibold leading-[1.35] tracking-tight">
@@ -35,7 +35,7 @@ function Row({
         <ul className="mt-6 space-y-2.5">
           {points.map((p) => (
             <li key={p} className="flex gap-2.5 text-[13.5px] leading-6 text-[var(--ink-soft)]">
-              <Check size={15} className="mt-0.5 shrink-0 text-[var(--seal)]" />
+              <Check size={15} className="mt-0.5 shrink-0 text-[var(--brand)]" />
               <span>{p}</span>
             </li>
           ))}
@@ -114,12 +114,12 @@ function VersionMock() {
           <li
             key={v.time}
             className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[12.5px] ${
-              v.current ? "bg-[var(--accent-wash)]" : ""
+              v.current ? "bg-[var(--brand-wash)]" : ""
             }`}
           >
             <span
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                v.current ? "bg-[var(--seal)]" : "bg-[var(--hairline-strong)]"
+                v.current ? "bg-[var(--brand)]" : "bg-[var(--hairline-strong)]"
               }`}
             />
             <span className="text-[var(--ink)]">{v.time}</span>
@@ -234,7 +234,7 @@ export function Showcase() {
 
       <Row
         eyebrow="给 AI 用的接口"
-        title="接上 MCP，让 AI 直接打理你的文章库"
+        title="接上 MCP，让 AI 打理你的文章库"
         lead="xEdit 内置 MCP Server，Claude 这类支持 MCP 的客户端授权之后，可以直接列出、检索、新建、改写、删除你的文章，也能读写图床里的图片。素材整理、批量改写、按主题归档这类杂活，交给 AI 在后台做。"
         points={[
           "9 个文档与图床工具，覆盖增删改查",

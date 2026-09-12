@@ -1,13 +1,13 @@
 "use client";
 
-import { ChevronsUpDown, Footprints, Images, LogIn, Trash2 } from "lucide-react";
+import { ChevronsUpDown, Images, LogIn, Trash2 } from "lucide-react";
 import { openAuth } from "@/components/AuthDialog";
 import { DarkToggle } from "@/components/DarkToggle";
-import { ASSETS, STATS, TRASH, countCls, rowCls } from "../constants";
+import { ASSETS, TRASH, countCls, rowCls } from "../constants";
 import { AccountMenu } from "./AccountMenu";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 足迹 / 图片库 / 回收站三个入口的行样式与分类行一致，但没有展开箭头与拖拽 */
+/** 图片库 / 回收站两个入口的行样式与分类行一致，但没有展开箭头与拖拽 */
 function SimpleRow({
   ws,
   viewKey,
@@ -52,7 +52,6 @@ export function SidebarFooter({
     <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
       {auth.loggedIn ? (
         <>
-          <SimpleRow ws={ws} viewKey={STATS} label="写作足迹" count={null} icon={<Footprints size={14} />} />
           <SimpleRow ws={ws} viewKey={ASSETS} label="图片库" count={null} icon={<Images size={14} />} />
           <SimpleRow
             ws={ws}

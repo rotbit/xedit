@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ALL, ASSETS, STATS, TRASH, isVirtualCat } from "../constants";
+import { ALL, ASSETS, TRASH, isVirtualCat } from "../constants";
 import type { SidebarPrefs } from "./useSidebarPrefs";
 
 interface Params {
@@ -36,12 +36,12 @@ export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
     if (urlDoc) window.history.replaceState(null, "", "/");
   }, [urlDoc]);
 
-  /** 侧栏全局搜索：在阅读/足迹/图片库视图里输入时先切回文章列表 */
+  /** 侧栏全局搜索：在阅读/图片库视图里输入时先切回文章列表 */
   const onSearch = (v: string) => {
     setSearch(v);
     if (!v) return;
     if (readingId) setReadingId(null);
-    if (activeCat === STATS || activeCat === ASSETS) setActiveCat(ALL);
+    if (activeCat === ASSETS) setActiveCat(ALL);
   };
 
   const openCategory = (path: string) => {
