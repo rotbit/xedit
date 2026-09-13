@@ -425,17 +425,18 @@
 }
 
 /* 行首标记（# 与 >）：光标不在本行时整段被 Decoration.replace 收掉，不占任何宽度。
-   光标进来时才现出源码——为了让「出现/消失」都不推动正文，把它做成零宽盒并让内容
-   向左溢出，悬挂在文字左缘之外（行内缩留的 28px 正好接住） */
+   光标进来时才现出源码——为了让「出现/消失」都不推动正文，盒子按记号字符数定宽
+   （--lp-mark 由 livePreview 按 N ch 写入），再用等量负 margin 把它整个挪到文字左缘
+   之外，对行内布局的净贡献为零（行内缩留的 28px 正好接住）。
+   不能用 direction:rtl 的零宽盒来做左溢出：rtl 盒的逻辑末尾在视觉左侧，
+   标题行为空时光标停在 "# " 之后会被画到 # 的左边，一打字又跳回右边 */
 .cm-live-preview .cm-lp-mark {
   display: inline-block;
-  width: 0;
-  overflow: visible;
-  /* 零宽盒里的内容只会向行尾方向溢出，text-align 管不了溢出方向；
-     把盒子本身设成 rtl，溢出就翻到左边，整段挂进左侧空白里。
-     子元素再切回 ltr 并隔离，保证 "## " 的字符顺序不被双向算法打乱 */
-  direction: rtl;
+  box-sizing: content-box;
+  width: var(--lp-mark, 2ch);
   padding-right: 2px;
+  margin-left: calc(-1 * var(--lp-mark, 2ch) - 2px);
+  overflow: visible;
   white-space: pre;
   font-family: var(--mono);
   font-size: 12px;
@@ -443,10 +444,6 @@
   line-height: inherit;
   color: var(--ink-faint);
   opacity: 0.45;
-}
-.cm-live-preview .cm-lp-mark > * {
-  direction: ltr;
-  unicode-bidi: isolate;
 }
 
 /* 行内标记（**、*、~~、`）：光标进来才现出，缩小 + 挤字距把它占的宽度压到最小，

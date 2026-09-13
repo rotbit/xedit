@@ -42,7 +42,13 @@ function headMark(ctx: LpContext, from: number, to: number) {
   const end = ctx.state.sliceDoc(to, to + 1) === " " ? to + 1 : to;
   if (from >= end) return;
   if (ctx.lineActive(from)) {
-    ctx.decos.push(Decoration.mark({ class: "cm-lp-mark" }).range(from, end));
+    // 盒宽按字符数定死（等宽字体），CSS 据此用负 margin 把整段挂到正文左缘之外
+    ctx.decos.push(
+      Decoration.mark({
+        class: "cm-lp-mark",
+        attributes: { style: `--lp-mark:${end - from}ch` },
+      }).range(from, end)
+    );
   } else {
     ctx.hide(from, end);
   }
