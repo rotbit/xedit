@@ -2,7 +2,6 @@
 
 import { FileText, MoreHorizontal } from "lucide-react";
 import { UNCATEGORIZED } from "../constants";
-import { catColorOf } from "../lib/catTree";
 import { formatTime } from "../lib/docSource";
 import { DocContextMenu } from "./DocContextMenu";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -29,12 +28,8 @@ export function DocListView({ ws }: { ws: Workspace }) {
             <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-[var(--ink)]">
               {doc.title || "未命名文章"}
             </span>
-            <span className="hidden max-w-[160px] items-center gap-1.5 text-[11.5px] text-[var(--ink-soft)] sm:flex">
-              <span
-                className="h-[7px] w-[7px] shrink-0 rounded-full"
-                style={{ background: catColorOf(cat) }}
-              />
-              <span className="truncate">{cat}</span>
+            <span className="hidden max-w-[160px] truncate text-[11.5px] text-[var(--ink-soft)] sm:block">
+              {cat}
             </span>
             <span className="hidden w-16 shrink-0 text-right text-[11.5px] text-[var(--ink-faint)] sm:block">
               {typeof doc.chars === "number" && doc.chars > 0
