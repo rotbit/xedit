@@ -1,22 +1,20 @@
 "use client";
 
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-} from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { EditorState, Compartment, type Text } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { reportScrollLine, scrollLineIntoView } from "@/lib/editorScroll";
 import { useThrottledCallback } from "@/hooks/useThrottledCallback";
+import { useMenuChannel } from "@/hooks/useMenuChannel";
 import { runFormatCommand } from "@/lib/editorCommands";
 import type { EditorHandle, SelectionInfo } from "@/lib/editorTypes";
 import { createEditorExtensions, editorModeExtension } from "@/lib/editorExtensions";
 import { preloadClipboardConverter } from "@/lib/editorClipboard";
 import type { SlashState } from "@/lib/slashMenu";
+import type { WikiMenuState } from "@/lib/wikiLinkMenu";
+import type { DocMeta } from "@/features/workspace/types";
 import { SlashMenu } from "./SlashMenu";
+import { WikiLinkMenu } from "./WikiLinkMenu";
 
 interface Props {
   /** 文档切换时变化，触发编辑器内容重置 */
@@ -29,6 +27,8 @@ interface Props {
    * 此时 .cm-scroller 不再滚动（overflow:visible），滚动读写都要改指向它。
    */
   scrollParent?: HTMLElement | null;
+  /** 全部文章：输入 `[[` 时按标题补全的候选来源 */
+  docs?: DocMeta[];
   onChange: (content: string) => void;
   onScrollLine?: (line: number, ratio: number) => void;
   /** 选区/焦点变化时上报（编辑器卸载时上报 null），供浮动工具条订阅 */
@@ -45,6 +45,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     initialContent,
     live = false,
     scrollParent,
+    docs,
     onChange,
     onScrollLine,
     onSelectionChange,
@@ -57,32 +58,22 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   const onScrollLineRef = useRef(onScrollLine);
   const onSelectionChangeRef = useRef(onSelectionChange);
   const scrollParentRef = useRef<HTMLElement | null>(null);
+  const docsRef = useRef<DocMeta[] | undefined>(undefined);
   const liveCompartment = useRef(new Compartment());
   const liveRef = useRef(live);
   onChangeRef.current = onChange;
   onScrollLineRef.current = onScrollLine;
   onSelectionChangeRef.current = onSelectionChange;
   scrollParentRef.current = scrollParent ?? null;
+  docsRef.current = docs;
   liveRef.current = live;
 
-  // 斜杠菜单状态走订阅下发：真相在 CodeMirror 的 StateField 里，这里只把变化转给
-  // <SlashMenu> 自己 setState。若改成 props 往上抬，每敲一个过滤字符都要重渲染整篇文章视图
-  const slashCbRef = useRef<((s: SlashState | null) => void) | null>(null);
-  const slashStateRef = useRef<SlashState | null>(null);
-  const emitSlash = useRef((s: SlashState | null) => {
-    slashStateRef.current = s;
-    slashCbRef.current?.(s);
-  }).current;
-  const subscribeSlash = useCallback(
-    (cb: (s: SlashState | null) => void) => {
-      slashCbRef.current = cb;
-      cb(slashStateRef.current);
-      return () => {
-        slashCbRef.current = null;
-      };
-    },
-    []
-  );
+  // 两块浮层菜单的状态走订阅下发：真相在 CodeMirror 的 StateField 里，这里只把变化转给
+  // 菜单组件自己 setState。若改成 props 往上抬，每敲一个过滤字符都要重渲染整篇文章视图
+  const slash = useMenuChannel<SlashState>();
+  const wiki = useMenuChannel<WikiMenuState>();
+  const emitSlash = slash.emit;
+  const emitWiki = wiki.emit;
 
   // 每次击键都把整篇正文推上去 = 整个文章视图跟着重渲染，合并成 ~120ms 一次
   // Text 是不可变快照：只在节流窗口结束时转换全文，避免每个按键分配大字符串。
@@ -109,6 +100,8 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         live: liveRef.current,
         liveCompartment: liveCompartment.current,
         onSlashChange: emitSlash,
+        onWikiMenuChange: emitWiki,
+        getDocs: () => docsRef.current ?? [],
         onChange: pushChange,
         flush: pushChange.flush,
         onSelectionChange: (info) => onSelectionChangeRef.current?.(info),
@@ -132,6 +125,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       // 切文档/卸载后旧选区已失效，明确清一次，别让工具条/斜杠菜单挂在空中
       onSelectionChangeRef.current?.(null);
       emitSlash(null);
+      emitWiki(null);
     };
     // docKey 变化时整体重建编辑器（切换文档）
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -187,7 +181,13 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     <>
       <div ref={containerRef} className="h-full min-h-0" />
       {/* 菜单 portal 到 body，放在这里只是为了拿到 viewRef，不参与布局 */}
-      <SlashMenu subscribe={subscribeSlash} viewRef={viewRef} scrollEl={scrollParent ?? null} />
+      <SlashMenu subscribe={slash.subscribe} viewRef={viewRef} scrollEl={scrollParent ?? null} />
+      <WikiLinkMenu
+        subscribe={wiki.subscribe}
+        viewRef={viewRef}
+        scrollEl={scrollParent ?? null}
+        docs={docs}
+      />
     </>
   );
 });

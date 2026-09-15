@@ -83,7 +83,12 @@ export function useEditorSave() {
   }, []);
 
   useEffect(() => {
-    const handler = () => void saveNow();
+    const handler = (e: Event) => {
+      // 切标签前的落盘只是借这条事件让编辑器把节流中的输入吐进 store，
+      // 保存由发起方（useWorkspaceNav）就地完成，这里不该再弹提示、归档手动版本
+      if ((e as CustomEvent<{ flushOnly?: boolean }>).detail?.flushOnly) return;
+      void saveNow();
+    };
     window.addEventListener("xedit:save-now", handler);
     return () => window.removeEventListener("xedit:save-now", handler);
   }, []);

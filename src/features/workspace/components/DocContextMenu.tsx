@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { BookUp, PenLine, TextCursorInput, Trash2, FolderInput, FolderPlus } from "lucide-react";
 import { askCategoryPick } from "@/components/CategoryPickDialog";
+import { useEscape } from "@/hooks/useEscape";
 import { menuDangerCls, menuItemCls } from "../constants";
 import { allCategories } from "../lib/catTree";
 import type { DocMeta } from "../types";
@@ -23,7 +24,10 @@ export function DocContextMenu({
 }) {
   const { menus, nav, library, docActions, auth } = ws;
   const anchor = menus.docMenu;
-  if (anchor?.id !== doc.id) return null;
+  const mine = anchor?.id === doc.id;
+  // Esc 关菜单：和弹窗、斜杠菜单一致，别让用户去找空白处点
+  useEscape(menus.closeDocMenu, mine);
+  if (!mine) return null;
 
   const run = (fn: () => void) => () => {
     menus.closeDocMenu();

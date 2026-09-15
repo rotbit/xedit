@@ -3,6 +3,7 @@ import { Decoration } from "@codemirror/view";
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreviewWidgets";
 import { caretInside, caretTouches, type LpContext } from "@/lib/livePreviewContext";
+import { normalizeTag } from "@/lib/frontmatter";
 
 /**
  * 行内语法的即时渲染分支（强调、行内代码、删除线、链接、颜色 span、图片/视频、分割线）。
@@ -34,6 +35,8 @@ export const INLINE_NODE_NAMES = new Set([
   "URL",
   "Image",
   "HorizontalRule",
+  "WikiLink",
+  "Tag",
 ]);
 
 /** 返回 false 表示不再深入子节点（与 CodeMirror iterate 的约定一致） */
@@ -143,6 +146,53 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
       }).range(node.from, node.to)
     );
     return;
+  }
+
+  if (name === "WikiLink") {
+    // `[[目标]]` / `[[目标|显示文字]]`：渲染成只剩显示文字的站内链接。
+    // 子节点已在这里整体处理完，返回 false 不再深入
+    const n = node.node;
+    const marks = n.getChildren("WikiLinkMark");
+    if (caretTouches(caret, node.from, node.to)) {
+      softenMarks(ctx, marks); // 编辑时现出 [[ | ]]，与其他行内标记同一套淡化处理
+      return false;
+    }
+    const targetNode = n.getChild("WikiLinkTarget");
+    const aliasNode = n.getChild("WikiLinkAlias");
+    const target = targetNode ? state.sliceDoc(targetNode.from, targetNode.to).trim() : "";
+    if (!target) return false;
+    for (const m of marks) ctx.hide(m.from, m.to);
+    // 有别名时目标标题也一并藏起来，只留别名——与 Obsidian 的显示一致
+    if (aliasNode && targetNode) ctx.hide(targetNode.from, targetNode.to);
+    const textFrom = aliasNode ? aliasNode.from : targetNode?.from;
+    const textTo = aliasNode ? aliasNode.to : targetNode?.to;
+    if (textFrom !== undefined && textTo !== undefined && textTo > textFrom) {
+      ctx.decos.push(
+        Decoration.mark({
+          class: "cm-lp-wikilink",
+          attributes: {
+            "data-lp-wiki": target,
+            title: `打开「${target}」 · ⌥+点击编辑`,
+          },
+        }).range(textFrom, textTo)
+      );
+    }
+    return false;
+  }
+
+  if (name === "Tag") {
+    // `#标签`：渲染成小胶囊。这里没有任何记号要藏（原文就是要显示的那几个字），
+    // 光标贴上来时撤掉装饰，只是为了让编辑中的那一个标签回到纯文本、不被胶囊内边距推着走
+    if (caretTouches(caret, node.from, node.to)) return false;
+    const tag = normalizeTag(state.sliceDoc(node.from, node.to));
+    if (!tag) return false;
+    ctx.decos.push(
+      Decoration.mark({
+        class: "cm-lp-tag",
+        attributes: { "data-lp-tag": tag, title: `筛出 #${tag} 的文章` },
+      }).range(node.from, node.to)
+    );
+    return false;
   }
 
   if (name === "Image") {

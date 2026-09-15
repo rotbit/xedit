@@ -63,9 +63,9 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 
   /** 本地建稿（未登录，或登录但离线——联网后由同步引擎自动上云） */
-  const createDocLocally = (cat: string, relist: () => DocMeta[]) => {
+  const createDocLocally = (cat: string, relist: () => DocMeta[], title?: string) => {
     try {
-      const doc = createLocalDoc({ category: cat });
+      const doc = createLocalDoc({ category: cat, title });
       setDocs(relist());
       nav.openDoc(doc.id);
     } catch {
@@ -73,17 +73,19 @@ export function useDocActions({ auth, library, nav }: Params) {
     }
   };
 
-  const createDoc = async (category?: string) => {
+  /** @param init 预填字段；目前只有标题（`[[双向链接]]` 指向不存在的文章时按目标标题建稿） */
+  const createDoc = async (category?: string, init?: { title?: string }) => {
     const cat = category ?? (isVirtualCat(nav.activeCat) ? UNCATEGORIZED : nav.activeCat);
-    if (localMode) return createDocLocally(cat, listLocalDocs);
-    if (!online) return createDocLocally(cat, mergedCloudList);
+    const title = init?.title?.trim() || "未命名文章";
+    if (localMode) return createDocLocally(cat, listLocalDocs, title);
+    if (!online) return createDocLocally(cat, mergedCloudList, title);
 
     setCreating(true);
     try {
       const res = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "未命名文章", content: "", category: cat }),
+        body: JSON.stringify({ title, content: "", category: cat }),
       });
       if (!res.ok) throw new Error();
       const doc = await res.json();
@@ -109,8 +111,8 @@ export function useDocActions({ auth, library, nav }: Params) {
       if (!ok) return;
       deleteLocalDoc(doc.id);
       setDocs(listLocalDocs());
-      // 删的是正打开的文章：退回列表，避免残留空白阅读器
-      if (nav.readingId === doc.id) nav.setReadingId(null);
+      // 删掉的文章不该还占着标签：关掉它（是激活的那个就顺位切到邻居）
+      nav.closeTab(doc.id);
       toast("已删除", "success");
       return;
     }
@@ -129,7 +131,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     if (res.ok) {
       removeMirrorDoc(doc.id);
       setDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      if (nav.readingId === doc.id) nav.setReadingId(null);
+      nav.closeTab(doc.id);
       toast("已移入回收站", "success");
     } else {
       toast("删除失败", "error");

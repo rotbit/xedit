@@ -356,6 +356,18 @@
   text-underline-offset: 3px;
 }
 
+/* [[双向链接]]：与外链同色，但底下常驻一条虚线——
+   虚线是「站内跳转」的通用语汇（Obsidian / Roam 都这么画），
+   一眼能和打开浏览器的外链区分开；悬停转实线表示可点 */
+.cm-live-preview .cm-lp-wikilink {
+  color: var(--md-link);
+  cursor: pointer;
+  border-bottom: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
+}
+.cm-live-preview .cm-lp-wikilink:hover {
+  border-bottom-style: solid;
+}
+
 /* ================= 第一期：版式节奏重建 ================= */
 
 /* 正文基准：字号 16px、行高 1.75。

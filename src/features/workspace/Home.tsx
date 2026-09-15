@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
@@ -10,6 +10,7 @@ import { createLocalDoc, listLocalDocs } from "@/lib/localDocs";
 import { Toaster, toast } from "@/components/Toast";
 import { openAuth } from "@/components/AuthDialog";
 import { LogoMark } from "@/components/LogoMark";
+import { QuickSwitcher } from "@/components/QuickSwitcher";
 import { LandingActionsProvider } from "@/features/landing/LandingActions";
 import { CategoryContextMenu } from "./components/CategoryContextMenu";
 import { Sidebar } from "./components/Sidebar";
@@ -35,8 +36,53 @@ export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
   const { auth, prefs, library, nav } = ws;
   const [feishuOpen, setFeishuOpen] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const feishuSync = useFeishuSync();
   const hydrated = useHydrated();
+
+  const hasWorkspace =
+    auth.loggedIn || auth.offlineAuthed || (auth.localMode && (library.docs?.length ?? 0) > 0);
+
+  /** 标签栏里真正显示的那几个：记忆里可能留着已被删掉的 id，切换时别落到它们身上 */
+  const openTabs = useMemo(() => {
+    const ids = new Set((library.docs ?? []).map((d) => d.id));
+    return nav.tabs.filter((id) => ids.has(id));
+  }, [nav.tabs, library.docs]);
+
+  // 全局快捷键：⌘O/⌘P 快速切换器、⌘⇧[ / ⌘⇧] 切标签、⌘W 关标签。
+  // capture 阶段抢在浏览器打印/打开之前（同 useEditorViewMode 的 ⌘E），编辑器有焦点时同样生效。
+  // 只在有工作台时挂：落地页上没有文章可切，更不该把 ⌘P 的打印抢掉
+  useEffect(() => {
+    if (!hasWorkspace) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.shiftKey) {
+        // 带 Shift 时 e.key 在多数布局下已经是 } / {，两种写法都收
+        const dir = "]}".includes(e.key) ? 1 : "[{".includes(e.key) ? -1 : 0;
+        if (dir === 0 || openTabs.length < 2) return;
+        e.preventDefault();
+        nav.nextTab(dir as 1 | -1, openTabs);
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (key === "o" || key === "p") {
+        e.preventDefault();
+        setSwitcherOpen(true);
+        return;
+      }
+      // ⌘W 关当前标签：浏览器里抢不到（Chrome 一律关标签页），只在桌面壳里绑
+      if (
+        key === "w" &&
+        nav.readingId &&
+        document.documentElement.classList.contains("desktop-mac")
+      ) {
+        e.preventDefault();
+        nav.closeTab(nav.readingId);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [hasWorkspace, nav, openTabs]);
 
   // 旧 /edit 链接与桌面端「新建文章 Cmd+N」带 ?new=1 进来：会话就绪后直接建一篇新稿
   const searchParams = useSearchParams();
@@ -93,9 +139,6 @@ export function Home({ landing }: HomeProps) {
     );
   }
 
-  const hasWorkspace =
-    auth.loggedIn || auth.offlineAuthed || (auth.localMode && (library.docs?.length ?? 0) > 0);
-
   if (!hasWorkspace) {
     return (
       <>
@@ -149,6 +192,15 @@ export function Home({ landing }: HomeProps) {
         </button>
       ) : null}
       <CategoryContextMenu ws={ws} />
+      <QuickSwitcher
+        open={switcherOpen}
+        docs={library.docs ?? []}
+        onClose={() => setSwitcherOpen(false)}
+        onOpen={(id) => {
+          setSwitcherOpen(false);
+          nav.openDoc(id);
+        }}
+      />
       {feishuOpen ? (
         <FeishuDialog
           onClose={() => {

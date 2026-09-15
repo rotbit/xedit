@@ -23,6 +23,8 @@ import { INLINE_NODE_NAMES, inlineDecorations } from "@/lib/livePreviewInline";
 import { fencedCodeDecorations } from "@/lib/livePreviewFence";
 import { fenceKeymap } from "@/lib/livePreviewFenceKeys";
 import { livePreviewBlocks, renderedBlockRanges } from "@/lib/livePreviewBlocks";
+import { requestOpenWikiLink } from "@/lib/wikiLink";
+import { requestOpenTag } from "@/lib/tagEvents";
 
 /**
  * 即时渲染（类 Obsidian Live Preview）——节点级还原策略：
@@ -335,10 +337,24 @@ export const livePreview: Extension = [
     mousedown: (e) => {
       // 链接点击即打开；⌥+点击放行给 CodeMirror 定位光标（还原源码可编辑）
       if (e.button !== 0 || e.altKey) return false;
-      const el = (e.target as HTMLElement).closest?.("[data-lp-href]");
-      const href = el?.getAttribute("data-lp-href");
+      const dom = e.target as HTMLElement;
+      const href = dom.closest?.("[data-lp-href]")?.getAttribute("data-lp-href");
       if (href) {
         window.open(href, "_blank", "noopener");
+        e.preventDefault();
+        return true;
+      }
+      // [[双向链接]]：编辑器不认识文库，派事件让应用层按标题找文章
+      const wiki = dom.closest?.("[data-lp-wiki]")?.getAttribute("data-lp-wiki");
+      if (wiki) {
+        requestOpenWikiLink(wiki);
+        e.preventDefault();
+        return true;
+      }
+      // #标签：同理，派事件让侧栏把搜索框换成该标签
+      const tag = dom.closest?.("[data-lp-tag]")?.getAttribute("data-lp-tag");
+      if (tag) {
+        requestOpenTag(tag);
         e.preventDefault();
         return true;
       }
