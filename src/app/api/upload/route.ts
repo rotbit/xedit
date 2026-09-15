@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ossConfigured, ossPut } from "@/lib/oss";
-import { IMAGE_EXT, MAX_IMAGE_SIZE, isVideoMime } from "@/lib/media";
+import { IMAGE_EXT, MAX_IMAGE_SIZE, isVideoMime, parseImageDimensions } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 import { uploadBlocked } from "@/lib/guards";
 
@@ -40,11 +40,20 @@ export async function POST(req: Request) {
   const blocked = await uploadBlocked(session.user.id, file.size);
   if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
 
+  // 浏览器读出的像素尺寸，随 FormData 带上来；缺失或不合法就留空，等前端展示时补录
+  const dims = parseImageDimensions(formData.get("width"), formData.get("height"));
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const { url, key } = await ossPut(buffer, ext, file.type);
     await prisma.asset.create({
-      data: { userId: session.user.id, key, url, size: file.size, mime: file.type },
+      data: {
+        userId: session.user.id,
+        key,
+        url,
+        size: file.size,
+        mime: file.type,
+        ...(dims ?? {}),
+      },
     });
     return NextResponse.json({ url });
   } catch (e) {

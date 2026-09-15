@@ -9,7 +9,13 @@ import {
   ossUrlOf,
   OSS_KEY_PATTERN,
 } from "@/lib/oss";
-import { MEDIA_EXT, MIME_BY_EXT, maxSizeOf, sizeLimitError } from "@/lib/media";
+import {
+  MEDIA_EXT,
+  MIME_BY_EXT,
+  maxSizeOf,
+  parseImageDimensions,
+  sizeLimitError,
+} from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 import { uploadBlocked } from "@/lib/guards";
 
@@ -80,11 +86,13 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: blocked }, { status: 403 });
   }
 
+  // 浏览器读出的像素尺寸，可缺；不合法就忽略，update 时也不覆盖已有值
+  const dims = parseImageDimensions(body?.width, body?.height);
   const url = ossUrlOf(key);
   await prisma.asset.upsert({
     where: { userId_key: { userId, key } },
-    update: { url, size: stat.size, mime: stat.mime },
-    create: { userId, key, url, size: stat.size, mime: stat.mime },
+    update: { url, size: stat.size, mime: stat.mime, ...(dims ?? {}) },
+    create: { userId, key, url, size: stat.size, mime: stat.mime, ...(dims ?? {}) },
   });
   return NextResponse.json({ url });
 }
