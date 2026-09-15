@@ -14,6 +14,9 @@ export interface Asset {
   mime: string;
   source: string;
   createdAt: string;
+  /** 像素尺寸：入库时没记的历史文件为 null，由网格里的缩略图量出来后补录 */
+  width: number | null;
+  height: number | null;
 }
 
 /** 引用该素材的文章（/api/assets/[id]/usage） */
