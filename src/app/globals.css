@@ -173,7 +173,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* —— 细滚动条：平时隐形，鼠标停在可滚区域上才显出滑块（Obsidian 同款）——
+/* —— 细滚动条：平时隐形，只在滚动时浮现、停下即淡出（Obsidian 同款）——
+   is-scrolling 由 ScrollbarReveal 打上；鼠标直接压在滑块位置也显出来，方便拖。
    轨道宽度不变，只切滑块颜色，出现时不会挤动内容 */
 ::-webkit-scrollbar {
   width: 8px;
@@ -183,7 +184,7 @@ body {
   background: transparent;
   border-radius: 4px;
 }
-:hover::-webkit-scrollbar-thumb {
+.is-scrolling::-webkit-scrollbar-thumb {
   background: var(--hairline-strong);
 }
 ::-webkit-scrollbar-thumb:hover {

@@ -37,7 +37,7 @@ export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth:
           width: `calc(100% - ${rowInset(depth)}px)`,
           paddingLeft: "25px",
         }}
-        onClick={(e) => nav.openDoc(doc.id, { newTab: e.metaKey || e.ctrlKey })}
+        onClick={() => nav.openDoc(doc.id)}
         onContextMenu={(e) => menus.openDocMenuAt(e, doc.id)}
         title={doc.title}
       >
