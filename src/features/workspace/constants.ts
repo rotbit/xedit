@@ -41,12 +41,6 @@ export function rowCls(active: boolean): string {
     : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]";
 }
 
-/** 侧栏统计行右侧的小工具按钮（刷新、新建）。
- *  圆角另给：拼成 split button 时左右两半各自只圆一边 */
-export const toolBtnBase =
-  "flex h-6 cursor-pointer items-center justify-center text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-active)] disabled:opacity-60";
-export const toolBtnCls = `${toolBtnBase} w-6 rounded-md`;
-
 /** 侧栏行右侧计数气泡样式 */
 export function countCls(active: boolean): string {
   return active ? "bg-[var(--panel)]/70 text-[var(--accent-deep)]" : "text-[var(--ink-faint)]";
