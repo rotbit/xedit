@@ -192,7 +192,20 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     };
   }, [loggedIn, offlineAuthed]);
 
-  // 回收站列表（进入回收站时拉取）
+  // 回收站列表（进入回收站时拉取）：本地模式读 Vault 的 .trash/，登录态问服务端
+  useEffect(() => {
+    if (activeCat !== TRASH || !localMode) return;
+    const refresh = () => {
+      const vault = getActiveVault();
+      // 浏览器存储没有回收站（删除即删除），列表留空由 DocListStates 出空文案
+      setTrashDocs(vault ? vault.listTrash() : []);
+    };
+    // effect 里不能同步 setState（react-hooks/set-state-in-effect），推到微任务
+    queueMicrotask(refresh);
+    window.addEventListener(DOCS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(DOCS_CHANGED_EVENT, refresh);
+  }, [activeCat, localMode]);
+
   useEffect(() => {
     if (activeCat !== TRASH || !loggedIn) return;
     let cancelled = false;

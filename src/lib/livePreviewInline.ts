@@ -1,5 +1,6 @@
 import type { SyntaxNode, SyntaxNodeRef } from "@lezer/common";
 import { Decoration } from "@codemirror/view";
+import { isAttachmentSrc, resolveAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreviewWidgets";
 import { caretInside, caretTouches, type LpContext } from "@/lib/livePreviewContext";
@@ -191,9 +192,12 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
         const rawTitle = titleNode
           ? state.sliceDoc(titleNode.from, titleNode.to).replace(/^["'(]|["')]$/g, "")
           : "";
+        // 磁盘文库里的相对路径（attachments/…）换成能显示的 object URL；还没读出来先留原样，
+        // 附件解析好后 livePreview 会收到刷新事件重建部件（src 变了 eq 不成立）
+        const shown = isAttachmentSrc(src) ? (resolveAttachmentSrc(src) ?? src) : src;
         const widget = isVideoUrl(src)
-          ? new VideoWidget(src, alt, posterFromTitle(rawTitle))
-          : new ImageWidget(src, alt);
+          ? new VideoWidget(shown, alt, posterFromTitle(rawTitle))
+          : new ImageWidget(shown, alt);
         ctx.replaceAtomic(node.from, node.to, widget);
       }
     }

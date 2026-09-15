@@ -10,6 +10,7 @@ import {
 } from "@codemirror/view";
 import { BulletWidget, CalloutBadgeWidget, CheckboxWidget } from "@/lib/livePreviewWidgets";
 import { calloutStyle, parseCalloutHead } from "@/lib/callout";
+import { ATTACHMENTS_RESOLVED_EVENT } from "@/lib/localBackend/attachmentUrls";
 import {
   caretInFencedCode,
   caretPositions,
@@ -370,8 +371,23 @@ const livePreviewPlugin = ViewPlugin.fromClass(
   }
 );
 
+/**
+ * 本地文库的附件图片是异步读出来的：读到一批就空转一次事务，
+ * 装饰重建时图片部件拿到新的 object URL（src 变了 eq 不成立，部件随之重建）。
+ */
+const attachmentRefresh = ViewPlugin.define((view) => {
+  const onResolved = () => view.dispatch({ effects: refreshLivePreview.of(null) });
+  window.addEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
+  return {
+    destroy() {
+      window.removeEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
+    },
+  };
+});
+
 export const livePreview: Extension = [
   livePreviewPlugin,
+  attachmentRefresh,
   caretInCodeAttr,
   livePreviewBlocks,
   // 图片/分割线按整体跳过：上下键路过时光标停在两侧边界，部件不还原、不跳动

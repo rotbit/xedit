@@ -3,6 +3,7 @@
  * 打开时整库读进内存，所以 LocalBackend 那些同步读照样能用；写入全部丢进一条串行队列，
  * 界面不等磁盘。id 用 "local-v:<相对路径>"，既让 isLocalId 成立，又天然带着位置信息；
  * 改名/搬家只改 entry.relPath，会话内 id 保持不变，免得编辑器手里的 id 突然失效。
+ * 回收站、附件、磁盘对账分别在 vaultTrash / vaultAttachments / vaultRescan，这里只做组装。
  */
 
 import { toast } from "@/components/Toast";
@@ -14,18 +15,36 @@ import {
   type LocalBackend,
   type LocalDocMeta,
 } from "./types";
+import { createAttachments } from "./vaultAttachments";
+import {
+  addCat,
+  catDir,
+  join,
+  makeEntry,
+  stripMd,
+  uniqueDocId,
+  uniqueName,
+  type Entry,
+  type VaultCtx,
+} from "./vaultEntry";
 import {
   baseName,
+  fileMtime,
   getDirectory,
   moveDirectory,
   moveFile,
   parentPath,
   readTextFile,
+  readVaultFiles,
   removeEntry,
   sanitizeFileName,
   walkVault,
   writeTextFile,
 } from "./vaultFs";
+import { createRescanner, type RescanResult } from "./vaultRescan";
+import { createTrash, loadTrash } from "./vaultTrash";
+
+export type { RescanResult };
 
 export interface VaultBackend extends LocalBackend {
   readonly kind: "vault";
@@ -36,37 +55,26 @@ export interface VaultBackend extends LocalBackend {
   saveOrder(o: unknown): void;
   /** 等当前写队列排空，关库前调用 */
   flush(): Promise<void>;
+  /** 与磁盘对账：外部（Obsidian 等）新增/修改/删除的文件反映进缓存。返回变动的文档 id */
+  rescan(): Promise<RescanResult>;
+  /** 回收站列表，与 listDocs 一样给副本 */
+  listTrash(): LocalDocMeta[];
+  /** 还原回原路径（撞名加后缀、目录没了就重建），返回新的 meta；id 不在回收站里返回 null */
+  restoreFromTrash(id: string): LocalDocMeta | null;
+  /** 彻底删掉回收站里的一篇 */
+  purgeFromTrash(id: string): void;
+  /** 清空回收站 */
+  emptyTrash(): void;
+  /** 把图片等二进制写进 attachments/，返回相对 vault 根的路径（如 "attachments/xxx.png"） */
+  saveAttachment(file: Blob, suggestedName: string): Promise<string>;
+  /** 读附件为 object URL（缓存，同一路径只建一次），不存在返回 null */
+  getAttachmentUrl(relPath: string): Promise<string | null>;
 }
 
-const ID_PREFIX = "local-v:";
 const ORDER_DIR = ".xedit";
 const ORDER_FILE = "order.json";
-/** 一次并发读 16 个文件：再多也就是把文件句柄堆着 */
-const READ_CHUNK = 16;
 /** 写失败的提示节流，避免一串失败刷满屏 */
 const TOAST_GAP = 3000;
-
-type Entry = { meta: LocalDocMeta; content: string; relPath: string };
-
-/** 分类 → 目录相对路径：未分类就是库根 */
-const catDir = (cat: string): string => (cat === UNCATEGORIZED ? "" : cat);
-const join = (dir: string, name: string): string => (dir ? `${dir}/${name}` : name);
-const stripMd = (name: string): string => name.replace(/\.md$/i, "");
-
-function makeEntry(relPath: string, content: string, updatedAt: string): Entry {
-  const dir = parentPath(relPath);
-  return {
-    relPath,
-    content,
-    meta: {
-      id: ID_PREFIX + relPath,
-      title: stripMd(baseName(relPath)),
-      category: dir || UNCATEGORIZED,
-      updatedAt,
-      ...summarize(content),
-    },
-  };
-}
 
 async function readOrder(root: FileSystemDirectoryHandle): Promise<unknown> {
   try {
@@ -82,20 +90,11 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
   const { files, dirs } = await walkVault(root);
   const docs = new Map<string, Entry>();
   const cats = new Set<string>(dirs);
-
-  for (let i = 0; i < files.length; i += READ_CHUNK) {
-    const read = await Promise.all(
-      files.slice(i, i + READ_CHUNK).map(async (f) => {
-        const file = await f.handle.getFile();
-        return { path: f.path, text: await file.text(), at: file.lastModified };
-      })
-    );
-    for (const r of read) {
-      // updatedAt 只认文件 mtime：外部编辑器改过的也能正确排到前面
-      const entry = makeEntry(r.path, r.text, new Date(r.at).toISOString());
-      docs.set(entry.meta.id, entry);
-    }
-  }
+  await readVaultFiles(files, (path, mtime, text) => {
+    const entry = makeEntry(path, text ?? "", mtime);
+    docs.set(entry.meta.id, entry);
+  });
+  const trash = await loadTrash(root);
 
   let order = await readOrder(root);
   let queue: Promise<void> = Promise.resolve();
@@ -111,12 +110,6 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
     });
   }
 
-  /** 分类连同各级祖先一起登记，侧栏树中间层不会缺节点 */
-  function addCat(cat: string): void {
-    const segs = cat.split("/").filter(Boolean);
-    for (let i = 1; i <= segs.length; i++) cats.add(segs.slice(0, i).join("/"));
-  }
-
   function ensureDir(relPath: string): void {
     if (!relPath) return;
     enqueue(async () => {
@@ -124,18 +117,28 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
     });
   }
 
-  /** 同目录下撞名就追加 " 1"、" 2"…；skipId 是自己（改名时不该和自己撞） */
-  function uniqueName(dirPath: string, base: string, skipId: string | null): string {
-    const taken = new Set<string>();
-    for (const [id, e] of docs) {
-      if (id !== skipId && parentPath(e.relPath) === dirPath) {
-        taken.add(baseName(e.relPath).toLowerCase());
-      }
-    }
-    let name = `${base}.md`;
-    for (let n = 1; taken.has(name.toLowerCase()); n++) name = `${base} ${n}.md`;
-    return name;
+  /** 目录整体搬家之后逐篇回读 mtime：这些文件在磁盘上可能是复制出来的新文件，
+   *  不回读的话下一次对账会把它们全当成外部改动 */
+  function refreshMtimes(entries: Entry[]): void {
+    if (!entries.length) return;
+    enqueue(async () => {
+      for (const e of entries) e.mtime = await fileMtime(root, e.relPath);
+    });
   }
+
+  const ctx: VaultCtx = {
+    root,
+    docs,
+    trash,
+    cats,
+    enqueue,
+    flush: async () => {
+      await queue;
+    },
+  };
+  const trashOps = createTrash(ctx);
+  const attachments = createAttachments(root);
+  const rescan = createRescanner(ctx, attachments.clearUrls);
 
   const backend: VaultBackend = {
     kind: "vault",
@@ -156,23 +159,25 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       const content = init.content ?? "";
       const title = init.title?.slice(0, 200) || "未命名文章";
       const dirPath = catDir(category);
-      const name = uniqueName(dirPath, sanitizeFileName(title), null);
+      const name = uniqueName(docs.values(), dirPath, sanitizeFileName(title), null);
       const relPath = join(dirPath, name);
       const meta: LocalDocMeta = {
-        id: ID_PREFIX + relPath,
+        id: uniqueDocId(docs, relPath),
         // 文件名即标题：非法字符替换、撞名加后缀之后以磁盘上的名字为准，重开库不会变
         title: stripMd(name),
         category,
         updatedAt: new Date().toISOString(),
         ...summarize(content),
       };
-      // 缓存里放副本，返回的那份给调用方自己留着（后续改动不该顺着引用倒灌回去）
-      docs.set(meta.id, { meta: { ...meta }, content, relPath });
-      if (dirPath) addCat(category);
+      // 缓存里放副本，返回的那份给调用方自己留着（后续改动不该顺着引用倒灌回去）；
+      // mtime 先留 0，等队列里那次写落盘再回填
+      const entry: Entry = { meta: { ...meta }, content, relPath, mtime: 0 };
+      docs.set(meta.id, entry);
+      if (dirPath) addCat(cats, category);
       enqueue(async () => {
         const dir = await getDirectory(root, dirPath, true);
         if (!dir) throw new Error(`建不出目录 ${dirPath}`);
-        await writeTextFile(dir, name, content);
+        entry.mtime = await writeTextFile(dir, name, content);
       });
       return meta;
     },
@@ -188,13 +193,13 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
         const category = patch.category.trim() || UNCATEGORIZED;
         e.meta.category = category;
         dirPath = catDir(category);
-        if (dirPath) addCat(category);
+        if (dirPath) addCat(cats, category);
       }
       if (patch.title !== undefined) {
         const title = patch.title.slice(0, 200) || "未命名文章";
-        name = uniqueName(dirPath, sanitizeFileName(title), id);
+        name = uniqueName(docs.values(), dirPath, sanitizeFileName(title), id);
       } else if (dirPath !== parentPath(oldRel)) {
-        name = uniqueName(dirPath, stripMd(name), id);
+        name = uniqueName(docs.values(), dirPath, stripMd(name), id);
       }
       // 文件名即标题：清洗/去重之后以磁盘名为准，与重开库时读到的一致
       e.meta.title = stripMd(name);
@@ -210,7 +215,9 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       if (relPath !== oldRel) {
         // moveFile 自己会按需建目标目录
         e.relPath = relPath;
-        enqueue(() => moveFile(root, oldRel, relPath));
+        enqueue(async () => {
+          e.mtime = await moveFile(root, oldRel, relPath);
+        });
       }
       if (patch.content !== undefined) {
         const text = patch.content;
@@ -218,22 +225,18 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
         enqueue(async () => {
           const dir = await getDirectory(root, parentPath(relPath), true);
           if (!dir) throw new Error(`建不出目录 ${parentPath(relPath)}`);
-          await writeTextFile(dir, baseName(relPath), text);
+          e.mtime = await writeTextFile(dir, baseName(relPath), text);
         });
       }
       return true;
     },
 
+    /** 删除不真删：搬进 .trash，磁盘上的文件还在，用户还能还原 */
     deleteDoc(id: string) {
       const e = docs.get(id);
       if (!e) return;
       docs.delete(id);
-      const dirPath = parentPath(e.relPath);
-      const name = baseName(e.relPath);
-      enqueue(async () => {
-        const dir = await getDirectory(root, dirPath, false);
-        if (dir) await removeEntry(dir, name);
-      });
+      trashOps.moveToTrash(e);
     },
 
     listCats(): string[] {
@@ -245,7 +248,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       for (const raw of next) {
         const cat = raw.trim();
         if (!cat || cat === UNCATEGORIZED || cats.has(cat)) continue;
-        addCat(cat);
+        addCat(cats, cat);
         ensureDir(cat);
       }
     },
@@ -253,6 +256,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
     relocateCategory(from: string, to: string) {
       const remap = (c: string) =>
         c === from ? to : c.startsWith(`${from}/`) ? to + c.slice(from.length) : c;
+      const moved: Entry[] = [];
       for (const e of docs.values()) {
         const cat = e.meta.category || UNCATEGORIZED;
         const next = remap(cat);
@@ -260,13 +264,15 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
         // 文件跟着目录整体搬，不必逐篇 move；只改分类不刷新 updatedAt
         e.meta.category = next;
         e.relPath = join(catDir(next), baseName(e.relPath));
+        moved.push(e);
       }
       const remapped = [...cats].map(remap);
       cats.clear();
       for (const c of remapped) cats.add(c);
-      addCat(to);
+      addCat(cats, to);
       ensureDir(parentPath(to));
       enqueue(() => moveDirectory(root, from, to));
+      refreshMtimes(moved);
     },
 
     removeCategory(path: string) {
@@ -275,9 +281,11 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
         if (!inSub(e.meta.category || UNCATEGORIZED)) continue;
         e.meta.category = UNCATEGORIZED;
         const oldRel = e.relPath;
-        const relPath = uniqueName("", stripMd(baseName(oldRel)), e.meta.id);
+        const relPath = uniqueName(docs.values(), "", stripMd(baseName(oldRel)), e.meta.id);
         e.relPath = relPath;
-        enqueue(() => moveFile(root, oldRel, relPath));
+        enqueue(async () => {
+          e.mtime = await moveFile(root, oldRel, relPath);
+        });
       }
       for (const c of [...cats]) if (inSub(c)) cats.delete(c);
       enqueue(async () => {
@@ -302,6 +310,14 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
     async flush() {
       await queue;
     },
+
+    rescan,
+    listTrash: trashOps.listTrash,
+    restoreFromTrash: trashOps.restoreFromTrash,
+    purgeFromTrash: trashOps.purgeFromTrash,
+    emptyTrash: trashOps.emptyTrash,
+    saveAttachment: attachments.saveAttachment,
+    getAttachmentUrl: attachments.getAttachmentUrl,
   };
 
   return backend;
