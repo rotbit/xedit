@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 import { BookDown, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { clearMirror } from "@/lib/docStore";
+import { resetVaultSyncSession } from "@/lib/vaultSync/engine";
 import { toggleDark } from "@/components/DarkToggle";
 import { useEscape } from "@/hooks/useEscape";
 import { menuItemCls, menuPanelCls } from "../constants";
@@ -67,6 +68,8 @@ export function AccountMenu({
           onClick={run(() => {
             // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章
             clearMirror();
+            // 同步索引/映射都是这个账号这个库的，换个账号登进来一概不能用
+            resetVaultSyncSession();
             void signOut();
           })}
         >
