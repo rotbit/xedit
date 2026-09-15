@@ -18,6 +18,7 @@ import {
 } from "@/lib/localBackend/vaultSession";
 import { ASSETS, TRASH, countCls, rowCls } from "../constants";
 import { AccountMenu } from "./AccountMenu";
+import type { ImportMode } from "../hooks/useImportDocs";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /** 底部这排次要按钮：与工作台其他 ghost 按钮同款，压在深色侧栏上也够清楚 */
@@ -118,9 +119,11 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
 /** 侧栏底部：登录态是工具入口 + 账户，离线态是提示，本地模式是登录引导 */
 export function SidebarFooter({
   ws,
+  onImport,
   onOpenFeishu,
 }: {
   ws: Workspace;
+  onImport: (mode: ImportMode) => void;
   onOpenFeishu: () => void;
 }) {
   const { auth, menus, library, vault } = ws;
@@ -194,6 +197,7 @@ export function SidebarFooter({
                 anchor={menus.accountMenu}
                 user={auth.session?.user}
                 onClose={menus.closeAccountMenu}
+                onImport={onImport}
                 onOpenFeishu={onOpenFeishu}
               />
             ) : null}

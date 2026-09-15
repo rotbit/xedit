@@ -17,6 +17,7 @@ import { CategoryContextMenu } from "./components/CategoryContextMenu";
 import { Sidebar } from "./components/Sidebar";
 import { VaultGate } from "./components/VaultGate";
 import { WorkspaceContent } from "./components/WorkspaceContent";
+import type { ImportMode } from "./hooks/useImportDocs";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { useWorkspaceCommands } from "./hooks/useWorkspaceCommands";
 import { useHydrated } from "@/hooks/useHydrated";
@@ -25,6 +26,15 @@ const FeishuDialog = dynamic(
   () => import("@/components/FeishuDialog").then((m) => m.FeishuDialog),
   { ssr: false }
 );
+
+const ImportDialog = dynamic(
+  () => import("@/components/ImportDialog").then((m) => m.ImportDialog),
+  { ssr: false }
+);
+
+/** 外部（旧链接、桌面壳菜单栏）能触发的动作；`?new=1` 是 action=new 的老写法 */
+const URL_ACTIONS = ["new", "import-file", "import-folder", "feishu"] as const;
+type UrlAction = (typeof URL_ACTIONS)[number];
 
 interface HomeProps {
   /** 服务端渲染好的落地页；已登录时为 null（那条路径根本走不到落地页） */
@@ -39,6 +49,7 @@ export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
   const { auth, prefs, library, nav, vault } = ws;
   const [feishuOpen, setFeishuOpen] = useState(false);
+  const [importMode, setImportMode] = useState<ImportMode | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const feishuSync = useFeishuSync();
@@ -83,16 +94,23 @@ export function Home({ landing }: HomeProps) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [hasWorkspace]);
 
-  // 旧 /edit 链接与桌面端「新建文章 Cmd+N」带 ?new=1 进来：会话就绪后直接建一篇新稿
+  // 外部带动作进来（旧 /edit 链接的 ?new=1、桌面壳菜单栏的 ?action=…）：会话就绪后执行一次
   const searchParams = useSearchParams();
-  const newConsumed = useRef(false);
+  const actionConsumed = useRef(false);
   useEffect(() => {
-    if (newConsumed.current || searchParams.get("new") !== "1") return;
+    if (actionConsumed.current) return;
+    const raw = searchParams.get("action") ?? (searchParams.get("new") === "1" ? "new" : null);
+    if (!raw || !URL_ACTIONS.includes(raw as UrlAction)) return;
     if (auth.status === "loading") return;
-    newConsumed.current = true;
+    actionConsumed.current = true;
     window.history.replaceState(null, "", "/");
-    // 挪到宏任务里执行，创建动作内部的同步 setState 不属于本 effect
-    setTimeout(() => void ws.docActions.createDoc(), 0);
+    // 挪到宏任务里执行，动作内部的同步 setState 不属于本 effect
+    setTimeout(() => {
+      if (raw === "new") void ws.docActions.createDoc();
+      else if (raw === "import-file") setImportMode("file");
+      else if (raw === "import-folder") setImportMode("folder");
+      else if (raw === "feishu") setFeishuOpen(true);
+    }, 0);
   }, [searchParams, auth.status, ws]);
 
   // 只订阅「有无本地草稿」这个布尔值：直接订阅 content 会让每次击键都重渲染整个工作台树
@@ -174,7 +192,7 @@ export function Home({ landing }: HomeProps) {
           onClick={() => prefs.setSidebarOpen(false)}
         />
       ) : null}
-      <Sidebar ws={ws} onOpenFeishu={() => setFeishuOpen(true)} />
+      <Sidebar ws={ws} onImport={setImportMode} onOpenFeishu={() => setFeishuOpen(true)} />
       <WorkspaceContent ws={ws} />
       {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
       {!auth.online && !auth.localMode ? (
@@ -215,6 +233,13 @@ export function Home({ landing }: HomeProps) {
         }}
       />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {importMode ? (
+        <ImportDialog
+          mode={importMode}
+          importer={ws.importer}
+          onClose={() => setImportMode(null)}
+        />
+      ) : null}
       {feishuOpen ? (
         <FeishuDialog
           onClose={() => {
