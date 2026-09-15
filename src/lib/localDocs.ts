@@ -21,6 +21,17 @@ export function notifyDocsChanged() {
   window.dispatchEvent(new CustomEvent(DOCS_CHANGED_EVENT));
 }
 
+/**
+ * 当前打开的文档内容被整份换掉（如磁盘文件被外部改动后重新读入）：
+ * 编辑器听到后重挂载一次，CodeMirror 的文档才会换成 store 里的新内容。
+ */
+export const DOC_REPLACED_EVENT = "xedit:doc-replaced";
+
+export function notifyDocReplaced(docId: string) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(DOC_REPLACED_EVENT, { detail: docId }));
+}
+
 /** local- 前缀区分本地文档与云端 cuid */
 export const isLocalId = (id: string | null | undefined): boolean =>
   typeof id === "string" && id.startsWith("local-");

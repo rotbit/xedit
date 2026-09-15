@@ -4,6 +4,8 @@ import { EditorView } from "@codemirror/view";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { extractVideoPoster } from "@/lib/videoPoster";
 import { VIDEO_EXT, isVideoMime } from "@/lib/media";
+import { getActiveVault } from "@/lib/localBackend/vaultSession";
+import type { VaultBackend } from "@/lib/localBackend/vaultBackend";
 import {
   wrapSelection,
   toggleInlineFormat,
@@ -64,6 +66,23 @@ async function uploadVideoAndInsert(view: EditorView, file: File) {
   toast("视频已插入", "success");
 }
 
+/** 文件名里的空格和括号会把 Markdown 链接截断，逐字转义（读附件时会 decode 回去） */
+const encodeMdPath = (rel: string): string =>
+  rel.replace(/[ ()<>]/g, (c) => encodeURIComponent(c));
+
+/** 有磁盘文库时图片落 <vault>/attachments/，正文里只留相对路径：
+ *  不传云端，同一个库用 Obsidian 打开也显示得出来 */
+async function saveImageToVault(view: EditorView, vault: VaultBackend, file: File) {
+  try {
+    const rel = await vault.saveAttachment(file, file.name || "image.png");
+    const name = file.name.replace(/\.[^.]+$/, "");
+    insertAtCursor(view, `\n![${name}](${encodeMdPath(rel)})\n`);
+    toast("图片已存入文库 attachments/", "success");
+  } catch (e) {
+    toast(e instanceof Error ? e.message : "图片存入文库失败", "error");
+  }
+}
+
 export function handleMediaFiles(view: EditorView, files: FileList | File[]): boolean {
   const all = Array.from(files);
   const images = all.filter((f) => f.type.startsWith("image/"));
@@ -74,8 +93,14 @@ export function handleMediaFiles(view: EditorView, files: FileList | File[]): bo
   }
   if (images.length === 0 && videos.length === 0) return unsupported.length > 0;
 
-  if (images.length > 0) toast("图片上传中…");
+  // 视频仍然只能上传云端（正文里的本地相对路径进不了公众号），图片能落本地就落本地
+  const vault = getActiveVault();
+  if (images.length > 0 && !vault) toast("图片上传中…");
   for (const file of images) {
+    if (vault) {
+      void saveImageToVault(view, vault, file);
+      continue;
+    }
     void uploadMedia(file).then((url) => {
       if (!url) return;
       const name = file.name.replace(/\.[^.]+$/, "");

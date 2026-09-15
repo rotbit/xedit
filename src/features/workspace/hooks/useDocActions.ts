@@ -8,7 +8,9 @@ import {
   updateLocalDoc,
   deleteLocalDoc,
   listLocalCats,
+  notifyDocsChanged,
 } from "@/lib/localDocs";
+import { getActiveVault } from "@/lib/localBackend/vaultSession";
 import { getDocContent } from "@/lib/docContent";
 import { saveMirrorLocal, removeMirrorDoc, applyServerDoc } from "@/lib/docStore";
 import { syncNow } from "@/lib/sync";
@@ -44,6 +46,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     try {
       const work = async () => {
         if (localMode) {
+          if (nav.isTrash) setTrashDocs(getActiveVault()?.listTrash() ?? []);
           setDocs(listLocalDocs());
           setCustomCats(listLocalCats());
         } else if (nav.isTrash) {
@@ -135,18 +138,23 @@ export function useDocActions({ auth, library, nav }: Params) {
   const removeDoc = async (doc: DocMeta) => {
     const label = doc.title || "未命名文章";
     if (localMode) {
+      // 磁盘文库的删除是移进 .trash/（后端 deleteDoc 已如此），浏览器存储则是真删
+      const vault = getActiveVault();
       const ok = await askConfirm({
         title: "删除文章",
-        message: `删除「${label}」？本地文章删除后无法找回。`,
-        confirmText: "删除",
+        message: vault
+          ? `删除「${label}」？移入回收站，可在回收站恢复。`
+          : `删除「${label}」？本地文章删除后无法找回。`,
+        confirmText: vault ? "移入回收站" : "删除",
         danger: true,
       });
       if (!ok) return;
       deleteLocalDoc(doc.id);
       setDocs(listLocalDocs());
+      notifyDocsChanged(); // 回收站列表也听这个事件
       // 删掉的文章不该还开着：正读着它就退回列表
       if (nav.readingId === doc.id) nav.setReadingId(null);
-      toast("已删除", "success");
+      toast(vault ? "已移入回收站" : "已删除", "success");
       return;
     }
     if (!online) {
@@ -173,6 +181,19 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 
   const restoreDoc = async (doc: DocMeta) => {
+    const vault = localMode ? getActiveVault() : null;
+    if (vault) {
+      const back = vault.restoreFromTrash(doc.id);
+      setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
+      if (!back) {
+        toast("恢复失败：回收站里找不到这个文件", "error");
+        return;
+      }
+      setDocs(listLocalDocs());
+      notifyDocsChanged();
+      toast("已恢复", "success");
+      return;
+    }
     const res = await fetch(`/api/documents/${doc.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -189,13 +210,22 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 
   const hardDeleteDoc = async (doc: DocMeta) => {
+    const vault = localMode ? getActiveVault() : null;
     const ok = await askConfirm({
       title: "彻底删除",
-      message: `彻底删除「${doc.title || "未命名文章"}」？包括全部版本历史，无法找回。`,
+      message: vault
+        ? `彻底删除「${doc.title || "未命名文章"}」？彻底删除后无法找回。`
+        : `彻底删除「${doc.title || "未命名文章"}」？包括全部版本历史，无法找回。`,
       confirmText: "彻底删除",
       danger: true,
     });
     if (!ok) return;
+    if (vault) {
+      vault.purgeFromTrash(doc.id);
+      setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
+      toast("已彻底删除", "success");
+      return;
+    }
     const res = await fetch(`/api/documents/${doc.id}?hard=1`, { method: "DELETE" });
     if (res.ok) {
       setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
@@ -203,6 +233,27 @@ export function useDocActions({ auth, library, nav }: Params) {
     } else {
       toast("删除失败", "error");
     }
+  };
+
+  /** 清空回收站：只在磁盘文库下可用（.trash/ 里的文件全删） */
+  const emptyVaultTrash = async () => {
+    const vault = localMode ? getActiveVault() : null;
+    if (!vault) return;
+    const count = vault.listTrash().length;
+    if (count === 0) {
+      toast("回收站是空的");
+      return;
+    }
+    const ok = await askConfirm({
+      title: "清空回收站",
+      message: `删除回收站里的 ${count} 篇文章？彻底删除后无法找回。`,
+      confirmText: "清空",
+      danger: true,
+    });
+    if (!ok) return;
+    vault.emptyTrash();
+    setTrashDocs([]);
+    toast("回收站已清空", "success");
   };
 
   const moveDoc = async (doc: DocMeta, category: string) => {
@@ -331,6 +382,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     removeDoc,
     restoreDoc,
     hardDeleteDoc,
+    emptyVaultTrash,
     moveDoc,
     renameDoc,
     moveToNewCategory,

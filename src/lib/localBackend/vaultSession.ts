@@ -10,7 +10,7 @@ import { useSyncExternalStore } from "react";
 import { toast } from "@/components/Toast";
 import { getBrowserBackend, setLocalBackend } from "./index";
 import { idbDel, idbGet, idbSet } from "./idbKv";
-import { openVaultBackend, type VaultBackend } from "./vaultBackend";
+import { openVaultBackend, type RescanResult, type VaultBackend } from "./vaultBackend";
 import {
   isVaultSupported,
   pickVaultDirectory,
@@ -55,6 +55,13 @@ export function useVaultSession(): VaultState {
 
 export function getActiveVault(): VaultBackend | null {
   return backend;
+}
+
+/** 与磁盘对账：外部（Obsidian 等）改过的文件反映进缓存，返回变动的文档 id；没开库返回 null */
+export async function rescanVault(): Promise<RescanResult | null> {
+  const b = backend;
+  if (!b) return null;
+  return await b.rescan();
 }
 
 /** 标记位只是给启动脚本判断「这台机器开过库」，真正的句柄在 IndexedDB */

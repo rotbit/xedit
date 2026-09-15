@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
-import { isLocalId, listLocalDocs, getLocalDocContent } from "@/lib/localDocs";
+import {
+  isLocalId,
+  listLocalDocs,
+  getLocalDocContent,
+  DOC_REPLACED_EVENT,
+} from "@/lib/localDocs";
+import { prefetchAttachments } from "@/lib/localBackend/attachmentUrls";
 import {
   getMirrorMeta,
   getMirrorContent,
@@ -147,6 +153,7 @@ export function useEditorDoc(routeDocId: string | null) {
       s.setDoc({ id: routeDocId, title: meta.title, content });
       s.setCategory(meta.category ?? "未分类");
       s.setSaveState("local");
+      prefetchAttachments(content); // 磁盘文库的图片先读起来，少几帧空图
       queueMicrotask(() => {
         setDocVersion((v) => v + 1);
         setLoading(false);
@@ -240,6 +247,18 @@ export function useEditorDoc(routeDocId: string | null) {
       window.removeEventListener("online", tryRefresh);
     };
   }, [routeDocId, refreshFromServer]);
+
+  // 当前文档在外部被改动、内容已由 useVaultWatch 换进 store：重挂载编辑器接上新内容
+  useEffect(() => {
+    const onReplaced = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (id !== useStore.getState().docId) return;
+      prefetchAttachments(useStore.getState().content);
+      setDocVersion((v) => v + 1);
+    };
+    window.addEventListener(DOC_REPLACED_EVENT, onReplaced);
+    return () => window.removeEventListener(DOC_REPLACED_EVENT, onReplaced);
+  }, []);
 
   useEditorSettings(loggedIn);
   useEditorSave();
