@@ -13,9 +13,6 @@ export const ATTACHMENTS_RESOLVED_EVENT = "xedit:attachments-resolved";
 
 /** 附件目录前缀，与 vaultFs 的 ATTACHMENTS_DIR 对应 */
 const PREFIX = "attachments/";
-/** 正文里的图片引用：![alt](src) 与 ![alt](<src>) 两种写法都认。
- *  正文要离开本机时（导出、上云）都按这条找 src，规则只留一份 */
-export const IMAGE_REF = /!\[[^\]]*\]\(\s*<?([^)\s>]+)/g;
 /** 合并同一批解析的重渲染：一篇十张图不该触发十次 */
 const NOTIFY_GAP = 50;
 
@@ -31,7 +28,7 @@ let notifyTimer: ReturnType<typeof setTimeout> | null = null;
 let watching = false;
 
 /** 正文里可能写成 "./attachments/x.png"，按库根的相对路径归一 */
-export const toAttachmentRel = (src: string): string => src.replace(/^\.?\/+/, "");
+const toRel = (src: string): string => src.replace(/^\.?\/+/, "");
 
 /** 当前是磁盘文库吗？故意不走 vaultSession（那是 "use client" 模块，
  *  而这个文件被 markdown 渲染管线引着，得留在通用模块里） */
@@ -43,12 +40,12 @@ function activeVault(): VaultBackend | null {
 
 /** 是库里的相对路径（而非 http / blob / data 地址） */
 export function isAttachmentSrc(src: string): boolean {
-  return toAttachmentRel(src).startsWith(PREFIX);
+  return toRel(src).startsWith(PREFIX);
 }
 
 /** 命中缓存返回 object URL；没命中返回 null 并在后台读，读到后派事件 */
 export function resolveAttachmentSrc(src: string): string | null {
-  const rel = toAttachmentRel(src);
+  const rel = toRel(src);
   const hit = urls.get(rel);
   if (hit) return hit;
   void load(rel);
@@ -58,8 +55,8 @@ export function resolveAttachmentSrc(src: string): string | null {
 /** 打开文档时先把正文里的附件读起来，少几帧空图 */
 export function prefetchAttachments(content: string): void {
   if (!activeVault()) return;
-  for (const m of content.matchAll(IMAGE_REF)) {
-    if (isAttachmentSrc(m[1])) void load(toAttachmentRel(m[1]));
+  for (const m of content.matchAll(/!\[[^\]]*\]\(\s*<?([^)\s>]+)/g)) {
+    if (isAttachmentSrc(m[1])) void load(toRel(m[1]));
   }
 }
 
@@ -108,6 +105,9 @@ export function forgetMissingAttachments(): void {
   missing.clear();
 }
 
+/** 正文里的图片引用：![alt](src) 与 ![alt](<src>) 两种写法都认 */
+const IMAGE_REF = /!\[[^\]]*\]\(\s*<?([^)\s>]+)/g;
+
 /**
  * 内容要离开本机（复制到公众号、导出 docx）时调用：把正文里的 attachments/ 相对路径
  * 换成 base64 的 data URL。公众号编辑器粘贴时会把内联图片转存到自己的服务器，不会裂图；
@@ -122,7 +122,7 @@ export async function inlineAttachments(markdown: string): Promise<string> {
   const dataUrls = new Map<string, string>();
   await Promise.all(
     [...refs].map(async (src) => {
-      const url = await vault.getAttachmentUrl(toAttachmentRel(src)).catch(() => null);
+      const url = await vault.getAttachmentUrl(toRel(src)).catch(() => null);
       if (!url) return;
       const blob = await fetch(url).then((r) => r.blob());
       dataUrls.set(src, await blobToDataUrl(blob));
