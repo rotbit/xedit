@@ -6,6 +6,7 @@ import { LogoMark } from "@/components/LogoMark";
 import { ALL } from "../constants";
 import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
+import type { ImportMode } from "../hooks/useImportDocs";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /**
@@ -14,9 +15,11 @@ import type { Workspace } from "../hooks/useWorkspace";
  */
 export function Sidebar({
   ws,
+  onImport,
   onOpenFeishu,
 }: {
   ws: Workspace;
+  onImport: (mode: ImportMode) => void;
   onOpenFeishu: () => void;
 }) {
   const { nav, prefs, library, menus, totalChars } = ws;
@@ -108,7 +111,7 @@ export function Sidebar({
       </div>
 
       <CategoryTree ws={ws} />
-      <SidebarFooter ws={ws} onOpenFeishu={onOpenFeishu} />
+      <SidebarFooter ws={ws} onImport={onImport} onOpenFeishu={onOpenFeishu} />
 
       {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}
       <div
