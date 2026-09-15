@@ -10,10 +10,11 @@ import { LogoMark } from "./LogoMark";
 interface AuthConfig {
   github: boolean;
   google: boolean;
+  wechat: boolean;
 }
 
 type Mode = "login" | "register";
-type Busy = null | "form" | "github" | "google";
+type Busy = null | "form" | "github" | "google" | "wechat";
 
 let opener: ((mode: Mode) => void) | null = null;
 
@@ -48,6 +49,35 @@ function GoogleMark({ size = 15 }: { size?: number }) {
   );
 }
 
+/** 微信双气泡徽标，用品牌绿 */
+function WechatMark({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+      {/* 后面的大气泡：椭圆 + 左下尾巴，同色叠在一起自然连成一体 */}
+      <g fill="#07C160">
+        <ellipse cx="8.6" cy="8.8" rx="7.6" ry="6.8" />
+        <path d="M4.6 12.4 2 17.6l5.3-2.4z" />
+      </g>
+      {/* 前面的小气泡：先描一圈白当间隔，再用纯绿填一遍盖掉内部白线 */}
+      <g fill="#fff" stroke="#fff" strokeWidth="1.2" strokeLinejoin="round">
+        <ellipse cx="17.2" cy="15.4" rx="6.2" ry="5.6" />
+        <path d="M19.6 18.6 23.4 21.4 21.8 16.4z" />
+      </g>
+      <g fill="#07C160">
+        <ellipse cx="17.2" cy="15.4" rx="6.2" ry="5.6" />
+        <path d="M19.6 18.6 23.4 21.4 21.8 16.4z" />
+      </g>
+      {/* 眼睛 */}
+      <g fill="#fff">
+        <circle cx="6.2" cy="7.2" r="1.15" />
+        <circle cx="11" cy="7.2" r="1.15" />
+        <circle cx="15.2" cy="13.6" r=".95" />
+        <circle cx="19.2" cy="13.6" r=".95" />
+      </g>
+    </svg>
+  );
+}
+
 export function AuthHost() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("login");
@@ -75,8 +105,14 @@ export function AuthHost() {
     if (open && !config) {
       void fetch("/api/config")
         .then((r) => r.json())
-        .then((c) => setConfig({ github: Boolean(c.github), google: Boolean(c.google) }))
-        .catch(() => setConfig({ github: false, google: false }));
+        .then((c) =>
+          setConfig({
+            github: Boolean(c.github),
+            google: Boolean(c.google),
+            wechat: Boolean(c.wechat),
+          })
+        )
+        .catch(() => setConfig({ github: false, google: false, wechat: false }));
     }
   }, [open, config]);
 
@@ -137,14 +173,14 @@ export function AuthHost() {
     }
   };
 
-  const oauth = (provider: "github" | "google") => {
+  const oauth = (provider: "github" | "google" | "wechat") => {
     setError("");
     setBusy(provider);
     void signIn(provider); // 整页跳转到第三方授权
   };
 
   const isLogin = mode === "login";
-  const showOAuth = config?.github || config?.google;
+  const showOAuth = config?.github || config?.google || config?.wechat;
 
   return (
     <div
@@ -257,6 +293,20 @@ export function AuthHost() {
                     <GoogleMark size={15} />
                   )}
                   使用 Google 登录
+                </button>
+              ) : null}
+              {config?.wechat ? (
+                <button
+                  className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] text-[13.5px] text-[var(--ink)] transition-colors hover:bg-[var(--paper)] disabled:opacity-60"
+                  onClick={() => oauth("wechat")}
+                  disabled={busy !== null}
+                >
+                  {busy === "wechat" ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <WechatMark size={15} />
+                  )}
+                  使用微信登录
                 </button>
               ) : null}
             </div>

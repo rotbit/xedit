@@ -5,7 +5,7 @@ xEdit 是一个标准的 Next.js（standalone 产物）+ PostgreSQL 应用，任
 - [一、Docker Compose（推荐，最省事）](#一docker-compose推荐最省事)
 - [二、Dokploy 面板部署](#二dokploy-面板部署)
 - [三、裸机 / PM2 部署](#三裸机--pm2-部署)
-- [四、配置 GitHub / Google 登录](#四配置-github--google-登录)
+- [四、配置第三方登录（GitHub / Google / 微信）](#四配置第三方登录github--google--微信)
 - [五、配置图床（阿里云 OSS）](#五配置图床阿里云-oss)
 - [六、域名与 HTTPS](#六域名与-https)
 - [七、升级、备份与回滚](#七升级备份与回滚)
@@ -151,7 +151,7 @@ location / {
 
 ---
 
-## 四、配置 GitHub / Google 登录
+## 四、配置第三方登录（GitHub / Google / 微信）
 
 不配也能用——**邮箱 + 密码注册登录始终可用**，第三方登录填了对应变量才会出现在登录框里。
 
@@ -167,6 +167,15 @@ location / {
 1. 打开 <https://console.cloud.google.com> → APIs & Services → 凭据 → 创建 OAuth 客户端 ID（类型选「Web 应用」）
 2. 已获授权的重定向 URI：`https://你的域名/api/auth/callback/google`
 3. 填入 `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`，重启应用
+
+### 微信
+
+1. 打开 <https://open.weixin.qq.com> → 完成**企业主体认证**（个人开发者申请不了）→ 创建**网站应用**，等待审核通过
+2. 应用详情里的**授权回调域**填你的域名，如 `example.com`（只填域名，不带协议和路径；实际回调地址是 `https://你的域名/api/auth/callback/wechat`）
+3. 填入 `AUTH_WECHAT_ID` / `AUTH_WECHAT_SECRET`，并设 `AUTH_WECHAT_ENABLED=1`，重启应用
+4. 公众号内网页授权把 `AUTH_WECHAT_PLATFORM` 设成 `official`，默认的 `website` 是 PC 扫码登录
+
+> **注意**：微信不返回邮箱，所以微信登录会新建一个没有邮箱的账号——同一个人的微信账号与邮箱账号是两个彼此独立的账号，文章不互通。
 
 > 本地开发和线上建议各建一个 OAuth App，回调分别填 `http://localhost:3000/...` 和线上域名，互不干扰。
 

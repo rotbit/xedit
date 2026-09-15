@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { githubConfigured, googleConfigured } from "@/auth";
+import { githubConfigured, googleConfigured, wechatConfigured } from "@/auth";
 
 /** 前端据此提示哪些能力尚未配置 */
 export async function GET() {
   return NextResponse.json({
     github: githubConfigured,
     google: googleConfigured,
+    wechat: wechatConfigured,
     oss: Boolean(
       process.env.OSS_REGION &&
         process.env.OSS_ACCESS_KEY_ID &&
