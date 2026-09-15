@@ -102,6 +102,10 @@ export function useDragMove({
   const spotOnCat = (e: React.DragEvent, target: string): DropSpot | null => {
     if (!dragItem) return null;
     if (dragItem.kind === "doc") {
+      // 根级空白区没有前后可插，整块都算「移入未分类」
+      if (target === ALL) {
+        return docCanMoveTo(dragItem.id, ALL) ? { kind: "cat", key: ALL, zone: "into" } : null;
+      }
       // 文章拖到分类行：中段算「移入」，上下边缘窄——瞄准前后插排时手抖压到文件夹行，
       // 本不该把文件吞进那个文件夹。
       const zone = zoneOf(e, 0.25);
@@ -110,7 +114,6 @@ export function useDragMove({
       }
       // 边缘=把文章插到这个文件夹的前/后（落点归属是文件夹所在的父分类）。
       // 文章与文件夹混排，所以跨分类也接——drop 时连带 moveDoc。
-      if (target === ALL) return null;
       const host = parentOf(target);
       return host ? { kind: "cat", key: target, zone } : null; // 顶级文件夹旁排不了文章
     }

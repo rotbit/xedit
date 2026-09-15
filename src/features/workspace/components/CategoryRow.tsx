@@ -73,8 +73,14 @@ export function CategoryRow({
           className={`flex cursor-pointer items-center gap-1 rounded-md py-1.5 pl-px pr-2 text-left text-[13px] transition-colors ${rowCls(active)} ${dropCls} ${
             drag.isDragging({ kind: "cat", path: node.path }) ? "opacity-40" : ""
           }`}
-          // 缩进用外边距而不是内边距：底色从这里起，父级引导线露在左侧；箭头盒子紧贴行左缘
-          style={{ marginLeft: `${rowInset(depth)}px`, width: `calc(100% - ${rowInset(depth)}px)` }}
+          // 缩进用外边距而不是内边距：底色从这里起，父级引导线露在左侧；箭头盒子紧贴行左缘。
+          // 顶层行没有父级引导线要避让（rowInset(0) === 0），底色顶格铺满；
+          // 单独补 6px 内边距把箭头中心顶到 16px，正对自己子分支的引导线（left = 16 + treeIndent(0)）
+          style={{
+            marginLeft: `${rowInset(depth)}px`,
+            width: `calc(100% - ${rowInset(depth)}px)`,
+            ...(depth === 0 ? { paddingLeft: "6px" } : null),
+          }}
           onClick={() => nav.openCategory(node.path)}
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
           title={node.name}
