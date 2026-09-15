@@ -8,9 +8,6 @@ import { DocContextMenu } from "./DocContextMenu";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 入场动画的最大延迟，避免长列表末尾等待过久 */
-const MAX_STAGGER_MS = 320;
-
 /** 列表摘要是服务端粗剥的纯文本，里面常剩整条长链接，行上只显示域名，别让 URL 把版面撑乱 */
 function cleanExcerpt(s: string): string {
   return s
@@ -51,7 +48,7 @@ function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
 }
 
 /** 时间流里的一篇：左边标题 + 单行摘要，右边浅字分类与时间，无边框只靠留白分隔 */
-function DocRow({ ws, doc, index }: { ws: Workspace; doc: DocMeta; index: number }) {
+function DocRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
   const { nav, menus, drag } = ws;
   const { isTrash } = nav;
   const cat = doc.category || UNCATEGORIZED;
@@ -63,10 +60,9 @@ function DocRow({ ws, doc, index }: { ws: Workspace; doc: DocMeta; index: number
     : "grid-cols-[minmax(0,1fr)_auto_auto]";
   return (
     <div
-      className={`rise group relative -mx-3 grid ${cols} items-start gap-5 rounded-lg px-3 py-3.5 transition-colors duration-150 hover:bg-[var(--accent-wash)] ${
+      className={`group relative -mx-3 grid ${cols} items-start gap-5 rounded-lg px-3 py-3.5 transition-colors duration-150 hover:bg-[var(--accent-wash)] ${
         isTrash ? "" : "cursor-pointer"
       } ${drag.isDragging({ kind: "doc", id: doc.id }) ? "opacity-40" : ""}`}
-      style={{ animationDelay: `${Math.min(index * 40, MAX_STAGGER_MS)}ms` }}
       onClick={() => {
         // 回收站里的行点不开：那里只有恢复 / 彻底删除两个按钮
         if (!isTrash) nav.openDoc(doc.id);
@@ -123,15 +119,11 @@ function DocRow({ ws, doc, index }: { ws: Workspace; doc: DocMeta; index: number
  */
 export function DocTimeline({ ws }: { ws: Workspace }) {
   const groups = groupByDay(ws.filtered);
-  // 入场 stagger 按整个列表连续计数，跨组也保持自上而下的节奏：先算出每组的起始序号
-  const offsets: number[] = [];
-  for (let i = 0, acc = 0; i < groups.length; i++) {
-    offsets.push(acc);
-    acc += groups[i].docs.length;
-  }
 
   return (
-    <div className="mt-4">
+    // 切换分类时整个列表一次短淡入就够了（key 一换就重挂），行不各自上浮：
+    // 这是工作列表不是首页，逐行错开的入场只会让人等
+    <div key={ws.nav.activeCat} className="fade-in mt-4">
       {groups.map((group, gi) => (
         <div
           key={group.key}
@@ -149,8 +141,8 @@ export function DocTimeline({ ws }: { ws: Workspace }) {
             </span>
           </div>
           <div className="min-w-0">
-            {group.docs.map((doc, i) => (
-              <DocRow key={doc.id} ws={ws} doc={doc} index={offsets[gi] + i} />
+            {group.docs.map((doc) => (
+              <DocRow key={doc.id} ws={ws} doc={doc} />
             ))}
           </div>
         </div>
