@@ -151,10 +151,6 @@ export const ReaderActions = memo(function ReaderActions({
         ) : null}
       </div>
       <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
-      {/* 版本历史 */}
-      <button className={iconBtnIdle} onClick={onOpenVersions} title="版本历史">
-        <History size={16} strokeWidth={1.75} />
-      </button>
       {/* 一键复制：点开选择平台（纯图标） */}
       <div className="relative">
         <button
@@ -262,6 +258,17 @@ export const ReaderActions = memo(function ReaderActions({
               >
                 <Share2 size={13} />
                 分享给他人查看与批注…
+              </button>
+              {/* 版本历史低频，收进菜单；顶栏只留复制这个核心动作 */}
+              <button
+                className={menuItem}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onOpenVersions();
+                }}
+              >
+                <History size={13} />
+                版本历史…
               </button>
               <div className={menuDivider} />
               <p className={menuCaption}>导出</p>
