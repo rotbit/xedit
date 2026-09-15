@@ -1,9 +1,9 @@
 "use client";
 
-import { PanelLeftClose, RotateCw, Search } from "lucide-react";
+import { FolderPlus, PanelLeftClose, RotateCw, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
-import { toolBtnCls } from "../constants";
+import { ALL, toolBtnCls } from "../constants";
 import { CategoryTree } from "./CategoryTree";
 import { NewDocMenu } from "./NewDocMenu";
 import { SidebarFooter } from "./SidebarFooter";
@@ -20,8 +20,10 @@ export function Sidebar({
   ws: Workspace;
   onOpenFeishu: () => void;
 }) {
-  const { nav, prefs, library, docActions, totalChars } = ws;
+  const { nav, prefs, library, docActions, catActions, totalChars } = ws;
   const { docs } = library;
+  /** 统计文字兼作「全部文章」入口：当前就在全部列表时文字加深 */
+  const allActive = nav.activeCat === ALL && !nav.readingId;
 
   /** 右缘手柄拖拽调宽：过程中只改状态，松手才落盘 */
   const onResizeStart = (e: React.PointerEvent) => {
@@ -87,12 +89,26 @@ export function Sidebar({
       </div>
 
       <div className="flex shrink-0 items-center justify-between pl-4 pr-2.5">
-        <span className="text-[11px] text-[var(--ink-faint)]">
+        <button
+          className={`cursor-pointer text-left text-[11px] transition-colors hover:text-[var(--ink)] disabled:cursor-default disabled:hover:text-[var(--ink-faint)] ${
+            allActive ? "text-[var(--ink)]" : "text-[var(--ink-faint)]"
+          }`}
+          title="查看全部文章"
+          disabled={docs === null}
+          onClick={() => nav.openCategory(ALL)}
+        >
           {docs === null
             ? "同步中…"
             : `${docs.length} 篇文章${totalChars > 0 ? ` · ${totalChars.toLocaleString()} 字` : ""}`}
-        </span>
+        </button>
         <span className="flex items-center">
+          <button
+            className={`${toolBtnCls} hover:text-[var(--ink)]`}
+            title="新建分类"
+            onClick={() => void catActions.createCategory()}
+          >
+            <FolderPlus size={12} />
+          </button>
           <button
             className={`${toolBtnCls} hover:text-[var(--ink)]`}
             title="刷新列表"
