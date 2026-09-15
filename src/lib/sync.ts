@@ -16,7 +16,8 @@ import {
   SYNC_CURSOR_KEY,
   type ServerDoc,
 } from "./docStore";
-import { listLocalDocs, getLocalDocContent, deleteLocalDoc, isLocalId } from "./localDocs";
+import { getBrowserBackend } from "./localBackend";
+import { isLocalId } from "./localDocs";
 
 export const SYNC_DONE_EVENT = "xedit:sync-done";
 
@@ -51,11 +52,16 @@ export async function pushMirrorDoc(id: string): Promise<boolean> {
   }
 }
 
-/** 未登录期间建的本地文档批量上云，成功一篇删一篇（失败的留待下次） */
+/** 未登录期间建的本地文档批量上云，成功一篇删一篇（失败的留待下次）。
+ *  只碰浏览器后端：Vault 模式下这些「本地文档」是用户磁盘上的文件，登录不能把它们删掉 */
 async function drainLocalDocs(): Promise<number> {
+  const browser = getBrowserBackend();
   let uploaded = 0;
-  for (const meta of listLocalDocs()) {
-    const content = getLocalDocContent(meta.id);
+  const pending = [...browser.listDocs()].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+  for (const meta of pending) {
+    const content = browser.getContent(meta.id);
     if (content === null) continue;
     try {
       const res = await fetch("/api/documents", {
@@ -66,7 +72,7 @@ async function drainLocalDocs(): Promise<number> {
       if (!res.ok) break;
       const doc = (await res.json()) as ServerDoc;
       applyServerDoc({ ...doc, content });
-      deleteLocalDoc(meta.id);
+      browser.deleteDoc(meta.id);
       uploaded++;
     } catch {
       break;
