@@ -1,6 +1,7 @@
 "use client";
 
-import { listLocalDocs, updateLocalDoc, saveLocalCats } from "@/lib/localDocs";
+import { notifyDocsChanged, saveLocalCats } from "@/lib/localDocs";
+import { getLocalBackend } from "@/lib/localBackend";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
 import { askInput, askConfirm } from "@/components/PromptDialog";
@@ -84,11 +85,8 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     const remap = (c: string) =>
       c === path ? to : c.startsWith(`${path}/`) ? to + c.slice(path.length) : c;
     if (localMode) {
-      for (const d of listLocalDocs()) {
-        const cat = d.category || UNCATEGORIZED;
-        if (remap(cat) !== cat) updateLocalDoc(d.id, { category: remap(cat) });
-      }
-      saveLocalCats(Array.from(new Set([...customCats.map(remap), to])));
+      getLocalBackend().relocateCategory(path, to);
+      notifyDocsChanged();
     } else {
       const res = await fetch("/api/categories", {
         method: "POST",
@@ -163,10 +161,8 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     if (!ok) return;
     const inSub = (c: string) => c === path || c.startsWith(`${path}/`);
     if (localMode) {
-      for (const d of listLocalDocs()) {
-        if (inSub(d.category || UNCATEGORIZED)) updateLocalDoc(d.id, { category: UNCATEGORIZED });
-      }
-      saveLocalCats(customCats.filter((c) => !inSub(c)));
+      getLocalBackend().removeCategory(path);
+      notifyDocsChanged();
     } else {
       if (!online) {
         toast("离线时分类操作暂不可用，联网后再试", "error");
