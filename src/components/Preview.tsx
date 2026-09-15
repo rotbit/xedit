@@ -1,10 +1,12 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useRef } from "react";
 import { ChevronLeft } from "lucide-react";
 import { BASE_CSS } from "@/lib/themes/base";
 import { usePreviewRender } from "@/hooks/usePreviewRender";
+import { useOutline } from "@/hooks/useOutline";
 import { requestOpenWikiLink } from "@/lib/wikiLink";
+import { OutlineNav } from "@/components/OutlineNav";
 import { ReadingMeta, ReadingTitle, ThemeTrigger } from "@/features/editor/components/ReadingChrome";
 
 interface Props {
@@ -31,6 +33,9 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
   const { html, codeCss, themeCss, themeName, tuneCss, customCss } = usePreviewRender(
     reading ? 0 : 180
   );
+  // 大纲只在阅读模式露出，但 hook 两个变体都调（提取一次的开销远小于条件调用的麻烦）
+  const sectionRef = useRef<HTMLElement>(null);
+  const { outline, jumpToHeading } = useOutline(sectionRef, html);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
@@ -64,23 +69,41 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
         <style>{themeCss}</style>
         <style>{tuneCss}</style>
         {customCss ? <style>{customCss}</style> : null}
-        {/* 双屏：手机阅读宽度，公众号文章以读者手机上的真实比例呈现，窄列 + 两侧留白
-            让右栏与宽幅编辑区一眼可辨。阅读模式：宽出一截的 720px 通读长文，不做卡片、无边框阴影。
-            两者夜间模式下文章面都保持日间白 */}
+        {/* 阅读模式的外层栅格：大纲 + 正文并排居中。双屏用 contents 把这层从布局里摘掉，
+            正文列仍是滚动容器的直接子级，窄栏版式分毫不动 */}
         <div
           className={
-            reading
-              ? "light-lock mx-auto w-full max-w-[720px] bg-white px-6 py-8"
-              : "light-lock mx-auto max-w-[420px] bg-white"
+            reading ? "mx-auto flex w-full max-w-[960px] justify-center gap-8" : "contents"
           }
         >
-          {reading ? <ReadingTitle /> : null}
-          <section
-            id="nice"
-            data-tool="xedit"
-            onClick={onContentClick}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          {/* 大纲（桌面）：从渲染结果提取 h1~h3，点击平滑跳转；无标题时整条不渲染，正文照旧居中。
+              sticky 相对外层 overflow-y-auto 的滚动容器生效 */}
+          {reading && outline.length > 0 ? (
+            <OutlineNav
+              outline={outline}
+              onJump={jumpToHeading}
+              className="hidden w-[190px] shrink-0 lg:block"
+            />
+          ) : null}
+          {/* 双屏：手机阅读宽度，公众号文章以读者手机上的真实比例呈现，窄列 + 两侧留白
+              让右栏与宽幅编辑区一眼可辨。阅读模式：宽出一截的 720px 通读长文，不做卡片、无边框阴影，
+              居中让给外层 flex。两者夜间模式下文章面都保持日间白 */}
+          <div
+            className={
+              reading
+                ? "light-lock w-full max-w-[720px] bg-white px-6 py-8"
+                : "light-lock mx-auto max-w-[420px] bg-white"
+            }
+          >
+            {reading ? <ReadingTitle /> : null}
+            <section
+              id="nice"
+              ref={sectionRef}
+              data-tool="xedit"
+              onClick={onContentClick}
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          </div>
         </div>
         <div className={reading ? "h-[30vh]" : "h-[40vh]"} />
       </div>
