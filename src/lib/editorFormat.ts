@@ -204,6 +204,25 @@ export function insertBlock(view: EditorView, text: string) {
   view.focus();
 }
 
+/**
+ * 插入提示块：光标停在 `> [!tip] ` 之后，接着就能写标题，不写标题直接换行也成立。
+ * 不复用 insertBlock —— 它会在插入内容后再补一个换行并把光标送到下一行，
+ * 提示块要的恰恰是留在记号那一行继续打字。
+ */
+export function insertCallout(view: EditorView, type = "tip") {
+  const { state } = view;
+  const line = state.doc.lineAt(state.selection.main.from);
+  // 当前行还有字就另起一段，免得把提示块接在别人段尾
+  const insert = `${line.text.trim() ? "\n\n" : ""}> [!${type}] `;
+  const pos = line.to;
+  view.dispatch({
+    changes: { from: pos, insert },
+    selection: { anchor: pos + insert.length },
+    scrollIntoView: true,
+  });
+  view.focus();
+}
+
 /** 插入围栏代码块：不塞示例代码，光标落到块内空行；有选区时把选中文字收进块里 */
 export function insertCodeBlock(view: EditorView): void {
   const { state } = view;

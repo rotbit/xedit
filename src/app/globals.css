@@ -4,6 +4,7 @@
 @import "./live-preview.css";
 @import "./live-blocks.css";
 @import "./live-tags.css";
+@import "./live-callout.css";
 
 /* data-theme 驱动的暗色变体：dark:xxx */
 @custom-variant dark ([data-theme="dark"] &);

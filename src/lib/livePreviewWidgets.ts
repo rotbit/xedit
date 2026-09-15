@@ -263,3 +263,27 @@ export class CheckboxWidget extends WidgetType {
     return true;
   }
 }
+
+/**
+ * 提示块首行的 `[!tip]` 记号：换成一枚类型徽标（「提示」「注意」…）。
+ * 只带一个通用类名，颜色由所在行的 cm-lp-callout-<type> 透过 CSS 变量给下来——
+ * 徽标本身不需要知道自己是什么类型，换类型时不用重建部件。
+ */
+export class CalloutBadgeWidget extends WidgetType {
+  constructor(readonly label: string) {
+    super();
+  }
+  eq(other: CalloutBadgeWidget) {
+    return other.label === this.label;
+  }
+  toDOM() {
+    const el = document.createElement("span");
+    el.className = "cm-lp-callout-badge";
+    el.textContent = this.label;
+    return el;
+  }
+  ignoreEvent() {
+    // 点击要能把光标放回记号处改类型，事件交回 CodeMirror 自己定位
+    return false;
+  }
+}

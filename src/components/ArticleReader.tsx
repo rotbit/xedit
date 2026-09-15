@@ -16,9 +16,11 @@ import type { FormatCommand } from "@/lib/editorCommands";
 import { useEditorViewMode } from "@/hooks/useEditorViewMode";
 import { FloatingToolbar } from "./FloatingToolbar";
 import { ReaderActions } from "@/features/editor/components/ReaderActions";
+import { useReaderCommands } from "@/features/editor/hooks/useReaderCommands";
 import { ShareDialog } from "@/features/share/ShareDialog";
 import { isLocalId } from "@/lib/localDocs";
 import { useWikiLinkOpen } from "@/hooks/useWikiLinkOpen";
+import { useRenameLinks } from "@/hooks/useRenameLinks";
 import type { DocMeta } from "@/features/workspace/types";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { OutlinePanel } from "./OutlinePanel";
@@ -112,6 +114,10 @@ export function ArticleReader({
     createDoc: onCreateDoc ?? (() => {}),
   });
 
+  // 改标题后把别处指向本文的 `[[双向链接]]` 一并改掉（Obsidian 的 rename 更新引用）。
+  // 刷新走 DOCS_CHANGED 广播（写库时自动发出，useDocLibrary 听着），不必额外传回调
+  const { onTitleFocus, onTitleBlur } = useRenameLinks({ docId, docs, title, docVersion });
+
   const applyFormat = useCallback((cmd: FormatCommand, arg?: string) => {
     editorRef.current?.applyFormat(cmd, arg);
   }, []);
@@ -178,6 +184,18 @@ export function ArticleReader({
   const openOutline = useCallback(() => setOutlineOpen(true), []);
   const closeOutline = useCallback(() => setOutlineOpen(false), []);
   const openVersions = useCallback(() => setVersionsOpen(true), []);
+
+  // 命令面板（⌘⇧P）里的文章相关命令：格式 / 视图 / 文章 / 复制导出。
+  // 只在文章打开时注册，随本组件一起卸载
+  useReaderCommands({
+    applyFormat,
+    toggleSplit,
+    toggleReading,
+    openVersions,
+    pickCategory: () => void pickCategory(),
+    openShare,
+    onDelete,
+  });
 
   // 字数只在正文变化时重扫（wordCount 内部要过 4 遍正则，别跟着每次渲染跑）。
   // 再套一层 useDeferredValue：字数是「顺带看一眼」的信息，让它落在低优先级渲染里，
@@ -271,9 +289,12 @@ export function ArticleReader({
                     placeholder="未命名文章"
                     onChange={(e) => setTitle(e.target.value)}
                     onFocus={() => {
+                      // 先记原样再清占位：清空后的 "" 不该被当成「改名前叫这个」
+                      onTitleFocus();
                       if (title === "未命名文章") setTitle("");
                     }}
                     onBlur={() => {
+                      onTitleBlur();
                       if (!title.trim()) setTitle("未命名文章");
                     }}
                   />

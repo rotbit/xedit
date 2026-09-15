@@ -11,11 +11,13 @@ import { Toaster, toast } from "@/components/Toast";
 import { openAuth } from "@/components/AuthDialog";
 import { LogoMark } from "@/components/LogoMark";
 import { QuickSwitcher } from "@/components/QuickSwitcher";
+import { CommandPalette } from "@/components/CommandPalette";
 import { LandingActionsProvider } from "@/features/landing/LandingActions";
 import { CategoryContextMenu } from "./components/CategoryContextMenu";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspaceContent } from "./components/WorkspaceContent";
 import { useWorkspace } from "./hooks/useWorkspace";
+import { useWorkspaceCommands } from "./hooks/useWorkspaceCommands";
 import { useHydrated } from "@/hooks/useHydrated";
 
 const FeishuDialog = dynamic(
@@ -37,6 +39,7 @@ export function Home({ landing }: HomeProps) {
   const { auth, prefs, library, nav } = ws;
   const [feishuOpen, setFeishuOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const feishuSync = useFeishuSync();
   const hydrated = useHydrated();
 
@@ -49,7 +52,16 @@ export function Home({ landing }: HomeProps) {
     return nav.tabs.filter((id) => ids.has(id));
   }, [nav.tabs, library.docs]);
 
-  // 全局快捷键：⌘O/⌘P 快速切换器、⌘⇧[ / ⌘⇧] 切标签、⌘W 关标签。
+  // 命令面板（⌘⇧P）里的工作台命令：新建 / 导航 / 标签 / 侧栏。
+  // 文章相关的命令由 ArticleReader 自己注册，两边都汇进 lib/commandRegistry
+  useWorkspaceCommands({
+    ws,
+    openTabs,
+    enabled: hasWorkspace,
+    onQuickSwitch: () => setSwitcherOpen(true),
+  });
+
+  // 全局快捷键：⌘⇧P 命令面板、⌘O/⌘P 快速切换器、⌘⇧[ / ⌘⇧] 切标签、⌘W 关标签。
   // capture 阶段抢在浏览器打印/打开之前（同 useEditorViewMode 的 ⌘E），编辑器有焦点时同样生效。
   // 只在有工作台时挂：落地页上没有文章可切，更不该把 ⌘P 的打印抢掉
   useEffect(() => {
@@ -57,6 +69,13 @@ export function Home({ landing }: HomeProps) {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.shiftKey) {
+        // ⌘⇧P 命令面板：必须抢在下面切标签的分支之前，那条判不出方向就直接吞掉事件。
+        // 带 Shift 时 e.key 是大写 P，非拉丁布局下退回物理键位
+        if (e.key.toLowerCase() === "p" || e.code === "KeyP") {
+          e.preventDefault();
+          setPaletteOpen((v) => !v); // 再按一次收起，与 Obsidian 一致
+          return;
+        }
         // 带 Shift 时 e.key 在多数布局下已经是 } / {，两种写法都收
         const dir = "]}".includes(e.key) ? 1 : "[{".includes(e.key) ? -1 : 0;
         if (dir === 0 || openTabs.length < 2) return;
@@ -201,6 +220,7 @@ export function Home({ landing }: HomeProps) {
           nav.openDoc(id);
         }}
       />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       {feishuOpen ? (
         <FeishuDialog
           onClose={() => {

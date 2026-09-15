@@ -6,11 +6,13 @@
  */
 
 import { getDocContent } from "@/lib/docContent";
+import { indexOf, plainText } from "@/lib/docIndex";
 import { hasAllTags, parseSearchQuery, tagsOf } from "@/lib/docTags";
 import type { DocMeta } from "@/features/workspace/types";
 
-// 正文读取搬去了 docContent.ts（标签也要用，留在这儿会成环）；出口保持在这里不变
-export { getDocContent };
+// 正文读取搬去了 docContent.ts、纯文本化搬去了 docIndex.ts（都是更底层，留在这儿会成环）；
+// 出口保持在这里不变
+export { getDocContent, plainText };
 
 export interface DocHit {
   doc: DocMeta;
@@ -25,17 +27,6 @@ export interface DocHit {
 /** 正文命中时的取景窗：命中位置前 30 字、后 90 字 */
 const SNIPPET_BEFORE = 30;
 const SNIPPET_AFTER = 90;
-
-/** 抹掉 Markdown 记号，让「**重点**」能被「重点」搜到（正则口径同 localDocs.summarize） */
-export function plainText(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/[#>*`~$|-]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 /** 查询词：按空白拆开并小写，词与词之间是 AND */
 export function splitQuery(query: string): string[] {
@@ -134,8 +125,9 @@ export function searchDocs(
   const hits = titleHits.slice(0, limit);
   for (const doc of rest) {
     if (hits.length >= limit) break;
-    // 正文每篇只读一次；镜像没拉下来时退回摘要，至少不漏掉能匹配的那点文字
-    const body = plainText(getDocContent(doc.id)) || (doc.excerpt ?? "");
+    // 正文走 docIndex 的缓存（`[[目标|别名]]` 已摊平成显示文字，搜别名也能命中）；
+    // 镜像没拉下来时退回摘要，至少不漏掉能匹配的那点文字
+    const body = indexOf(doc).text || (doc.excerpt ?? "");
     // 词可以分散在标题和正文里：搜「张三 采访」应该命中标题带张三、正文提采访的那篇
     const hay = `${doc.title}\n${body}`.toLowerCase();
     if (!terms.every((t) => hay.includes(t))) continue;
