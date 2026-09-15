@@ -316,7 +316,8 @@ body {
   .landing-scroll {
     scroll-behavior: auto;
   }
-  .rise {
+  .rise,
+  .fade-in {
     animation: none;
   }
 }
@@ -334,6 +335,19 @@ body {
 }
 .rise {
   animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+/* 工作台列表切换：只淡入、不位移、不错开，快到不打断操作 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fade-in 0.15s ease-out both;
 }
 
 /* —— 桌面端（Electron 隐藏系统标题栏）：顶栏充当标题栏 —— */
