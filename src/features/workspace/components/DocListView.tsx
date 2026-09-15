@@ -20,7 +20,7 @@ export function DocListView({ ws }: { ws: Workspace }) {
             className={`group relative flex cursor-pointer items-center gap-3 border-b border-[var(--hairline-soft)] px-4 py-3 transition-colors last:border-b-0 hover:bg-[var(--paper)] ${
               drag.isDragging({ kind: "doc", id: doc.id }) ? "opacity-40" : ""
             }`}
-            onClick={(e) => nav.openDoc(doc.id, { newTab: e.metaKey || e.ctrlKey })}
+            onClick={() => nav.openDoc(doc.id)}
             onContextMenu={(e) => menus.openDocMenuAt(e, doc.id)}
             {...drag.dragSrcProps({ kind: "doc", id: doc.id })}
           >

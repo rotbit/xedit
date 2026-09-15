@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
@@ -46,22 +46,15 @@ export function Home({ landing }: HomeProps) {
   const hasWorkspace =
     auth.loggedIn || auth.offlineAuthed || (auth.localMode && (library.docs?.length ?? 0) > 0);
 
-  /** 标签栏里真正显示的那几个：记忆里可能留着已被删掉的 id，切换时别落到它们身上 */
-  const openTabs = useMemo(() => {
-    const ids = new Set((library.docs ?? []).map((d) => d.id));
-    return nav.tabs.filter((id) => ids.has(id));
-  }, [nav.tabs, library.docs]);
-
-  // 命令面板（⌘⇧P）里的工作台命令：新建 / 导航 / 标签 / 侧栏。
+  // 命令面板（⌘⇧P）里的工作台命令：新建 / 导航 / 侧栏。
   // 文章相关的命令由 ArticleReader 自己注册，两边都汇进 lib/commandRegistry
   useWorkspaceCommands({
     ws,
-    openTabs,
     enabled: hasWorkspace,
     onQuickSwitch: () => setSwitcherOpen(true),
   });
 
-  // 全局快捷键：⌘⇧P 命令面板、⌘O/⌘P 快速切换器、⌘⇧[ / ⌘⇧] 切标签、⌘W 关标签。
+  // 全局快捷键：⌘⇧P 命令面板、⌘O/⌘P 快速切换器。
   // capture 阶段抢在浏览器打印/打开之前（同 useEditorViewMode 的 ⌘E），编辑器有焦点时同样生效。
   // 只在有工作台时挂：落地页上没有文章可切，更不该把 ⌘P 的打印抢掉
   useEffect(() => {
@@ -69,39 +62,22 @@ export function Home({ landing }: HomeProps) {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.shiftKey) {
-        // ⌘⇧P 命令面板：必须抢在下面切标签的分支之前，那条判不出方向就直接吞掉事件。
-        // 带 Shift 时 e.key 是大写 P，非拉丁布局下退回物理键位
+        // ⌘⇧P 命令面板：带 Shift 时 e.key 是大写 P，非拉丁布局下退回物理键位
         if (e.key.toLowerCase() === "p" || e.code === "KeyP") {
           e.preventDefault();
           setPaletteOpen((v) => !v); // 再按一次收起，与 Obsidian 一致
-          return;
         }
-        // 带 Shift 时 e.key 在多数布局下已经是 } / {，两种写法都收
-        const dir = "]}".includes(e.key) ? 1 : "[{".includes(e.key) ? -1 : 0;
-        if (dir === 0 || openTabs.length < 2) return;
-        e.preventDefault();
-        nav.nextTab(dir as 1 | -1, openTabs);
         return;
       }
       const key = e.key.toLowerCase();
       if (key === "o" || key === "p") {
         e.preventDefault();
         setSwitcherOpen(true);
-        return;
-      }
-      // ⌘W 关当前标签：浏览器里抢不到（Chrome 一律关标签页），只在桌面壳里绑
-      if (
-        key === "w" &&
-        nav.readingId &&
-        document.documentElement.classList.contains("desktop-mac")
-      ) {
-        e.preventDefault();
-        nav.closeTab(nav.readingId);
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [hasWorkspace, nav, openTabs]);
+  }, [hasWorkspace]);
 
   // 旧 /edit 链接与桌面端「新建文章 Cmd+N」带 ?new=1 进来：会话就绪后直接建一篇新稿
   const searchParams = useSearchParams();
