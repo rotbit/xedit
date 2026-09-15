@@ -16,11 +16,9 @@ import type { Workspace } from "../hooks/useWorkspace";
 export function Sidebar({
   ws,
   onOpenFeishu,
-  onOpenVaultSync,
 }: {
   ws: Workspace;
   onOpenFeishu: () => void;
-  onOpenVaultSync: () => void;
 }) {
   const { nav, prefs, library, docActions, catActions, totalChars } = ws;
   const { docs } = library;
@@ -124,7 +122,7 @@ export function Sidebar({
       </div>
 
       <CategoryTree ws={ws} />
-      <SidebarFooter ws={ws} onOpenFeishu={onOpenFeishu} onOpenVaultSync={onOpenVaultSync} />
+      <SidebarFooter ws={ws} onOpenFeishu={onOpenFeishu} />
 
       {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}
       <div
