@@ -104,6 +104,8 @@ function DocRow({ ws, doc, index }: { ws: Workspace; doc: DocMeta; index: number
             className={`mt-0.5 cursor-pointer self-start rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] [@media(hover:none)]:visible ${
               menus.docMenu?.id === doc.id ? "visible" : "invisible group-hover:visible"
             }`}
+            // 菜单触发器：外部关闭逻辑放它一马，再点一次由这里 toggle 关掉
+            data-menu-trigger
             onClick={(e) => menus.toggleDocMenuAt(e, doc.id)}
           >
             <MoreHorizontal size={15} />

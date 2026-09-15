@@ -64,8 +64,8 @@ export function useCategoryActions({ auth, library, nav }: Params) {
   const createCategory = async (parentPath?: string) => {
     const name = (
       await askInput({
-        title: parentPath ? `在「${parentPath}」下新建子分类` : "新建分类",
-        placeholder: parentPath ? "子分类名称" : "分类名称，可用 / 建子分类",
+        title: parentPath ? `在「${parentPath}」下新建子文件夹` : "新建文件夹",
+        placeholder: parentPath ? "子文件夹名称" : "文件夹名称，可用 / 建子文件夹",
       })
     )?.trim();
     if (!name) return;
@@ -155,8 +155,8 @@ export function useCategoryActions({ auth, library, nav }: Params) {
 
   const removeCategory = async (path: string) => {
     const ok = await askConfirm({
-      title: "删除分类",
-      message: `删除分类「${path}」及其子分类？其中的文章会移入「未分类」。`,
+      title: "删除文件夹",
+      message: `删除文件夹「${path}」及其子文件夹？其中的文章会移入「未分类」。`,
       confirmText: "删除",
       danger: true,
     });
@@ -195,7 +195,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     if (store.docId && inSub(store.category || UNCATEGORIZED)) {
       store.setCategory(UNCATEGORIZED);
     }
-    toast("已删除分类", "success");
+    toast("已删除文件夹", "success");
   };
 
   return { createCategory, renameCategory, moveCategory, removeCategory };

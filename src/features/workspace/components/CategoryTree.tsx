@@ -7,7 +7,7 @@ import type { Workspace } from "../hooks/useWorkspace";
 /**
  * 分类树：各分类顶格平铺，没有「全部文章」根行（Obsidian 文件树同款）。
  * 树下方留一块空白区当根级落点——分类拖上去提为顶级、文章拖上去移入未分类，
- * 右键它出根级菜单（新建文章 / 新建分类 / 刷新列表）。
+ * 右键它出根级菜单（新建文章 / 新建文件夹 / 刷新列表）。
  */
 export function CategoryTree({ ws }: { ws: Workspace }) {
   const { menus, drag, tree } = ws;

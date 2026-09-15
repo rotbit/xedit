@@ -68,11 +68,12 @@ export function useSidebarPrefs() {
     persistExpanded(next);
   };
 
-  /** 展开路径上的所有节点（打开某个深层分类时使用） */
-  const expandPath = (path: string) => {
-    const next = new Set(expanded);
+  /** 只展开祖先节点，让这一行在树里可见；它自己的展开态不动（点分类不自动铺开内容） */
+  const expandAncestors = (path: string) => {
     const parts = path.split("/");
-    for (let i = 1; i <= parts.length; i++) next.add(parts.slice(0, i).join("/"));
+    if (parts.length < 2) return;
+    const next = new Set(expanded);
+    for (let i = 1; i < parts.length; i++) next.add(parts.slice(0, i).join("/"));
     persistExpanded(next);
   };
 
@@ -110,7 +111,7 @@ export function useSidebarPrefs() {
     closeDrawerOnMobile,
     expanded,
     toggleExpand,
-    expandPath,
+    expandAncestors,
     expandOne,
     docView,
     switchDocView,

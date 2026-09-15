@@ -1,9 +1,11 @@
 "use client";
 
+import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { BookUp, PenLine, TextCursorInput, Trash2, FolderInput, FolderPlus } from "lucide-react";
 import { askCategoryPick } from "@/components/CategoryPickDialog";
 import { useEscape } from "@/hooks/useEscape";
+import { useDismissMenu } from "../hooks/useDismissMenu";
 import { menuDangerCls, menuItemCls } from "../constants";
 import { allCategories } from "../lib/catTree";
 import type { DocMeta } from "../types";
@@ -25,8 +27,10 @@ export function DocContextMenu({
   const { menus, nav, library, docActions, auth } = ws;
   const anchor = menus.docMenu;
   const mine = anchor?.id === doc.id;
+  const panelRef = useRef<HTMLDivElement | null>(null);
   // Esc 关菜单：和弹窗、斜杠菜单一致，别让用户去找空白处点
   useEscape(menus.closeDocMenu, mine);
+  useDismissMenu(panelRef, menus.closeDocMenu, mine);
   if (!mine) return null;
 
   const run = (fn: () => void) => () => {
@@ -45,64 +49,51 @@ export function DocContextMenu({
   };
 
   return createPortal(
-    <>
-      <div
-        className="fixed inset-0 z-30"
-        onClick={(e) => {
-          e.stopPropagation();
-          menus.closeDocMenu();
-        }}
-        onWheel={menus.closeDocMenu}
-        onTouchMove={menus.closeDocMenu}
-      />
-      <div
-        className="fixed z-40 w-48 overflow-y-auto rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]"
-        style={{
-          top: anchor.top,
-          right: anchor.right,
-          maxHeight: `calc(100vh - ${anchor.top + 12}px)`,
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button className={menuItemCls} onClick={run(() => nav.openDoc(doc.id))}>
-          <PenLine size={13} className="text-[var(--ink-faint)]" />
-          编辑
-        </button>
-        <button className={menuItemCls} onClick={run(() => void docActions.renameDoc(doc))}>
-          <TextCursorInput size={13} className="text-[var(--ink-faint)]" />
-          重命名
-        </button>
-        <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
-          <FolderInput size={13} className="text-[var(--ink-faint)]" />
-          移动到分类…
-        </button>
-        <button
-          className={menuItemCls}
-          onClick={run(() => void docActions.moveToNewCategory(doc))}
-        >
-          <FolderPlus size={13} className="text-[var(--ink-faint)]" />
-          新建分类…
-        </button>
-        {!auth.localMode ? (
-          <>
-            <div className="my-1 border-t border-[var(--hairline)]" />
-            <button
-              className={menuItemCls}
-              onClick={run(() => void docActions.pushToFeishu(doc))}
-              disabled={docActions.pushingFeishu}
-            >
-              <BookUp size={13} className="text-[var(--ink-faint)]" />
-              推送到飞书
-            </button>
-          </>
-        ) : null}
-        <div className="my-1 border-t border-[var(--hairline)]" />
-        <button className={menuDangerCls} onClick={run(() => void docActions.removeDoc(doc))}>
-          <Trash2 size={13} />
-          删除文章
-        </button>
-      </div>
-    </>,
+    <div
+      ref={panelRef}
+      className="fixed z-40 w-48 overflow-y-auto rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]"
+      style={{
+        top: anchor.top,
+        right: anchor.right,
+        maxHeight: `calc(100vh - ${anchor.top + 12}px)`,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button className={menuItemCls} onClick={run(() => nav.openDoc(doc.id))}>
+        <PenLine size={13} className="text-[var(--ink-faint)]" />
+        编辑
+      </button>
+      <button className={menuItemCls} onClick={run(() => void docActions.renameDoc(doc))}>
+        <TextCursorInput size={13} className="text-[var(--ink-faint)]" />
+        重命名
+      </button>
+      <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
+        <FolderInput size={13} className="text-[var(--ink-faint)]" />
+        移动到分类…
+      </button>
+      <button className={menuItemCls} onClick={run(() => void docActions.moveToNewCategory(doc))}>
+        <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+        新建文件夹…
+      </button>
+      {!auth.localMode ? (
+        <>
+          <div className="my-1 border-t border-[var(--hairline)]" />
+          <button
+            className={menuItemCls}
+            onClick={run(() => void docActions.pushToFeishu(doc))}
+            disabled={docActions.pushingFeishu}
+          >
+            <BookUp size={13} className="text-[var(--ink-faint)]" />
+            推送到飞书
+          </button>
+        </>
+      ) : null}
+      <div className="my-1 border-t border-[var(--hairline)]" />
+      <button className={menuDangerCls} onClick={run(() => void docActions.removeDoc(doc))}>
+        <Trash2 size={13} />
+        删除文章
+      </button>
+    </div>,
     document.body
   );
 }

@@ -107,12 +107,14 @@ export function CategoryRow({
             {node.count}
           </span>
         </div>
-        {/* 新建文章/子分类都收进「⋯」菜单：悬停快捷图标会压住长标题 */}
+        {/* 新建文章/子文件夹都收进「⋯」菜单：悬停快捷图标会压住长标题 */}
         {canManage ? (
           <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
             <button
               className={`${actionBtn} hover:text-[var(--ink)]`}
-              title="管理分类"
+              // 标记成菜单触发器：菜单的外部关闭逻辑放它一马，再点一次由这里 toggle 关掉
+              data-menu-trigger
+              title="管理文件夹"
               onClick={(e) => menus.toggleCatMenuAt(e, node.path)}
             >
               <MoreHorizontal size={13} />
