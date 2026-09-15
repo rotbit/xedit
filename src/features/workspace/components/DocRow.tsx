@@ -32,7 +32,7 @@ export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth:
       <button
         className={`flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${rowCls(active)}`}
         style={{ paddingLeft: `${30 + treeIndent(depth)}px` }}
-        onClick={() => nav.openDoc(doc.id)}
+        onClick={(e) => nav.openDoc(doc.id, { newTab: e.metaKey || e.ctrlKey })}
         onContextMenu={(e) => menus.openDocMenuAt(e, doc.id)}
         title={doc.title}
       >

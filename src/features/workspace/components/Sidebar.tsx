@@ -1,10 +1,13 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { FilePlus2, Loader2, PanelLeftClose, RotateCw, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
+import { TAG_OPEN_EVENT } from "@/lib/tagEvents";
 import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
+import { TagList, searchTag } from "./TagList";
 import type { Workspace } from "../hooks/useWorkspace";
 
 const toolBtn =
@@ -23,6 +26,21 @@ export function Sidebar({
 }) {
   const { nav, prefs, library, docActions, totalChars } = ws;
   const { docs } = library;
+
+  // 编辑器/预览里点中的 `#标签` 在这里落地：渲染层只派事件，筛文章的活归侧栏（见 lib/tagEvents.ts）。
+  // nav 每次渲染都是新对象，用 ref 兜最新值，监听器只挂一次
+  const latestNav = useRef(nav);
+  useEffect(() => {
+    latestNav.current = nav;
+  });
+  useEffect(() => {
+    const onOpenTag = (event: Event) => {
+      const tag = (event as CustomEvent<{ tag?: string }>).detail?.tag?.trim();
+      if (tag) searchTag(latestNav.current, tag);
+    };
+    window.addEventListener(TAG_OPEN_EVENT, onOpenTag);
+    return () => window.removeEventListener(TAG_OPEN_EVENT, onOpenTag);
+  }, []);
 
   /** 右缘手柄拖拽调宽：过程中只改状态，松手才落盘 */
   const onResizeStart = (e: React.PointerEvent) => {
@@ -73,11 +91,17 @@ export function Sidebar({
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
           />
           <input
-            className="h-8 w-full rounded-md border border-[var(--hairline)] bg-[var(--panel)] pl-8 pr-2.5 text-[12.5px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--hairline-strong)]"
+            className="h-8 w-full rounded-md border border-[var(--hairline)] bg-[var(--panel)] pl-8 pr-9 text-[12.5px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--hairline-strong)]"
             placeholder={nav.isTrash ? "搜索回收站…" : "搜索文章…"}
             value={nav.search}
             onChange={(e) => nav.onSearch(e.target.value)}
           />
+          {/* 快速切换器的入口提示：输入框一有字就让位，窄屏抽屉里也不占地方 */}
+          {!nav.search ? (
+            <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 text-[10px] text-[var(--ink-faint)] md:block">
+              ⌘O
+            </kbd>
+          ) : null}
         </div>
       </div>
 
@@ -112,6 +136,7 @@ export function Sidebar({
       </div>
 
       <CategoryTree ws={ws} />
+      <TagList ws={ws} />
       <SidebarFooter ws={ws} onOpenFeishu={onOpenFeishu} />
 
       {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}

@@ -18,6 +18,9 @@ import { FloatingToolbar } from "./FloatingToolbar";
 import { ReaderActions } from "@/features/editor/components/ReaderActions";
 import { ShareDialog } from "@/features/share/ShareDialog";
 import { isLocalId } from "@/lib/localDocs";
+import { useWikiLinkOpen } from "@/hooks/useWikiLinkOpen";
+import type { DocMeta } from "@/features/workspace/types";
+import { BacklinksPanel } from "./BacklinksPanel";
 import { OutlinePanel } from "./OutlinePanel";
 import { Preview } from "./Preview";
 import { VersionsPanel } from "./VersionsPanel";
@@ -42,6 +45,9 @@ export function ArticleReader({
   categories,
   onCategoryChange,
   onDelete,
+  docs,
+  onOpenDoc,
+  onCreateDoc,
 }: {
   docId: string;
   /** 面包屑顶栏右侧的挂载点：操作按钮 portal 到这里，与面包屑共用一行 */
@@ -51,6 +57,11 @@ export function ArticleReader({
   /** 分类变更后通知首页同步列表状态（持久化由自动保存管线完成） */
   onCategoryChange?: (category: string) => void;
   onDelete?: () => void;
+  /** 全部文章（不含回收站）：`[[双向链接]]` 按标题在这里找目标 */
+  docs?: DocMeta[];
+  onOpenDoc?: (id: string) => void;
+  /** 双向链接指向的文章还不存在时，按目标标题建一篇并打开 */
+  onCreateDoc?: (category: string, init: { title: string }) => void | Promise<void>;
 }) {
   // 装载 + 自动保存复用编辑页管线（本地/云端文档皆可）
   const { docVersion, loading, loggedIn, reload, refreshedHint } = useEditorDoc(docId);
@@ -92,6 +103,14 @@ export function ArticleReader({
       if (selectionSubRef.current === cb) selectionSubRef.current = null;
     };
   }, []);
+
+  // [[双向链接]]：编辑器与预览只派事件，按标题找文章 / 追问是否新建都落在这个 hook 里
+  useWikiLinkOpen({
+    docs: docs ?? [],
+    category: category || "未分类",
+    openDoc: onOpenDoc ?? (() => {}),
+    createDoc: onCreateDoc ?? (() => {}),
+  });
 
   const applyFormat = useCallback((cmd: FormatCommand, arg?: string) => {
     editorRef.current?.applyFormat(cmd, arg);
@@ -308,12 +327,25 @@ export function ArticleReader({
                     docKey={docKey}
                     initialContent={useStore.getState().content}
                     live={!sourceMode}
+                    docs={docs}
                     onChange={setContent}
                     onScrollLine={onEditorScrollLine}
                     onSelectionChange={emitSelection}
                     scrollParent={scrollEl}
                   />
                 </div>
+                {/* 反向链接：跟正文同一个滚动容器、同一条左右缘，通读到底自然接上。
+                    阅读模式下整块编辑区都藏着，索性不渲染，省掉一次全库正文扫描 */}
+                {!reading && docs?.length ? (
+                  <div className={`w-full ${split ? "px-7" : "mx-auto max-w-[760px] px-7"} pb-24`}>
+                    <BacklinksPanel
+                      docs={docs}
+                      docId={docId}
+                      title={title}
+                      onOpenDoc={onOpenDoc}
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

@@ -179,6 +179,9 @@ const slashField = StateField.define<SlashFieldValue>({
     if (!next) return EMPTY;
     if (next.from === value.dismissed) return { open: null, dismissed: value.dismissed };
     const items = filterSlashItems(next.query);
+    // 过滤词已经谁都匹配不上（比如 `/` 后面接着插了一段链接）：直接收起，
+    // 不挂一块「没有匹配的块」在正文上碍事
+    if (!items.length) return { open: null, dismissed: null };
     // 同一个 `/` 且过滤词没变才保留高亮位置；一改过滤词就回到第一项
     const keep =
       value.open && value.open.from === next.from && value.open.query === next.query

@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { FilePlus2, FolderInput, FolderPlus, PenLine, RotateCw, Trash2 } from "lucide-react";
 import { askCategoryPick } from "@/components/CategoryPickDialog";
+import { useEscape } from "@/hooks/useEscape";
 import {
   ALL,
   MAX_DEPTH,
@@ -18,6 +19,7 @@ import type { Workspace } from "../hooks/useWorkspace";
 export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   const { menus, docActions, catActions, library } = ws;
   const anchor = menus.catMenu;
+  useEscape(menus.closeCatMenu, anchor !== null);
   if (!anchor) return null;
 
   const { path } = anchor;

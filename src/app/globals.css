@@ -3,6 +3,7 @@
 @import "./editor.css";
 @import "./live-preview.css";
 @import "./live-blocks.css";
+@import "./live-tags.css";
 
 /* data-theme 驱动的暗色变体：dark:xxx */
 @custom-variant dark ([data-theme="dark"] &);
@@ -350,6 +351,28 @@ html.desktop-mac .traffic-inset {
 /* 桌面壳里 Dock 图标已经表明身份，侧栏顶栏不再重复放 logo，只留红绿灯与收起按钮 */
 html.desktop-mac .sidebar-logo {
   display: none;
+}
+
+/* 预览里的 [[双向链接]]。
+   刻意放在这里而不是主题 CSS（src/lib/themes）：主题字符串会被复制管线整份内联进
+   公众号正文，而站内链接出了 xedit 就是普通文字，不该带着链接色跑出去。
+   用 --brand 而不是 --md-link：预览卡固定日间白底（.light-lock 只覆盖了品牌色一组变量），
+   靛蓝在白底上两套主题下都读得清，也正好把「站内」与外链的蓝区分开 */
+#nice .wikilink {
+  color: var(--brand);
+  cursor: pointer;
+  border-bottom: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
+}
+#nice .wikilink:hover {
+  border-bottom-style: solid;
+}
+
+/* 预览里的 #标签。与 .wikilink 同样刻意不放主题 CSS（主题会被整份内联进公众号正文）。
+   不做胶囊、只上色：span 复制到公众号后会降成普通文字，预览要是画成胶囊，
+   最终效果就和这里差得太远 */
+#nice .tag {
+  color: var(--brand);
+  cursor: pointer;
 }
 
 /* 预览区打印时只打印稿纸 */

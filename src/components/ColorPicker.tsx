@@ -67,8 +67,15 @@ export function ColorPicker({
       if (panelRef.current?.contains(t) || btnRef.current?.contains(t)) return;
       setPanel(null);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPanel(null);
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [panel]);
 
   const pick = (color: string | null) => {

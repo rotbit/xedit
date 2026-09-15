@@ -2,6 +2,8 @@ import { syntaxTree } from "@codemirror/language";
 import { RangeSet, StateField, type EditorState, type Extension, type Range, type Transaction } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { MathBlockWidget, TableWidget } from "@/lib/livePreviewBlockWidgets";
+import { FrontmatterWidget } from "@/lib/livePreviewFrontmatterWidget";
+import { parseFrontmatter } from "@/lib/frontmatter";
 import {
   caretInside,
   caretPositions,
@@ -21,9 +23,32 @@ import {
  */
 
 interface BlockRange extends CodeRange {
-  kind: "table" | "math";
-  /** 表格用原文、公式用 TeX，作为部件的 eq 依据 */
+  kind: "table" | "math" | "frontmatter";
+  /** 表格与 frontmatter 用原文、公式用 TeX，作为部件的 eq 依据 */
   payload: string;
+}
+
+/** frontmatter 只可能在文首这几行；设个上限，免得把「文档以 --- 开头、很久以后又有一条 ---」
+ *  的正文整段吞进卡片 */
+const FRONTMATTER_MAX_LINES = 40;
+
+/**
+ * 文首 frontmatter 的区间。走文本扫描而不是语法树：Setext 标题已被关掉，
+ * `---` 在语法树里就是两条各自独立的 HorizontalRule，认不出成对关系。
+ * 至少要解析出一个键才算数——否则一篇以分割线开头的文章会被误判成 frontmatter。
+ */
+function scanFrontmatter(state: EditorState): BlockRange | null {
+  if (state.doc.line(1).text.trimEnd() !== "---") return null;
+  const last = Math.min(state.doc.lines, FRONTMATTER_MAX_LINES);
+  for (let n = 2; n <= last; n++) {
+    const line = state.doc.line(n);
+    if (line.text.trimEnd() !== "---") continue;
+    const source = state.sliceDoc(0, line.to);
+    const parsed = parseFrontmatter(source);
+    if (!parsed || Object.keys(parsed.data).length === 0) return null;
+    return { kind: "frontmatter", from: 0, to: line.to, payload: source };
+  }
+  return null;
 }
 
 interface BlockDecorations {
@@ -115,7 +140,10 @@ function scanBlocks(state: EditorState, mathDelimiters: number[]): BlockRange[] 
       return undefined;
     },
   });
-  return [...tables, ...scanMathBlocks(state, codeRanges, mathDelimiters)].sort((a, b) => a.from - b.from);
+  const frontmatter = scanFrontmatter(state);
+  return [...(frontmatter ? [frontmatter] : []), ...tables, ...scanMathBlocks(state, codeRanges, mathDelimiters)].sort(
+    (a, b) => a.from - b.from
+  );
 }
 
 function buildBlockDecorations(state: EditorState, ranges: BlockRange[]): BlockDecorations {
@@ -127,7 +155,12 @@ function buildBlockDecorations(state: EditorState, ranges: BlockRange[]): BlockD
     // 缩进在引用/列表里的表格拿不到整行，索性保持源码不渲染
     if (state.doc.lineAt(r.from).from !== r.from || state.doc.lineAt(r.to).to !== r.to) continue;
     if (caretInside(caret, r.from, r.to) || selectionTouches(state, r.from, r.to)) continue;
-    const widget = r.kind === "table" ? new TableWidget(r.payload) : new MathBlockWidget(r.payload);
+    const widget =
+      r.kind === "table"
+        ? new TableWidget(r.payload)
+        : r.kind === "frontmatter"
+          ? new FrontmatterWidget(r.payload)
+          : new MathBlockWidget(r.payload);
     decos.push(Decoration.replace({ widget, block: true }).range(r.from, r.to));
     rendered.push({ from: r.from, to: r.to });
   }

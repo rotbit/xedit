@@ -7,6 +7,7 @@
 // 低频项（分享 / 导出 / 三个开关 / 删除）统一收进 ⋯ 菜单，顶栏只留常用动作。
 
 import { memo, useMemo, useState } from "react";
+import { useEscape } from "@/hooks/useEscape";
 import {
   BookOpen,
   ChevronDown,
@@ -108,6 +109,11 @@ export const ReaderActions = memo(function ReaderActions({
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   /** 从复制菜单跳过来的主题面板：复制前顺手换主题，不必先切到预览 */
   const [themeOpen, setThemeOpen] = useState(false);
+  // Esc 收起复制菜单 / 主题面板，与其他浮层一致
+  useEscape(() => {
+    setCopyMenuOpen(false);
+    setThemeOpen(false);
+  }, copyMenuOpen || themeOpen);
   const [insertOpen, setInsertOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 

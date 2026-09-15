@@ -6,6 +6,7 @@ import type { Session } from "next-auth";
 import { BookDown, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { clearMirror } from "@/lib/docStore";
 import { toggleDark } from "@/components/DarkToggle";
+import { useEscape } from "@/hooks/useEscape";
 import { menuItemCls, menuPanelCls } from "../constants";
 import type { AccountMenuAnchor } from "../hooks/useMenus";
 
@@ -24,6 +25,7 @@ export function AccountMenu({
   onClose: () => void;
   onOpenFeishu: () => void;
 }) {
+  useEscape(onClose);
   const run = (fn: () => void) => () => {
     onClose();
     fn();
