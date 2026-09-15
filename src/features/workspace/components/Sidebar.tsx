@@ -104,7 +104,7 @@ export function Sidebar({
         <span className="flex items-center">
           <button
             className={`${toolBtnCls} hover:text-[var(--ink)]`}
-            title="新建分类"
+            title="新建文件夹"
             onClick={() => void catActions.createCategory()}
           >
             <FolderPlus size={12} />

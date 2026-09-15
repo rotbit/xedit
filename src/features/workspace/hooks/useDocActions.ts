@@ -246,7 +246,7 @@ export function useDocActions({ auth, library, nav }: Params) {
 
   const moveToNewCategory = async (doc: DocMeta) => {
     const name = (
-      await askInput({ title: "新建分类并移入", placeholder: "分类名称，可用 / 建子分类" })
+      await askInput({ title: "新建文件夹并移入", placeholder: "文件夹名称，可用 / 建子文件夹" })
     )?.trim();
     if (!name) return;
     void moveDoc(doc, name.slice(0, 100));

@@ -41,6 +41,8 @@ export function DocListView({ ws }: { ws: Workspace }) {
             </span>
             <button
               className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)] group-hover:visible [@media(hover:none)]:visible"
+              // 菜单触发器：外部关闭逻辑放它一马，再点一次由这里 toggle 关掉
+              data-menu-trigger
               onClick={(e) => menus.toggleDocMenuAt(e, doc.id)}
             >
               <MoreHorizontal size={15} />
