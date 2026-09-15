@@ -1,6 +1,7 @@
 import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
+import { inlineAttachments } from "@/lib/localBackend/attachmentUrls";
 import { inlineStyles } from "./inline";
 import { BASE_CSS } from "@/lib/themes/base";
 
@@ -146,7 +147,9 @@ export async function buildWechatHtml(
   opts: WechatBuildOptions
 ): Promise<string> {
   await ensureMathJax();
-  const html = sanitizeHtml(renderMarkdown(markdown, { macCode: opts.macCode }));
+  // 磁盘文库里的本地图片内联成 base64：公众号那边拿不到本机文件，裂图会让粘贴出问题
+  const source = await inlineAttachments(markdown);
+  const html = sanitizeHtml(renderMarkdown(source, { macCode: opts.macCode }));
   const root = document.createElement("section");
   root.id = "nice";
   root.innerHTML = html;

@@ -2,6 +2,7 @@ import { AlignmentType, Document, LevelFormat, Packer, Paragraph } from "docx";
 import { renderMarkdown } from "@/lib/markdown/renderer";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
+import { inlineAttachments } from "@/lib/localBackend/attachmentUrls";
 import { downloadFile } from "@/lib/export";
 import { toast } from "@/components/Toast";
 import { childBlocks } from "./docx/block";
@@ -59,7 +60,8 @@ export async function exportDocx(title: string, markdown: string): Promise<void>
   try {
     // 公式渲染依赖 MathJax；未加载成功时降级为 TeX 文本
     if (markdown.includes("$")) await ensureMathJax().catch(() => undefined);
-    const html = sanitizeHtml(renderMarkdown(markdown, {}));
+    // 磁盘文库的本地图片先内联成 base64，prepareMedia 才拿得到字节
+    const html = sanitizeHtml(renderMarkdown(await inlineAttachments(markdown), {}));
     const body = new DOMParser().parseFromString(html, "text/html").body;
     stripSpaceAfterBreaks(body);
     const b: Build = { images: new Map(), math: new Map(), frames: new Map(), olInstance: 0, failed: 0 };
