@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
+import { DEFAULT_MARKDOWN, WELCOME_TITLE } from "@/lib/welcomeDoc";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -33,8 +34,14 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await hashPassword(password);
+  // 邮箱注册不经过 auth 的 createUser 事件，欢迎稿在这里随账号一起建（只此一次）
   await prisma.user.create({
-    data: { email, passwordHash, name: name || email.split("@")[0] },
+    data: {
+      email,
+      passwordHash,
+      name: name || email.split("@")[0],
+      documents: { create: { title: WELCOME_TITLE, content: DEFAULT_MARKDOWN } },
+    },
   });
 
   return NextResponse.json({ ok: true });
