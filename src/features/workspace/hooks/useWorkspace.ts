@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { pruneIndex } from "@/lib/docIndex";
 import { searchDocs } from "@/lib/docSearch";
-import { buildTagIndex } from "@/lib/docTags";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { buildTree, findNode } from "../lib/catTree";
 import { catKey, docKey, reorderList } from "../lib/sidebarOrder";
@@ -101,8 +101,11 @@ export function useWorkspace() {
     [docs]
   );
 
-  /** 全库标签与篇数（侧栏标签区用）。逐篇扫正文的开销由 docTags 内部按 updatedAt 缓存兜住 */
-  const tagIndex = useMemo(() => buildTagIndex(docs ?? []), [docs]);
+  // 文库一变就把已不在库里的文章清出 docIndex 缓存：缓存按 id 长住，
+  // 不清就会把删掉的、退出登录换库之后的正文一直攥在内存里
+  useEffect(() => {
+    pruneIndex((docs ?? []).map((doc) => doc.id));
+  }, [docs]);
 
   /**
    * 侧栏搜索的命中集合：标题之外还搜正文（正文在 localStorage，纯客户端算）。
@@ -145,7 +148,6 @@ export function useWorkspace() {
     tree,
     filtered,
     totalChars,
-    tagIndex,
   };
 }
 

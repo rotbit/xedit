@@ -1,27 +1,24 @@
 /**
  * 文库派生数据的统一缓存层（纯函数，无 React）。
  *
- * 标签、全文检索、反向链接要的三样东西都是从同一份正文算出来的，
- * 各算各的就得把每篇正文从 localStorage 读三遍、解析三遍；合到一处只解析一遍。
+ * 全文检索与 `[[双向链接]]` 要的两样东西都是从同一份正文算出来的，
+ * 各算各的就得把每篇正文从 localStorage 读两遍、解析两遍；合到一处只解析一遍。
  *
  * 缓存是必须的而不是优化：自动保存每隔几百毫秒就换一次 docs 引用，
- * 侧栏标签、检索、反链都会跟着重跑一轮全库扫描，代价应该只落在真正动过的那一篇上。
+ * 检索与改名重链都会跟着重跑一轮全库扫描，代价应该只落在真正动过的那一篇上。
  *
  * 失效键是 updatedAt + 正文长度两条一起看：云端镜像可能在 updatedAt 不变的情况下晚一步才拉到本地
  * （在此之前 getDocContent 返回空串），只认 updatedAt 会把「正文还没到」这个中间态一直缓存下去。
  */
 
 import { getDocContent } from "@/lib/docContent";
-import { extractTags } from "@/lib/frontmatter";
 import { parseWikiLinks, wikiLinkText, type WikiLinkRef } from "@/lib/wikiLink";
 import type { DocMeta } from "@/features/workspace/types";
 
 export interface DocIndexEntry {
-  /** frontmatter + 正文内联的全部标签，小写去重 */
-  tags: string[];
   /** 正文里的 `[[双向链接]]`，带原文偏移 */
   links: WikiLinkRef[];
-  /** 抹掉 Markdown 记号的纯文本，检索与反链共用这一份口径 */
+  /** 抹掉 Markdown 记号的纯文本，检索与改名重链共用这一份口径 */
   text: string;
 }
 
@@ -38,7 +35,7 @@ export function plainText(md: string): string {
 
 /**
  * 纯文本化，并把 `[[目标|别名]]` 摊平成它显示出来的文字 —— 摘要里不该露方括号。
- * 检索与反链都走这一份：搜「别名」能命中写着 `[[目标|别名]]` 的文章，和读者看到的一致。
+ * 检索走这一份：搜「别名」能命中写着 `[[目标|别名]]` 的文章，和读者看到的一致。
  */
 export function flatten(md: string): string {
   return plainText(
@@ -60,7 +57,6 @@ export function indexOf(doc: DocMeta): DocIndexEntry {
   if (hit && hit.updatedAt === doc.updatedAt && hit.length === content.length) return hit.entry;
 
   const entry: DocIndexEntry = {
-    tags: extractTags(content),
     links: parseWikiLinks(content),
     text: flatten(content),
   };

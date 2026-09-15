@@ -7,7 +7,6 @@
 
 import { getDocContent } from "@/lib/docContent";
 import { indexOf, plainText } from "@/lib/docIndex";
-import { hasAllTags, parseSearchQuery, tagsOf } from "@/lib/docTags";
 import type { DocMeta } from "@/features/workspace/types";
 
 // 正文读取搬去了 docContent.ts、纯文本化搬去了 docIndex.ts（都是更底层，留在这儿会成环）；
@@ -76,7 +75,7 @@ function buildSnippet(text: string, terms: string[]): string {
   return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
 }
 
-/** 只剩标签条件（或空查询）时的结果：按更新时间倒序，摘要用列表摘要 */
+/** 空查询时的结果：按更新时间倒序，摘要用列表摘要 */
 function listOnly(docs: DocMeta[], limit: number): DocHit[] {
   return docs.slice(0, limit).map((doc) => ({
     doc,
@@ -88,8 +87,6 @@ function listOnly(docs: DocMeta[], limit: number): DocHit[] {
 
 /**
  * 搜文章：标题命中排前，正文命中排后，同级内按更新时间倒序。
- * 查询里的 `#标签` / `tag:标签` 先把范围收窄（每个标签都要命中），剩下的词再按文字搜；
- * 只写标签不写词就是「列出该标签下的文章」。
  * 空查询返回最近更新的 limit 篇（快速切换器的「最近编辑」）。
  */
 export function searchDocs(
@@ -99,13 +96,10 @@ export function searchDocs(
 ): DocHit[] {
   const limit = opts.limit ?? 30;
   if (limit <= 0) return [];
-  const { tags, text } = parseSearchQuery(query);
-  // 标签过滤要逐篇读正文（有缓存），所以只在真写了标签时才走
-  const pool = tags.length > 0 ? docs.filter((doc) => hasAllTags(tagsOf(doc), tags)) : docs;
-  const recent = [...pool].sort(
+  const recent = [...docs].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
-  const terms = splitQuery(text);
+  const terms = splitQuery(query);
   if (terms.length === 0) return listOnly(recent, limit);
 
   // 先扫一遍标题（只碰元信息，便宜），标题没中的再读正文：

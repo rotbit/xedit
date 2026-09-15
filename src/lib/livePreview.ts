@@ -25,7 +25,6 @@ import { fencedCodeDecorations } from "@/lib/livePreviewFence";
 import { fenceKeymap } from "@/lib/livePreviewFenceKeys";
 import { livePreviewBlocks, renderedBlockRanges } from "@/lib/livePreviewBlocks";
 import { requestOpenWikiLink } from "@/lib/wikiLink";
-import { requestOpenTag } from "@/lib/tagEvents";
 
 /**
  * 即时渲染（类 Obsidian Live Preview）——节点级还原策略：
@@ -393,13 +392,6 @@ export const livePreview: Extension = [
       const wiki = dom.closest?.("[data-lp-wiki]")?.getAttribute("data-lp-wiki");
       if (wiki) {
         requestOpenWikiLink(wiki);
-        e.preventDefault();
-        return true;
-      }
-      // #标签：同理，派事件让侧栏把搜索框换成该标签
-      const tag = dom.closest?.("[data-lp-tag]")?.getAttribute("data-lp-tag");
-      if (tag) {
-        requestOpenTag(tag);
         e.preventDefault();
         return true;
       }
