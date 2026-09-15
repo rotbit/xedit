@@ -1,9 +1,11 @@
 "use client";
 
+import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { FilePlus2, FolderInput, FolderPlus, PenLine, RotateCw, Trash2 } from "lucide-react";
 import { askCategoryPick } from "@/components/CategoryPickDialog";
 import { useEscape } from "@/hooks/useEscape";
+import { useDismissMenu } from "../hooks/useDismissMenu";
 import {
   ALL,
   MAX_DEPTH,
@@ -19,7 +21,9 @@ import type { Workspace } from "../hooks/useWorkspace";
 export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   const { menus, docActions, catActions, library } = ws;
   const anchor = menus.catMenu;
+  const panelRef = useRef<HTMLDivElement | null>(null);
   useEscape(menus.closeCatMenu, anchor !== null);
+  useDismissMenu(panelRef, menus.closeCatMenu, anchor !== null);
   if (!anchor) return null;
 
   const { path } = anchor;
@@ -46,62 +50,56 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   };
 
   return createPortal(
-    <>
-      <div
-        className="fixed inset-0 z-30"
-        onClick={menus.closeCatMenu}
-        onWheel={menus.closeCatMenu}
-      />
-      <div className={`${menuPanelCls} w-44`} style={{ top: anchor.top, left: anchor.left }}>
-        <button
-          className={menuItemCls}
-          onClick={run(() => void docActions.createDoc(isRoot ? UNCATEGORIZED : path))}
-        >
-          <FilePlus2 size={13} className="text-[var(--ink-faint)]" />
-          新建文章
+    <div
+      ref={panelRef}
+      className={`${menuPanelCls} w-44`}
+      style={{ top: anchor.top, left: anchor.left }}
+    >
+      <button
+        className={menuItemCls}
+        onClick={run(() => void docActions.createDoc(isRoot ? UNCATEGORIZED : path))}
+      >
+        <FilePlus2 size={13} className="text-[var(--ink-faint)]" />
+        新建文章
+      </button>
+      {isRoot ? (
+        <button className={menuItemCls} onClick={run(() => void catActions.createCategory())}>
+          <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+          新建文件夹
         </button>
-        {isRoot ? (
-          <button className={menuItemCls} onClick={run(() => void catActions.createCategory())}>
-            <FolderPlus size={13} className="text-[var(--ink-faint)]" />
-            新建分类
+      ) : canAddChild ? (
+        <button className={menuItemCls} onClick={run(() => void catActions.createCategory(path))}>
+          <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+          新建子文件夹
+        </button>
+      ) : null}
+      {isRoot ? (
+        <button className={menuItemCls} onClick={run(() => void docActions.refreshDocs())}>
+          <RotateCw size={13} className="text-[var(--ink-faint)]" />
+          刷新列表
+        </button>
+      ) : null}
+      {canManage ? (
+        <>
+          <div className="my-1 border-t border-[var(--hairline)]" />
+          <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
+            <FolderInput size={13} className="text-[var(--ink-faint)]" />
+            移动到文件夹…
           </button>
-        ) : canAddChild ? (
-          <button className={menuItemCls} onClick={run(() => void catActions.createCategory(path))}>
-            <FolderPlus size={13} className="text-[var(--ink-faint)]" />
-            新建子分类
+          <button className={menuItemCls} onClick={run(() => void catActions.renameCategory(path))}>
+            <PenLine size={13} className="text-[var(--ink-faint)]" />
+            重命名
           </button>
-        ) : null}
-        {isRoot ? (
-          <button className={menuItemCls} onClick={run(() => void docActions.refreshDocs())}>
-            <RotateCw size={13} className="text-[var(--ink-faint)]" />
-            刷新列表
+          <button
+            className={menuDangerCls}
+            onClick={run(() => void catActions.removeCategory(path))}
+          >
+            <Trash2 size={13} />
+            删除文件夹
           </button>
-        ) : null}
-        {canManage ? (
-          <>
-            <div className="my-1 border-t border-[var(--hairline)]" />
-            <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
-              <FolderInput size={13} className="text-[var(--ink-faint)]" />
-              移动到文件夹…
-            </button>
-            <button
-              className={menuItemCls}
-              onClick={run(() => void catActions.renameCategory(path))}
-            >
-              <PenLine size={13} className="text-[var(--ink-faint)]" />
-              重命名
-            </button>
-            <button
-              className={menuDangerCls}
-              onClick={run(() => void catActions.removeCategory(path))}
-            >
-              <Trash2 size={13} />
-              删除分类
-            </button>
-          </>
-        ) : null}
-      </div>
-    </>,
+        </>
+      ) : null}
+    </div>,
     document.body
   );
 }

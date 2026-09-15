@@ -56,9 +56,11 @@ export function useMenus() {
     });
   };
 
-  /** 「···」按钮：已展开同一目标则收起，否则贴按钮下沿展开 */
+  /** 「···」按钮：已展开同一目标则收起，否则贴按钮下沿展开。
+   *  按钮带 data-menu-trigger，不触发菜单自己的外部关闭，所以另一个菜单在这里手动关 */
   const toggleDocMenuAt = (e: React.MouseEvent<HTMLElement>, id: string) => {
     e.stopPropagation();
+    setCatMenu(null);
     if (docMenu?.id === id) {
       setDocMenu(null);
       return;
@@ -69,6 +71,7 @@ export function useMenus() {
 
   const toggleCatMenuAt = (e: React.MouseEvent<HTMLElement>, path: string) => {
     e.stopPropagation();
+    setDocMenu(null);
     if (catMenu?.path === path) {
       setCatMenu(null);
       return;

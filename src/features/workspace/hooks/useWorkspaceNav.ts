@@ -80,7 +80,7 @@ export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
     setReading(null);
     setSearch("");
     prefs.closeDrawerOnMobile();
-    if (!isVirtualCat(path)) prefs.expandPath(path);
+    if (!isVirtualCat(path)) prefs.expandAncestors(path);
   };
 
   const openDoc = (id: string) => {
