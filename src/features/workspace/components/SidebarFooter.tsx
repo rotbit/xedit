@@ -16,9 +16,13 @@ import {
   resumeVault,
   type VaultState,
 } from "@/lib/localBackend/vaultSession";
-import { ASSETS, TRASH, countCls, rowCls, vaultBtnCls } from "../constants";
+import { ASSETS, TRASH, countCls, rowCls } from "../constants";
 import { AccountMenu } from "./AccountMenu";
 import type { Workspace } from "../hooks/useWorkspace";
+
+/** 底部这排次要按钮：与工作台其他 ghost 按钮同款，压在深色侧栏上也够清楚 */
+const vaultBtnCls =
+  "flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--hairline)] px-2 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 
 /** 图片库 / 回收站两个入口的行样式与分类行一致，但没有展开箭头与拖拽 */
 function SimpleRow({
@@ -115,11 +119,9 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
 export function SidebarFooter({
   ws,
   onOpenFeishu,
-  onOpenVaultSync,
 }: {
   ws: Workspace;
   onOpenFeishu: () => void;
-  onOpenVaultSync: () => void;
 }) {
   const { auth, menus, library, vault } = ws;
 
@@ -193,7 +195,6 @@ export function SidebarFooter({
                 user={auth.session?.user}
                 onClose={menus.closeAccountMenu}
                 onOpenFeishu={onOpenFeishu}
-                onOpenVaultSync={onOpenVaultSync}
               />
             ) : null}
           </div>
