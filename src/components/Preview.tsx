@@ -1,13 +1,17 @@
 "use client";
 
-import { forwardRef, useRef } from "react";
-import { ChevronLeft } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { AlignLeft, ChevronLeft } from "lucide-react";
 import { BASE_CSS } from "@/lib/themes/base";
 import { usePreviewRender } from "@/hooks/usePreviewRender";
 import { useOutline } from "@/hooks/useOutline";
 import { requestOpenWikiLink } from "@/lib/wikiLink";
 import { OutlineNav } from "@/components/OutlineNav";
+import { readLocal, writeLocal } from "@/features/workspace/lib/storage";
 import { ReadingMeta, ReadingTitle, ThemeTrigger } from "@/features/editor/components/ReadingChrome";
+
+/** 阅读模式大纲开合的记忆位（"1" 展开 / "0" 收起，缺省当展开） */
+const OUTLINE_OPEN_KEY = "xedit.readingOutlineOpen";
 
 interface Props {
   onScroll?: () => void;
@@ -36,6 +40,18 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
   // 大纲只在阅读模式露出，但 hook 两个变体都调（提取一次的开销远小于条件调用的麻烦）
   const sectionRef = useRef<HTMLElement>(null);
   const { outline, jumpToHeading } = useOutline(sectionRef, html);
+  // 大纲开合：初值固定 true，localStorage 留到 useEffect 里回读——
+  // 惰性初始化会让服务端渲的首帧与客户端不一致，直接踩 hydration
+  const [outlineOpen, setOutlineOpen] = useState(true);
+  useEffect(() => {
+    if (readLocal(OUTLINE_OPEN_KEY) === "0") setOutlineOpen(false);
+  }, []);
+  const setOutlineVisible = useCallback((v: boolean) => {
+    setOutlineOpen(v);
+    writeLocal(OUTLINE_OPEN_KEY, v ? "1" : "0");
+  }, []);
+  // 有标题才谈开合：无标题时大纲与展开入口都不该出现
+  const hasOutline = reading && outline.length > 0;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
@@ -59,6 +75,18 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
           <ThemeTrigger themeName={themeName} />
         </span>
       </div>
+      {/* 收起后的目录入口，落在 40px 顶栏下方的留白里，展开后交回大纲标题行的收起按钮 */}
+      {hasOutline && !outlineOpen ? (
+        <button
+          type="button"
+          title="展开目录"
+          aria-label="展开目录"
+          onClick={() => setOutlineVisible(true)}
+          className="absolute left-1.5 top-[48px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+        >
+          <AlignLeft size={15} strokeWidth={1.75} />
+        </button>
+      ) : null}
       <div
         ref={ref}
         className={`min-h-0 flex-1 overflow-y-auto px-6 ${reading ? "py-10" : "py-8"}`}
@@ -76,12 +104,13 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
             reading ? "mx-auto flex w-full max-w-[960px] justify-center gap-8" : "contents"
           }
         >
-          {/* 大纲（桌面）：从渲染结果提取 h1~h3，点击平滑跳转；无标题时整条不渲染，正文照旧居中。
-              sticky 相对外层 overflow-y-auto 的滚动容器生效 */}
-          {reading && outline.length > 0 ? (
+          {/* 大纲（桌面）：从渲染结果提取 h1~h3，点击平滑跳转；无标题或已收起时整条不渲染，
+              正文照旧居中。sticky 相对外层 overflow-y-auto 的滚动容器生效 */}
+          {hasOutline && outlineOpen ? (
             <OutlineNav
               outline={outline}
               onJump={jumpToHeading}
+              onClose={() => setOutlineVisible(false)}
               className="hidden w-[190px] shrink-0 lg:block"
             />
           ) : null}
