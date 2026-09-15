@@ -6,7 +6,6 @@ import {
   DROP_LINE_BOTTOM,
   DROP_LINE_TOP,
   UNCATEGORIZED,
-  countCls,
   rowCls,
   rowInset,
   treeIndent,
@@ -102,10 +101,8 @@ export function CategoryRow({
           <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>
             {isOpen ? <FolderOpen size={14} /> : <Folder size={14} />}
           </span>
+          {/* 不显示篇数：目录树只管导航，总数在顶部统计行，数字挂在每行右侧只是噪音 */}
           <span className="ml-1 min-w-0 flex-1 truncate">{node.name}</span>
-          <span className={`rounded-full px-1.5 text-[11px] group-hover/cat:hidden ${countCls(active)}`}>
-            {node.count}
-          </span>
         </div>
         {/* 新建文章/子文件夹都收进「⋯」菜单：悬停快捷图标会压住长标题 */}
         {canManage ? (
