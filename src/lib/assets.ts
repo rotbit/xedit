@@ -33,6 +33,9 @@ export interface AssetView {
   mime: string;
   size: number;
   source: string;
+  /** 像素尺寸；服务端上传路径读不出，为 null，由前端首次展示时补录 */
+  width: number | null;
+  height: number | null;
   createdAt: Date;
 }
 
@@ -42,9 +45,20 @@ function toView(a: {
   mime: string;
   size: number;
   source: string;
+  width: number | null;
+  height: number | null;
   createdAt: Date;
 }): AssetView {
-  return { id: a.id, url: a.url, mime: a.mime, size: a.size, source: a.source, createdAt: a.createdAt };
+  return {
+    id: a.id,
+    url: a.url,
+    mime: a.mime,
+    size: a.size,
+    source: a.source,
+    width: a.width,
+    height: a.height,
+    createdAt: a.createdAt,
+  };
 }
 
 function clampLimit(v: number | undefined, def: number, max: number): number {
@@ -100,6 +114,7 @@ export async function uploadMediaBuffer(
   const blocked = await uploadBlocked(userId, buffer.length);
   if (blocked) throw new Error(blocked);
   const { url, key } = await ossPut(buffer, ext, mime);
+  // 不解码算像素尺寸（服务端要多一个图片库，收益只是省前端一次解码），留空等前端补录
   const a = await prisma.asset.create({
     data: { userId, key, url, size: buffer.length, mime, source },
   });

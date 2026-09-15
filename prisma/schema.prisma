@@ -319,6 +319,10 @@ model Asset {
   size      Int      @default(0)
   mime      String   @default("")
   source    String   @default("upload")
+  /// 图片像素宽；上传时由浏览器读出，MCP/飞书等服务端路径为空，前端首次展示时补录
+  width     Int?
+  /// 图片像素高；同 width，视频与读不出尺寸的图片留空
+  height    Int?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

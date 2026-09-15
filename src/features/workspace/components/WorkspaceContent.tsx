@@ -22,7 +22,7 @@ const ArticleReader = dynamic(
   { ssr: false, loading: viewLoading }
 );
 const AssetsGallery = dynamic(
-  () => import("@/components/AssetsGallery").then((m) => m.AssetsGallery),
+  () => import("@/components/assets/AssetsGallery").then((m) => m.AssetsGallery),
   { ssr: false, loading: viewLoading }
 );
 
@@ -101,14 +101,13 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
           onOpenDoc={nav.openDoc}
           onCreateDoc={docActions.createDoc}
         />
+      ) : activeCat === ASSETS ? (
+        // 图片库是通栏两栏（网格 + 右侧详情栏），不套居中窄容器、自己管滚动
+        <AssetsGallery ossConfigured={config?.oss ?? false} onOpenDoc={nav.openDoc} />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[960px] px-4 pb-24 pt-6 sm:px-8">
-            {activeCat === ASSETS ? (
-              <AssetsGallery ossConfigured={config?.oss ?? false} onOpenDoc={nav.openDoc} />
-            ) : (
-              <DocList ws={ws} />
-            )}
+            <DocList ws={ws} />
           </div>
         </div>
       )}

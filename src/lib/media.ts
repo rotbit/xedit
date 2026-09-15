@@ -52,6 +52,29 @@ export const MIME_BY_EXT: Record<string, string> = {
   mov: "video/quicktime",
 };
 
+/** 像素尺寸上限：再大基本是脏数据或伪造值，宁可不记也不入库 */
+const MAX_IMAGE_DIMENSION = 20000;
+
+/** 单个尺寸值：接受数字或数字字符串，正整数且不超上限才算有效，否则 null */
+function parseDimension(v: unknown): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  if (!Number.isInteger(n) || n <= 0 || n > MAX_IMAGE_DIMENSION) return null;
+  return n;
+}
+
+/**
+ * 解析客户端报上来的图片像素尺寸（上传登记与补录接口共用）。
+ * 宽高成对才有意义，任一不合法就整体忽略——尺寸是可选的展示优化，不合法不该让上传失败。
+ */
+export function parseImageDimensions(
+  width: unknown,
+  height: unknown
+): { width: number; height: number } | null {
+  const w = parseDimension(width);
+  const h = parseDimension(height);
+  return w !== null && h !== null ? { width: w, height: h } : null;
+}
+
 /** URL 是否指向视频（按扩展名判断，容忍查询串与锚点） */
 const VIDEO_URL_RE = /\.(mp4|webm|mov|m4v)(?:$|[?#])/i;
 
