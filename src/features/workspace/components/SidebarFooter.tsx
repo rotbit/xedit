@@ -18,7 +18,6 @@ import {
 } from "@/lib/localBackend/vaultSession";
 import { ASSETS, TRASH, countCls, rowCls, vaultBtnCls } from "../constants";
 import { AccountMenu } from "./AccountMenu";
-import { VaultSyncRow } from "./VaultSyncRow";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /** 图片库 / 回收站两个入口的行样式与分类行一致，但没有展开箭头与拖拽 */
@@ -116,9 +115,11 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
 export function SidebarFooter({
   ws,
   onOpenFeishu,
+  onOpenVaultSync,
 }: {
   ws: Workspace;
   onOpenFeishu: () => void;
+  onOpenVaultSync: () => void;
 }) {
   const { auth, menus, library, vault } = ws;
 
@@ -161,8 +162,6 @@ export function SidebarFooter({
     <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
       {auth.loggedIn ? (
         <>
-          {/* 登录态的 Vault 只是个同步文件夹：一行状态点说完，点开才是开关与细节 */}
-          <VaultSyncRow vault={vault} />
           <SimpleRow ws={ws} viewKey={ASSETS} label="图片库" count={null} icon={<Images size={14} />} />
           {trashRow}
           <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
@@ -194,6 +193,7 @@ export function SidebarFooter({
                 user={auth.session?.user}
                 onClose={menus.closeAccountMenu}
                 onOpenFeishu={onOpenFeishu}
+                onOpenVaultSync={onOpenVaultSync}
               />
             ) : null}
           </div>

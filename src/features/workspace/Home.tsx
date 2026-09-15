@@ -26,6 +26,11 @@ const FeishuDialog = dynamic(
   { ssr: false }
 );
 
+const VaultSyncDialog = dynamic(
+  () => import("@/components/VaultSyncDialog").then((m) => m.VaultSyncDialog),
+  { ssr: false }
+);
+
 interface HomeProps {
   /** 服务端渲染好的落地页；已登录时为 null（那条路径根本走不到落地页） */
   landing: React.ReactNode;
@@ -39,6 +44,7 @@ export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
   const { auth, prefs, library, nav, vault } = ws;
   const [feishuOpen, setFeishuOpen] = useState(false);
+  const [vaultSyncOpen, setVaultSyncOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const feishuSync = useFeishuSync();
@@ -174,7 +180,11 @@ export function Home({ landing }: HomeProps) {
           onClick={() => prefs.setSidebarOpen(false)}
         />
       ) : null}
-      <Sidebar ws={ws} onOpenFeishu={() => setFeishuOpen(true)} />
+      <Sidebar
+        ws={ws}
+        onOpenFeishu={() => setFeishuOpen(true)}
+        onOpenVaultSync={() => setVaultSyncOpen(true)}
+      />
       <WorkspaceContent ws={ws} />
       {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
       {!auth.online && !auth.localMode ? (
@@ -225,6 +235,7 @@ export function Home({ landing }: HomeProps) {
           onSynced={() => void ws.docActions.refreshDocs()}
         />
       ) : null}
+      {vaultSyncOpen ? <VaultSyncDialog onClose={() => setVaultSyncOpen(false)} /> : null}
       <Toaster />
     </div>
   );
