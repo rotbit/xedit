@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { PanelLeftClose, RotateCw, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
-import { TAG_OPEN_EVENT } from "@/lib/tagEvents";
 import { toolBtnCls } from "../constants";
 import { CategoryTree } from "./CategoryTree";
 import { NewDocMenu } from "./NewDocMenu";
 import { SidebarFooter } from "./SidebarFooter";
-import { TagList, searchTag } from "./TagList";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /**
@@ -25,21 +22,6 @@ export function Sidebar({
 }) {
   const { nav, prefs, library, docActions, totalChars } = ws;
   const { docs } = library;
-
-  // 编辑器/预览里点中的 `#标签` 在这里落地：渲染层只派事件，筛文章的活归侧栏（见 lib/tagEvents.ts）。
-  // nav 每次渲染都是新对象，用 ref 兜最新值，监听器只挂一次
-  const latestNav = useRef(nav);
-  useEffect(() => {
-    latestNav.current = nav;
-  });
-  useEffect(() => {
-    const onOpenTag = (event: Event) => {
-      const tag = (event as CustomEvent<{ tag?: string }>).detail?.tag?.trim();
-      if (tag) searchTag(latestNav.current, tag);
-    };
-    window.addEventListener(TAG_OPEN_EVENT, onOpenTag);
-    return () => window.removeEventListener(TAG_OPEN_EVENT, onOpenTag);
-  }, []);
 
   /** 右缘手柄拖拽调宽：过程中只改状态，松手才落盘 */
   const onResizeStart = (e: React.PointerEvent) => {
@@ -124,7 +106,6 @@ export function Sidebar({
       </div>
 
       <CategoryTree ws={ws} />
-      <TagList ws={ws} />
       <SidebarFooter ws={ws} onOpenFeishu={onOpenFeishu} />
 
       {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}

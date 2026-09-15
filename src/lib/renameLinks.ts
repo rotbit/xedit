@@ -28,7 +28,7 @@ export function isLinkableTitle(title: string): boolean {
 
 /**
  * 文库里正文写了 `[[oldTitle]]` 的文章（排除 excludeId 自身）。
- * 走 docIndex 的缓存，与标签、检索、反链共用同一次解析。
+ * 走 docIndex 的缓存，与检索共用同一次解析。
  */
 export function findLinkingDocs(
   docs: DocMeta[],
@@ -54,7 +54,7 @@ export interface RewriteResult {
  * 把正文里所有 `[[旧标题]]` / `[[旧标题|别名]]` 换成新标题，别名原样保留。
  *
  * 只动 parseWikiLinks 给出的区间，围栏块与行内代码因此天然不受影响；
- * 匹配用 normalizeTitle（大小写、首尾空格不敏感），与链接跳转、反链同一套口径。
+ * 匹配用 normalizeTitle（大小写、首尾空格不敏感），与链接跳转同一套口径。
  * 从后往前替换：先改后面的，前面那些还没用到的偏移就不会被挪动。
  */
 export function rewriteLinks(

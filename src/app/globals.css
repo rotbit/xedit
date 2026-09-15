@@ -3,7 +3,7 @@
 @import "./editor.css";
 @import "./live-preview.css";
 @import "./live-blocks.css";
-@import "./live-tags.css";
+@import "./live-frontmatter.css";
 @import "./live-callout.css";
 
 /* data-theme 驱动的暗色变体：dark:xxx */
@@ -173,14 +173,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* —— 细滚动条 —— */
+/* —— 细滚动条：平时隐形，鼠标停在可滚区域上才显出滑块（Obsidian 同款）——
+   轨道宽度不变，只切滑块颜色，出现时不会挤动内容 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--hairline-strong);
+  background: transparent;
   border-radius: 4px;
+}
+:hover::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--ink-faint);
@@ -368,13 +372,6 @@ html.desktop-mac .sidebar-logo {
   border-bottom-style: solid;
 }
 
-/* 预览里的 #标签。与 .wikilink 同样刻意不放主题 CSS（主题会被整份内联进公众号正文）。
-   不做胶囊、只上色：span 复制到公众号后会降成普通文字，预览要是画成胶囊，
-   最终效果就和这里差得太远 */
-#nice .tag {
-  color: var(--brand);
-  cursor: pointer;
-}
 
 /* 预览区打印时只打印稿纸 */
 @media print {

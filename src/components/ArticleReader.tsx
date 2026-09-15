@@ -22,7 +22,6 @@ import { isLocalId } from "@/lib/localDocs";
 import { useWikiLinkOpen } from "@/hooks/useWikiLinkOpen";
 import { useRenameLinks } from "@/hooks/useRenameLinks";
 import type { DocMeta } from "@/features/workspace/types";
-import { BacklinksPanel } from "./BacklinksPanel";
 import { OutlinePanel } from "./OutlinePanel";
 import { Preview } from "./Preview";
 import { VersionsPanel } from "./VersionsPanel";
@@ -355,18 +354,6 @@ export function ArticleReader({
                     scrollParent={scrollEl}
                   />
                 </div>
-                {/* 反向链接：跟正文同一个滚动容器、同一条左右缘，通读到底自然接上。
-                    阅读模式下整块编辑区都藏着，索性不渲染，省掉一次全库正文扫描 */}
-                {!reading && docs?.length ? (
-                  <div className={`w-full ${split ? "px-7" : "mx-auto max-w-[760px] px-7"} pb-24`}>
-                    <BacklinksPanel
-                      docs={docs}
-                      docId={docId}
-                      title={title}
-                      onOpenDoc={onOpenDoc}
-                    />
-                  </div>
-                ) : null}
               </div>
             </div>
           </div>

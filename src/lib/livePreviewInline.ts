@@ -3,7 +3,6 @@ import { Decoration } from "@codemirror/view";
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreviewWidgets";
 import { caretInside, caretTouches, type LpContext } from "@/lib/livePreviewContext";
-import { normalizeTag } from "@/lib/frontmatter";
 
 /**
  * 行内语法的即时渲染分支（强调、行内代码、删除线、链接、颜色 span、图片/视频、分割线）。
@@ -36,7 +35,6 @@ export const INLINE_NODE_NAMES = new Set([
   "Image",
   "HorizontalRule",
   "WikiLink",
-  "Tag",
 ]);
 
 /** 返回 false 表示不再深入子节点（与 CodeMirror iterate 的约定一致） */
@@ -177,21 +175,6 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
         }).range(textFrom, textTo)
       );
     }
-    return false;
-  }
-
-  if (name === "Tag") {
-    // `#标签`：渲染成小胶囊。这里没有任何记号要藏（原文就是要显示的那几个字），
-    // 光标贴上来时撤掉装饰，只是为了让编辑中的那一个标签回到纯文本、不被胶囊内边距推着走
-    if (caretTouches(caret, node.from, node.to)) return false;
-    const tag = normalizeTag(state.sliceDoc(node.from, node.to));
-    if (!tag) return false;
-    ctx.decos.push(
-      Decoration.mark({
-        class: "cm-lp-tag",
-        attributes: { "data-lp-tag": tag, title: `筛出 #${tag} 的文章` },
-      }).range(node.from, node.to)
-    );
     return false;
   }
 

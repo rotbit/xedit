@@ -16,12 +16,16 @@ export const UNCATEGORIZED = "未分类";
  *  这里只作防失控的宽松上限 */
 export const MAX_DEPTH = 12;
 
-/** 树缩进：前两层每层 14px 保留层级感，更深每层只加 6px 并封顶——
- *  否则深层级把标题挤到只剩几个字（数据里可能存在超过 MAX_DEPTH 的历史路径，故仍设总上限） */
+/** 树缩进：每层 17px，与 Obsidian 文件树同宽，等距不压缩——引导线要落在箭头正下方、
+ *  行高亮要从缩进处起，层距一压缩就互相压住。深层标题靠截断；仍设总上限防超深历史路径 */
 export function treeIndent(depth: number): number {
-  const full = Math.min(depth, 2);
-  const compact = Math.max(depth - 2, 0);
-  return Math.min(full * 14 + compact * 6, 76);
+  return Math.min(depth * 17, 102);
+}
+
+/** 树行的左外边距：悬停/选中底色从这里起，父级引导线（x = 16 + treeIndent(depth-1)）
+ *  留在行左缘外侧不被盖住（Obsidian 同款）。根行铺满整宽 */
+export function rowInset(depth: number): number {
+  return depth === 0 ? 0 : 5 + treeIndent(depth);
 }
 
 /** 拖拽悬停时落点行的高亮样式（放入该分类） */
