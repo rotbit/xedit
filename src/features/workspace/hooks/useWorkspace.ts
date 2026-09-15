@@ -16,6 +16,7 @@ import { useDragMove } from "./useDragMove";
 import { useMenus } from "./useMenus";
 import { useSidebarPrefs } from "./useSidebarPrefs";
 import { useVaultBoot } from "./useVaultBoot";
+import { useVaultWatch } from "./useVaultWatch";
 import { useWorkspaceNav } from "./useWorkspaceNav";
 
 /**
@@ -29,6 +30,8 @@ export function useWorkspace() {
   const menus = useMenus();
   const nav = useWorkspaceNav({ prefs, closeDocMenu: menus.closeDocMenu });
   const vault = useVaultBoot({ localMode: auth.localMode, nav });
+  // 开着磁盘文库时盯外部改动：回到前台就跟磁盘对一次账
+  useVaultWatch({ enabled: auth.localMode && vault.status === "open", nav });
   const library = useDocLibrary({
     loggedIn: auth.loggedIn,
     offlineAuthed: auth.offlineAuthed,

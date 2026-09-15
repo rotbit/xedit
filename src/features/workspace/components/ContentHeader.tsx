@@ -7,6 +7,7 @@ import {
   List,
   Loader2,
   PanelLeftOpen,
+  Trash2,
   X,
 } from "lucide-react";
 import { ALL, ASSETS } from "../constants";
@@ -99,8 +100,11 @@ export function ContentHeader({
   readingDoc: DocMeta | null;
   onActionSlotRef: (el: HTMLDivElement | null) => void;
 }) {
-  const { nav, prefs, docActions } = ws;
+  const { nav, prefs, docActions, auth, vault, library } = ws;
   const inList = !nav.readingId && nav.activeCat !== ASSETS;
+  // 清空回收站只对磁盘文库开放：云端回收站有 30 天自动清理，逐篇彻底删除就够了
+  const canEmptyTrash =
+    nav.isTrash && !nav.readingId && auth.localMode && vault.status === "open";
 
   return (
     // app-titlebar：桌面壳里这条顶栏充当系统标题栏；
@@ -164,6 +168,17 @@ export function ContentHeader({
             新建文章
           </button>
         </>
+      ) : null}
+
+      {canEmptyTrash ? (
+        <button
+          className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline)] px-3 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:opacity-60"
+          onClick={() => void docActions.emptyVaultTrash()}
+          disabled={!library.trashDocs?.length}
+        >
+          <Trash2 size={13} />
+          清空回收站
+        </button>
       ) : null}
 
       {nav.readingId && !nav.isTrash ? (

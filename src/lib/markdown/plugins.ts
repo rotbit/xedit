@@ -1,5 +1,6 @@
 import type MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
+import { isAttachmentSrc, resolveAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { wikiLinkText } from "@/lib/wikiLink";
 import { parseCalloutHead } from "@/lib/callout";
@@ -44,7 +45,10 @@ export function figurePlugin(md: MarkdownIt): void {
   md.renderer.rules.image = (tokens, idx) => {
     const token = tokens[idx];
     const rawSrc = token.attrGet("src") ?? "";
-    const src = md.utils.escapeHtml(rawSrc);
+    // 磁盘文库里的相对路径（attachments/…）换成读得出来的 object URL；
+    // 还没读出来先留原样，附件一解析好就会触发重渲染（见 attachmentUrls）
+    const shownSrc = isAttachmentSrc(rawSrc) ? (resolveAttachmentSrc(rawSrc) ?? rawSrc) : rawSrc;
+    const src = md.utils.escapeHtml(shownSrc);
     const alt = md.utils.escapeHtml(token.content ?? "");
     const title = token.attrGet("title");
     // 是否在 figure 内由父 token 决定；figure 内输出图注

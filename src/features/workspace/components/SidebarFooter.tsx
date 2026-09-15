@@ -149,18 +149,23 @@ export function SidebarFooter({
     toast(`已迁入 ${moved} 篇文章`, "success");
   };
 
+  const trashCount = library.trashDocs?.length ? library.trashDocs.length : null;
+  const trashRow = (
+    <SimpleRow
+      ws={ws}
+      viewKey={TRASH}
+      label="回收站"
+      count={trashCount}
+      icon={<Trash2 size={14} />}
+    />
+  );
+
   return (
     <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
       {auth.loggedIn ? (
         <>
           <SimpleRow ws={ws} viewKey={ASSETS} label="图片库" count={null} icon={<Images size={14} />} />
-          <SimpleRow
-            ws={ws}
-            viewKey={TRASH}
-            label="回收站"
-            count={library.trashDocs?.length ? library.trashDocs.length : null}
-            icon={<Trash2 size={14} />}
-          />
+          {trashRow}
           <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
             <button
               className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 hover:bg-[var(--sidebar-hover)]"
@@ -201,6 +206,8 @@ export function SidebarFooter({
         </div>
       ) : (
         <>
+          {/* 磁盘文库的删除是移进 .trash/，所以只有开着库时才有回收站可看 */}
+          {vault.status === "open" ? trashRow : null}
           {/* 本地模式：文章保存在本设备，登录后自动同步上云 */}
           <button
             className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-[12.5px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"

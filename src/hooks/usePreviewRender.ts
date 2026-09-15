@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ATTACHMENTS_RESOLVED_EVENT } from "@/lib/localBackend/attachmentUrls";
 import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
@@ -27,6 +28,13 @@ export function usePreviewRender(debounceMs = 180) {
   const [html, setHtml] = useState("");
   const [codeCss, setCodeCss] = useState("");
   const [mathReady, setMathReady] = useState(false);
+  /** 本地文库的附件是异步读出来的：读到一批就重渲染一次，空图换成真图 */
+  const [attachmentTick, setAttachmentTick] = useState(0);
+  useEffect(() => {
+    const onResolved = () => setAttachmentTick((n) => n + 1);
+    window.addEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
+    return () => window.removeEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
+  }, []);
 
   // MathJax（连字体 1MB+）只在正文疑似有公式时才拉，加载完成后重渲染一次，
   // 公式从降级原文变为 SVG。用 $ 粗筛：偶尔误判（价格符号）也只是多下一次，
@@ -42,7 +50,7 @@ export function usePreviewRender(debounceMs = 180) {
       setHtml(sanitizeHtml(renderMarkdown(content, { macCode })));
     }, debounceMs);
     return () => clearTimeout(timer);
-  }, [content, macCode, mathReady, debounceMs]);
+  }, [content, macCode, mathReady, attachmentTick, debounceMs]);
 
   useEffect(() => {
     let cancelled = false;
