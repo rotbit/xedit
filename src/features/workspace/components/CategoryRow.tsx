@@ -17,17 +17,22 @@ import type { Workspace } from "../hooks/useWorkspace";
 const actionBtn =
   "cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)]";
 
+/** 子项容器：相对定位给引导线当锚，tree-branch 类名供引导线的悬停规则回查 */
+export const treeBranchCls = "tree-branch relative";
+
 /**
- * 缩进引导线（Obsidian 文件树同款）：从父分类的折叠箭头正下方垂到子项末尾，
- * 深层嵌套时一眼能看出「这几条属于谁」。落在子项容器里、DOM 顺序在行之前，
- * 行的悬停/选中底色会盖住它——线是背景，不该压在高亮上。
+ * 缩进引导线（Obsidian 文件树同款）：从父分类的折叠箭头正下方垂到子项末尾。
+ * 平时只是一道很淡的线——五六层嵌套时每条都画深就糊成一片；
+ * 鼠标停在某个分支里，只有「最内层被悬停的那个分支」自己的线加深，
+ * 这样看到的永远是「光标所在这一组属于谁」，而不是一整排等深的竖线。
+ * 落在子项容器里、DOM 顺序在行之前，行的悬停/选中底色会盖住它——线是背景。
  * 横向落点 = 父行左内边距(6 + 缩进) + 箭头盒子的一半(10)。
  */
 export function TreeGuide({ depth }: { depth: number }) {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute bottom-1 top-0 w-px bg-[var(--hairline-strong)]"
+      className="pointer-events-none absolute bottom-1 top-0 w-px bg-[var(--hairline)] transition-colors [.tree-branch:hover:not(:has(.tree-branch:hover))>&]:bg-[var(--ink-faint)]"
       style={{ left: `${16 + treeIndent(depth)}px` }}
     />
   );
@@ -105,7 +110,7 @@ export function CategoryRow({
         ) : null}
       </div>
       {isOpen ? (
-        <div className="relative">
+        <div className={treeBranchCls}>
           <TreeGuide depth={depth} />
           {node.items.map((it) =>
             it.kind === "cat" ? (
