@@ -1,0 +1,49 @@
+/* 即时渲染里的 #标签 与文首 frontmatter 卡片。
+   与 live-preview.css 分开只为控制单文件长度（那份已经顶到上限），
+   这两样又天然是一组：frontmatter 卡片里的 tags 行复用同一个标签胶囊。 */
+
+/* #标签：胶囊而不是彩色文字——标签是可点的导航控件，
+   得看起来像个按钮，才不会和正文里的普通着重色混在一起 */
+.cm-live-preview .cm-lp-tag {
+  padding: 0 0.45em;
+  border-radius: 999px;
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  font-size: 0.88em;
+  cursor: pointer;
+}
+.cm-live-preview .cm-lp-tag:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* frontmatter：排成「键 值」两列的只读卡片。
+   元数据是给机器看的，卡片把它和正文划清界限；光标进入区间就还原成源码可编辑 */
+.cm-live-preview .cm-lp-fm {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 8px;
+  background: var(--panel);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.7;
+  cursor: text;
+}
+.cm-live-preview .cm-lp-fm-row {
+  display: flex;
+  gap: 10px;
+}
+/* 键列定宽，多行元信息的值左缘对齐成一条线 */
+.cm-live-preview .cm-lp-fm-key {
+  flex: none;
+  min-width: 68px;
+  color: var(--ink-faint);
+}
+.cm-live-preview .cm-lp-fm-val {
+  min-width: 0;
+  color: var(--ink-soft);
+  word-break: break-word;
+}
+.cm-live-preview .cm-lp-fm-val .cm-lp-tag {
+  margin-right: 4px;
+}

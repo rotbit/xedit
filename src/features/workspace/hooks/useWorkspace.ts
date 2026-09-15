@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { searchDocs } from "@/lib/docSearch";
+import { buildTagIndex } from "@/lib/docTags";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { buildTree, findNode } from "../lib/catTree";
 import { catKey, docKey, reorderList } from "../lib/sidebarOrder";
@@ -99,6 +101,21 @@ export function useWorkspace() {
     [docs]
   );
 
+  /** 全库标签与篇数（侧栏标签区用）。逐篇扫正文的开销由 docTags 内部按 updatedAt 缓存兜住 */
+  const tagIndex = useMemo(() => buildTagIndex(docs ?? []), [docs]);
+
+  /**
+   * 侧栏搜索的命中集合：标题之外还搜正文（正文在 localStorage，纯客户端算）。
+   * 全库扫一遍要逐篇读 localStorage，所以结果整体挂在 useMemo 上——
+   * 同一个词的后续重渲染直接复用，只有词或文章列表变了才重算一轮。
+   * 回收站另说：删掉的文章正文已随之清掉，仍按标题/摘要匹配。
+   */
+  const searchHitIds = useMemo(() => {
+    if (isTrash || !search.trim()) return null;
+    const list = docs ?? [];
+    return new Set(searchDocs(list, search, { limit: list.length }).map((h) => h.doc.id));
+  }, [docs, search, isTrash]);
+
   /** 当前视图下要展示的文章：按分类过滤（含子分类），再按搜索词过滤 */
   const filtered = useMemo(() => {
     const source = isTrash ? trashDocs : docs;
@@ -107,12 +124,13 @@ export function useWorkspace() {
       if (!isTrash && activeCat !== ALL && cat !== activeCat && !cat.startsWith(`${activeCat}/`))
         return false;
       if (search.trim()) {
+        if (searchHitIds) return searchHitIds.has(d.id);
         const q = search.trim().toLowerCase();
         return d.title.toLowerCase().includes(q) || (d.excerpt ?? "").toLowerCase().includes(q);
       }
       return true;
     });
-  }, [docs, trashDocs, isTrash, activeCat, search]);
+  }, [docs, trashDocs, isTrash, activeCat, search, searchHitIds]);
 
   return {
     auth,
@@ -127,6 +145,7 @@ export function useWorkspace() {
     tree,
     filtered,
     totalChars,
+    tagIndex,
   };
 }
 

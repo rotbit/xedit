@@ -9,6 +9,7 @@ import { ContentHeader } from "./ContentHeader";
 import { DocListEmpty, DocListSkeleton } from "./DocListStates";
 import { DocListView } from "./DocListView";
 import { DocTimeline } from "./DocTimeline";
+import { TabBar } from "./TabBar";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /** 重型视图按需加载：阅读器连带 markdown 渲染/主题/复制管线，不该进首屏包 */
@@ -81,6 +82,8 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col">
       <ContentHeader ws={ws} readingDoc={readingDoc} onActionSlotRef={setActionSlot} />
+      {/* 开着两篇以上才出现；自己判断，省得这里再算一遍过滤后的标签数 */}
+      <TabBar ws={ws} />
       {readingId && !isTrash ? (
         // 文章视图占满内容区高度：便于「双屏」左右各自独立滚动
         <ArticleReader
@@ -96,6 +99,10 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
             const d = (library.docs ?? []).find((x) => x.id === readingId);
             if (d) void docActions.removeDoc(d);
           }}
+          // [[双向链接]] 需要的三样：文库（按标题找目标）、打开、找不到时按标题新建
+          docs={library.docs ?? undefined}
+          onOpenDoc={nav.openDoc}
+          onCreateDoc={docActions.createDoc}
         />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">

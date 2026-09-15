@@ -3,6 +3,7 @@
  * 索引与正文分 key 存 localStorage，登录后由首页批量同步上云并清空。
  */
 
+import { stripFrontmatter } from "@/lib/frontmatter";
 import { wordCount } from "@/lib/wordCount";
 
 export interface LocalDocMeta {
@@ -48,9 +49,10 @@ function writeIndex(list: LocalDocMeta[]) {
 }
 
 /** 摘要与字数口径与服务端列表接口保持一致。
- *  摘要只要前 90 个字，先截前 2000 字符再跑正则（服务端同款），别把整篇长文扫 5 遍 */
+ *  摘要只要前 90 个字，先截前 2000 字符再跑正则（服务端同款），别把整篇长文扫 5 遍。
+ *  frontmatter 是元数据不是正文，先剥掉，免得列表摘要开头全是 `tags: ...` */
 export function summarize(content: string): { excerpt: string; chars: number } {
-  const plain = content
+  const plain = stripFrontmatter(content)
     .slice(0, 2000)
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")

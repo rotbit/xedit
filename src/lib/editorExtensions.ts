@@ -12,7 +12,11 @@ import { lineSelectionWithoutNewline } from "@/lib/lineSelection";
 import { runFormatCommand, type FormatCommand } from "@/lib/editorCommands";
 import { slashMenu, type SlashState } from "@/lib/slashMenu";
 import { editorClipboard } from "@/lib/editorClipboard";
+import { wikiLinkExtension } from "@/lib/wikiLinkParser";
+import { tagExtension } from "@/lib/tagParser";
+import { wikiLinkMenu, type WikiMenuState } from "@/lib/wikiLinkMenu";
 import type { SelectionInfo } from "@/lib/editorTypes";
+import type { DocMeta } from "@/features/workspace/types";
 
 interface EditorExtensionOptions {
   live: boolean;
@@ -21,6 +25,9 @@ interface EditorExtensionOptions {
   flush: () => void;
   onSelectionChange: (info: SelectionInfo) => void;
   onSlashChange: (state: SlashState | null) => void;
+  onWikiMenuChange: (state: WikiMenuState | null) => void;
+  /** `[[` 补全的候选来源：编辑器只建一次，文库随时在变，所以现读现取 */
+  getDocs: () => DocMeta[];
   onScroll: (view: EditorView) => void;
 }
 
@@ -54,13 +61,15 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
       // 关掉 Setext 下划线标题：在一行文字下面刚敲出 "-" 准备列列表时，
       // CommonMark 会把上一行瞬间判成 H2，看起来像编辑器抽风。公众号写作只用 #。
       // 预览渲染（renderer.ts）与飞书导出同步关闭，保证三处解析一致。
-      extensions: { remove: ["SetextHeading"] },
+      extensions: [{ remove: ["SetextHeading"] }, wikiLinkExtension, tagExtension],
     }),
     syntaxHighlighting(mdHighlight),
     syntaxHighlighting(codeHighlight),
     options.liveCompartment.of(editorModeExtension(options.live)),
     // 斜杠菜单内部通过 Prec.highest 提升按键优先级，只在菜单打开时消费导航按键。
     slashMenu(options.onSlashChange),
+    // `[[` 文章标题补全：同样只在打开时消费按键，两个菜单的触发条件互不重叠。
+    wikiLinkMenu({ getDocs: options.getDocs, onState: options.onWikiMenuChange }),
     keymap.of([
       formatKey("Mod-b", "bold"),
       formatKey("Mod-i", "italic"),

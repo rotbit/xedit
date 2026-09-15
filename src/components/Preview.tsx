@@ -4,6 +4,8 @@ import { forwardRef } from "react";
 import { ChevronLeft } from "lucide-react";
 import { BASE_CSS } from "@/lib/themes/base";
 import { usePreviewRender } from "@/hooks/usePreviewRender";
+import { requestOpenWikiLink } from "@/lib/wikiLink";
+import { requestOpenTag } from "@/lib/tagEvents";
 import { ReadingMeta, ReadingTitle, ThemeTrigger } from "@/features/editor/components/ReadingChrome";
 
 interface Props {
@@ -20,6 +22,18 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
   ref
 ) {
   const reading = variant === "reading";
+  // [[双向链接]] 与 #标签 的点击：渲染结果是整段注入的 HTML，没有 React 节点可挂事件，
+  // 只能在容器上做委托。点击后只派事件，找文章/筛标签的活在应用层
+  const onContentClick = (e: React.MouseEvent) => {
+    const dom = e.target as HTMLElement;
+    const target = dom.closest?.("[data-wiki]")?.getAttribute("data-wiki");
+    if (target) {
+      requestOpenWikiLink(target);
+      return;
+    }
+    const tag = dom.closest?.("[data-tag]")?.getAttribute("data-tag");
+    if (tag) requestOpenTag(tag);
+  };
   // 渲染管线（含 DOMPurify 消毒）：阅读模式不跟着击键跑，进来即渲染，不必防抖
   const { html, codeCss, themeCss, themeName, tuneCss, customCss } = usePreviewRender(
     reading ? 0 : 180
@@ -71,6 +85,7 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
           <section
             id="nice"
             data-tool="xedit"
+            onClick={onContentClick}
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </div>
