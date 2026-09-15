@@ -1,11 +1,10 @@
 "use client";
 
-import { FolderPlus, PanelLeftClose, RotateCw, Search } from "lucide-react";
+import { PanelLeftClose, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
-import { ALL, toolBtnCls } from "../constants";
+import { ALL } from "../constants";
 import { CategoryTree } from "./CategoryTree";
-import { NewDocMenu } from "./NewDocMenu";
 import { SidebarFooter } from "./SidebarFooter";
 import type { Workspace } from "../hooks/useWorkspace";
 
@@ -20,7 +19,7 @@ export function Sidebar({
   ws: Workspace;
   onOpenFeishu: () => void;
 }) {
-  const { nav, prefs, library, docActions, catActions, totalChars } = ws;
+  const { nav, prefs, library, menus, totalChars } = ws;
   const { docs } = library;
   /** 统计文字兼作「全部文章」入口：当前就在全部列表时文字加深 */
   const allActive = nav.activeCat === ALL && !nav.readingId;
@@ -88,7 +87,12 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center justify-between pl-4 pr-2.5">
+      {/* 统计行不放按钮：新建文件夹 / 刷新 / 新建文章都在右键菜单里（这行和树的空白处都能右键），
+          新建文章另有主区域顶部的按钮，侧栏保持只有导航 */}
+      <div
+        className="flex h-6 shrink-0 items-center pl-4 pr-2.5"
+        onContextMenu={(e) => menus.openCatMenuAt(e, ALL)}
+      >
         <button
           className={`cursor-pointer text-left text-[11px] transition-colors hover:text-[var(--ink)] disabled:cursor-default disabled:hover:text-[var(--ink-faint)] ${
             allActive ? "text-[var(--ink)]" : "text-[var(--ink-faint)]"
@@ -101,24 +105,6 @@ export function Sidebar({
             ? "同步中…"
             : `${docs.length} 篇文章${totalChars > 0 ? ` · ${totalChars.toLocaleString()} 字` : ""}`}
         </button>
-        <span className="flex items-center">
-          <button
-            className={`${toolBtnCls} hover:text-[var(--ink)]`}
-            title="新建文件夹"
-            onClick={() => void catActions.createCategory()}
-          >
-            <FolderPlus size={12} />
-          </button>
-          <button
-            className={`${toolBtnCls} hover:text-[var(--ink)]`}
-            title="刷新列表"
-            onClick={() => void docActions.refreshDocs()}
-            disabled={docActions.refreshing}
-          >
-            <RotateCw size={12} className={docActions.refreshing ? "animate-spin" : ""} />
-          </button>
-          <NewDocMenu ws={ws} />
-        </span>
       </div>
 
       <CategoryTree ws={ws} />
