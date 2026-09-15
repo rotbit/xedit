@@ -26,7 +26,7 @@ interface Params {
   /**
    * 改完别人的正文后刷新文库。默认广播 DOCS_CHANGED —— 本地库与云端镜像的写入
    * 本来就会广播，useDocLibrary 听着这条事件重读列表，新的 updatedAt 一到，
-   * docIndex 的缓存键随之失效，侧栏与反链面板自然跟上。
+   * docIndex 的缓存键随之失效，侧栏与检索自然跟上。
    */
   refresh?: () => void;
 }

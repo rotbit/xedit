@@ -1,0 +1,31 @@
+/* 即时渲染里的文首 frontmatter 卡片。
+   与 live-preview.css 分开只为控制单文件长度（那份已经顶到上限），入口仍在 globals.css。 */
+
+/* frontmatter：排成「键 值」两列的只读卡片。
+   元数据是给机器看的，卡片把它和正文划清界限；光标进入区间就还原成源码可编辑 */
+.cm-live-preview .cm-lp-fm {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 8px;
+  background: var(--panel);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.7;
+  cursor: text;
+}
+.cm-live-preview .cm-lp-fm-row {
+  display: flex;
+  gap: 10px;
+}
+/* 键列定宽，多行元信息的值左缘对齐成一条线 */
+.cm-live-preview .cm-lp-fm-key {
+  flex: none;
+  min-width: 68px;
+  color: var(--ink-faint);
+}
+.cm-live-preview .cm-lp-fm-val {
+  min-width: 0;
+  color: var(--ink-soft);
+  word-break: break-word;
+}

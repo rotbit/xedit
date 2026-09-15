@@ -1,6 +1,5 @@
 /* 即时渲染里的提示块（Obsidian 式 Callout）。
-   与 live-preview.css 分开只为控制单文件长度（那份已经顶到上限），入口仍在 globals.css，
-   做法与 live-tags.css 一致。
+   与 live-preview.css 分开只为控制单文件长度（那份已经顶到上限），入口仍在 globals.css。
 
    配色走两层变量：每个类型只写一条「基色 + 浅底」，边框/底色/徽标/标题都从变量取，
    加类型时只多一条声明。色值与 lib/callout.ts 的类型表逐条对应 ——
@@ -48,8 +47,8 @@
   background: var(--lp-bg);
 }
 
-/* 类型徽标：替掉裸露的 [!tip]，小圆角描边标签。
-   保持行内元素（不改 display）：加了内边距也不会撑高行盒，与 #标签 胶囊同一套处理 */
+/* 类型徽标：替掉裸露的 [!tip]，小圆角描边的行内徽章。
+   保持行内元素（不改 display）：加了内边距也不会撑高行盒 */
 .cm-live-preview .cm-lp-callout-badge {
   padding: 0 6px;
   margin-right: 4px;

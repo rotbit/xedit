@@ -6,7 +6,7 @@ import {
   DROP_LINE_TOP,
   UNCATEGORIZED,
   rowCls,
-  treeIndent,
+  rowInset,
 } from "../constants";
 import { DocContextMenu } from "./DocContextMenu";
 import type { DocMeta } from "../types";
@@ -30,8 +30,13 @@ export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth:
       {...drag.docDropProps(doc)}
     >
       <button
-        className={`flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${rowCls(active)}`}
-        style={{ paddingLeft: `${30 + treeIndent(depth)}px` }}
+        className={`flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${rowCls(active)}`}
+        // 外边距缩进同 CategoryRow；内边距 25 让文档图标与同层分类的箭头盒子右缘对齐
+        style={{
+          marginLeft: `${rowInset(depth)}px`,
+          width: `calc(100% - ${rowInset(depth)}px)`,
+          paddingLeft: "25px",
+        }}
         onClick={(e) => nav.openDoc(doc.id, { newTab: e.metaKey || e.ctrlKey })}
         onContextMenu={(e) => menus.openDocMenuAt(e, doc.id)}
         title={doc.title}

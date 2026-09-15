@@ -8,6 +8,7 @@ import {
   UNCATEGORIZED,
   countCls,
   rowCls,
+  rowInset,
   treeIndent,
 } from "../constants";
 import { DocRow } from "./DocRow";
@@ -24,22 +25,18 @@ const actionBtn =
  */
 export const treeBranchCls = "tree-branch relative isolate";
 
-/** 缩进步长还是 14px 的层级（见 treeIndent）：线与线之间够宽，常显也不挤 */
-const GUIDE_ALWAYS_DEPTH = 1;
-
 /**
  * 缩进引导线（Obsidian 文件树同款）：从父分类的折叠箭头正下方垂到子项末尾。
- * 前两层常显一道淡线；更深层的缩进只剩 6px，几条线挤在一起就是一团，
- * 所以平时不画，鼠标停进那个分支时才显出它自己那一条（只显最内层被悬停的分支），
- * 看到的始终是「光标所在这一组属于谁」。
- * 横向落点 = 父行左内边距(6 + 缩进) + 箭头盒子的一半(10)。
+ * 平时是一道淡线；鼠标停进某个分支，只有「最内层被悬停的那个分支」的线加深，
+ * 看到的始终是「光标所在这一组属于谁」。行的底色从缩进处才开始（见 rowInset），
+ * 线永远露在高亮左侧，不会被盖住。
+ * 横向落点 = 父行的箭头中心 = 16 + treeIndent(depth)。
  */
 export function TreeGuide({ depth }: { depth: number }) {
-  const rest = depth <= GUIDE_ALWAYS_DEPTH ? "bg-[var(--hairline)]" : "bg-transparent";
   return (
     <span
       aria-hidden
-      className={`pointer-events-none absolute bottom-1 top-0 -z-10 w-px transition-colors ${rest} [.tree-branch:hover:not(:has(.tree-branch:hover))>&]:bg-[var(--hairline-strong)]`}
+      className="pointer-events-none absolute bottom-1 top-0 -z-10 w-px bg-[var(--hairline)] transition-colors [.tree-branch:hover:not(:has(.tree-branch:hover))>&]:bg-[var(--hairline-strong)]"
       style={{ left: `${16 + treeIndent(depth)}px` }}
     />
   );
@@ -73,10 +70,11 @@ export function CategoryRow({
         {...drag.dropProps(node.path)}
       >
         <div
-          className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(active)} ${dropCls} ${
+          className={`flex cursor-pointer items-center gap-1 rounded-md py-1.5 pl-px pr-2 text-left text-[13px] transition-colors ${rowCls(active)} ${dropCls} ${
             drag.isDragging({ kind: "cat", path: node.path }) ? "opacity-40" : ""
           }`}
-          style={{ paddingLeft: `${6 + treeIndent(depth)}px` }}
+          // 缩进用外边距而不是内边距：底色从这里起，父级引导线露在左侧；箭头盒子紧贴行左缘
+          style={{ marginLeft: `${rowInset(depth)}px`, width: `calc(100% - ${rowInset(depth)}px)` }}
           onClick={() => nav.openCategory(node.path)}
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
           title={node.name}

@@ -2,7 +2,6 @@ import type MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { wikiLinkText } from "@/lib/wikiLink";
-import { isTagBoundary, isTagChar, normalizeTag } from "@/lib/frontmatter";
 import { parseCalloutHead } from "@/lib/callout";
 
 // —— 标题结构化 ——
@@ -190,40 +189,6 @@ export function wikiLinkPlugin(md: MarkdownIt): void {
     const token = tokens[idx];
     const target = md.utils.escapeHtml(token.info);
     return `<span class="wikilink" data-wiki="${target}">${md.utils.escapeHtml(token.content)}</span>`;
-  };
-}
-
-// —— #标签 ——
-// 输出 <span class="tag" data-tag="标签">#原文</span>，与 [[双向链接]] 同样刻意不用 <a>：
-// 标签只在 xedit 内部有意义，复制进公众号后一个 span 落地就是普通文字。
-// 规则与编辑器侧（lib/tagParser.ts）、检索侧（lib/frontmatter.ts）同源：
-// `#` 前是行首或空白、后面紧跟合法标签字符、纯数字不算。
-// 行内代码与围栏里的 `#` 轮不到这条规则——backticks/fence 更早就把它们吃掉了。
-export function tagPlugin(md: MarkdownIt): void {
-  md.inline.ruler.push("tag", (state, silent) => {
-    const start = state.pos;
-    if (state.src.charCodeAt(start) !== 0x23) return false;
-    if (!isTagBoundary(start > 0 ? state.src[start - 1] : "")) return false;
-
-    let end = start + 1;
-    while (end < state.posMax && isTagChar(state.src[end])) end++;
-    while (end > start + 1 && state.src[end - 1] === "/") end--; // `#前端/` 就是 `#前端`
-    const tag = end > start + 1 ? normalizeTag(state.src.slice(start, end)) : null;
-    if (!tag) return false;
-
-    if (!silent) {
-      const token = state.push("tag", "", 0);
-      token.info = tag; // 归一后的标签（用 info 而不是 meta：后者在类型上是 any）
-      token.content = state.src.slice(start, end); // 显示保留原文大小写
-    }
-    state.pos = end;
-    return true;
-  });
-
-  md.renderer.rules.tag = (tokens, idx) => {
-    const token = tokens[idx];
-    const tag = md.utils.escapeHtml(token.info);
-    return `<span class="tag" data-tag="${tag}">${md.utils.escapeHtml(token.content)}</span>`;
   };
 }
 

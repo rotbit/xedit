@@ -13,7 +13,6 @@ import { runFormatCommand, type FormatCommand } from "@/lib/editorCommands";
 import { slashMenu, type SlashState } from "@/lib/slashMenu";
 import { editorClipboard } from "@/lib/editorClipboard";
 import { wikiLinkExtension } from "@/lib/wikiLinkParser";
-import { tagExtension } from "@/lib/tagParser";
 import { wikiLinkMenu, type WikiMenuState } from "@/lib/wikiLinkMenu";
 import type { SelectionInfo } from "@/lib/editorTypes";
 import type { DocMeta } from "@/features/workspace/types";
@@ -61,7 +60,7 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
       // 关掉 Setext 下划线标题：在一行文字下面刚敲出 "-" 准备列列表时，
       // CommonMark 会把上一行瞬间判成 H2，看起来像编辑器抽风。公众号写作只用 #。
       // 预览渲染（renderer.ts）与飞书导出同步关闭，保证三处解析一致。
-      extensions: [{ remove: ["SetextHeading"] }, wikiLinkExtension, tagExtension],
+      extensions: [{ remove: ["SetextHeading"] }, wikiLinkExtension],
     }),
     syntaxHighlighting(mdHighlight),
     syntaxHighlighting(codeHighlight),
