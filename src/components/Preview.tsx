@@ -65,12 +65,12 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
         <style>{tuneCss}</style>
         {customCss ? <style>{customCss}</style> : null}
         {/* 双屏：手机阅读宽度，公众号文章以读者手机上的真实比例呈现，窄列 + 两侧留白
-            让右栏与宽幅编辑区一眼可辨。阅读模式：宽出一截的 720px 白卡通读长文。
+            让右栏与宽幅编辑区一眼可辨。阅读模式：宽出一截的 720px 通读长文，不做卡片、无边框阴影。
             两者夜间模式下文章面都保持日间白 */}
         <div
           className={
             reading
-              ? "light-lock mx-auto w-full max-w-[720px] rounded-xl bg-white px-6 py-8 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)]"
+              ? "light-lock mx-auto w-full max-w-[720px] bg-white px-6 py-8"
               : "light-lock mx-auto max-w-[420px] bg-white"
           }
         >
