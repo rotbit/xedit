@@ -60,6 +60,11 @@ export const menuItemCls =
 export const menuDangerCls =
   "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40";
 
+/** 侧栏底部「打开/同步文件夹」这排次要按钮：与工作台其他 ghost 按钮同款，
+ *  压在深色侧栏上也够清楚。未登录的 VaultRow 与登录态的 VaultSyncRow 共用 */
+export const vaultBtnCls =
+  "flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--hairline)] px-2 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
+
 /** 弹出菜单浮层样式 */
 export const menuPanelCls =
   "fixed z-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]";

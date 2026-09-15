@@ -21,18 +21,28 @@ import {
 export { isVaultSupported };
 
 export type VaultStatus = "none" | "pending" | "opening" | "open";
-export interface VaultState { status: VaultStatus; name: string | null; error: string | null }
+export interface VaultState {
+  status: VaultStatus;
+  name: string | null;
+  error: string | null;
+  /** 库是不是当前的 LocalBackend。本地模式 true；云端模式 false ——
+   *  库还开着（句柄与后端都留着，同步引擎照样读写），但界面上脱钩：
+   *  列表/编辑器/回收站/图床全按云端模式走，Vault 只是个同步文件夹 */
+  attached: boolean;
+}
 
 const HANDLE_KEY = "vault-handle";
 const FLAG_KEY = "xedit-vault";
 
 /** 服务端快照必须是稳定引用，否则 useSyncExternalStore 水合时会死循环 */
-const CLOSED: VaultState = { status: "none", name: null, error: null };
+const CLOSED: VaultState = { status: "none", name: null, error: null, attached: false };
 
 let state: VaultState = CLOSED;
 let handle: FileSystemDirectoryHandle | null = null;
 let backend: VaultBackend | null = null;
 let restored = false;
+/** 想要的挂载模式（本地模式挂上、云端模式脱钩）：开库晚于登录态确定时也能按它落位 */
+let wantAttached = true;
 const listeners = new Set<() => void>();
 
 function setState(next: Partial<VaultState>): void {
@@ -53,8 +63,39 @@ export function useVaultSession(): VaultState {
   return useSyncExternalStore(subscribeVault, getVaultState, () => CLOSED);
 }
 
+/** 当前充当本地文档库的那个 Vault：脱钩时返回 null，
+ *  于是图床/回收站/列表这些调用方自动走云端逻辑，不必各自判断登录态 */
 export function getActiveVault(): VaultBackend | null {
+  return state.attached ? backend : null;
+}
+
+/** 只要库还开着就返回（脱钩也给）：同步引擎要的是「那个文件夹」，与界面挂在谁身上无关 */
+export function getSyncVault(): VaultBackend | null {
   return backend;
+}
+
+/**
+ * 切换挂载模式：登录进云端模式就脱钩，退出登录回本地模式再挂回来。
+ * 库开着就立刻切后端（setLocalBackend 自己会广播 LOCAL_BACKEND_CHANGED_EVENT）；
+ * 还没开库就只记下意愿，activate 时按它落位。
+ */
+export function setVaultAttachMode(attached: boolean): void {
+  wantAttached = attached;
+  const b = backend;
+  if (!b) {
+    if (state.attached) setState({ attached: false });
+    return;
+  }
+  if (state.attached === attached) return;
+  if (attached) {
+    setLocalBackend(b);
+    setState({ attached: true });
+    return;
+  }
+  // 脱钩前把排着的写落盘。队列换不换后端都会跑完，所以不必等它回来
+  void b.flush().catch(() => undefined);
+  setLocalBackend(getBrowserBackend());
+  setState({ attached: false });
 }
 
 /** 与磁盘对账：外部（Obsidian 等）改过的文件反映进缓存，返回变动的文档 id；没开库返回 null */
@@ -99,14 +140,15 @@ async function activate(h: FileSystemDirectoryHandle): Promise<boolean> {
     const b = await openVaultBackend(h);
     handle = h;
     backend = b;
-    setLocalBackend(b);
-    setState({ status: "open", name: b.name, error: null });
+    // 云端模式下开库只是「准备好同步文件夹」，界面仍走镜像，所以不换本地后端
+    if (wantAttached) setLocalBackend(b);
+    setState({ status: "open", name: b.name, error: null, attached: wantAttached });
     return true;
   } catch (e) {
     const msg = (e as Error).message;
     handle = h;
     backend = null;
-    setState({ status: "pending", name: h.name, error: msg });
+    setState({ status: "pending", name: h.name, error: msg, attached: false });
     toast("打开文件夹失败：" + msg, "error");
     return false;
   }
@@ -128,7 +170,7 @@ export async function restoreVaultOnStartup(): Promise<void> {
     await activate(h);
     return;
   }
-  setState({ status: "pending", name: h.name, error: null });
+  setState({ status: "pending", name: h.name, error: null, attached: false });
 }
 
 /** 必须在用户手势里调；拿不到权限就停在 pending */
@@ -141,7 +183,12 @@ export async function resumeVault(): Promise<boolean> {
   }
   const ok = await requestVaultPermission(handle).catch(() => false);
   if (!ok) {
-    setState({ status: "pending", name: handle.name, error: "没拿到文件夹的读写权限" });
+    setState({
+      status: "pending",
+      name: handle.name,
+      error: "没拿到文件夹的读写权限",
+      attached: false,
+    });
     return false;
   }
   return await activate(handle);
@@ -173,26 +220,14 @@ export async function openVaultFromPicker(): Promise<OpenVaultResult> {
 /** 关库：先把队列里的写落盘，再切回浏览器后端 */
 export async function closeVault(): Promise<void> {
   const b = backend;
+  const wasAttached = state.attached;
   backend = null;
   handle = null;
   if (b) await b.flush().catch(() => undefined);
-  setLocalBackend(getBrowserBackend());
+  // 脱钩状态下本地后端本来就是浏览器那个，不用再换
+  if (wasAttached) setLocalBackend(getBrowserBackend());
   await idbDel(HANDLE_KEY).catch(() => undefined);
   setFlag(false);
-  setState(CLOSED);
-}
-
-/**
- * 登录后挂起：云端模式下「本地文档」只该是浏览器里待上云的那几篇，
- * 不能把磁盘文件混进云端列表或被离线建稿写进去。句柄不删，退出登录回到本地模式时再恢复。
- */
-export async function suspendVault(): Promise<void> {
-  const b = backend;
-  if (!b) return;
-  backend = null;
-  await b.flush().catch(() => undefined);
-  setLocalBackend(getBrowserBackend());
-  restored = false;
   setState(CLOSED);
 }
 

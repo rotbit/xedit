@@ -53,6 +53,14 @@ export interface VaultBackend extends LocalBackend {
   /** 打开时读到的侧栏排序（.xedit/order.json），没有则 null */
   loadOrder(): unknown;
   saveOrder(o: unknown): void;
+  /** 正库文档当前的相对路径（相对库根、正斜杠）；不在库里返回 null */
+  pathOf(id: string): string | null;
+  /** 反查：相对路径 → 文档 id */
+  idAtPath(relPath: string): string | null;
+  /** 读 .xedit/<name> 的 JSON；没写过或内容坏了返回 null */
+  readJson(name: string): Promise<unknown>;
+  /** 写 .xedit/<name>，走写队列 */
+  writeJson(name: string, data: unknown): void;
   /** 等当前写队列排空，关库前调用 */
   flush(): Promise<void>;
   /** 与磁盘对账：外部（Obsidian 等）新增/修改/删除的文件反映进缓存。返回变动的文档 id */
@@ -71,18 +79,20 @@ export interface VaultBackend extends LocalBackend {
   getAttachmentUrl(relPath: string): Promise<string | null>;
 }
 
-const ORDER_DIR = ".xedit";
+/** 库自己的元数据目录：侧栏排序、同步索引都放这儿，点号开头所以扫库时会跳过 */
+const META_DIR = ".xedit";
 const ORDER_FILE = "order.json";
 /** 写失败的提示节流，避免一串失败刷满屏 */
 const TOAST_GAP = 3000;
 
-async function readOrder(root: FileSystemDirectoryHandle): Promise<unknown> {
+/** 读 .xedit/<name>：没写过或者内容坏了都当没有 */
+async function readMetaJson(root: FileSystemDirectoryHandle, name: string): Promise<unknown> {
   try {
-    const dir = await getDirectory(root, ORDER_DIR, false);
+    const dir = await getDirectory(root, META_DIR, false);
     if (!dir) return null;
-    return JSON.parse(await readTextFile(await dir.getFileHandle(ORDER_FILE)));
+    return JSON.parse(await readTextFile(await dir.getFileHandle(name)));
   } catch {
-    return null; // 没写过或者内容坏了，当没排序过
+    return null;
   }
 }
 
@@ -96,7 +106,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
   });
   const trash = await loadTrash(root);
 
-  let order = await readOrder(root);
+  let order = await readMetaJson(root, ORDER_FILE);
   let queue: Promise<void> = Promise.resolve();
   let lastToast = 0;
 
@@ -115,6 +125,12 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
     enqueue(async () => {
       if (!(await getDirectory(root, relPath, true))) throw new Error(`建不出目录 ${relPath}`);
     });
+  }
+
+  async function writeMetaJson(name: string, data: unknown): Promise<void> {
+    const dir = await getDirectory(root, META_DIR, true);
+    if (!dir) throw new Error(`建不出目录 ${META_DIR}`);
+    await writeTextFile(dir, name, JSON.stringify(data));
   }
 
   /** 目录整体搬家之后逐篇回读 mtime：这些文件在磁盘上可能是复制出来的新文件，
@@ -300,11 +316,24 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
 
     saveOrder(o: unknown) {
       order = o;
-      enqueue(async () => {
-        const dir = await getDirectory(root, ORDER_DIR, true);
-        if (!dir) throw new Error(`建不出目录 ${ORDER_DIR}`);
-        await writeTextFile(dir, ORDER_FILE, JSON.stringify(o));
-      });
+      enqueue(() => writeMetaJson(ORDER_FILE, o));
+    },
+
+    pathOf(id: string): string | null {
+      return docs.get(id)?.relPath ?? null;
+    },
+
+    idAtPath(relPath: string): string | null {
+      for (const e of docs.values()) if (e.relPath === relPath) return e.meta.id;
+      return null;
+    },
+
+    readJson(name: string): Promise<unknown> {
+      return readMetaJson(root, name);
+    },
+
+    writeJson(name: string, data: unknown) {
+      enqueue(() => writeMetaJson(name, data));
     },
 
     async flush() {
