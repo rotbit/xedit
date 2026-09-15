@@ -29,16 +29,12 @@ import {
   Trash2,
 } from "lucide-react";
 import type { FormatCommand } from "@/lib/editorCommands";
-import { buildWechatHtml } from "@/lib/copy/wechat";
-import { buildZhihuHtml } from "@/lib/copy/zhihu";
-import { copyRichHtml } from "@/lib/copy/clipboard";
-import { toast } from "@/components/Toast";
 import { ThemePickerPanel } from "@/components/ThemePicker";
 import { resolveTheme } from "@/lib/themes";
-import { buildRenderOptions } from "@/features/editor/lib/renderOptions";
 import { useStore } from "@/store/useStore";
 import { ToggleRow } from "./MenuControls";
-import { runExport, type ExportKind } from "../lib/exportDoc";
+import { copyDoc, type CopyTarget } from "../lib/copyDoc";
+import { EXPORT_ITEMS, runExport } from "../lib/exportDoc";
 
 const iconBtn =
   "flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors";
@@ -59,15 +55,6 @@ const INSERT_ITEMS: { cmd: FormatCommand; icon: React.ReactNode; label: string }
   { cmd: "codeblock", icon: <SquareCode size={14} />, label: "代码块" },
   { cmd: "tasklist", icon: <ListTodo size={14} />, label: "任务列表" },
   { cmd: "hr", icon: <Minus size={14} />, label: "分割线" },
-];
-
-/** 导出格式：低频动作，收进 ⋯ 菜单的「导出」小节 */
-const EXPORT_ITEMS: { kind: ExportKind; label: string }[] = [
-  { kind: "md", label: "导出 Markdown" },
-  { kind: "html", label: "导出 HTML" },
-  { kind: "docx", label: "导出 Word（可导入飞书）" },
-  { kind: "pdf", label: "导出 PDF（打印）" },
-  { kind: "image", label: "导出长图（PNG）" },
 ];
 
 // memo：这一簇按钮跟正文无关，却和编辑区共处同一棵树，打字时不该跟着重渲染。
@@ -105,7 +92,7 @@ export const ReaderActions = memo(function ReaderActions({
   const themeId = useStore((s) => s.themeId);
   const customThemes = useStore((s) => s.customThemes);
 
-  const [copying, setCopying] = useState<"wechat" | "zhihu" | null>(null);
+  const [copying, setCopying] = useState<CopyTarget | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   /** 从复制菜单跳过来的主题面板：复制前顺手换主题，不必先切到预览 */
   const [themeOpen, setThemeOpen] = useState(false);
@@ -120,31 +107,12 @@ export const ReaderActions = memo(function ReaderActions({
   // 只为菜单里那行说明取主题名：resolveTheme 遇到自定义主题会全量重建 CSS，别每次渲染都跑
   const themeName = useMemo(() => resolveTheme(themeId, customThemes).name, [themeId, customThemes]);
 
-  /** 直接复制到公众号，与编辑页的复制管线一致 */
-  const copyWechat = async () => {
+  /** 复制逻辑在 lib/copyDoc（命令面板也调它），这里只负责「复制中」的按钮态 */
+  const copy = async (target: CopyTarget) => {
     if (copying) return;
-    setCopying("wechat");
+    setCopying(target);
     try {
-      const s = useStore.getState();
-      const html = await buildWechatHtml(s.content, await buildRenderOptions());
-      await copyRichHtml(html, s.content);
-      toast("已复制！打开公众号后台编辑器直接粘贴", "success");
-    } catch (e) {
-      toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
-    } finally {
-      setCopying(null);
-    }
-  };
-
-  const copyZhihu = async () => {
-    if (copying) return;
-    setCopying("zhihu");
-    try {
-      const s = useStore.getState();
-      await copyRichHtml(await buildZhihuHtml(s.content), s.content);
-      toast("已复制！打开知乎编辑器直接粘贴", "success");
-    } catch (e) {
-      toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
+      await copyDoc(target);
     } finally {
       setCopying(null);
     }
@@ -225,7 +193,7 @@ export const ReaderActions = memo(function ReaderActions({
                 className={menuItem}
                 onClick={() => {
                   setCopyMenuOpen(false);
-                  void copyWechat();
+                  void copy("wechat");
                 }}
               >
                 复制到公众号
@@ -234,7 +202,7 @@ export const ReaderActions = memo(function ReaderActions({
                 className={menuItem}
                 onClick={() => {
                   setCopyMenuOpen(false);
-                  void copyZhihu();
+                  void copy("zhihu");
                 }}
               >
                 复制到知乎

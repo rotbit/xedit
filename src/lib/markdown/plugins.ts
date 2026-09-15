@@ -3,6 +3,7 @@ import type Token from "markdown-it/lib/token.mjs";
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { wikiLinkText } from "@/lib/wikiLink";
 import { isTagBoundary, isTagChar, normalizeTag } from "@/lib/frontmatter";
+import { parseCalloutHead } from "@/lib/callout";
 
 // —— 标题结构化 ——
 // 输出 <h2><span class="prefix"></span><span class="content">标题</span><span class="suffix"></span></h2>
@@ -224,4 +225,67 @@ export function tagPlugin(md: MarkdownIt): void {
     const tag = md.utils.escapeHtml(token.info);
     return `<span class="tag" data-tag="${tag}">${md.utils.escapeHtml(token.content)}</span>`;
   };
+}
+
+// —— Obsidian 式提示块（Callout）——
+// `> [!tip] 标题` 打头的引用块整体换成 <section class="callout callout-tip">，
+// 并在最前面插一条 <section class="callout-title">。
+// 用 section 不用 div：sanitize.ts 已放行 section，公众号粘贴也留得住 section。
+// 规则挂在 core 的 inline 之前：此刻 blockquote 已经解析完、inline token 还是原始文本，
+// 直接改 content 就够了，不必去拆已经建好的 children —— 顺带让标题里的 **粗体** 照常生效。
+export function calloutPlugin(md: MarkdownIt): void {
+  md.core.ruler.before("inline", "callout", (state) => {
+    const tokens = state.tokens;
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokens[i].type !== "blockquote_open") continue;
+      if (tokens[i + 1]?.type !== "paragraph_open" || tokens[i + 2]?.type !== "inline") continue;
+
+      const inline = tokens[i + 2];
+      // breaks:true 下首段可能是「首行 \n 正文…」一整块，只拿第一行去认记号
+      const br = inline.content.indexOf("\n");
+      const head = parseCalloutHead(br === -1 ? inline.content : inline.content.slice(0, br));
+      if (!head) continue;
+
+      const open = tokens[i];
+      open.tag = "section";
+      open.attrSet("class", `callout callout-${head.type}`);
+      open.attrSet("data-callout", head.type);
+      // 配对的 blockquote_close 可能隔着好几层嵌套块，按 nesting 计数找回来一起换标签
+      for (let depth = 0, j = i; j < tokens.length; j++) {
+        depth += tokens[j].nesting;
+        if (depth === 0) {
+          tokens[j].tag = "section";
+          break;
+        }
+      }
+
+      const headLine = open.map ? open.map[0] : 0;
+      const body = br === -1 ? "" : inline.content.slice(br + 1);
+      if (body.trim()) {
+        inline.content = body;
+        // 正文实际从下一行起，data-line 跟着挪一行，同步滚动才不会整块偏一行
+        for (const t of [tokens[i + 1], inline]) {
+          if (t.map) t.map = [t.map[0] + 1, t.map[1]];
+        }
+      } else {
+        tokens.splice(i + 1, 3); // 首段只有记号行，留着就是个空 <p>
+      }
+
+      // 标题走真 token 而不是 html_block：它排在 inline 规则之前，
+      // 这条 inline token 随后会被正常解析，标题里写 **粗体**、`代码` 都能渲染
+      const titleOpen = new state.Token("callout_title_open", "section", 1);
+      titleOpen.block = true;
+      titleOpen.attrSet("class", "callout-title");
+      titleOpen.map = [headLine, headLine + 1];
+      const titleInline = new state.Token("inline", "", 0);
+      titleInline.block = true;
+      titleInline.content = head.title;
+      titleInline.children = [];
+      titleInline.map = titleOpen.map;
+      const titleClose = new state.Token("callout_title_close", "section", -1);
+      titleClose.block = true;
+      tokens.splice(i + 1, 0, titleOpen, titleInline, titleClose);
+      i += 3;
+    }
+  });
 }

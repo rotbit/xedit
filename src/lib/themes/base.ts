@@ -3,6 +3,22 @@
 // 伪元素/伪类在复制到公众号后会丢失，主题中不要依赖它们
 // （:nth-child 这类结构性伪类除外——内联器用 el.matches 匹配，能落到具体元素上）。
 
+import { CALLOUT_TYPES } from "@/lib/callout";
+
+/**
+ * Obsidian 式提示块的配色逐类展开成静态 CSS。
+ * 从共享类型表生成而不是手抄一遍：编辑器、预览、复制三处共用一张表，
+ * 以后加类型或调色只改 lib/callout.ts 一处，三处不会走偏。
+ * 主题 CSS 只覆盖 blockquote，提示块是 section.callout，不会被主题改掉。
+ */
+const CALLOUT_CSS = Object.entries(CALLOUT_TYPES)
+  .map(
+    ([type, s]) =>
+      `#nice .callout-${type} { border-color: ${s.color}; background-color: ${s.background}; }\n` +
+      `#nice .callout-${type} .callout-title { color: ${s.color}; }`
+  )
+  .join("\n");
+
 // Mac 窗口三个圆点，data URI 形式的 SVG，公众号支持 background-image data URI
 export const MAC_DOTS =
   `url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='45' height='13' viewBox='0 0 45 13'%3E%3Ccircle cx='6.5' cy='6.5' r='5' fill='%23fc625d'/%3E%3Ccircle cx='22.5' cy='6.5' r='5' fill='%23fdbc40'/%3E%3Ccircle cx='38.5' cy='6.5' r='5' fill='%2335cd4b'/%3E%3C/svg%3E")`;
@@ -108,6 +124,22 @@ export const BASE_CSS = `
 #nice blockquote p {
   margin: 10px 0;
 }
+/* 提示块：整块是 section.callout（不是 blockquote），复制到公众号时这些规则被内联成
+   style 属性，section 与内联样式都是公众号留得住的东西 */
+#nice .callout {
+  margin: 20px 0;
+  padding: 12px 16px;
+  border-left: 4px solid;
+  border-radius: 6px;
+}
+#nice .callout-title {
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+#nice .callout p {
+  margin: 8px 0;
+}
+${CALLOUT_CSS}
 #nice pre.code-block {
   margin: 20px 0;
   border-radius: 8px;
