@@ -16,6 +16,7 @@ import { useDragMove } from "./useDragMove";
 import { useMenus } from "./useMenus";
 import { useSidebarPrefs } from "./useSidebarPrefs";
 import { useVaultBoot } from "./useVaultBoot";
+import { useVaultSync } from "./useVaultSync";
 import { useVaultWatch } from "./useVaultWatch";
 import { useWorkspaceNav } from "./useWorkspaceNav";
 
@@ -30,8 +31,15 @@ export function useWorkspace() {
   const menus = useMenus();
   const nav = useWorkspaceNav({ prefs, closeDocMenu: menus.closeDocMenu });
   const vault = useVaultBoot({ localMode: auth.localMode, nav });
-  // 开着磁盘文库时盯外部改动：回到前台就跟磁盘对一次账
-  useVaultWatch({ enabled: auth.localMode && vault.status === "open", nav });
+  // 开着磁盘文库时盯外部改动：回到前台就跟磁盘对一次账。
+  // 登录态也要盯：库这时是同步文件夹，外部改动得先进缓存才轮得到引擎推上云
+  useVaultWatch({ enabled: vault.status === "open", nav });
+  // 登录 + 库开着：把本地文件夹与云端接上，之后同步不再提问、不打断
+  useVaultSync({
+    loggedIn: auth.loggedIn,
+    userId: auth.session?.user?.id,
+    vaultOpen: vault.status === "open",
+  });
   const library = useDocLibrary({
     loggedIn: auth.loggedIn,
     offlineAuthed: auth.offlineAuthed,

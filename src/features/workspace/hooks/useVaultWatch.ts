@@ -11,6 +11,7 @@ import {
 } from "@/lib/localDocs";
 import { forgetMissingAttachments } from "@/lib/localBackend/attachmentUrls";
 import { rescanVault } from "@/lib/localBackend/vaultSession";
+import { requestVaultSync } from "@/lib/vaultSync/engine";
 import { useStore } from "@/store/useStore";
 import { UNCATEGORIZED } from "../constants";
 import type { WorkspaceNav } from "./useWorkspaceNav";
@@ -22,6 +23,9 @@ const DEBOUNCE_MS = 1000;
  * 磁盘文库的外部改动检测：用 Obsidian / Finder 改过的文件，回到 xedit 就该看到新内容。
  * File System Access API 没有变更通知，只能在回到前台时跟磁盘对一次账
  * （rescan 已是可重入安全的，这里再压一层去抖，少扫几遍）。
+ *
+ * 登录态下库虽然从界面上脱钩，这个对账照样要跑：它是同步引擎唯一的「外部改动」入口，
+ * 所以每轮对完账都踢一把 requestVaultSync（有无变动都踢——没变动那轮引擎会自认稳态）。
  */
 export function useVaultWatch({ enabled, nav }: { enabled: boolean; nav: WorkspaceNav }) {
   // 对账在事件回调里执行（必然晚于本次渲染的 effect），effect 里同步 ref 足够新鲜
@@ -42,6 +46,8 @@ export function useVaultWatch({ enabled, nav }: { enabled: boolean; nav: Workspa
       try {
         const result = await rescanVault();
         if (disposed || !result) return;
+        // 磁盘已是最新：让同步引擎接着把这些改动推上云（去抖，不会跑成好几轮）
+        requestVaultSync();
         forgetMissingAttachments();
         const { changed, removed } = result;
         if (changed.length || removed.length || result.added.length) notifyDocsChanged();
