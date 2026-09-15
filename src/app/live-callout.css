@@ -1,0 +1,67 @@
+/* 即时渲染里的提示块（Obsidian 式 Callout）。
+   与 live-preview.css 分开只为控制单文件长度（那份已经顶到上限），入口仍在 globals.css，
+   做法与 live-tags.css 一致。
+
+   配色走两层变量：每个类型只写一条「基色 + 浅底」，边框/底色/徽标/标题都从变量取，
+   加类型时只多一条声明。色值与 lib/callout.ts 的类型表逐条对应 ——
+   那张表同时是复制到公众号时内联样式的色值来源，两边对不上就会出现
+   「编辑器里是绿的、粘进公众号是灰的」。 */
+
+/* 每种类型的基色与浅底 */
+.cm-live-preview .cm-lp-callout-note { --lp-base: #4a6a85; --lp-wash: #f3f6fa; }
+.cm-live-preview .cm-lp-callout-tip { --lp-base: #2f8f5b; --lp-wash: #eef8f2; }
+.cm-live-preview .cm-lp-callout-info { --lp-base: #2b7cd3; --lp-wash: #eef4fd; }
+.cm-live-preview .cm-lp-callout-warning { --lp-base: #c77700; --lp-wash: #fff7e8; }
+.cm-live-preview .cm-lp-callout-danger { --lp-base: #d0453b; --lp-wash: #fdf0ee; }
+.cm-live-preview .cm-lp-callout-question { --lp-base: #7b57c6; --lp-wash: #f4f0fb; }
+.cm-live-preview .cm-lp-callout-quote { --lp-base: #6b6b6b; --lp-wash: #f5f5f5; }
+.cm-live-preview .cm-lp-callout-example { --lp-base: #4f5bd5; --lp-wash: #eff0fc; }
+.cm-live-preview .cm-lp-callout-success { --lp-base: #2f8f5b; --lp-wash: #eef8f2; }
+
+/* 亮色：直接用基色与浅底 */
+.cm-live-preview .cm-lp-callout {
+  --lp-hue: var(--lp-base);
+  --lp-bg: var(--lp-wash);
+}
+/* 暗色：浅底会在深色纸面上亮成一块白斑，基色压在深底上又发闷 ——
+   底色改由基色兑出、主色提亮，一条规则覆盖全部类型 */
+[data-theme="dark"] .cm-live-preview .cm-lp-callout {
+  --lp-hue: color-mix(in srgb, var(--lp-base) 55%, #ffffff);
+  --lp-bg: color-mix(in srgb, var(--lp-base) 16%, transparent);
+}
+
+/* 整块：左侧类型色竖线 + 淡底。行级类，不随光标变化，零位移 */
+.cm-live-preview .cm-line.cm-lp-callout {
+  position: relative;
+  border-left: 3px solid var(--lp-hue);
+  padding-left: 10px;
+  /* 提示块是正文的一部分，不该像引用那样整体变浅 */
+  color: var(--ink);
+}
+/* 底色画在伪元素上并压到 z-index -3：直接给 .cm-line 上背景会盖住 drawSelection
+   画在 .cm-scroller 里的选区层（-2），选中后看不见高亮（与代码块卡片同一套做法） */
+.cm-live-preview .cm-line.cm-lp-callout::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background: var(--lp-bg);
+}
+
+/* 类型徽标：替掉裸露的 [!tip]，小圆角描边标签。
+   保持行内元素（不改 display）：加了内边距也不会撑高行盒，与 #标签 胶囊同一套处理 */
+.cm-live-preview .cm-lp-callout-badge {
+  padding: 0 6px;
+  margin-right: 4px;
+  border: 1px solid var(--lp-hue);
+  border-radius: 4px;
+  color: var(--lp-hue);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+/* 用户自定义标题：取类型色并加粗。不做替换，光标进出首行时字形宽度不变 */
+.cm-live-preview .cm-lp-callout-title {
+  color: var(--lp-hue);
+  font-weight: 600;
+}

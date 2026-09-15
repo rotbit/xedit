@@ -15,6 +15,7 @@ import {
   Heading2,
   Heading3,
   Quote,
+  Lightbulb,
   SquareCode,
   Table,
   ListTodo,
@@ -36,7 +37,7 @@ export interface SlashItem {
   keywords: string[];
 }
 
-/** 顺序固定：标题三档 → 引用 → 代码块 → 表格 → 任务列表 → 分割线 → 图片 → 视频 */
+/** 顺序固定：标题三档 → 引用 → 提示块 → 代码块 → 表格 → 任务列表 → 分割线 → 图片 → 视频 */
 export const SLASH_ITEMS: SlashItem[] = [
   {
     cmd: "h1",
@@ -65,6 +66,23 @@ export const SLASH_ITEMS: SlashItem[] = [
     hint: ">",
     icon: Quote,
     keywords: ["引用", "yinyong", "yy", "quote", "blockquote", ">"],
+  },
+  {
+    cmd: "callout",
+    label: "提示块",
+    hint: "> [!tip]",
+    icon: Lightbulb,
+    keywords: [
+      "提示块",
+      "tishikuai",
+      "tsk",
+      "callout",
+      "admonition",
+      "tip",
+      "note",
+      "warning",
+      "[!",
+    ],
   },
   {
     cmd: "codeblock",

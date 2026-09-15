@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { FilePlus2, Loader2, PanelLeftClose, RotateCw, Search } from "lucide-react";
+import { PanelLeftClose, RotateCw, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { TAG_OPEN_EVENT } from "@/lib/tagEvents";
+import { toolBtnCls } from "../constants";
 import { CategoryTree } from "./CategoryTree";
+import { NewDocMenu } from "./NewDocMenu";
 import { SidebarFooter } from "./SidebarFooter";
 import { TagList, searchTag } from "./TagList";
 import type { Workspace } from "../hooks/useWorkspace";
-
-const toolBtn =
-  "flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-active)] disabled:opacity-60";
 
 /**
  * 工作区侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕。
@@ -113,25 +112,14 @@ export function Sidebar({
         </span>
         <span className="flex items-center">
           <button
-            className={`${toolBtn} hover:text-[var(--ink)]`}
+            className={`${toolBtnCls} hover:text-[var(--ink)]`}
             title="刷新列表"
             onClick={() => void docActions.refreshDocs()}
             disabled={docActions.refreshing}
           >
             <RotateCw size={12} className={docActions.refreshing ? "animate-spin" : ""} />
           </button>
-          <button
-            className={`${toolBtn} hover:text-[var(--accent-deep)]`}
-            title="新建文章"
-            onClick={() => void docActions.createDoc()}
-            disabled={docActions.creating}
-          >
-            {docActions.creating ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <FilePlus2 size={13} />
-            )}
-          </button>
+          <NewDocMenu ws={ws} />
         </span>
       </div>
 

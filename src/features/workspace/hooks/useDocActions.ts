@@ -9,8 +9,10 @@ import {
   deleteLocalDoc,
   listLocalCats,
 } from "@/lib/localDocs";
+import { getDocContent } from "@/lib/docContent";
 import { saveMirrorLocal, removeMirrorDoc, applyServerDoc } from "@/lib/docStore";
 import { syncNow } from "@/lib/sync";
+import { applyTemplate, defaultTitleFromTemplate, isTemplateCategory } from "@/lib/templates";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
 import { askInput, askConfirm } from "@/components/PromptDialog";
@@ -63,9 +65,14 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 
   /** 本地建稿（未登录，或登录但离线——联网后由同步引擎自动上云） */
-  const createDocLocally = (cat: string, relist: () => DocMeta[], title?: string) => {
+  const createDocLocally = (
+    cat: string,
+    relist: () => DocMeta[],
+    title?: string,
+    content?: string
+  ) => {
     try {
-      const doc = createLocalDoc({ category: cat, title });
+      const doc = createLocalDoc({ category: cat, title, content });
       setDocs(relist());
       nav.openDoc(doc.id);
     } catch {
@@ -73,19 +80,20 @@ export function useDocActions({ auth, library, nav }: Params) {
     }
   };
 
-  /** @param init 预填字段；目前只有标题（`[[双向链接]]` 指向不存在的文章时按目标标题建稿） */
-  const createDoc = async (category?: string, init?: { title?: string }) => {
+  /** @param init 预填字段：标题（`[[双向链接]]` 指向不存在的文章时按目标标题建稿）与正文（套模板） */
+  const createDoc = async (category?: string, init?: { title?: string; content?: string }) => {
     const cat = category ?? (isVirtualCat(nav.activeCat) ? UNCATEGORIZED : nav.activeCat);
     const title = init?.title?.trim() || "未命名文章";
-    if (localMode) return createDocLocally(cat, listLocalDocs, title);
-    if (!online) return createDocLocally(cat, mergedCloudList, title);
+    const content = init?.content ?? "";
+    if (localMode) return createDocLocally(cat, listLocalDocs, title, content);
+    if (!online) return createDocLocally(cat, mergedCloudList, title, content);
 
     setCreating(true);
     try {
       const res = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content: "", category: cat }),
+        body: JSON.stringify({ title, content, category: cat }),
       });
       if (!res.ok) throw new Error();
       const doc = await res.json();
@@ -97,6 +105,31 @@ export function useDocActions({ auth, library, nav }: Params) {
       toast("新建失败", "error");
       setCreating(false);
     }
+  };
+
+  /**
+   * 按模板建稿：复制模板正文（含 frontmatter），替换 `{{date}}` 之类的变量。
+   * 先问标题，因为 `{{title}}` 要用它，写完才能落库。
+   */
+  const createFromTemplate = async (template: DocMeta, category?: string) => {
+    const name = (
+      await askInput({
+        title: "用模板新建",
+        placeholder: "文章标题",
+        defaultValue: defaultTitleFromTemplate(template.title),
+      })
+    )?.trim();
+    if (!name) return; // 取消
+    const title = name.slice(0, 200);
+    // 从模板建出来的是正经文章，不该落回模板分类（当前正停在「模板」目录里时尤其）
+    const fallback =
+      isVirtualCat(nav.activeCat) || isTemplateCategory(nav.activeCat)
+        ? UNCATEGORIZED
+        : nav.activeCat;
+    await createDoc(category ?? fallback, {
+      title,
+      content: applyTemplate(getDocContent(template.id), { title }),
+    });
   };
 
   const removeDoc = async (doc: DocMeta) => {
@@ -293,6 +326,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     pushingFeishu,
     refreshDocs,
     createDoc,
+    createFromTemplate,
     removeDoc,
     restoreDoc,
     hardDeleteDoc,

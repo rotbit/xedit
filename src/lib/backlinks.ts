@@ -3,11 +3,12 @@
  *
  * 与 `[[双向链接]]` 同一套口径 —— 按标题解析（见 lib/wikiLink），正文从 localStorage 现读
  * （见 docSearch.getDocContent），所以离线照样算得出来，也不必为反链另开一条接口。
- * 全库逐篇读正文不便宜，调用方要么防抖、要么 useMemo 缓存一轮结果。
+ * 链接与纯文本都走 docIndex 的缓存，与标签、检索共用同一次解析。
  */
 
-import { getDocContent, matchRanges, plainText } from "@/lib/docSearch";
-import { normalizeTitle, parseWikiLinks, wikiLinkText } from "@/lib/wikiLink";
+import { flatten, indexOf } from "@/lib/docIndex";
+import { getDocContent, matchRanges } from "@/lib/docSearch";
+import { normalizeTitle } from "@/lib/wikiLink";
 import type { DocMeta } from "@/features/workspace/types";
 
 export interface BacklinkHit {
@@ -36,16 +37,6 @@ const MIN_MENTION_LEN = 2;
 
 const EMPTY: Backlinks = { linked: [], unlinked: [] };
 
-/** 抹掉 Markdown 记号，并把 `[[目标|别名]]` 摊平成它显示出来的文字 —— 摘要里不该露方括号 */
-function flatten(md: string): string {
-  return plainText(
-    md.replace(/\[\[([^[\]\r\n]+)\]\]/g, (_m, body: string) => {
-      const bar = body.indexOf("|");
-      return bar === -1 ? body : wikiLinkText(body.slice(0, bar), body.slice(bar + 1));
-    })
-  );
-}
-
 /** 截取 key 命中处周围的一段；两头有截断就补省略号 */
 function clipAround(text: string, key: string, span: number): string {
   const at = text.toLowerCase().indexOf(key);
@@ -65,7 +56,7 @@ function lineSnippet(content: string, at: number, key: string): string {
 
 /**
  * 算出链到本文的与提到本文的两组文章，各按更新时间倒序。
- * 每篇正文只读一次；跳过自身，标题为空时直接返回空（没有标题就无从链起）。
+ * 跳过自身，标题为空时直接返回空（没有标题就无从链起）。
  */
 export function computeBacklinks(
   docs: DocMeta[],
@@ -83,17 +74,17 @@ export function computeBacklinks(
   );
   for (const doc of recent) {
     if (doc.id === current.id) continue;
-    const content = getDocContent(doc.id);
-    if (!content) continue;
+    const { links, text } = indexOf(doc);
 
-    const link = parseWikiLinks(content).find((l) => normalizeTitle(l.target) === key);
+    const link = links.find((l) => normalizeTitle(l.target) === key);
     if (link) {
-      const snippet = lineSnippet(content, link.from, key);
+      // 上下文要的是链接所在的那一行原文，摊平过的 text 已经没有行也没有偏移了；
+      // 只有命中链接的这少数几篇才多读一次 localStorage
+      const snippet = lineSnippet(getDocContent(doc.id), link.from, key);
       linked.push({ doc, snippet, ranges: matchRanges(snippet, terms) });
       continue;
     }
     if (key.length < MIN_MENTION_LEN) continue;
-    const text = flatten(content);
     if (!text.toLowerCase().includes(key)) continue;
     const snippet = clipAround(text, key, MENTION_CONTEXT);
     unlinked.push({ doc, snippet, ranges: matchRanges(snippet, terms) });

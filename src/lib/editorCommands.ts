@@ -12,6 +12,7 @@ import {
   toggleHeading,
   toggleTaskLines,
   insertBlock,
+  insertCallout,
   insertCodeBlock,
   TABLE_TEMPLATE,
 } from "@/lib/editorFormat";
@@ -26,6 +27,7 @@ export type FormatCommand =
   | "h2"
   | "h3"
   | "quote"
+  | "callout"
   | "tasklist"
   | "code"
   | "codeblock"
@@ -109,6 +111,8 @@ export function runFormatCommand(view: EditorView, cmd: FormatCommand, arg?: str
       return toggleHeading(view, 3);
     case "quote":
       return prefixLines(view, "> ");
+    case "callout":
+      return insertCallout(view);
     case "tasklist":
       return toggleTaskLines(view);
     case "codeblock":

@@ -8,7 +8,8 @@ import {
   ViewPlugin,
   ViewUpdate,
 } from "@codemirror/view";
-import { BulletWidget, CheckboxWidget } from "@/lib/livePreviewWidgets";
+import { BulletWidget, CalloutBadgeWidget, CheckboxWidget } from "@/lib/livePreviewWidgets";
+import { calloutStyle, parseCalloutHead } from "@/lib/callout";
 import {
   caretInFencedCode,
   caretPositions,
@@ -101,6 +102,49 @@ function listPrefix(ctx: LpContext, state: EditorState, item: SyntaxNode) {
   }
 }
 
+/**
+ * 提示块（`> [!tip] 标题`）：整块按类型着色，首行的 `[!tip]` 记号换成类型徽标。
+ * 命中返回 true，调用方据此跳过普通引用的处理；QuoteMark 分支不受影响，
+ * 每行的 `>` 照旧由 headMark 收走。
+ */
+function calloutDecorations(ctx: LpContext, from: number, to: number): boolean {
+  const { state } = ctx;
+  const line = state.doc.lineAt(from);
+  // 从 `>` 切到行尾再剥掉一层记号：嵌套引用（`> > [!tip]`）里只有内层节点能命中，
+  // 外层剥掉一个 `>` 之后仍以 `>` 开头，自然落回普通引用
+  const rest = state.sliceDoc(from, line.to);
+  const quote = /^>[ \t]?/.exec(rest);
+  if (!quote) return false;
+  const head = parseCalloutHead(rest.slice(quote[0].length));
+  if (!head) return false;
+
+  ctx.eachLine(from, to, () => `cm-lp-quote cm-lp-callout cm-lp-callout-${head.type}`);
+
+  const markFrom = from + quote[0].length;
+  const markTo = markFrom + head.markEnd;
+  // 自定义标题只加粗、不替换：字形宽度不随光标进出变化，首行不会跳动
+  if (head.custom) {
+    let titleStart = quote[0].length + head.markEnd;
+    while (titleStart < rest.length && (rest[titleStart] === " " || rest[titleStart] === "\t")) {
+      titleStart++;
+    }
+    if (from + titleStart < line.to) {
+      ctx.decos.push(
+        Decoration.mark({ class: "cm-lp-callout-title" }).range(from + titleStart, line.to)
+      );
+    }
+  }
+  // 光标或选区落在首行时不替换：与行首记号（#、>）同一套规矩，要改类型总得先看见源码
+  if (!ctx.lineActive(line.from)) {
+    ctx.decos.push(
+      Decoration.replace({
+        widget: new CalloutBadgeWidget(calloutStyle(head.type).title),
+      }).range(markFrom, markTo)
+    );
+  }
+  return true;
+}
+
 /** 空行保持统一高度，包括光标所在行；移动光标不能推动后面的正文。 */
 function scanBlankLines(ctx: LpContext, view: EditorView) {
   const { state } = ctx;
@@ -156,6 +200,7 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
           return;
         }
         if (name === "Blockquote") {
+          if (calloutDecorations(ctx, node.from, node.to)) return;
           ctx.eachLine(node.from, node.to, () => "cm-lp-quote");
           return;
         }

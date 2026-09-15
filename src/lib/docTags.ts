@@ -1,13 +1,12 @@
 /**
- * 文库级的标签视图：把 extractTags 的结果按文章缓存起来，供侧栏标签区与检索复用。
+ * 文库级的标签视图：供侧栏标签区与检索复用。
  *
- * 缓存是必须的而不是优化：正文躺在 localStorage，一次全库扫描要逐篇 getItem + 正则，
- * 而自动保存每隔几百毫秒就会换一次 docs 引用。以 updatedAt 作失效键，
- * 没改过的文章直接命中缓存，代价只落在真正动过的那一篇上。
+ * 标签本身从 docIndex 取 —— 那一层已经按 updatedAt + 正文长度缓存好了派生数据，
+ * 和检索、反链共用同一次解析，这里不再另存一份。
  */
 
-import { getDocContent } from "@/lib/docContent";
-import { extractTags, normalizeTag } from "@/lib/frontmatter";
+import { indexOf, pruneIndex } from "@/lib/docIndex";
+import { normalizeTag } from "@/lib/frontmatter";
 import type { DocMeta } from "@/features/workspace/types";
 
 export interface TagCount {
@@ -15,19 +14,15 @@ export interface TagCount {
   count: number;
 }
 
-const cache = new Map<string, { updatedAt: string; tags: string[] }>();
-
 /** 一篇文章的全部标签（frontmatter + 正文内联），小写去重 */
 export function tagsOf(doc: DocMeta): string[] {
-  const hit = cache.get(doc.id);
-  if (hit && hit.updatedAt === doc.updatedAt) return hit.tags;
-  const tags = extractTags(getDocContent(doc.id));
-  cache.set(doc.id, { updatedAt: doc.updatedAt, tags });
-  return tags;
+  return indexOf(doc).tags;
 }
 
 /** 全库标签及篇数：按篇数降序，同篇数按标签字典序 */
 export function buildTagIndex(docs: DocMeta[]): TagCount[] {
+  // 全库扫描是唯一一处手里握着完整文库的地方，顺带把删掉的文章从索引缓存里清出去
+  pruneIndex(docs.map((doc) => doc.id));
   const counts = new Map<string, number>();
   for (const doc of docs) {
     for (const tag of tagsOf(doc)) counts.set(tag, (counts.get(tag) ?? 0) + 1);

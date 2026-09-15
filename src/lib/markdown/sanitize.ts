@@ -7,6 +7,6 @@ import DOMPurify from "dompurify";
 export function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ["section", "figure", "figcaption"],
-    ADD_ATTR: ["data-line", "data-tex", "eeimg", "data-wiki", "data-tag"],
+    ADD_ATTR: ["data-line", "data-tex", "eeimg", "data-wiki", "data-tag", "data-callout"],
   });
 }

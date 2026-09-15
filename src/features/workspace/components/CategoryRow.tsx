@@ -17,6 +17,22 @@ import type { Workspace } from "../hooks/useWorkspace";
 const actionBtn =
   "cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)]";
 
+/**
+ * 缩进引导线（Obsidian 文件树同款）：从父分类的折叠箭头正下方垂到子项末尾，
+ * 深层嵌套时一眼能看出「这几条属于谁」。落在子项容器里、DOM 顺序在行之前，
+ * 行的悬停/选中底色会盖住它——线是背景，不该压在高亮上。
+ * 横向落点 = 父行左内边距(6 + 缩进) + 箭头盒子的一半(10)。
+ */
+export function TreeGuide({ depth }: { depth: number }) {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute bottom-1 top-0 w-px bg-[var(--hairline-strong)]"
+      style={{ left: `${16 + treeIndent(depth)}px` }}
+    />
+  );
+}
+
 /** 侧栏分类行；展开时按 node.items 递归渲染子分类与直属文章（两者可混排） */
 export function CategoryRow({
   ws,
@@ -89,7 +105,8 @@ export function CategoryRow({
         ) : null}
       </div>
       {isOpen ? (
-        <div>
+        <div className="relative">
+          <TreeGuide depth={depth} />
           {node.items.map((it) =>
             it.kind === "cat" ? (
               <CategoryRow key={it.node.path} ws={ws} node={it.node} depth={depth + 1} />
