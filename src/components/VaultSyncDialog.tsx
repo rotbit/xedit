@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FolderSync, FolderX, Loader2, RefreshCw, X } from "lucide-react";
+import { ArrowLeftRight, Cloud, Folder, FolderSync, FolderX, Loader2, RefreshCw, X } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
 import {
   closeVault,
@@ -24,7 +24,7 @@ import { toast } from "./Toast";
 
 /** 主按钮：与 McpDialog 的「去登录」同款 */
 const btnPrimary =
-  "cursor-pointer self-start rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)]";
+  "cursor-pointer rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)]";
 
 /** 次要按钮：McpDialog 复制按钮那圈描边，但带文字 */
 const btnGhost =
@@ -129,7 +129,7 @@ export function VaultSyncDialog({ onClose }: { onClose: () => void }) {
                 <p className="text-[13px] leading-6 text-[var(--ink-soft)]">
                   需要重新授权访问「{vault.name}」
                 </p>
-                <button className={btnPrimary} onClick={() => void resumeVault()}>
+                <button className={`${btnPrimary} self-start`} onClick={() => void resumeVault()}>
                   恢复访问
                 </button>
               </>
@@ -153,15 +153,26 @@ function NoneBody() {
     );
   }
   return (
-    <>
+    <div className="flex flex-col items-center gap-4 py-6 text-center">
+      {/* 一眼看懂：云端 ⇄ 电脑上的文件夹 */}
+      <div className="flex items-center gap-3 text-[var(--ink-faint)]">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--paper)]">
+          <Cloud size={22} className="text-[var(--accent)]" />
+        </span>
+        <ArrowLeftRight size={16} />
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--paper)]">
+          <Folder size={22} className="text-[var(--accent)]" />
+        </span>
+      </div>
       <p className="text-[13px] leading-6 text-[var(--ink-soft)]">
-        选一个电脑上的文件夹，云端文章会自动同步成里面的 Markdown
-        文件；在这个文件夹里用 Obsidian 等工具改的内容也会自动推回云端。冲突时云端版本另存为「(云端副本)」，删除只进回收站，不会丢内容。
+        把云端文章同步成电脑上的 Markdown 文件
+        <br />
+        两边改动自动互通，可用 Obsidian 等工具编辑
       </p>
       <button className={btnPrimary} onClick={() => void pickSyncFolder()}>
         选择同步文件夹
       </button>
-    </>
+    </div>
   );
 }
 
