@@ -149,7 +149,8 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     };
   }, [loggedIn]);
 
-  // 同步引擎：每轮完成后刷新列表；首次登录且云端为空时迁移旧的单篇本地草稿
+  // 同步引擎：每轮完成后刷新列表；云端为空且编辑器里有未登录时写的稿子，就把它搬上云
+  //（欢迎稿由服务端在账号创建时生成一次，这里不补：删光文章的老用户不该每次登录都多一篇）
   useEffect(() => {
     if (!loggedIn && !offlineAuthed) return;
     if (loggedIn) setWasAuthed();
@@ -159,25 +160,22 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
         loggedIn &&
         !migratedRef.current &&
         listMirrorDocs().length === 0 &&
-        // 只看浏览器后端：Vault 里有文件不代表云端要塞欢迎稿
+        // 只看浏览器后端：Vault 里有文件不代表要往云端搬
         getBrowserBackend().listDocs().length === 0
       ) {
         migratedRef.current = true;
         const s = useStore.getState();
         const hasLocalWork =
           s.docId === null && s.content.trim() && s.content !== DEFAULT_MARKDOWN;
+        if (!hasLocalWork) return;
         void fetch("/api/documents", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            hasLocalWork
-              ? { title: s.title, content: s.content }
-              : { title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN }
-          ),
+          body: JSON.stringify({ title: s.title, content: s.content }),
         })
           .then((res) => {
             if (res.ok) {
-              if (hasLocalWork) toast("本地文稿已同步到云端", "success");
+              toast("本地文稿已同步到云端", "success");
               void syncNow();
             }
           })

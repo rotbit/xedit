@@ -3,6 +3,7 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { DEFAULT_MARKDOWN, WELCOME_TITLE } from "@/lib/welcomeDoc";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { isAdminEmail } from "@/lib/admin";
@@ -61,6 +62,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   events: {
+    // 账号刚建好：塞一篇欢迎稿，之后再也不补（客户端不再按「云端为空」判断）
+    async createUser({ user }) {
+      if (!user.id) return;
+      await prisma.document
+        .create({ data: { userId: user.id, title: WELCOME_TITLE, content: DEFAULT_MARKDOWN } })
+        .catch((err) => console.error("[auth] 创建欢迎稿失败", err));
+    },
     // 每次登录（OAuth 与密码都会触发）刷新最近登录时间；失败不影响登录流程
     async signIn({ user }) {
       if (!user.id) return;
