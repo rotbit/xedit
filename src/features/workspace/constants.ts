@@ -1,3 +1,5 @@
+import type { VaultSyncState } from "@/lib/vaultSync/state";
+
 /** 侧栏里非分类的虚拟视图键，与真实分类路径共用 activeCat 一个字段 */
 export const ALL = "__all__";
 export const TRASH = "__trash__";
@@ -60,11 +62,25 @@ export const menuItemCls =
 export const menuDangerCls =
   "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40";
 
-/** 侧栏底部「打开/同步文件夹」这排次要按钮：与工作台其他 ghost 按钮同款，
- *  压在深色侧栏上也够清楚。未登录的 VaultRow 与登录态的 VaultSyncRow 共用 */
+/** 侧栏底部「打开文件夹」这排次要按钮：与工作台其他 ghost 按钮同款，
+ *  压在深色侧栏上也够清楚。未登录的 VaultRow 在用（登录态的同步入口已挪进账户菜单） */
 export const vaultBtnCls =
   "flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--hairline)] px-2 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 
 /** 弹出菜单浮层样式 */
 export const menuPanelCls =
   "fixed z-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]";
+
+/**
+ * 同步文件夹的状态点：同步不提问、不打断，它的全部表达就是这一个点。
+ * 空心灰=已暂停，红=出错，灰=离线/还没开跑，黄=在跑或还有没上云的，绿=已同步。
+ * 账户菜单与同步弹窗共用（放这儿而不放弹窗里，免得菜单静态引入弹窗、抵消 dynamic 分包）
+ */
+export function syncDotCls(s: VaultSyncState): string {
+  if (s.phase === "off") return "border border-[var(--ink-faint)]";
+  if (s.phase === "error") return "bg-red-500";
+  if (s.phase === "offline") return "bg-[var(--ink-faint)]";
+  if (s.phase === "syncing" || s.pending > 0) return "bg-amber-400";
+  if (s.phase === "synced") return "bg-emerald-500";
+  return "bg-[var(--ink-faint)]"; // idle：引擎刚挂上，还等第一次对账
+}
