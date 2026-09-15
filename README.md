@@ -90,6 +90,8 @@ npm run dev
 | `NEXT_PUBLIC_SITE_URL` | | 公网地址，供 canonical / OG / sitemap 使用，不带结尾斜杠 |
 | `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | | 填了才出现 GitHub 登录 |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | | 填了才出现 Google 登录 |
+| `AUTH_WECHAT_ENABLED` | | 微信登录的显式开关，填 `1` 或 `true` 才启用 |
+| `AUTH_WECHAT_ID` / `AUTH_WECHAT_SECRET` | | 微信开放平台「网站应用」的 AppID / AppSecret，**需企业主体开放平台账号** |
 | `OSS_REGION` / `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` / `OSS_BUCKET` | | 阿里云 OSS 图床，建议用仅授权该 Bucket 的 RAM 子账号 |
 | `OSS_CDN_DOMAIN` | | 绑定的 CDN/自定义域名 |
 | `AI_ENCRYPTION_KEY` | | AI 平台 Key 的加密主密钥，留空则从 `AUTH_SECRET` 派生 |
