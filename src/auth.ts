@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
+import WeChat from "next-auth/providers/wechat";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { DEFAULT_MARKDOWN, WELCOME_TITLE } from "@/lib/welcomeDoc";
@@ -15,10 +16,39 @@ export const githubConfigured = Boolean(
 export const googleConfigured = Boolean(
   process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
 );
+// 微信要企业主体的开放平台账号，门槛高；除了 ID/Secret 还要一个显式开关，
+// 好让已配好的部署能临时关掉微信登录而不必清空密钥
+const wechatId = process.env.AUTH_WECHAT_ID;
+const wechatSecret = process.env.AUTH_WECHAT_SECRET;
+const wechatEnabled = ["1", "true"].includes(
+  (process.env.AUTH_WECHAT_ENABLED ?? "").trim().toLowerCase()
+);
+export const wechatConfigured = Boolean(wechatEnabled && wechatId && wechatSecret);
 
 const providers: Provider[] = [];
 if (githubConfigured) providers.push(GitHub);
 if (googleConfigured) providers.push(Google);
+// 后两个判断只为让 TS 收窄成 string——wechatConfigured 为真时它们必然有值
+if (wechatConfigured && wechatId && wechatSecret) {
+  providers.push(
+    WeChat({
+      clientId: wechatId,
+      clientSecret: wechatSecret,
+      // website：开放平台网站应用，PC 扫码；official：公众号网页授权，仅微信内置浏览器
+      platformType:
+        process.env.AUTH_WECHAT_PLATFORM?.trim().toLowerCase() === "official"
+          ? "OfficialAccount"
+          : "WebsiteApp",
+      profile: (profile) => ({
+        // 网站应用一般都有 unionid；未开放 UnionID 时退回 openid，保证不会拿到 undefined 当主键
+        id: profile.unionid || profile.openid,
+        name: profile.nickname,
+        email: null,
+        image: profile.headimgurl,
+      }),
+    })
+  );
+}
 // 邮箱 + 密码：始终可用，无需第三方配置
 providers.push(
   Credentials({
