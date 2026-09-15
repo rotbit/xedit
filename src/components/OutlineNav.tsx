@@ -1,16 +1,19 @@
 "use client";
 
-// 大纲导航（桌面）：从渲染结果提取 h1~h3，点击平滑跳转（从 SharedArticle 搬出）
+// 大纲导航（桌面）：从渲染结果提取 h1~h3，点击平滑跳转（分享页与阅读模式共用）
 
 export function OutlineNav({
   outline,
   onJump,
+  className = "hidden w-[190px] shrink-0 lg:block",
 }: {
   outline: { level: number; text: string }[];
   onJump: (index: number) => void;
+  /** 覆盖 <nav> 的外层类名（宽度 / 显隐 / 收缩），默认桌面 190px 窄列 */
+  className?: string;
 }) {
   return (
-    <nav className="hidden w-[190px] shrink-0 lg:block">
+    <nav className={className}>
       <div className="sticky top-0 pt-1">
         <p className="mb-3 text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">大纲</p>
         <div className="flex flex-col gap-0.5">

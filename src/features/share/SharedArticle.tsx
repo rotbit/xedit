@@ -21,11 +21,12 @@ import {
   type AnchorRange,
 } from "./anchors";
 import { Toaster } from "@/components/Toast";
+import { OutlineNav } from "@/components/OutlineNav";
+import { useOutline } from "@/hooks/useOutline";
 import { useShareComments } from "./hooks/useShareComments";
 import type { AnchorType, ShareCommentJson, SharePayload } from "./types";
 import { ANNO_CSS } from "./lib/constants";
 import { ArticleHeader } from "./components/ArticleHeader";
-import { OutlineNav } from "./components/OutlineNav";
 import { CommentSidebar } from "./components/CommentSidebar";
 import { AnnotationOverlay } from "./components/AnnotationOverlay";
 
@@ -70,7 +71,6 @@ export function SharedArticle(props: SharePayload) {
   const [selBtn, setSelBtn] = useState<SelBtnState>(null);
   const [mediaBtn, setMediaBtn] = useState<MediaBtnState>(null);
   const [composer, setComposer] = useState<ComposerState>(null);
-  const [outline, setOutline] = useState<{ level: number; text: string }[]>([]);
 
   /** 线程收起：解决或删除后，浮层与激活态一起清掉 */
   const closeThread = useCallback(() => {
@@ -180,21 +180,7 @@ export function SharedArticle(props: SharePayload) {
 
   // —— 大纲：正文变化时从渲染结果里提取 h1~h3 ——
   // 声明在正文写入 effect 之后：同一次 html 变更的提交里，先写正文再提取
-  useEffect(() => {
-    const root = articleRef.current;
-    if (!root || !html) return;
-    setOutline(
-      Array.from(root.querySelectorAll<HTMLElement>("h1, h2, h3")).map((h) => ({
-        level: Number(h.tagName.slice(1)),
-        text: h.textContent?.trim() ?? "",
-      }))
-    );
-  }, [html]);
-
-  const jumpToHeading = useCallback((index: number) => {
-    const headings = articleRef.current?.querySelectorAll<HTMLElement>("h1, h2, h3");
-    headings?.[index]?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  const { outline, jumpToHeading } = useOutline(articleRef, html);
 
   // —— 激活态样式 ——
   useEffect(() => {
