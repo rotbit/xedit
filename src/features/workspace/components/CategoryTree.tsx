@@ -2,7 +2,7 @@
 
 import { ChevronRight, FilePlus2, FolderPlus, Inbox } from "lucide-react";
 import { ALL, DROP_HL, UNCATEGORIZED, countCls, rowCls } from "../constants";
-import { CategoryRow, TreeGuide } from "./CategoryRow";
+import { CategoryRow, TreeGuide, treeBranchCls } from "./CategoryRow";
 import type { Workspace } from "../hooks/useWorkspace";
 
 const actionBtn =
@@ -76,7 +76,7 @@ export function CategoryTree({ ws }: { ws: Workspace }) {
         </span>
       </div>
       {prefs.rootOpen ? (
-        <div className="relative">
+        <div className={treeBranchCls}>
           <TreeGuide depth={0} />
           {tree.map((n) => (
             <CategoryRow key={n.path} ws={ws} node={n} depth={1} />
