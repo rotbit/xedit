@@ -1,11 +1,28 @@
 "use client";
 
-import { ChevronsUpDown, Images, LogIn, Trash2 } from "lucide-react";
+import { ChevronsUpDown, FolderOpen, Images, Loader2, LogIn, Trash2 } from "lucide-react";
 import { openAuth } from "@/components/AuthDialog";
 import { DarkToggle } from "@/components/DarkToggle";
+import { askConfirm } from "@/components/PromptDialog";
+import { toast } from "@/components/Toast";
+import { listLocalCats, notifyDocsChanged } from "@/lib/localDocs";
+import {
+  closeVault,
+  countBrowserDocs,
+  getVaultState,
+  isVaultSupported,
+  migrateBrowserDocsToVault,
+  openVaultFromPicker,
+  resumeVault,
+  type VaultState,
+} from "@/lib/localBackend/vaultSession";
 import { ASSETS, TRASH, countCls, rowCls } from "../constants";
 import { AccountMenu } from "./AccountMenu";
 import type { Workspace } from "../hooks/useWorkspace";
+
+/** 底部这排次要按钮：与工作台其他 ghost 按钮同款，压在深色侧栏上也够清楚 */
+const vaultBtnCls =
+  "flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--hairline)] px-2 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 
 /** 图片库 / 回收站两个入口的行样式与分类行一致，但没有展开箭头与拖拽 */
 function SimpleRow({
@@ -38,6 +55,66 @@ function SimpleRow({
   );
 }
 
+/** 本地模式的文库来源：开着磁盘文件夹就显示库名，否则给个入口去开一个 */
+function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) {
+  if (vault.status === "open") {
+    return (
+      <div className="flex min-w-0 items-center gap-1 text-[11px] text-[var(--ink-faint)]">
+        <FolderOpen size={13} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate" title={vault.name ?? ""}>
+          {vault.name}
+        </span>
+        <button
+          className="shrink-0 cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
+          title="关闭文件夹，回到浏览器存储"
+          onClick={() => {
+            void closeVault().then(() => toast("已关闭文件夹，回到浏览器存储", "info"));
+          }}
+        >
+          关闭
+        </button>
+      </div>
+    );
+  }
+
+  if (vault.status === "opening") {
+    return (
+      <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--ink-faint)]">
+        <Loader2 size={13} className="shrink-0 animate-spin" />
+        <span className="min-w-0 truncate">正在打开…</span>
+      </div>
+    );
+  }
+
+  // 刷新后权限掉回 prompt：重新授权必须发生在点击里
+  if (vault.status === "pending") {
+    return (
+      <button className={vaultBtnCls} onClick={() => void resumeVault()}>
+        <FolderOpen size={13} className="shrink-0" />
+        <span className="min-w-0 truncate">恢复访问「{vault.name}」</span>
+      </button>
+    );
+  }
+
+  if (!isVaultSupported()) {
+    return (
+      <span
+        className="block truncate text-[11px] text-[var(--ink-faint)]"
+        title="打开文件夹需要 Chrome / Edge 等 Chromium 浏览器"
+      >
+        本地模式 · 数据保存在本设备
+      </span>
+    );
+  }
+
+  return (
+    <button className={vaultBtnCls} onClick={onOpen}>
+      <FolderOpen size={13} className="shrink-0" />
+      <span className="min-w-0 truncate">打开文件夹作为文库</span>
+    </button>
+  );
+}
+
 /** 侧栏底部：登录态是工具入口 + 账户，离线态是提示，本地模式是登录引导 */
 export function SidebarFooter({
   ws,
@@ -46,7 +123,31 @@ export function SidebarFooter({
   ws: Workspace;
   onOpenFeishu: () => void;
 }) {
-  const { auth, menus, library } = ws;
+  const { auth, menus, library, vault } = ws;
+
+  /** 选一个磁盘文件夹当文库；浏览器里还攒着文章就问一句要不要一起搬进去 */
+  const openVaultAsLibrary = async () => {
+    const n = countBrowserDocs();
+    const r = await openVaultFromPicker();
+    if (r === "cancelled") return;
+    if (r === "unsupported") {
+      toast("当前浏览器不支持打开本地文件夹，请用 Chrome / Edge", "error");
+      return;
+    }
+    if (r === "failed") return; // vaultSession 已经弹过失败原因
+    toast(`已打开文件夹「${getVaultState().name}」`, "success");
+    if (n === 0) return; // 空库就空着，让用户自己新建
+    const ok = await askConfirm({
+      title: "迁移浏览器里的文章",
+      message: `浏览器里还有 ${n} 篇本地文章，要搬进这个文件夹吗？搬完后浏览器里的副本会删除。`,
+      confirmText: "迁移",
+    });
+    if (!ok) return;
+    const moved = await migrateBrowserDocsToVault();
+    notifyDocsChanged();
+    library.setCustomCats(listLocalCats()); // 空分类只在分类表里，得单独再读一次
+    toast(`已迁入 ${moved} 篇文章`, "success");
+  };
 
   return (
     <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
@@ -108,8 +209,10 @@ export function SidebarFooter({
             <LogIn size={13} />
             登录同步到云端
           </button>
-          <div className="mt-2 flex items-center justify-between border-t border-[var(--hairline)] px-1.5 pt-2">
-            <span className="text-[11px] text-[var(--ink-faint)]">本地模式 · 数据保存在本设备</span>
+          <div className="mt-2 flex items-center gap-2 border-t border-[var(--hairline)] px-1.5 pt-2">
+            <div className="min-w-0 flex-1">
+              <VaultRow vault={vault} onOpen={() => void openVaultAsLibrary()} />
+            </div>
             <DarkToggle />
           </div>
         </>

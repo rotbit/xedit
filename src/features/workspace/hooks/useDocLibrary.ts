@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { listLocalDocs, listLocalCats, DOCS_CHANGED_EVENT } from "@/lib/localDocs";
+import { getBrowserBackend, LOCAL_BACKEND_CHANGED_EVENT } from "@/lib/localBackend";
+import { getActiveVault } from "@/lib/localBackend/vaultSession";
 import { listMirrorDocs, setWasAuthed } from "@/lib/docStore";
 import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
 import { toast } from "@/components/Toast";
@@ -21,6 +23,13 @@ interface Params {
   offlineAuthed: boolean;
   localMode: boolean;
   activeCat: string;
+}
+
+/** 排序存哪儿看当前后端：Vault 的那份跟着文件夹走（换设备也带着），
+ *  浏览器存储的仍落 localStorage */
+function readActiveOrder(): SidebarOrder {
+  const vault = getActiveVault();
+  return vault ? parseSidebarOrder(vault.loadOrder()) : readLocalOrder();
 }
 
 /** 两份列表在侧栏可见字段上是否一致（顺序敏感，列表本身已排好序） */
@@ -46,14 +55,16 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
   const [customCats, setCustomCats] = useState<string[]>([]);
   const [trashDocs, setTrashDocs] = useState<DocMeta[] | null>(null);
   // 侧栏手动排序：本地缓存秒出，登录后被服务端覆盖
-  const [order, setOrder] = useState<SidebarOrder>(readLocalOrder);
+  const [order, setOrder] = useState<SidebarOrder>(readActiveOrder);
   const migratedRef = useRef(false);
 
   /** 更新排序：本地立即生效并缓存，登录态异步推服务端（失败不打扰，下次改动再带上） */
   const updateOrder = (mutate: (prev: SidebarOrder) => SidebarOrder) => {
     setOrder((prev) => {
       const next = mutate(prev);
-      writeLocalOrder(next);
+      const vault = localMode ? getActiveVault() : null;
+      if (vault) vault.saveOrder(next);
+      else writeLocalOrder(next);
       if (loggedIn) {
         void fetch("/api/settings", {
           method: "PUT",
@@ -97,6 +108,18 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     return () => window.removeEventListener(DOCS_CHANGED_EVENT, refresh);
   }, [loggedIn, offlineAuthed, localMode]);
 
+  // 本地后端被换掉（打开/关闭 Vault）：文章、分类、排序全是另一个库的，整份重读
+  useEffect(() => {
+    if (!localMode) return;
+    const reload = () => {
+      setDocs(listLocalDocs());
+      setCustomCats(listLocalCats());
+      setOrder(readActiveOrder());
+    };
+    window.addEventListener(LOCAL_BACKEND_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(LOCAL_BACKEND_CHANGED_EVENT, reload);
+  }, [localMode]);
+
   // 自建分类（允许空分类存在）
   useEffect(() => {
     if (!loggedIn) return;
@@ -136,7 +159,8 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
         loggedIn &&
         !migratedRef.current &&
         listMirrorDocs().length === 0 &&
-        listLocalDocs().length === 0
+        // 只看浏览器后端：Vault 里有文件不代表云端要塞欢迎稿
+        getBrowserBackend().listDocs().length === 0
       ) {
         migratedRef.current = true;
         const s = useStore.getState();
