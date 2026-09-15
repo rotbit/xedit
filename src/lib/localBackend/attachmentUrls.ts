@@ -104,3 +104,41 @@ function watchBackend(): void {
 export function forgetMissingAttachments(): void {
   missing.clear();
 }
+
+/** 正文里的图片引用：![alt](src) 与 ![alt](<src>) 两种写法都认 */
+const IMAGE_REF = /!\[[^\]]*\]\(\s*<?([^)\s>]+)/g;
+
+/**
+ * 内容要离开本机（复制到公众号、导出 docx）时调用：把正文里的 attachments/ 相对路径
+ * 换成 base64 的 data URL。公众号编辑器粘贴时会把内联图片转存到自己的服务器，不会裂图；
+ * 读不到的图保留原路径。没开磁盘文库时原样返回。
+ */
+export async function inlineAttachments(markdown: string): Promise<string> {
+  const vault = activeVault();
+  if (!vault) return markdown;
+  const refs = new Set<string>();
+  for (const m of markdown.matchAll(IMAGE_REF)) if (isAttachmentSrc(m[1])) refs.add(m[1]);
+  if (refs.size === 0) return markdown;
+  const dataUrls = new Map<string, string>();
+  await Promise.all(
+    [...refs].map(async (src) => {
+      const url = await vault.getAttachmentUrl(toRel(src)).catch(() => null);
+      if (!url) return;
+      const blob = await fetch(url).then((r) => r.blob());
+      dataUrls.set(src, await blobToDataUrl(blob));
+    })
+  );
+  return markdown.replace(IMAGE_REF, (whole, src: string) => {
+    const data = dataUrls.get(src);
+    return data ? whole.slice(0, whole.length - src.length) + data : whole;
+  });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
