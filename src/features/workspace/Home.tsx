@@ -15,6 +15,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { LandingActionsProvider } from "@/features/landing/LandingActions";
 import { CategoryContextMenu } from "./components/CategoryContextMenu";
 import { Sidebar } from "./components/Sidebar";
+import { VaultGate } from "./components/VaultGate";
 import { WorkspaceContent } from "./components/WorkspaceContent";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { useWorkspaceCommands } from "./hooks/useWorkspaceCommands";
@@ -36,15 +37,18 @@ interface HomeProps {
  */
 export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
-  const { auth, prefs, library, nav } = ws;
+  const { auth, prefs, library, nav, vault } = ws;
   const [feishuOpen, setFeishuOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const feishuSync = useFeishuSync();
   const hydrated = useHydrated();
 
+  // 打开过文件夹（哪怕还是空库）也算有工作区：本地文库此刻在磁盘上，不该退回落地页
   const hasWorkspace =
-    auth.loggedIn || auth.offlineAuthed || (auth.localMode && (library.docs?.length ?? 0) > 0);
+    auth.loggedIn ||
+    auth.offlineAuthed ||
+    (auth.localMode && ((library.docs?.length ?? 0) > 0 || vault.status !== "none"));
 
   // 命令面板（⌘⇧P）里的工作台命令：新建 / 导航 / 侧栏。
   // 文章相关的命令由 ArticleReader 自己注册，两边都汇进 lib/commandRegistry
@@ -125,12 +129,26 @@ export function Home({ landing }: HomeProps) {
   // hydration 完成前必须两端渲染一致，所以这一帧只出落地页或空壳，翻真后立即重渲染。
   // 服务端已判定未登录时，这一帧就把落地页铺出来——它必须是真实 DOM，爬虫才读得到；
   // 老用户由 theme-init 内联脚本在首次绘制前打上 data-ws，用 CSS 盖住这帧，不会看见落地页。
-  if (!hydrated || auth.status === "loading" || (auth.localMode && library.docs === null)) {
+  if (
+    !hydrated ||
+    auth.status === "loading" ||
+    (auth.localMode && (library.docs === null || vault.booting))
+  ) {
     if (!landing) return <div className="h-full bg-[var(--paper)]" />;
     return (
       <div className="landing-boot h-full">
         <LandingActionsProvider value={actions}>{landing}</LandingActionsProvider>
       </div>
+    );
+  }
+
+  // 上次的文件夹还等着授权（或正在打开）：先挡一屏，别拿旧后端的列表糊一个工作台出来
+  if (auth.localMode && (vault.status === "pending" || vault.status === "opening")) {
+    return (
+      <>
+        <VaultGate vault={vault} />
+        <Toaster />
+      </>
     );
   }
 

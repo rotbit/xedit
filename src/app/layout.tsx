@@ -59,7 +59,7 @@ export const metadata: Metadata = {
  * （public/theme-init.js 仍保留，兜底 SW 离线壳里缓存的旧版 HTML。）
  * 编译期静态字符串，无任何运行时输入拼接，可安全注入。
  */
-const THEME_INIT_SCRIPT = `try{if(window.xeditDesktop&&window.xeditDesktop.platform==="darwin")document.documentElement.classList.add("desktop-mac")}catch(e){}try{if(localStorage.getItem("xedit-dark")==="1")document.documentElement.dataset.theme="dark";var d=localStorage.getItem("xedit-local-docs");if(localStorage.getItem("xedit-was-authed")==="1"||(d&&d!=="[]"))document.documentElement.dataset.ws="1"}catch(e){}`;
+const THEME_INIT_SCRIPT = `try{if(window.xeditDesktop&&window.xeditDesktop.platform==="darwin")document.documentElement.classList.add("desktop-mac")}catch(e){}try{if(localStorage.getItem("xedit-dark")==="1")document.documentElement.dataset.theme="dark";var d=localStorage.getItem("xedit-local-docs");if(localStorage.getItem("xedit-was-authed")==="1"||localStorage.getItem("xedit-vault")==="1"||(d&&d!=="[]"))document.documentElement.dataset.ws="1"}catch(e){}`;
 
 export const viewport: Viewport = {
   width: "device-width",

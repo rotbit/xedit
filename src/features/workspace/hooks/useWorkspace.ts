@@ -15,6 +15,7 @@ import { useDocLibrary } from "./useDocLibrary";
 import { useDragMove } from "./useDragMove";
 import { useMenus } from "./useMenus";
 import { useSidebarPrefs } from "./useSidebarPrefs";
+import { useVaultBoot } from "./useVaultBoot";
 import { useWorkspaceNav } from "./useWorkspaceNav";
 
 /**
@@ -27,6 +28,7 @@ export function useWorkspace() {
   const prefs = useSidebarPrefs();
   const menus = useMenus();
   const nav = useWorkspaceNav({ prefs, closeDocMenu: menus.closeDocMenu });
+  const vault = useVaultBoot({ localMode: auth.localMode, nav });
   const library = useDocLibrary({
     loggedIn: auth.loggedIn,
     offlineAuthed: auth.offlineAuthed,
@@ -141,6 +143,7 @@ export function useWorkspace() {
     prefs,
     menus,
     nav,
+    vault,
     library,
     docActions,
     catActions,
