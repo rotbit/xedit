@@ -144,8 +144,8 @@ export function useDocActions({ auth, library, nav }: Params) {
       if (!ok) return;
       deleteLocalDoc(doc.id);
       setDocs(listLocalDocs());
-      // 删掉的文章不该还占着标签：关掉它（是激活的那个就顺位切到邻居）
-      nav.closeTab(doc.id);
+      // 删掉的文章不该还开着：正读着它就退回列表
+      if (nav.readingId === doc.id) nav.setReadingId(null);
       toast("已删除", "success");
       return;
     }
@@ -164,7 +164,8 @@ export function useDocActions({ auth, library, nav }: Params) {
     if (res.ok) {
       removeMirrorDoc(doc.id);
       setDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      nav.closeTab(doc.id);
+      // 移进回收站的文章同样不该还开着
+      if (nav.readingId === doc.id) nav.setReadingId(null);
       toast("已移入回收站", "success");
     } else {
       toast("删除失败", "error");

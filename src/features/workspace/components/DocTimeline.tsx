@@ -67,9 +67,9 @@ function DocRow({ ws, doc, index }: { ws: Workspace; doc: DocMeta; index: number
         isTrash ? "" : "cursor-pointer"
       } ${drag.isDragging({ kind: "doc", id: doc.id }) ? "opacity-40" : ""}`}
       style={{ animationDelay: `${Math.min(index * 40, MAX_STAGGER_MS)}ms` }}
-      onClick={(e) => {
-        // ⌘/Ctrl 点击：另开一个标签
-        if (!isTrash) nav.openDoc(doc.id, { newTab: e.metaKey || e.ctrlKey });
+      onClick={() => {
+        // 回收站里的行点不开：那里只有恢复 / 彻底删除两个按钮
+        if (!isTrash) nav.openDoc(doc.id);
       }}
       onContextMenu={isTrash ? undefined : (e) => menus.openDocMenuAt(e, doc.id)}
       {...(isTrash ? {} : drag.dragSrcProps({ kind: "doc", id: doc.id }))}

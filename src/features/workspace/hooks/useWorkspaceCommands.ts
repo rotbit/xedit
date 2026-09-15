@@ -1,6 +1,6 @@
 "use client";
 
-// 工作台全局命令（⌘⇧P 面板里的第一批）：新建 / 导航 / 标签 / 侧栏。
+// 工作台全局命令（⌘⇧P 面板里的第一批）：新建 / 导航 / 侧栏。
 // 单独成 hook 是为了不再往 Home 里堆表格——它已经是首页的总装配点。
 
 import { useRegisterCommands } from "@/hooks/useRegisterCommands";
@@ -11,14 +11,12 @@ import type { Workspace } from "./useWorkspace";
 
 interface Params {
   ws: Workspace;
-  /** 标签栏里真正显示的那几个（已按文库过滤），切标签命令按它走 */
-  openTabs: string[];
   /** 没有工作台（落地页）时一条都不注册：那里没有文章可操作 */
   enabled: boolean;
   onQuickSwitch: () => void;
 }
 
-export function useWorkspaceCommands({ ws, openTabs, enabled, onQuickSwitch }: Params) {
+export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
   const { nav, prefs, docActions, library } = ws;
 
   // 「模板」分类里每篇文章一条命令：⌘⇧P 敲模板名就能建稿，不必去侧栏找那个小箭头
@@ -58,32 +56,6 @@ export function useWorkspaceCommands({ ws, openTabs, enabled, onQuickSwitch }: P
           run: () => nav.openCategory(TRASH),
         },
         {
-          id: "tab.close",
-          group: "标签",
-          label: "关闭当前标签",
-          keys: "⌘W",
-          when: () => Boolean(nav.readingId),
-          run: () => {
-            if (nav.readingId) nav.closeTab(nav.readingId);
-          },
-        },
-        {
-          id: "tab.next",
-          group: "标签",
-          label: "下一个标签",
-          keys: "⌘⇧]",
-          when: () => openTabs.length > 1,
-          run: () => nav.nextTab(1, openTabs),
-        },
-        {
-          id: "tab.prev",
-          group: "标签",
-          label: "上一个标签",
-          keys: "⌘⇧[",
-          when: () => openTabs.length > 1,
-          run: () => nav.nextTab(-1, openTabs),
-        },
-        {
           id: "view.sidebar",
           group: "视图",
           label: "折叠 / 展开侧栏",
@@ -94,7 +66,7 @@ export function useWorkspaceCommands({ ws, openTabs, enabled, onQuickSwitch }: P
     : [];
 
   // 命令表只在「有没有工作台」翻转、或模板集合增删/改名时真的变，其余闭包
-  // （nav / openTabs 每次渲染都是新的）由 useRegisterCommands 的 ref 兜新鲜度；
+  // （nav 每次渲染都是新的）由 useRegisterCommands 的 ref 兜新鲜度；
   // 否则每次击键都要注销重注册一轮
   const templateKey = templates.map((t) => `${t.id}:${t.title}`).join("\n");
   useRegisterCommands(cmds, [enabled, templateKey]);

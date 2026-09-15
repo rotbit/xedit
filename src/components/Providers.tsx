@@ -7,6 +7,7 @@ import { CategoryPickHost } from "./CategoryPickDialog";
 import { AuthHost } from "./AuthDialog";
 import { CssDialog } from "./CssDialog";
 import { ThemeStudio } from "./ThemeStudio";
+import { ScrollbarReveal } from "./ScrollbarReveal";
 import { SwRegister } from "./SwRegister";
 
 export function Providers({
@@ -20,6 +21,7 @@ export function Providers({
   return (
     <SessionProvider session={session}>
       <SwRegister />
+      <ScrollbarReveal />
       {children}
       <PromptHost />
       <ConfirmHost />
