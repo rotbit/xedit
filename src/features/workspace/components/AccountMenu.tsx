@@ -3,11 +3,12 @@
 import { createPortal } from "react-dom";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { BookDown, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
+import { BookDown, FileInput, FolderInput, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { clearMirror } from "@/lib/docStore";
 import { toggleDark } from "@/components/DarkToggle";
 import { useEscape } from "@/hooks/useEscape";
 import { menuItemCls, menuPanelCls } from "../constants";
+import type { ImportMode } from "../hooks/useImportDocs";
 import type { AccountMenuAnchor } from "../hooks/useMenus";
 
 /** 菜单最小宽度：触发行较窄时仍能容下「退出登录」 */
@@ -18,11 +19,13 @@ export function AccountMenu({
   anchor,
   user,
   onClose,
+  onImport,
   onOpenFeishu,
 }: {
   anchor: AccountMenuAnchor;
   user: Session["user"] | undefined;
   onClose: () => void;
+  onImport: (mode: ImportMode) => void;
   onOpenFeishu: () => void;
 }) {
   useEscape(onClose);
@@ -50,6 +53,14 @@ export function AccountMenu({
           <Sun size={13} className="hidden text-[var(--ink-faint)] dark:block" />
           <span className="dark:hidden">夜间模式</span>
           <span className="hidden dark:block">日间模式</span>
+        </button>
+        <button className={menuItemCls} onClick={run(() => onImport("file"))}>
+          <FileInput size={13} className="text-[var(--ink-faint)]" />
+          导入 Markdown 文件…
+        </button>
+        <button className={menuItemCls} onClick={run(() => onImport("folder"))}>
+          <FolderInput size={13} className="text-[var(--ink-faint)]" />
+          导入文件夹…
         </button>
         <button className={menuItemCls} onClick={run(onOpenFeishu)}>
           <BookDown size={13} className="text-[var(--ink-faint)]" />

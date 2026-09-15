@@ -13,6 +13,7 @@ import { useCategoryActions } from "./useCategoryActions";
 import { useDocActions } from "./useDocActions";
 import { useDocLibrary } from "./useDocLibrary";
 import { useDragMove } from "./useDragMove";
+import { useImportDocs } from "./useImportDocs";
 import { useMenus } from "./useMenus";
 import { useSidebarPrefs } from "./useSidebarPrefs";
 import { useVaultBoot } from "./useVaultBoot";
@@ -40,6 +41,7 @@ export function useWorkspace() {
   });
   const docActions = useDocActions({ auth, library, nav });
   const catActions = useCategoryActions({ auth, library, nav });
+  const importer = useImportDocs({ auth, library, nav });
 
   // 排序回调在放下那一刻才执行，经 ref 读当次渲染的树（drag hook 先于 tree 构建）
   const treeRef = useRef<CatNode[]>([]);
@@ -150,6 +152,7 @@ export function useWorkspace() {
     library,
     docActions,
     catActions,
+    importer,
     drag,
     tree,
     filtered,
