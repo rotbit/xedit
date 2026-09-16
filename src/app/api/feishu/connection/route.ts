@@ -85,6 +85,9 @@ export async function DELETE() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
+  // 清 token 也是写操作，只读封禁一样要拦（与 PUT 同一条守卫）
+  const denied = await readOnlyGuard(session.user.id);
+  if (denied) return denied;
   await prisma.feishuConnection.updateMany({
     where: { userId: session.user.id },
     data: { accessTokenEnc: "", refreshTokenEnc: "", feishuOpenId: "", feishuName: "", scopes: "" },

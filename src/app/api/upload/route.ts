@@ -4,6 +4,7 @@ import { ossConfigured, ossPut } from "@/lib/oss";
 import { IMAGE_EXT, MAX_IMAGE_SIZE, isVideoMime, parseImageDimensions } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 import { uploadBlocked } from "@/lib/guards";
+import { serverError } from "@/lib/routeAuth";
 
 /** 服务端中转上传：直传不可用（如 Bucket 未配 CORS）时的兜底通道。
  *  仅图片——视频体积大，中转要整个读进内存还会撞请求体上限，只走直传。 */
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ url });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "上传失败";
-    return NextResponse.json({ error: `OSS 上传失败: ${message}` }, { status: 502 });
+    // OSS 的报错常带 bucket / endpoint / requestId，不该回给浏览器
+    return serverError(e, "上传失败，请稍后重试");
   }
 }

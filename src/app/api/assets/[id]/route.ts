@@ -11,6 +11,9 @@ type Params = { params: Promise<{ id: string }> };
  * 补录像素尺寸：服务端上传路径（MCP / 飞书导入 / OSS 历史同步）入库时没有尺寸，
  * 前端在图片库首次把图片解码出来后回填一次。
  * 只写空着的记录——已有值就当前端在重复回填，返回 204 不动，避免客户端反复改写。
+ *
+ * 故意不加 readOnlyGuard：补录的是展示用的元数据（图片库要按尺寸排版），
+ * 不是用户内容；被封成只读的账号照样要能正常浏览图片库。
  */
 export async function PATCH(req: Request, { params }: Params) {
   const session = await auth();

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { plainText, summarize } from "@/lib/excerpt";
 import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
 import { wordCount } from "@/lib/wordCount";
 
@@ -10,17 +11,6 @@ import { wordCount } from "@/lib/wordCount";
 /** 东八区日期串 YYYY-MM-DD（与 REST 路由一致） */
 function chinaDate(): string {
   return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-}
-
-/** Markdown 转纯文本摘要（去代码块、图片、链接语法与标记符） */
-function plainText(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/[#>*`~$|-]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function clampLimit(v: number | undefined, def: number, max: number): number {
@@ -46,9 +36,16 @@ export interface DocFull {
   updatedAt: Date;
 }
 
+/**
+ * 文库列表。limit="all" 不限条数——REST 列表接口要把整份文库下发给前端，
+ * MCP 那边则始终带上限（默认 50），别让工具一次吐出几百篇。
+ *
+ * 正文仍要整份取：字数是全篇口径，截断了就不准；
+ * 但摘要只扫开头（见 excerpt.ts 的预切），长文不会被整篇跑五遍正则。
+ */
 export async function listDocuments(
   userId: string,
-  opts: { trash?: boolean; category?: string; limit?: number } = {}
+  opts: { trash?: boolean; category?: string; limit?: number | "all" } = {}
 ): Promise<DocSummary[]> {
   const docs = await prisma.document.findMany({
     where: {
@@ -57,7 +54,7 @@ export async function listDocuments(
       ...(opts.category ? { category: opts.category } : {}),
     },
     orderBy: { updatedAt: "desc" },
-    take: clampLimit(opts.limit, 50, 200),
+    take: opts.limit === "all" ? undefined : clampLimit(opts.limit, 50, 200),
     select: { id: true, title: true, category: true, updatedAt: true, content: true },
   });
   return docs.map((d) => ({
@@ -65,18 +62,23 @@ export async function listDocuments(
     title: d.title,
     category: d.category,
     updatedAt: d.updatedAt,
-    excerpt: plainText(d.content).slice(0, 120),
+    excerpt: summarize(d.content),
     chars: wordCount(d.content),
   }));
 }
 
-/** 在匹配位置附近截取一小段上下文，帮助定位命中 */
-function snippetAround(text: string, query: string): string {
-  const plain = plainText(text);
+/** 命中片段的取景窗：命中处往前留 40 字，整段 120 字。
+ *  这是检索上下文、不是列表摘要，所以不跟 EXCERPT_MAX 走同一个数。 */
+const SNIPPET_BEFORE = 40;
+const SNIPPET_WIDTH = 120;
+
+/** 在匹配位置附近截取一小段上下文，帮助定位命中。
+ *  plain 由调用方传入：同一篇正文的纯文本化只做一次，别在这里重跑一遍。 */
+function snippetAround(plain: string, query: string): string {
   const idx = plain.toLowerCase().indexOf(query.toLowerCase());
-  if (idx < 0) return plain.slice(0, 120);
-  const start = Math.max(0, idx - 40);
-  return (start > 0 ? "…" : "") + plain.slice(start, start + 120);
+  if (idx < 0) return plain.slice(0, SNIPPET_WIDTH);
+  const start = Math.max(0, idx - SNIPPET_BEFORE);
+  return (start > 0 ? "…" : "") + plain.slice(start, start + SNIPPET_WIDTH);
 }
 
 export async function searchDocuments(
@@ -99,14 +101,17 @@ export async function searchDocuments(
     take: clampLimit(limit, 20, 100),
     select: { id: true, title: true, category: true, updatedAt: true, content: true },
   });
-  return docs.map((d) => ({
-    id: d.id,
-    title: d.title,
-    category: d.category,
-    updatedAt: d.updatedAt,
-    excerpt: snippetAround(d.content, q),
-    chars: wordCount(d.content),
-  }));
+  return docs.map((d) => {
+    const plain = plainText(d.content);
+    return {
+      id: d.id,
+      title: d.title,
+      category: d.category,
+      updatedAt: d.updatedAt,
+      excerpt: snippetAround(plain, q),
+      chars: wordCount(d.content),
+    };
+  });
 }
 
 export async function getDocument(userId: string, id: string): Promise<DocFull | null> {
