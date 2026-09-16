@@ -1,9 +1,16 @@
 /** 行内与行级格式的底层文本变换：识别已有标记、构造包裹事务，供命令层（commands.ts）调用。 */
 
-import { EditorSelection, type EditorState, type SelectionRange } from "@codemirror/state";
+import { EditorSelection, type ChangeSpec, type EditorState, type SelectionRange } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import { EditorView } from "@codemirror/view";
+import {
+  COLOR_SPAN_CLOSE,
+  COLOR_SPAN_LOOKBACK,
+  COLOR_SPAN_OPEN_AT_END,
+  COLOR_SPAN_WRAPPED,
+  colorSpanOpen,
+} from "@/lib/editor/colorSpan";
 
 const INLINE_MARKUP = {
   "**": { node: "StrongEmphasis", mark: "EmphasisMark" },
@@ -75,24 +82,22 @@ export function toggleInlineFormat(view: EditorView, marker: InlineMarker, place
  *  （预览、公众号复制链路已放行该形态）。color 传 null 表示清除颜色。
  *  选区恰好是一个颜色 span、或恰好是其内部文字时，就地改写/剥掉原标签，避免嵌套套娃 */
 export function applyColor(view: EditorView, color: string | null) {
-  const openTagOf = (c: string) => `<span style="color:${c}">`;
-  const CLOSE_TAG = "</span>";
   const { state } = view;
   const changes = state.changeByRange((range) => {
     let { from, to } = range;
     // 选区两侧紧贴着一对颜色标签（比如刚上完色又换色）：扩到整个标签一起改写
-    const beforeText = state.doc.sliceString(Math.max(0, from - 60), from);
-    const openAtLeft = beforeText.match(/<span style="color:[^"]*">$/);
-    if (openAtLeft && state.doc.sliceString(to, to + CLOSE_TAG.length) === CLOSE_TAG) {
+    const beforeText = state.doc.sliceString(Math.max(0, from - COLOR_SPAN_LOOKBACK), from);
+    const openAtLeft = beforeText.match(COLOR_SPAN_OPEN_AT_END);
+    if (openAtLeft && state.doc.sliceString(to, to + COLOR_SPAN_CLOSE.length) === COLOR_SPAN_CLOSE) {
       from -= openAtLeft[0].length;
-      to += CLOSE_TAG.length;
+      to += COLOR_SPAN_CLOSE.length;
     }
     const text = state.doc.sliceString(from, to);
-    const wrapped = text.match(/^<span style="color:[^"]*">([\s\S]*)<\/span>$/);
+    const wrapped = text.match(COLOR_SPAN_WRAPPED);
     if (color === null && !wrapped) return { range }; // 没颜色可清，原样不动
     const inner = (wrapped ? wrapped[1] : text) || "有色文字";
-    const open = color === null ? "" : openTagOf(color);
-    const insert = color === null ? inner : `${open}${inner}${CLOSE_TAG}`;
+    const open = color === null ? "" : colorSpanOpen(color);
+    const insert = color === null ? inner : `${open}${inner}${COLOR_SPAN_CLOSE}`;
     return {
       changes: { from, to, insert },
       range: EditorSelection.range(from + open.length, from + open.length + inner.length),
@@ -102,11 +107,26 @@ export function applyColor(view: EditorView, color: string | null) {
   view.focus();
 }
 
+/**
+ * 行级命令（加前缀、标题、任务项）的共同收尾：应用改动，空选区时把光标按 assoc=1 映射。
+ *
+ * 事务默认按 assoc=-1 映射选区，光标恰在行首（斜杠菜单删完 "/query" 就是这种情况）时
+ * 会被留在插入的 "# " 前面，接着打字就成了 "标题# "；空行上点任务按钮同理，光标要落到
+ * 标记之后才能直接接着打字。非空选区照默认映射，保住用户选中的范围。
+ */
+function dispatchKeepingCaret(view: EditorView, changes: ChangeSpec[], range: SelectionRange) {
+  const changeSet = view.state.changes(changes);
+  view.dispatch({
+    changes: changeSet,
+    ...(range.empty ? { selection: { anchor: changeSet.mapPos(range.head, 1) } } : {}),
+  });
+  view.focus();
+}
+
 export function prefixLines(view: EditorView, prefix: string) {
   const { state } = view;
-  const range = state.selection.main;
   const { first, last } = selectedLines(state);
-  const changes = [];
+  const changes: ChangeSpec[] = [];
   for (let n = first; n <= last; n++) {
     const line = state.doc.line(n);
     // 已有相同前缀则移除（toggle）
@@ -116,15 +136,7 @@ export function prefixLines(view: EditorView, prefix: string) {
       changes.push({ from: line.from, insert: prefix });
     }
   }
-  // 空选区时光标要落到前缀之后：事务默认按 assoc=-1 映射选区，光标恰在行首（斜杠菜单
-  // 删完 "/query" 就是这种情况）时会被留在插入的 "# " 前面，接着打字就成了 "标题# "。
-  // 显式按 assoc=1 映射，与 toggleTaskLines 同一套处理
-  const changeSet = state.changes(changes);
-  view.dispatch({
-    changes: changeSet,
-    ...(range.empty ? { selection: { anchor: changeSet.mapPos(range.head, 1) } } : {}),
-  });
-  view.focus();
+  dispatchKeepingCaret(view, changes, state.selection.main);
 }
 
 /** 标题级别互相替换；保留引用、列表及缩进前缀，重复应用同级标题则回到正文。 */
@@ -132,7 +144,7 @@ export function toggleHeading(view: EditorView, level: number) {
   const { state } = view;
   const { first, last } = selectedLines(state);
   const prefix = `${"#".repeat(level)} `;
-  const changes = [];
+  const changes: ChangeSpec[] = [];
   for (let n = first; n <= last; n++) {
     const line = state.doc.line(n);
     const container = line.text.match(/^[ \t]*(?:>[ \t]*)*(?:(?:[-+*]|\d+[.)])[ \t]+)?/)![0];
@@ -144,13 +156,7 @@ export function toggleHeading(view: EditorView, level: number) {
       insert: existing?.[1].length === level ? "" : prefix,
     });
   }
-  const changeSet = state.changes(changes);
-  const range = state.selection.main;
-  view.dispatch({
-    changes: changeSet,
-    ...(range.empty ? { selection: { anchor: changeSet.mapPos(range.head, 1) } } : {}),
-  });
-  view.focus();
+  dispatchKeepingCaret(view, changes, state.selection.main);
 }
 
 const TASK_ITEM = /^(\s*)[-*+] \[[ xX]\] /;
@@ -161,9 +167,8 @@ const BULLET_ITEM = /^\s*[-*+] /;
  *  缩进一律保留，嵌套层级不会被拉平 */
 export function toggleTaskLines(view: EditorView) {
   const { state } = view;
-  const range = state.selection.main;
   const { first, last } = selectedLines(state);
-  const changes = [];
+  const changes: ChangeSpec[] = [];
   for (let n = first; n <= last; n++) {
     const line = state.doc.line(n);
     const task = line.text.match(TASK_ITEM);
@@ -183,13 +188,7 @@ export function toggleTaskLines(view: EditorView) {
     const indent = line.text.length - line.text.trimStart().length;
     changes.push({ from: line.from + indent, insert: "- [ ] " });
   }
-  // 空行上点按钮是最常见的用法，光标要落到标记之后，能直接接着打字
-  const changeSet = state.changes(changes);
-  view.dispatch({
-    changes: changeSet,
-    ...(range.empty ? { selection: { anchor: changeSet.mapPos(range.head, 1) } } : {}),
-  });
-  view.focus();
+  dispatchKeepingCaret(view, changes, state.selection.main);
 }
 
 export function insertBlock(view: EditorView, text: string) {

@@ -4,6 +4,7 @@ import { isAttachmentSrc, resolveAttachmentSrc } from "@/lib/localBackend/attach
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreview/widgets";
 import { caretInside, caretTouches, type LpContext } from "@/lib/livePreview/context";
+import { COLOR_SPAN_OPEN_EXACT } from "@/lib/editor/colorSpan";
 
 /**
  * 行内语法的即时渲染分支（强调、行内代码、删除线、链接、颜色 span、图片/视频、分割线）。
@@ -53,7 +54,7 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   if (name === "HTMLTag") {
     // 工具栏字体颜色写出的 <span style="color:…">…</span>：
     // 隐藏首尾标签、中间文字直接上色；光标进入范围才还原源码可编辑
-    const open = state.sliceDoc(node.from, node.to).match(/^<span style="color:([^"]*)">$/);
+    const open = state.sliceDoc(node.from, node.to).match(COLOR_SPAN_OPEN_EXACT);
     if (!open) return;
     // 向后找配对的 </span>（中间可能嵌套别的 span，按深度计数）
     let depth = 1;
