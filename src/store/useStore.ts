@@ -10,11 +10,13 @@ export { DEFAULT_MARKDOWN } from "@/lib/welcomeDoc";
 
 interface SettingsSlice {
   themeId: string;
-  codeThemeId: string;
+  /** 固定常量，无 setter：v1 起代码主题锁定 VS 2015，也不再持久化（见下方 migrate） */
+  readonly codeThemeId: string;
   customCss: string;
   /** 可视化主题编辑器保存的「我的主题」，themeId 以 custom: 前缀引用 */
   customThemes: CustomThemeSpec[];
-  macCode: boolean;
+  /** 同上：Mac 风格代码块固定开启，类型上标只读，免得再长出一个无人调用的 setter */
+  readonly macCode: boolean;
   linkFootnote: boolean;
   syncScroll: boolean;
   /** 源码模式：关闭编辑区的即时渲染，显示原始 Markdown（⌘/ 切换） */
@@ -45,9 +47,7 @@ interface EditorState extends SettingsSlice {
   setDoc: (doc: { id: string | null; title: string; content: string }) => void;
   setSaveState: (s: SaveState) => void;
   setThemeId: (id: string) => void;
-  setCodeThemeId: (id: string) => void;
   setCustomCss: (css: string) => void;
-  setMacCode: (v: boolean) => void;
   setLinkFootnote: (v: boolean) => void;
   setSyncScroll: (v: boolean) => void;
   setSourceMode: (v: boolean) => void;
@@ -133,9 +133,7 @@ export const useStore = create<EditorState>()(
       setDoc: (doc) => set({ docId: doc.id, title: doc.title, content: doc.content }),
       setSaveState: (saveState) => set({ saveState }),
       setThemeId: (themeId) => set({ themeId }),
-      setCodeThemeId: (codeThemeId) => set({ codeThemeId }),
       setCustomCss: (customCss) => set({ customCss }),
-      setMacCode: (macCode) => set({ macCode }),
       setLinkFootnote: (linkFootnote) => set({ linkFootnote }),
       setSyncScroll: (syncScroll) => set({ syncScroll }),
       setSourceMode: (sourceMode) => set({ sourceMode }),

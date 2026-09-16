@@ -6,32 +6,30 @@ import { BookUp, PenLine, TextCursorInput, Trash2, FolderInput, FolderPlus } fro
 import { askCategoryPick } from "@/components/CategoryPickDialog";
 import { useEscape } from "@/hooks/useEscape";
 import { useDismissMenu } from "../hooks/useDismissMenu";
-import { menuDangerCls, menuItemCls } from "../constants";
+import { UNCATEGORIZED, menuDangerCls, menuItemCls } from "../constants";
 import { allCategories } from "../lib/catTree";
-import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /**
  * 文档操作菜单（卡片、列表行与侧栏文章行共用）。portal 到 body：卡片的
  * rise/hover transform 会劫持 fixed 定位的 containing block，导致菜单被裁剪。
+ *
+ * 整个工作台只挂一个（同 CategoryContextMenu），目标由 `menus.docMenu` 的锚点决定。
+ * 原先每行各挂一个：N 行就有 N 份 Esc/外部点击监听随每次渲染装卸，而且同一篇文章
+ * 若既在侧栏树里又在内容列表里，右键会同时渲染两个一模一样的菜单面板。
+ * 回收站行不开这个菜单（没有右键与「⋯」），所以从 library.docs 里找就够。
  */
-export function DocContextMenu({
-  ws,
-  doc,
-  cat,
-}: {
-  ws: Workspace;
-  doc: DocMeta;
-  cat: string;
-}) {
+export function DocContextMenu({ ws }: { ws: Workspace }) {
   const { menus, nav, library, docActions, auth } = ws;
   const anchor = menus.docMenu;
-  const mine = anchor?.id === doc.id;
   const panelRef = useRef<HTMLDivElement | null>(null);
   // Esc 关菜单：和弹窗、斜杠菜单一致，别让用户去找空白处点
-  useEscape(menus.closeDocMenu, mine);
-  useDismissMenu(panelRef, menus.closeDocMenu, mine);
-  if (!mine) return null;
+  useEscape(menus.closeDocMenu, anchor !== null);
+  useDismissMenu(panelRef, menus.closeDocMenu, anchor !== null);
+  const doc = anchor ? library.docs?.find((d) => d.id === anchor.id) : undefined;
+  // 锚点在、文章却没了（另一个标签页删掉 / 列表刚刷新）：什么都不渲染
+  if (!anchor || !doc) return null;
+  const cat = doc.category || UNCATEGORIZED;
 
   const run = (fn: () => void) => () => {
     menus.closeDocMenu();

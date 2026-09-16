@@ -14,6 +14,7 @@ import {
   menuItemCls,
   menuPanelCls,
 } from "../constants";
+import { nameOf } from "../lib/catPath";
 import { allCategories, canNestCategory } from "../lib/catTree";
 import type { Workspace } from "../hooks/useWorkspace";
 
@@ -39,7 +40,7 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   /** 文件夹归属到另一个文件夹：选择器只列合法落点（防自嵌套/超长），支持移出到顶级 */
   const moveViaPicker = async () => {
     const all = allCategories(library.customCats, library.docs);
-    const name = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
+    const name = nameOf(path);
     const target = await askCategoryPick({
       title: `移动「${name}」到文件夹`,
       categories: all.filter((c) => canNestCategory(path, c, all)),

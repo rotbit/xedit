@@ -6,6 +6,7 @@ import type { Session } from "next-auth";
 import { BookDown, FileInput, FolderInput, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { clearMirror } from "@/lib/docStore";
 import { toggleDark } from "@/components/DarkToggle";
+import { resetSettings } from "@/hooks/useSettings";
 import { useEscape } from "@/hooks/useEscape";
 import { menuItemCls, menuPanelCls } from "../constants";
 import type { ImportMode } from "../hooks/useImportDocs";
@@ -76,8 +77,11 @@ export function AccountMenu({
         <button
           className={menuItemCls}
           onClick={run(() => {
-            // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章
+            // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章；
+            // 设置那份是模块级缓存（GET 只发一次），不一起清的话换账号后
+            // 沿用的还是上一个账号的主题/自定义 CSS
             clearMirror();
+            resetSettings();
             void signOut();
           })}
         >

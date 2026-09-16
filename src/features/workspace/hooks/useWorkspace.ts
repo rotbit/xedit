@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { pruneIndex } from "@/lib/docIndex";
 import { searchDocs } from "@/lib/docSearch";
 import { ALL, UNCATEGORIZED } from "../constants";
+import { nameOf, parentOf } from "../lib/catPath";
 import { buildTree, findNode } from "../lib/catTree";
 import { catKey, docKey, reorderList } from "../lib/sidebarOrder";
 import type { CatNode, DragItem } from "../types";
@@ -45,10 +46,6 @@ export function useWorkspace() {
 
   // 排序回调在放下那一刻才执行，经 ref 读当次渲染的树（drag hook 先于 tree 构建）
   const treeRef = useRef<CatNode[]>([]);
-  const parentOf = (path: string) =>
-    path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-  const nameOf = (path: string) =>
-    path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
 
   /** 把拖拽项插到 host 父级序列里 targetKey 的前/后：
    *  先记显示顺序（立即生效），跨父级/跨分类再连带迁移。

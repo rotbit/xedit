@@ -1,14 +1,7 @@
 "use client";
 
 import { FileText, Trash2 } from "lucide-react";
-import {
-  DROP_LINE_BOTTOM,
-  DROP_LINE_TOP,
-  UNCATEGORIZED,
-  rowCls,
-  rowInset,
-} from "../constants";
-import { DocContextMenu } from "./DocContextMenu";
+import { DROP_LINE_BOTTOM, DROP_LINE_TOP, rowCls, rowInset } from "../constants";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
@@ -54,7 +47,6 @@ export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth:
       >
         <Trash2 size={12} />
       </button>
-      <DocContextMenu ws={ws} doc={doc} cat={doc.category || UNCATEGORIZED} />
     </div>
   );
 }

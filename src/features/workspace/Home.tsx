@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
@@ -14,6 +14,7 @@ import { QuickSwitcher } from "@/components/QuickSwitcher";
 import { CommandPalette } from "@/components/CommandPalette";
 import { LandingActionsProvider } from "@/features/landing/LandingActions";
 import { CategoryContextMenu } from "./components/CategoryContextMenu";
+import { DocContextMenu } from "./components/DocContextMenu";
 import { Sidebar } from "./components/Sidebar";
 import { VaultGate } from "./components/VaultGate";
 import { WorkspaceContent } from "./components/WorkspaceContent";
@@ -97,6 +98,13 @@ export function Home({ landing }: HomeProps) {
   // 外部带动作进来（旧 /edit 链接的 ?new=1、桌面壳菜单栏的 ?action=…）：会话就绪后执行一次
   const searchParams = useSearchParams();
   const actionConsumed = useRef(false);
+  // ws 每渲染都是新对象，进依赖表就等于这个 effect 每渲染重跑一次（现在靠 ref 守卫兜住，
+  // 但把 history.replaceState 这类副作用挂在「每渲染」上本就不该）。动作只在回调里用，存 ref
+  const wsRef = useRef(ws);
+  useEffect(() => {
+    wsRef.current = ws;
+  });
+
   useEffect(() => {
     if (actionConsumed.current) return;
     const raw = searchParams.get("action") ?? (searchParams.get("new") === "1" ? "new" : null);
@@ -106,12 +114,12 @@ export function Home({ landing }: HomeProps) {
     window.history.replaceState(null, "", "/");
     // 挪到宏任务里执行，动作内部的同步 setState 不属于本 effect
     setTimeout(() => {
-      if (raw === "new") void ws.docActions.createDoc();
+      if (raw === "new") void wsRef.current.docActions.createDoc();
       else if (raw === "import-file") setImportMode("file");
       else if (raw === "import-folder") setImportMode("folder");
       else if (raw === "feishu") setFeishuOpen(true);
     }, 0);
-  }, [searchParams, auth.status, ws]);
+  }, [searchParams, auth.status]);
 
   // 只订阅「有无本地草稿」这个布尔值：直接订阅 content 会让每次击键都重渲染整个工作台树
   const hasLocalDraft = useStore(
@@ -119,7 +127,7 @@ export function Home({ landing }: HomeProps) {
   );
 
   /** 未登录直接写作：把旧版单篇草稿收编进本地文档库，否则新建一篇欢迎文档 */
-  const startLocalWriting = () => {
+  const startLocalWriting = useCallback(() => {
     const s = useStore.getState();
     const hasDraft =
       s.docId === null && Boolean(s.content.trim()) && s.content !== DEFAULT_MARKDOWN;
@@ -129,19 +137,24 @@ export function Home({ landing }: HomeProps) {
         : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN });
       // 草稿已入库，清空旧缓冲，避免登录后被旧迁移逻辑重复上传
       if (hasDraft) s.setDoc({ id: null, title: "未命名文章", content: DEFAULT_MARKDOWN });
-      library.setDocs(listLocalDocs());
-      nav.openDoc(doc.id);
+      // 走 ref 取 ws：这个回调要进落地页的 context，函数身份得一直稳定
+      wsRef.current.library.setDocs(listLocalDocs());
+      wsRef.current.nav.openDoc(doc.id);
     } catch {
       // 本地文档库全靠 localStorage，不可用就只能明说（旧的单稿编辑页已下线）
       toast("浏览器本地存储不可用，无法离线写作，请登录后使用", "error");
     }
-  };
+  }, []);
 
-  const actions = {
-    onStart: startLocalWriting,
-    onLogin: () => openAuth("login"),
-    startLabel: hasLocalDraft ? "继续编辑本地文稿" : "开始写作",
-  };
+  // 落地页整棵树都从 context 里读它：行内字面量会让每次工作台渲染都白重渲一遍落地页
+  const actions = useMemo(
+    () => ({
+      onStart: startLocalWriting,
+      onLogin: () => openAuth("login"),
+      startLabel: hasLocalDraft ? "继续编辑本地文稿" : "开始写作",
+    }),
+    [startLocalWriting, hasLocalDraft]
+  );
 
   // 会话已随 HTML 注入，但工作台内容来自 localStorage（镜像/本地文库），服务端读不到——
   // hydration 完成前必须两端渲染一致，所以这一帧只出落地页或空壳，翻真后立即重渲染。
@@ -222,7 +235,9 @@ export function Home({ landing }: HomeProps) {
           )}
         </button>
       ) : null}
+      {/* 两个右键菜单整个工作台各挂一个，内容与坐标都由 ws.menus 的锚点决定 */}
       <CategoryContextMenu ws={ws} />
+      <DocContextMenu ws={ws} />
       <QuickSwitcher
         open={switcherOpen}
         docs={library.docs ?? []}

@@ -6,6 +6,7 @@ import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
 import { askInput, askConfirm } from "@/components/PromptDialog";
 import { ALL, MAX_DEPTH, UNCATEGORIZED } from "../constants";
+import { nameOf, parentOf } from "../lib/catPath";
 import type { AuthMode } from "./useAuthMode";
 import type { DocLibrary } from "./useDocLibrary";
 import type { WorkspaceNav } from "./useWorkspaceNav";
@@ -15,12 +16,6 @@ interface Params {
   library: DocLibrary;
   nav: WorkspaceNav;
 }
-
-const parentOf = (path: string) =>
-  path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-
-const nameOf = (path: string) =>
-  path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
 
 /** 分类的增删改。分类迁移会连带子孙分类与其中文章整体随迁 */
 export function useCategoryActions({ auth, library, nav }: Params) {
@@ -49,17 +44,27 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     return true;
   };
 
-  const validNewPath = (path: string): boolean => {
+  /**
+   * 校验分类名并拼出完整路径：空名、层级上限、同级重名一次查完。
+   * 新建与重命名原先各查一半（重命名连重名都没查，能把两个同级文件夹改成一个名字，
+   * 之后哪个都点不准），所以合到这里共用。返回 null 表示已弹过提示、调用方直接返回。
+   */
+  const assertCatName = (parent: string, name: string): string | null => {
+    const path = parent ? `${parent}/${name}` : name;
     const parts = path.split("/").map((p) => p.trim());
     if (parts.some((p) => !p)) {
       toast("分类名不能为空", "error");
-      return false;
+      return null;
     }
     if (parts.length > MAX_DEPTH) {
       toast(`最多支持 ${MAX_DEPTH} 级分类`, "error");
-      return false;
+      return null;
     }
-    return true;
+    if (path === UNCATEGORIZED || customCats.includes(path)) {
+      toast("分类已存在", "error");
+      return null;
+    }
+    return path;
   };
 
   const createCategory = async (parentPath?: string) => {
@@ -70,12 +75,9 @@ export function useCategoryActions({ auth, library, nav }: Params) {
       })
     )?.trim();
     if (!name) return;
-    const path = parentPath ? `${parentPath}/${name.replace(/\//g, "")}` : name;
-    if (!validNewPath(path)) return;
-    if (path === UNCATEGORIZED || customCats.includes(path)) {
-      toast("分类已存在", "error");
-      return;
-    }
+    // 有父级时名字里的 / 要去掉（不然一次跨两级）；顶级新建保留 /，让用户能直接写 a/b
+    const path = assertCatName(parentPath ?? "", parentPath ? name.replace(/\//g, "") : name);
+    if (!path) return;
     persistCustomCats([...customCats, path]);
     nav.openCategory(path);
   };
@@ -124,12 +126,8 @@ export function useCategoryActions({ auth, library, nav }: Params) {
       ?.trim()
       .replace(/\//g, "");
     if (!name || name === oldName) return;
-    const parent = parentOf(path);
-    const to = parent ? `${parent}/${name}` : name;
-    if (to === UNCATEGORIZED) {
-      toast("分类已存在", "error");
-      return;
-    }
+    const to = assertCatName(parentOf(path), name);
+    if (!to) return;
     if (!requireOnline()) return;
     if (await relocateCategory(path, to)) toast("已重命名", "success");
     else toast("重命名失败", "error");
@@ -164,10 +162,8 @@ export function useCategoryActions({ auth, library, nav }: Params) {
       getLocalBackend().removeCategory(path);
       notifyDocsChanged();
     } else {
-      if (!online) {
-        toast("离线时分类操作暂不可用，联网后再试", "error");
-        return;
-      }
+      // 走到 else 说明不是本地模式，与 requireOnline 的判断等价，别再抄一遍文案
+      if (!requireOnline()) return;
       const res = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
