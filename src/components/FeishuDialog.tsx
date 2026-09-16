@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 飞书导入弹窗的外壳，只负责按连接状态切界面。请求与状态都在 useFeishuConnection 里，
+ * 同步进度在 FeishuSyncPanel，创建应用的图文步骤在 FeishuGuide。
+ * 这里刻意不留业务逻辑，改流程先去看那个 hook。
+ */
 import { BookDown, Loader2, Unlink } from "lucide-react";
 import { cancelFeishuSync } from "@/hooks/useFeishuSync";
 import { openAuth } from "./AuthDialog";
@@ -8,6 +13,7 @@ import { Guide } from "./feishu/FeishuGuide";
 import { FeishuSyncPanel } from "./feishu/FeishuSyncPanel";
 import { useFeishuConnection } from "./feishu/useFeishuConnection";
 
+// 两个输入框共用一份类名：凭证表单要看着是一组，别只改其中一处
 const fieldCls =
   "h-9 w-full rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]";
 const labelCls = "mb-1 mt-3 block text-[12px] text-[var(--ink-soft)]";
@@ -57,6 +63,7 @@ export function FeishuDialog({
       width={520}
       onClose={onClose}
     >
+      {/* 四种界面按状态依次排除：加载中 → 未登录 → 凭证未存好/未授权 → 已连接可同步 */}
       {loading ? (
         <div className="flex h-56 items-center justify-center text-[var(--ink-faint)]">
           <Loader2 size={20} className="animate-spin text-[var(--accent)]" />
@@ -106,6 +113,7 @@ export function FeishuDialog({
                 setSecretEdited(true);
                 markAppDirty();
               }}
+              // secret 在服务端加密存放，取不回明文，所以只回显后四位；留空表示这一项不改
               placeholder={
                 conn?.secretLast4
                   ? `已保存 ····${conn.secretLast4}（留空则不修改）`
@@ -130,6 +138,7 @@ export function FeishuDialog({
             <p className="text-[12px] leading-5 text-[var(--ink-soft)]">
               ② 连接后即可把你有权限的知识库整库导入为文章
             </p>
+            {/* 凭证有未保存的改动时禁掉连接：授权要跳出站外，飞书那边用的是服务端已存的凭证，会拿旧值去换 token */}
             <button className={btnPrimary} onClick={connect} disabled={!conn?.hasApp || appDirty}>
               连接飞书
             </button>
@@ -140,6 +149,7 @@ export function FeishuDialog({
             ) : null}
           </section>
 
+          {/* 还没存过凭证的人第一次进来直接展开教程，存过的默认收起 */}
           <Guide callbackUrl={callbackUrl} defaultOpen={!conn?.hasApp} />
         </div>
       ) : (
@@ -210,6 +220,7 @@ export function FeishuDialog({
             ) : null}
             <button className={btnPrimary} onClick={runSync} disabled={syncing}>
               {syncing ? <Loader2 size={13} className="animate-spin" /> : null}
+              {/* 上次中断过（有错且留着进度）就改叫「继续同步」：同步是幂等的，接着跑不会重复导入 */}
               {syncing ? "同步中…" : sync.error && progress ? "继续同步" : "开始同步"}
             </button>
           </div>

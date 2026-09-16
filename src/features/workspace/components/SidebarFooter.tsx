@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 工作台侧栏最底下那一排。三种形态互斥：已登录给图片库/回收站/账户菜单，
+ * 离线态只留一行提示，未登录（本地模式）给登录引导和「打开文件夹作为文库」。
+ * 状态都来自 useWorkspace 聚合出的 ws，本文件不发请求、不自己存状态。
+ */
 import { ChevronsUpDown, FolderOpen, Images, Loader2, LogIn, Trash2 } from "lucide-react";
 import { openAuth } from "@/components/AuthDialog";
 import { DarkToggle } from "@/components/DarkToggle";
@@ -97,6 +102,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
     );
   }
 
+  // Safari、Firefox 没有 File System Access，给不出入口，就只说明数据存在本机，别让人点了没反应
   if (!isVaultSupported()) {
     return (
       <span
@@ -130,6 +136,7 @@ export function SidebarFooter({
 
   /** 选一个磁盘文件夹当文库；浏览器里还攒着文章就问一句要不要一起搬进去 */
   const openVaultAsLibrary = async () => {
+    // 选文件夹必须发生在用户手势的调用栈里，picker 之前不能有 await，所以先同步数一遍浏览器里的篇数
     const n = countBrowserDocs();
     const r = await openVaultFromPicker();
     if (r === "cancelled") return;
@@ -152,6 +159,7 @@ export function SidebarFooter({
     toast(`已迁入 ${moved} 篇文章`, "success");
   };
 
+  // 0 转成 null：SimpleRow 拿到 null 就不画计数气泡，空回收站不该顶着一个「0」
   const trashCount = library.trashDocs?.length ? library.trashDocs.length : null;
   const trashRow = (
     <SimpleRow
@@ -176,6 +184,7 @@ export function SidebarFooter({
               onClick={menus.toggleAccountMenu}
             >
               {auth.session?.user?.image ? (
+                // 头像地址来自第三方登录，域名不固定，配不进 next/image 的远端白名单
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={auth.session.user.image}

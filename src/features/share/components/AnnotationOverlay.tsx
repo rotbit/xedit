@@ -2,6 +2,12 @@
 
 // 正文上浮动的批注交互层：选区/媒体的「批注」按钮、新批注编辑卡、线程面板（从 SharedArticle 搬出）
 
+/**
+ * 所有落点（x/y）都是相对 SharedArticle 里那层 relative 包裹框的像素值，由那边用
+ * getBoundingClientRect 算好再传进来，这里一律 absolute 定位，渲染期不读 DOM。
+ * 本层不持有业务状态：批注列表、访客身份、轮询都在 SharedArticle / useShareComments，
+ * 这里只留输入框草稿，卡片一卸载草稿就跟着没了。
+ */
 import { useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { Check, MessageSquarePlus, Trash2, X } from "lucide-react";
 import type { ShareCommentJson } from "../types";
@@ -57,6 +63,7 @@ interface ComposeCommon {
   nameInput: ReactNode;
 }
 
+/** 批注浮层总装：选区按钮、媒体浮标、新批注卡、线程面板，按当前交互状态只显示其中一两个 */
 export function AnnotationOverlay({
   wrapRef,
   selection,
@@ -83,6 +90,7 @@ export function AnnotationOverlay({
           onPointerDown={(e) => e.preventDefault() /* 保住选区 */}
           onClick={() => {
             // 位置在这里就钳好（渲染期不许读 ref）
+            // 308 = 卡片 300 宽加 8 的边距，减 150 是把卡片横向对准选区中点；取不到容器宽度时按 440 兜一个手机宽
             const width = wrapRef.current?.clientWidth ?? 440;
             handlers.setComposer({
               y: selBtn.y,
@@ -103,9 +111,11 @@ export function AnnotationOverlay({
         <button
           className="absolute z-30 flex -translate-x-full cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--ink)] py-1.5 pl-2.5 pr-3 text-[12px] font-medium text-[var(--panel)] shadow-lg hover:opacity-90"
           style={{ left: mediaBtn.x, top: mediaBtn.y }}
+          // 指针从图片移到这个浮标上时要取消那边安排的延迟隐藏（SharedArticle 里 250ms），否则走到一半按钮就没了
           onPointerEnter={handlers.cancelMediaHide}
           onPointerLeave={handlers.scheduleMediaHide}
           onClick={() => {
+            // 媒体浮标是右对齐贴在图片右上角的（-translate-x-full），所以卡片要从它左边 300（卡片宽）起画，y 再下移 34 让开浮标自己
             const width = wrapRef.current?.clientWidth ?? 440;
             handlers.setComposer({
               x: Math.min(Math.max(8, mediaBtn.x - 300), width - 308),
@@ -161,7 +171,9 @@ function ComposerCard({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  // 不看返回值：发成功后 SharedArticle 会把 composer 置空，整张卡连草稿一起卸载；失败时卡还在，草稿也还在
   const post = () => void submit(null, draft, composer.anchor);
+  // 服务端拿不到 author 会兜成「访客」而不是报错，这里挡一道纯是前端的规矩：每条批注都该有个能分辨的署名
   const blocked = !draft.trim() || (compose.needName && !compose.guestName.trim()) || compose.busy;
 
   return (
@@ -183,12 +195,14 @@ function ComposerCard({
           <X size={14} />
         </button>
       </div>
+      {/* 昵称输入框由 SharedArticle 造好传下来：已署名或本人就是作者时它是 null，这里自然什么都不画 */}
       {compose.nameInput}
       <textarea
         autoFocus
         className="h-20 w-full resize-none rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-2.5 py-1.5 text-[13px] leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
         placeholder="写下批注…（⌘/Ctrl+Enter 提交）"
         value={draft}
+        // 2000 与服务端一致（comments 路由对 body 做 slice(0, 2000)）：超长不会报错，会被悄悄截掉
         maxLength={2000}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -231,6 +245,7 @@ function ThreadPanel({
   const [draft, setDraft] = useState("");
   const reply = () => {
     void handlers.submit(thread.root.id, draft).then((ok) => {
+      // 只有真发出去了才清草稿：失败（网络或被拒）时留着，用户不用重打一遍
       if (ok) setDraft("");
     });
   };
@@ -249,6 +264,7 @@ function ThreadPanel({
           />
         </div>
         <div className="ml-2 flex items-center gap-1">
+          {/* 「解决」只画给 mine（自己发的批注，或文档作者），服务端同样卡 403；回复单独销记会被 400 拒，所以按钮只挂在 root 上 */}
           {thread.root.mine && !thread.root.resolvedAt ? (
             <button
               className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[12px] text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"

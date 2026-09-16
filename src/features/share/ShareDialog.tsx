@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 分享设置弹窗，对应 /api/documents/[id]/share 的 GET/POST/PATCH。
+ * 所有动作都走 call()：每次都用接口返回的整份状态覆盖本地，不做乐观更新——
+ * 关闭再开启会换一个新 token，乐观更新容易让界面上的链接和真实链接不是同一个。
+ */
 import { useCallback, useEffect, useState } from "react";
 import { Copy, ExternalLink, Loader2, X } from "lucide-react";
 import { toast } from "@/components/Toast";
@@ -42,6 +47,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
     };
   }, [load]);
 
+  /** 跑一次分享接口。忙碌期间的重复点击直接丢弃，成功后用响应体整份替换状态。 */
   const call = async (fn: () => Promise<Response>, okMsg?: string) => {
     if (busy) return;
     setBusy(true);
@@ -86,6 +92,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
       })
     );
 
+  // 用 window.location.origin 拼链接而不是写死域名（自部署的域名不固定）；也因此本组件只能在客户端渲染
   const url = state?.token ? `${window.location.origin}/s/${state.token}` : "";
   const copyUrl = async () => {
     await navigator.clipboard.writeText(url);
@@ -94,6 +101,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
 
   return (
     <div
+      // z 只有 90，低于通用弹窗外壳的 110：从这里弹出的确认框要能压在它上面
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
       onClick={onClose}
     >
@@ -157,6 +165,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
                   readOnly
                   className="h-9 min-w-0 flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--paper)] px-3 text-[12px] text-[var(--ink)] outline-none"
                   value={url}
+                  // 只读 + 聚焦全选：不想用复制按钮的人可以直接手动复制，同时链接不会被改坏
                   onFocus={(e) => e.target.select()}
                 />
                 <button
@@ -185,6 +194,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
                 <input
                   type="checkbox"
                   className="h-4 w-4 cursor-pointer accent-[var(--accent)]"
+                  // 接口只在分享已开启时给这个字段，取不到时按「允许」显示，与数据库默认值一致
                   checked={state.allowComment ?? true}
                   disabled={busy}
                   onChange={(e) => void setAllowComment(e.target.checked)}

@@ -1,10 +1,16 @@
 "use client";
 
+/**
+ * 后台的两个动作弹窗：只读封禁（BanDialog）与存储配额（QuotaDialog）。
+ * 两者都不自己发请求，提交交给 AdminDashboard 的 patchUser，成功与否由那边提示。
+ * 配额的取值约定贯穿前后端：null=跟随全局默认，0=不限制，其余为字节数。
+ */
 import { useState } from "react";
 import { useEscape } from "@/hooks/useEscape";
 import { formatBytes, quotaLabel } from "./format";
 import type { AdminUser } from "./types";
 
+// 这层外壳等于 components/Modal 里的 PaperDialog 再加一行标题，遮罩与面板样式是照它抄的；改视觉时两处都要动
 /** 后台弹窗的公共外壳（视觉与 PromptDialog 一致） */
 function Modal({
   title,
@@ -110,6 +116,7 @@ export function QuotaDialog({
   /** quota 为字节；null=恢复默认，0=不限制 */
   onSubmit: (quota: number | null) => Promise<void>;
 }) {
+  // 输入框预填「当前生效」的配额：账号没单独设（null）或设成不限（0）时，填全局默认值，给人一个可改的起点
   const currentMb =
     user.storageQuota != null && user.storageQuota > 0
       ? Math.round(user.storageQuota / 1024 / 1024)
@@ -128,6 +135,7 @@ export function QuotaDialog({
 
   const submitCustom = () => {
     const n = Number(mb);
+    // 输入已经过滤成纯数字，这里再挡一道空串和超长数字转出来的 NaN/Infinity；服务端也会校验 0~1TB
     if (!Number.isFinite(n) || n < 0) return;
     void run(Math.round(n) * 1024 * 1024);
   };

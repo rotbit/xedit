@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * 内容区顶栏。所有状态都从 ws（useWorkspace 的聚合对象）里取，自己不持有任何状态。
+ * 桌面壳里这条同时充当系统窗口标题栏（app-titlebar），高度和左侧留白牵扯到红绿灯位置，改动前先看下面的说明。
+ */
 import {
   ChevronRight,
   FilePlus2,
@@ -60,8 +64,10 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
   }
   if (activeCat === ASSETS) return <span className={crumbNow}>图片库</span>;
   if (isTrash) return <span className={crumbNow}>回收站</span>;
+  // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
   if (activeCat === ALL || readingId) return <span className={crumbNow}>全部文章</span>;
 
+  // 分类路径按 / 拆成层级，除最后一层外都可点，点中间层就跳到那一层的列表
   const parts = activeCat.split("/");
   return (
     <>
@@ -175,6 +181,7 @@ export function ContentHeader({
         <button
           className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline)] px-3 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:opacity-60"
           onClick={() => void docActions.emptyVaultTrash()}
+          // 回收站空着就禁用：点了什么都不会发生的按钮不如直接灰掉
           disabled={!library.trashDocs?.length}
         >
           <Trash2 size={13} />
@@ -182,6 +189,7 @@ export function ContentHeader({
         </button>
       ) : null}
 
+      {/* 只有正常阅读态才挂 actionSlot：回收站里的文章没有编辑、导出这些操作可放 */}
       {nav.readingId && !nav.isTrash ? (
         <div ref={onActionSlotRef} className="flex shrink-0 items-center gap-2" />
       ) : null}

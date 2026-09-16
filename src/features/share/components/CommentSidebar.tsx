@@ -7,6 +7,11 @@ import { fmtTime } from "../lib/format";
 import type { Thread } from "../SharedArticle";
 import { AnchorQuote } from "./AnchorQuote";
 
+/**
+ * 桌面端批注侧栏：进行中与已解决两段线程列表。
+ * 自身不存任何状态，线程数据和开关全部由 SharedArticle 传入，点击只回调上去。
+ * 整块在 lg 以下隐藏（窄屏走 SharedArticle 里的浮层），所以这里不必考虑移动端布局。
+ */
 export function CommentSidebar({
   openCount,
   sortedThreads,
@@ -49,6 +54,7 @@ export function CommentSidebar({
                   <span className="text-[11px] text-[var(--ink-faint)]">
                     {fmtTime(t.root.createdAt)}
                   </span>
+                  {/* range 为 null 表示锚点文字在当前正文里已经定位不到（作者改过原文），只在卡片上标一下 */}
                   {!t.range ? (
                     <span className="rounded bg-[var(--paper)] px-1 text-[10px] text-[var(--ink-faint)]">
                       原文已修改
@@ -89,6 +95,7 @@ export function CommentSidebar({
                     <Check size={12} className="text-emerald-600" />
                     <span className="text-[12px] text-[var(--ink-soft)]">{t.root.author}</span>
                     <span className="flex-1" />
+                    {/* 只有自己发的批注（作者视角下是全部）才给「恢复」，别人的已解决线程是只读的 */}
                     {t.root.mine ? (
                       <button
                         className="flex cursor-pointer items-center gap-1 text-[11px] text-[var(--ink-faint)] hover:text-[var(--ink)]"

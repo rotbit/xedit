@@ -1,9 +1,15 @@
+/**
+ * 后台账号列表接口，仅管理员可用（adminSessionUserId 同时校验登录态与邮箱白名单）。
+ * 除用户表本身，还要拼上文档数、附件数、已用存储和最近活跃日，这些散在不同表里，
+ * 统一按「本页这批用户」批量聚合，避免列表每多一行就多几次查询。
+ */
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { adminSessionUserId, isAdminEmail } from "@/lib/admin";
 import { DEFAULT_STORAGE_QUOTA } from "@/lib/guards";
 
+// 页大小写死、不接受客户端传入：下面几次 groupBy 的 in 列表长度由它决定，放开就等于放开查询成本
 const PAGE_SIZE = 50;
 
 /** 账号列表：分页 + 按邮箱/昵称搜索，附每人的文档数与存储用量 */
@@ -15,6 +21,7 @@ export async function GET(req: Request) {
 
   const params = new URL(req.url).searchParams;
   const q = (params.get("q") ?? "").trim().slice(0, 100);
+  // 非数字、0、负数一律当第 1 页；页码超出总数不算错，自然会返回空列表
   const page = Math.max(1, Number(params.get("page")) || 1);
   const where = q
     ? {

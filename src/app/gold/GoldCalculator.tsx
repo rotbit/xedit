@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 挂在 /gold 的黄金换算小工具，和 xedit 的编辑功能没有关系，是一页独立的自用工具。
+ * 系数与换算记录只写浏览器 localStorage：不上云、不区分账号，换设备就没了。
+ * 换算系数不联网取，由使用者自己填或从预设里挑，所以这一页没有任何请求。
+ */
 import { useState, useSyncExternalStore } from "react";
 
 /** 一条换算记录：结果文本 / 当时生效的系数 / 时间戳 */
@@ -10,9 +15,13 @@ type Saved = { coef: number; his: Rec[] };
 
 const COEF_KEY = "goldCoef";
 const HIS_KEY = "goldHis";
+// 285 只是个起手值，实际系数随行情变，使用者自己调；不要把它当准确常数用
 const DEFAULT_COEF = 285;
+// 四个常用档位，正好排满下面那行 grid-cols-4；增删档位要连同栅格列数一起改
 const PRESETS = [284, 284.5, 285, 285.5];
+// 记录只留 20 条：localStorage 总量有限，更早的换算结果也没人回看
 const MAX_HIS = 20;
+// 这一页的金色写死不走主题变量，深浅色下都一样；同一个色值在 INPUT_CLS 和几处 class 里也各出现一次，改色要一起改
 const GOLD = "#b8860b";
 const DEFAULT_SAVED: Saved = { coef: DEFAULT_COEF, his: [] };
 
@@ -71,6 +80,7 @@ function getServerSnapshot(): Saved {
   return DEFAULT_SAVED;
 }
 
+// 本页是唯一的写入方，所以不监听 storage 事件：同时开两个标签页时，两边的记录不会互相同步
 function subscribe(fn: () => void): () => void {
   listeners.add(fn);
   return () => {
@@ -78,6 +88,7 @@ function subscribe(fn: () => void): () => void {
   };
 }
 
+/** 落盘并通知订阅者。先换掉 cache 再写存储，写失败（隐私模式）时界面仍按新值显示。 */
 function save(next: Saved): void {
   cache = next;
   try {
@@ -114,6 +125,7 @@ function Result({ text, waiting }: { text: string; waiting: boolean }) {
   );
 }
 
+/** 换算器整页：系数卡 + 两个方向的换算卡 + 本地记录。 */
 export function GoldCalculator() {
   const saved = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const { coef, his } = saved;
@@ -198,6 +210,7 @@ export function GoldCalculator() {
             </div>
             <div className="mt-2 grid grid-cols-4 gap-2">
               {PRESETS.map((v) => {
+                // 预设值带小数，浮点数不能直接比相等，用一个极小误差判断是否选中
                 const on = Math.abs(coef - v) < 1e-9;
                 return (
                   <button

@@ -1,3 +1,8 @@
+/**
+ * 当前用户的偏好设置读写：主题、代码主题、自定义 CSS、分类清单、侧栏排序。
+ * PUT 是逐字段挑选式的部分更新——body 里没带或类型不对的字段一律不落库，
+ * 所以前端可以只发改动的那一两项，也不怕另一个标签页同时在改别的字段。
+ */
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +18,7 @@ function sanitizeSidebarOrder(raw: unknown): string | null {
     const out: Record<string, string[]> = {};
     let entries = 0;
     for (const [k, list] of Object.entries(v as Record<string, unknown>)) {
+      // 这些上限是防滥用的硬闸门而不是业务约束：正常用户的文件夹数远到不了 500，超出的直接丢弃不报错
       if (entries >= 500 || typeof k !== "string" || k.length > 100 || !Array.isArray(list)) {
         continue;
       }
@@ -29,9 +35,11 @@ function sanitizeSidebarOrder(raw: unknown): string | null {
     cats: pickMap(obj.cats),
     docs: pickMap(obj.docs),
   });
+  // 超过 256KB 整段作废（返回 null，调用方就不写这个字段）：排序数据不该长到这个量级
   return clean.length <= 256 * 1024 ? clean : null;
 }
 
+/** 读设置。用户还没写过任何设置时返回 null，前端按默认值处理。 */
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -43,6 +51,7 @@ export async function GET() {
   return NextResponse.json(settings);
 }
 
+/** 部分更新设置。只读账号（封禁、超额）由 readOnlyGuard 在任何写入之前拦掉。 */
 export async function PUT(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -50,6 +59,7 @@ export async function PUT(req: Request) {
   }
   const denied = await readOnlyGuard(session.user.id);
   if (denied) return denied;
+  // 请求体解析失败当成空对象：下面每个字段自带类型判断，空对象的效果就是什么都不改
   const body = await req.json().catch(() => ({}));
   const data: Record<string, string | boolean> = {};
   if (typeof body.themeId === "string") data.themeId = body.themeId;
@@ -66,6 +76,7 @@ export async function PUT(req: Request) {
       .filter((c: unknown): c is string => typeof c === "string" && Boolean(c.trim()))
       .map((c: string) => c.trim().slice(0, 100))
       .slice(0, 400);
+    // UserSettings 里这是一个文本列，存 JSON 字符串；顺手去重，免得前端反复回写攒出重复项
     data.categories = JSON.stringify(Array.from(new Set(list)));
   }
   if (body.sidebarOrder && typeof body.sidebarOrder === "object") {

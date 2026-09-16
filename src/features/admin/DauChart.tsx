@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 后台的活跃用户曲线。数据来自 /api/admin/dau，按天/周/月三种粒度分别取一次。
+ * 折线是手写 SVG path，没引图表库：全站只有这一处图表，为它多打一个库进包不值。
+ * 坐标都在 640x200 的 viewBox 里算，缩放由 viewBox 负责，所以不需要监听容器尺寸变化。
+ */
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -9,6 +14,7 @@ interface Point {
   count: number;
 }
 
+// hint 里的区间是接口写死的取数窗口（见 /api/admin/dau），那边改了这里的文案要跟着改
 const TABS: { key: Gran; label: string; hint: string }[] = [
   { key: "day", label: "按天", hint: "近 30 天" },
   { key: "week", label: "按周", hint: "近 12 周" },
@@ -20,6 +26,7 @@ const W = 640;
 const H = 200;
 const PAD = { top: 14, right: 12, bottom: 24, left: 34 };
 
+/** 气泡上的日期文案。key 是接口给的日期字符串，这里直接切字符串而不是 new Date，免得按 UTC 解析后整体差一天。 */
 function tooltipLabel(gran: Gran, key: string): string {
   if (gran === "month") return `${key.slice(0, 4)} 年 ${Number(key.slice(5))} 月`;
   const text = `${Number(key.slice(5, 7))} 月 ${Number(key.slice(8))} 日`;
@@ -38,6 +45,7 @@ export function DauChart() {
   const [hover, setHover] = useState<number | null>(null);
 
   useEffect(() => {
+    // 命中缓存就不再请求。依赖里带着 cache 会让 setCache 重跑本 effect，靠这一句挡住，不会变成死循环
     if (cache[gran]) return;
     let cancelled = false;
     void fetch(`/api/admin/dau?g=${gran}`)
@@ -61,6 +69,7 @@ export function DauChart() {
   const maxCount = points ? Math.max(1, ...points.map((p) => p.count)) : 1;
   const yMax = Math.max(4, Math.ceil(maxCount / 4) * 4);
 
+  // 只有一个点时把它放在中间：否则 i/(length-1) 会除以 0
   const xOf = (i: number): number =>
     PAD.left + (points && points.length > 1 ? (i / (points.length - 1)) * innerW : innerW / 2);
   const yOf = (count: number): number => PAD.top + innerH - (count / yMax) * innerH;
@@ -74,9 +83,11 @@ export function DauChart() {
 
   // x 轴稀疏刻度：首、末与中间约 3 个
   const xTicks = points
+    // 去重是必要的：点数少于 5 个时，几个刻度会算到同一个下标
     ? Array.from(new Set([0, 1, 2, 3, 4].map((k) => Math.round((k * (points.length - 1)) / 4))))
     : [];
 
+  // 由鼠标横坐标反推最近的数据点，而不是给每个点挂一块 hover 热区：点多时那样要多出几十个节点
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!points || points.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -199,6 +210,7 @@ export function DauChart() {
               className="pointer-events-none absolute -translate-x-1/2 rounded-md bg-[var(--ink)] px-2.5 py-1 text-[11.5px] whitespace-nowrap text-[var(--paper)] shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
               style={{
                 left: `${(xOf(hover) / W) * 100}%`,
+                // 减 34px 把气泡抬到标记点上方，数值等于气泡自身高度加间距，改字号得重新量
                 top: `calc(${(yOf(hovered.count) / H) * 100}% - 34px)`,
               }}
             >

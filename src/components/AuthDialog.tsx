@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 登录/注册弹窗。全局只挂一份 AuthHost，任何位置调 openAuth() 唤起（和 askInput 同一套 host 机制）。
+ * 邮箱密码走 /api/register + next-auth 的 credentials，第三方走 signIn(provider) 整页跳转。
+ * 登录成功后整页 reload 而不是只改 React 状态：本地文稿要靠刷新后的登录态才会走云端同步。
+ */
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { Loader2, Mail, Lock } from "lucide-react";
@@ -20,6 +25,7 @@ export function openAuth(mode: Mode = "login") {
   void authHost.open(mode);
 }
 
+// 只挡明显不是邮箱的输入。真正的有效性由注册接口判定，正则写太严会误伤合法地址
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Google 四色徽标 */
@@ -156,6 +162,7 @@ function OAuthSection({
   );
 }
 
+/** 登录弹窗宿主。挂在应用外壳里常驻一份，没被唤起时渲染 null。 */
 export function AuthHost() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -173,6 +180,8 @@ export function AuthHost() {
 
   useEffect(() => {
     if (open) {
+      // 等一小会儿再聚焦：面板此刻还在 toast-in 入场动画里，立刻 focus 会让焦点框跟着动画一起位移。
+      // 依赖带上 mode，是为了在登录/注册之间切换后把焦点收回邮箱框
       const t = setTimeout(() => emailRef.current?.focus(), 20);
       return () => clearTimeout(t);
     }
@@ -185,6 +194,7 @@ export function AuthHost() {
     close();
   };
 
+  // 早退必须排在所有 hook 之后：hook 的调用数量不能随开关变化
   if (!open) return null;
 
   const submit = async () => {
@@ -194,6 +204,7 @@ export function AuthHost() {
       setError("请输入正确的邮箱地址");
       return;
     }
+    // 8 位是注册接口的下限，前端先挡一道，省掉一次注定失败的请求
     if (password.length < 8) {
       setError("密码至少 8 位");
       return;
@@ -213,6 +224,7 @@ export function AuthHost() {
           return;
         }
       }
+      // redirect: false 让 next-auth 把失败结果回传给这里，否则它会整页跳到自带的错误页，弹窗里填的内容全丢
       const r = await signIn("credentials", { email: em, password, redirect: false });
       if (r?.error) {
         setError(mode === "register" ? "注册成功，但自动登录失败，请重新登录" : "邮箱或密码错误");
@@ -236,6 +248,7 @@ export function AuthHost() {
   const isLogin = mode === "login";
 
   return (
+    // z 给到 120，高于 PaperDialog 默认的 110：从别的弹窗里点「去登录」时，登录框要压在原弹窗上面
     <PaperDialog width={400} maxWidth="94vw" z={120} padded onClose={dismiss}>
       {/* 标题 */}
       <div className="px-6 pb-1 pt-6 text-center">

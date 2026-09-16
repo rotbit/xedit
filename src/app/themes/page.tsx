@@ -1,3 +1,9 @@
+/**
+ * /themes 静态落地页：把内置的 13 套排版主题逐个用真实 CSS 渲染成完整样张。
+ * buildThemeStyles() 一次性把全部主题的 CSS 内联进本页，themeClass(id) 再给每块样张套上对应作用域，
+ * 所以新增主题只要往 THEME_METAS 里加一项，这个文件不用动。
+ * 纯服务端组件，需要交互的部分（页头、开始写作按钮）都在 LandingChrome 里。
+ */
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -12,6 +18,8 @@ import {
 import { themeClass } from "@/features/landing/lib/paper";
 import { buildThemeStyles, THEME_METAS } from "@/features/landing/lib/themeStyles";
 
+// description 里把 13 个主题名全列一遍，是为了吃下「公众号 + 主题名」这类长尾搜索词；
+// canonical 固定成 /themes，避免带 #主题 锚点的分享链接被搜索引擎当成多个页面
 export const metadata: Metadata = {
   title: "13 套微信公众号排版主题 · 完整样张",
   description:
@@ -27,6 +35,8 @@ export const metadata: Metadata = {
 
 const SHELL = "mx-auto max-w-[1140px] px-5 sm:px-8";
 
+/** 主题总览页：目录锚点 + 13 段样张 + 底部行动区。
+ *  13 套主题的 CSS 用内联 <style> 注入、只在本页生效，不进全局样式表。 */
 export default function ThemesPage() {
   return (
     <div className="landing-scroll h-full overflow-y-auto overflow-x-hidden bg-[var(--paper)]">

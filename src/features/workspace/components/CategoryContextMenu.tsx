@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 分类（文件夹）操作菜单，右键和「···」按钮共用这一个实例。
+ * 位置与开关都存在 ws.menus.catMenu 里，全局只挂一份，anchor 为 null 时整个组件不渲染。
+ * 用 portal 挂到 body，否则会被侧栏的 overflow 裁掉。
+ */
 import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { FilePlus2, FolderInput, FolderPlus, PenLine, RotateCw, Trash2 } from "lucide-react";
@@ -30,8 +35,10 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   const { path } = anchor;
   const isRoot = path === ALL;
   const canManage = !isRoot && path !== UNCATEGORIZED;
+  // 分类路径用 / 拼接，段数就是层级深度；到 MAX_DEPTH 就不再给「新建子文件夹」这一条
   const canAddChild = canManage && path.split("/").length < MAX_DEPTH;
 
+  // 每个条目都先关菜单再执行动作：动作里可能弹输入框或选择器，菜单留着会压在上面
   const run = (fn: () => void) => () => {
     menus.closeCatMenu();
     fn();
@@ -44,6 +51,7 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
     const target = await askCategoryPick({
       title: `移动「${name}」到文件夹`,
       categories: all.filter((c) => canNestCategory(path, c, all)),
+      // 本来就在顶级的文件夹不给「移出」，否则是个点了什么都不会发生的选项
       topOption: path.includes("/") ? "顶级（移出所有文件夹）" : undefined,
     });
     if (target === null) return;

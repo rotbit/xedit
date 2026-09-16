@@ -1,3 +1,8 @@
+/**
+ * 后台单账号接口：明细（GET）、封禁与配额（PATCH）、删号（DELETE）。
+ * 三个方法都先过 requireAdmin；管理员账号本身不允许被封禁或删除，免得把自己锁在门外。
+ * 存储配额在库里是 BigInt，进出这层都要和 number 互转（见各处 Number() / BigInt()）。
+ */
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -49,6 +54,7 @@ export async function GET(_req: Request, { params }: Params) {
     prisma.document.findMany({
       where: { userId: id },
       orderBy: { updatedAt: "desc" },
+      // 文档、素材都只取前若干条：这个接口是给人看的明细页，不是导出工具，不做分页也不求全
       take: 100,
       select: { id: true, title: true, category: true, updatedAt: true, deletedAt: true },
     }),
@@ -112,6 +118,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if ("storageQuota" in body) {
     if (body.storageQuota === null) {
+      // null = 回到全局默认配额，0 = 明确不限制。两者含义不同，不能合并成一个
       data.storageQuota = null;
     } else if (typeof body.storageQuota === "number" && Number.isFinite(body.storageQuota)) {
       const bytes = Math.round(body.storageQuota);
@@ -124,6 +131,7 @@ export async function PATCH(req: Request, { params }: Params) {
     }
   }
 
+  // 一个可改字段都没命中就报错，而不是静默成功：否则前端会以为改上了
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "没有要修改的字段" }, { status: 400 });
   }
