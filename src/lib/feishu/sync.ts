@@ -10,7 +10,7 @@ import {
   listDocBlocks,
   type WikiNode,
 } from "./api";
-import { feishuBlocksToMarkdown } from "./markdown";
+import { feishuBlocksToMarkdown, feishuImageTokens } from "./markdown";
 
 /**
  * 知识库 → xedit 的分批增量同步。
@@ -58,17 +58,47 @@ const inMirrorTree = (cat: string): boolean => cat === ROOT_CAT || cat.startsWit
 
 /** 图片转存：同一飞书素材只存一次（按 source 复用），OSS 未配置时直接放弃 */
 function makeImageResolver(userId: string, token: string) {
+  /** fileToken → 可用 URL；null = 本次同步已确认拿不到，不再重试 */
   const cache = new Map<string, string | null>();
-  return async (fileToken: string): Promise<string | null> => {
+  /** 已经查过库的 fileToken（命中与否都记），resolve 据此跳过逐图查询 */
+  const looked = new Set<string>();
+
+  /**
+   * 转换前预热：本篇用到的素材一次 findMany 查完。
+   * 原先每张图一次 findFirst，一篇几十张图就是几十个往返（N+1）。
+   * 预热失败不算错——resolve 会退回逐图查库的老路，只是慢一点。
+   */
+  async function prime(fileTokens: string[]): Promise<void> {
+    if (!ossConfigured()) return;
+    const missing = fileTokens.filter((t) => !looked.has(t));
+    if (missing.length === 0) return;
+    try {
+      const rows = await prisma.asset.findMany({
+        where: { userId, source: { in: missing.map((t) => `feishu:${t}`) } },
+        select: { source: true, url: true },
+      });
+      const urlOf = new Map(rows.map((r) => [r.source, r.url]));
+      for (const t of missing) {
+        looked.add(t);
+        const url = urlOf.get(`feishu:${t}`);
+        // 没查到的不写 cache（那会被当成「确认拿不到」），留给 resolve 去下载
+        if (url) cache.set(t, url);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function resolve(fileToken: string): Promise<string | null> {
     if (cache.has(fileToken)) return cache.get(fileToken)!;
     let url: string | null = null;
     if (ossConfigured()) {
       const source = `feishu:${fileToken}`;
       try {
-        const existing = await prisma.asset.findFirst({
-          where: { userId, source },
-          select: { url: true },
-        });
+        // prime 查过的直接进下载分支（查到了的早已在 cache 里），没预热到的才兜底查一次
+        const existing = looked.has(fileToken)
+          ? null
+          : await prisma.asset.findFirst({ where: { userId, source }, select: { url: true } });
         if (existing) {
           url = existing.url;
         } else {
@@ -83,7 +113,9 @@ function makeImageResolver(userId: string, token: string) {
     }
     cache.set(fileToken, url);
     return url;
-  };
+  }
+
+  return { prime, resolve };
 }
 
 export async function syncFeishuSpace(
@@ -138,7 +170,7 @@ export async function syncFeishuSpace(
     changed.push(node);
   }
 
-  const resolveImage = makeImageResolver(userId, token);
+  const images = makeImageResolver(userId, token);
   const startedAt = Date.now();
   let processed = 0;
 
@@ -149,7 +181,8 @@ export async function syncFeishuSpace(
     const title = node.title.trim() || "未命名文档";
     try {
       const blocks = await listDocBlocks(token, node.objToken);
-      const content = await feishuBlocksToMarkdown(blocks, { resolveImage });
+      await images.prime(feishuImageTokens(blocks));
+      const content = await feishuBlocksToMarkdown(blocks, { resolveImage: images.resolve });
       const category = buildCategory(spaceName, node.path);
 
       const link = linkOf.get(node.nodeToken);

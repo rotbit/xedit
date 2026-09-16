@@ -17,6 +17,10 @@ export const AUTOSAVE_RULE: AutoRule = { minIntervalMs: 10 * 60_000, minChars: 2
 export const IDLE_RULE: AutoRule = { minIntervalMs: 60_000, minChars: 20 };
 
 export async function pruneVersions(documentId: string): Promise<void> {
+  // 绝大多数文档一辈子也到不了上限，而这里每留一版就要跑一次。
+  // 先 count（只读索引、不取行），没超上限就到此为止，不必再翻分页查要删的那批
+  const total = await prisma.documentVersion.count({ where: { documentId } });
+  if (total <= MAX_VERSIONS_PER_DOC) return;
   const extras = await prisma.documentVersion.findMany({
     where: { documentId },
     orderBy: { createdAt: "desc" },
@@ -40,15 +44,15 @@ function changedChars(a: string, b: string): number {
   return Math.max(a.length, b.length) - head - tail;
 }
 
+/** 无条件建一版并顺手修剪；去重/节流都在调用方判完了，这里不会「没建成」 */
 async function createVersion(
   documentId: string,
   title: string,
   content: string,
   kind: "auto" | "manual" | "restore"
-): Promise<boolean> {
+): Promise<void> {
   await prisma.documentVersion.create({ data: { documentId, title, content, kind } });
   await pruneVersions(documentId);
-  return true;
 }
 
 /**
@@ -68,7 +72,8 @@ export async function snapshot(
     select: { content: true },
   });
   if (latest && latest.content === content) return false;
-  return createVersion(documentId, title, content, kind);
+  await createVersion(documentId, title, content, kind);
+  return true;
 }
 
 /**
@@ -88,7 +93,10 @@ export async function autoSnapshot(
     orderBy: { createdAt: "desc" },
     select: { id: true, createdAt: true },
   });
-  if (!latest) return createVersion(documentId, title, content, "auto");
+  if (!latest) {
+    await createVersion(documentId, title, content, "auto");
+    return true;
+  }
   if (Date.now() - latest.createdAt.getTime() < rule.minIntervalMs) return false;
 
   const prev = await prisma.documentVersion.findUnique({
@@ -96,5 +104,6 @@ export async function autoSnapshot(
     select: { content: true },
   });
   if (prev && changedChars(prev.content, content) < rule.minChars) return false;
-  return createVersion(documentId, title, content, "auto");
+  await createVersion(documentId, title, content, "auto");
+  return true;
 }

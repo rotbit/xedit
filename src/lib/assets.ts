@@ -193,18 +193,48 @@ async function safeMediaFetch(url: string, timeoutMs: number): Promise<Response>
   throw new Error("重定向次数过多");
 }
 
+/**
+ * 按上限流式读响应体。content-length 可以缺失、也可以撒谎，只看它等于没看，
+ * 所以边读边累计，一超限就 cancel 掉连接——否则 arrayBuffer() 会先把整个超限响应
+ * 读进内存，再回头判断「太大了」，内存已经吃掉了。
+ */
+async function readBodyWithLimit(res: Response, maxBytes: number, mime: string): Promise<Buffer> {
+  if (!res.body) throw new Error("抓取失败: 响应没有内容");
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error(sizeLimitError(mime));
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
 export async function uploadMediaFromUrl(
   userId: string,
   sourceUrl: string,
   kind: MediaKind
 ): Promise<AssetView> {
+  // 下载前先粗检一次：被封禁或配额已满的账号最终一定写不进去，不该先替他把几十 MB
+  // 拉进内存再拒绝。此刻体积未知，传 0 只判「封禁 / 已超配额」，
+  // 真实体积的精确复核仍由下面 uploadMediaBuffer 里那次 uploadBlocked 负责
+  const blocked = await uploadBlocked(userId, 0);
+  if (blocked) throw new Error(blocked);
   // 视频体积大，抓取窗口放宽（MCP 路由整体上限 60s）
   const res = await safeMediaFetch(sourceUrl, kind === "video" ? 45000 : 15000);
   if (!res.ok) throw new Error(`抓取失败: HTTP ${res.status}`);
   const mime = (res.headers.get("content-type") || "").split(";")[0].trim();
   assertKind(mime, kind);
+  const limit = maxSizeOf(mime);
   const declared = Number(res.headers.get("content-length") || 0);
-  if (declared && declared > maxSizeOf(mime)) throw new Error(sizeLimitError(mime));
-  const buffer = Buffer.from(await res.arrayBuffer());
+  // 自报超限的直接拒，连响应体都不必读
+  if (declared && declared > limit) throw new Error(sizeLimitError(mime));
+  const buffer = await readBodyWithLimit(res, limit, mime);
   return uploadMediaBuffer(userId, buffer, mime, "mcp-url");
 }
