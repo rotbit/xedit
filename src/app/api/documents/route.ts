@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
+import { isResponse, requireUserId } from "@/lib/routeAuth";
 import { touchDailyActive } from "@/lib/active";
-import { wordCount } from "@/lib/wordCount";
+import { listDocuments } from "@/lib/documents";
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
-  }
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
   // 打开工作台必经此接口，作为 DAU 打点位；失败不影响响应
-  void touchDailyActive(session.user.id);
+  void touchDailyActive(userId);
   const params = new URL(req.url).searchParams;
   const trash = params.get("trash") === "1";
   // full=1：附带正文，供本地优先的同步引擎一次拉全量镜像
@@ -25,7 +23,7 @@ export async function GET(req: Request) {
       const [changed, live] = await Promise.all([
         prisma.document.findMany({
           // gte 而非 gt：游标边界上的文档宁可多发一次，客户端落镜像是幂等的
-          where: { userId: session.user.id, updatedAt: { gte: sinceDate } },
+          where: { userId, updatedAt: { gte: sinceDate } },
           orderBy: { updatedAt: "desc" },
           select: {
             id: true,
@@ -37,7 +35,7 @@ export async function GET(req: Request) {
           },
         }),
         prisma.document.findMany({
-          where: { userId: session.user.id, deletedAt: null },
+          where: { userId, deletedAt: null },
           select: { id: true },
         }),
       ]);
@@ -46,52 +44,29 @@ export async function GET(req: Request) {
   }
   if (full) {
     const docs = await prisma.document.findMany({
-      where: { userId: session.user.id, deletedAt: trash ? { not: null } : null },
+      where: { userId, deletedAt: trash ? { not: null } : null },
       orderBy: { updatedAt: "desc" },
       select: { id: true, title: true, updatedAt: true, content: true, category: true },
     });
     return NextResponse.json(docs);
   }
   // 列表附带纯文本摘要与字数，正文本身不下发（进程内算完即丢，响应体积不随文章长度膨胀）。
-  // 字数走 wordCount 统一口径，与阅读页/状态栏/统计一致。
-  const docs = await prisma.document.findMany({
-    where: { userId: session.user.id, deletedAt: trash ? { not: null } : null },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, category: true, updatedAt: true, content: true },
-  });
-  return NextResponse.json(
-    docs.map((d) => {
-      const plain = d.content
-        .slice(0, 2000)
-        .replace(/```[\s\S]*?```/g, " ")
-        .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-        .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-        .replace(/[#>*`~$|-]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-      return {
-        id: d.id,
-        title: d.title,
-        category: d.category,
-        updatedAt: d.updatedAt,
-        excerpt: plain.slice(0, 90),
-        chars: wordCount(d.content),
-      };
-    })
-  );
+  // 摘要与字数的口径都在服务层，MCP 的 list_documents 拿到的是同一份形状；
+  // limit="all" 是这里和 MCP 唯一的区别——前端侧栏要整份文库，不能被默认上限截断。
+  return NextResponse.json(await listDocuments(userId, { trash, limit: "all" }));
 }
 
+/** 新建文章。不走服务层的 createDocument：前端要拿整行落本地镜像，
+ *  而那个函数只回 id/title/category 三个字段（MCP 用不着更多）。 */
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
-  }
-  const denied = await readOnlyGuard(session.user.id);
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
+  const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const body = await req.json().catch(() => ({}));
   const doc = await prisma.document.create({
     data: {
-      userId: session.user.id,
+      userId,
       title: typeof body.title === "string" && body.title ? body.title.slice(0, 200) : "未命名文章",
       content: typeof body.content === "string" ? body.content : "",
       category:

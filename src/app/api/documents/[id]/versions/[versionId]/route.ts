@@ -1,22 +1,19 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
+import { isResponse, requireOwnedDoc, requireUserId } from "@/lib/routeAuth";
 import { pruneVersions } from "@/lib/versions";
 
 type Params = { params: Promise<{ id: string; versionId: string }> };
 
-async function ownedDoc(id: string) {
-  const session = await auth();
-  if (!session?.user?.id) return null;
-  return prisma.document.findFirst({ where: { id, userId: session.user.id } });
-}
-
 /** 读取单个版本（含正文，用于回滚前预览） */
 export async function GET(_req: Request, { params }: Params) {
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
   const { id, versionId } = await params;
-  const doc = await ownedDoc(id);
-  if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
+  // 版本正文从 documentVersion 取，这里只确认这篇归你
+  const doc = await requireOwnedDoc(id, userId);
+  if (isResponse(doc)) return doc;
 
   const version = await prisma.documentVersion.findFirst({
     where: { id: versionId, documentId: id },
@@ -30,11 +27,16 @@ export async function GET(_req: Request, { params }: Params) {
  * 再用版本内容覆盖文档，返回更新后的文档。
  */
 export async function POST(_req: Request, { params }: Params) {
-  const { id, versionId } = await params;
-  const doc = await ownedDoc(id);
-  if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
-  const denied = await readOnlyGuard(doc.userId);
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
+  const denied = await readOnlyGuard(userId);
   if (denied) return denied;
+  const { id, versionId } = await params;
+  // 回滚前要把当前标题与正文备份成一版，这两个字段得取
+  const doc = await requireOwnedDoc(id, userId, {
+    select: { id: true, title: true, content: true },
+  });
+  if (isResponse(doc)) return doc;
 
   const version = await prisma.documentVersion.findFirst({
     where: { id: versionId, documentId: id },
@@ -56,11 +58,13 @@ export async function POST(_req: Request, { params }: Params) {
 
 /** 删除单个版本 */
 export async function DELETE(_req: Request, { params }: Params) {
-  const { id, versionId } = await params;
-  const doc = await ownedDoc(id);
-  if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
-  const denied = await readOnlyGuard(doc.userId);
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
+  const denied = await readOnlyGuard(userId);
   if (denied) return denied;
+  const { id, versionId } = await params;
+  const doc = await requireOwnedDoc(id, userId);
+  if (isResponse(doc)) return doc;
 
   const result = await prisma.documentVersion.deleteMany({
     where: { id: versionId, documentId: id },

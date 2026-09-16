@@ -1,19 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
+import { isResponse, requireOwnedDoc, requireUserId } from "@/lib/routeAuth";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** 校验登录且文章归属当前用户 */
-async function ownedDoc(id: string) {
-  const session = await auth();
-  if (!session?.user?.id) return null;
-  return prisma.document.findFirst({
-    where: { id, userId: session.user.id, deletedAt: null },
-    select: { id: true, userId: true },
-  });
+/** 登录 + 归属校验。liveOnly：回收站里的废稿不该还能开分享链接 */
+async function author(id: string) {
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
+  return requireOwnedDoc(id, userId, { liveOnly: true });
 }
 
 function shareJson(
@@ -38,8 +35,8 @@ async function countThreads(shareId: string) {
 /** 分享状态（含批注数）；过期视同关闭 */
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
-  const doc = await ownedDoc(id);
-  if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
+  const doc = await author(id);
+  if (isResponse(doc)) return doc;
   const share = await prisma.docShare.findUnique({ where: { documentId: id } });
   return NextResponse.json(shareJson(share, share ? await countThreads(share.id) : 0));
 }
@@ -53,8 +50,8 @@ export async function GET(_req: Request, { params }: Params) {
  */
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params;
-  const doc = await ownedDoc(id);
-  if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
+  const doc = await author(id);
+  if (isResponse(doc)) return doc;
   const denied = await readOnlyGuard(doc.userId);
   if (denied) return denied;
 
@@ -92,8 +89,11 @@ export async function POST(req: Request, { params }: Params) {
 /** 更新开关：enabled（仅用于关闭）/ allowComment */
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params;
-  const doc = await ownedDoc(id);
-  if (!doc) return NextResponse.json({ error: "未登录或文档不存在" }, { status: 401 });
+  const doc = await author(id);
+  if (isResponse(doc)) return doc;
+  // 改分享开关也是写操作，只读封禁一样要拦（与 POST 同一条守卫）
+  const denied = await readOnlyGuard(doc.userId);
+  if (denied) return denied;
   const body = await req.json().catch(() => ({}));
   const data: { enabled?: boolean; allowComment?: boolean } = {};
   if (body.enabled === false) data.enabled = false;

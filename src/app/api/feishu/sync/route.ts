@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { readOnlyGuard } from "@/lib/guards";
+import { serverError } from "@/lib/routeAuth";
 import { FeishuReconnectError } from "@/lib/feishu/oauth";
 import { syncFeishuSpace } from "@/lib/feishu/sync";
 
@@ -35,9 +36,7 @@ export async function POST(req: Request) {
     if (e instanceof FeishuReconnectError) {
       return NextResponse.json({ error: e.message, needReconnect: true }, { status: 400 });
     }
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "同步失败" },
-      { status: 500 }
-    );
+    // 飞书接口的原始报文可能带内部 id 与凭证片段，只留一句给用户
+    return serverError(e, "同步失败");
   }
 }

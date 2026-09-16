@@ -1,29 +1,19 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
+import { isResponse, requireUserId } from "@/lib/routeAuth";
 import { touchDailyActive } from "@/lib/active";
-import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
-import { wordCount } from "@/lib/wordCount";
-
-/** 东八区日期串 YYYY-MM-DD */
-function chinaDate(): string {
-  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-}
+import { deleteDocument, updateDocument } from "@/lib/documents";
 
 type Params = { params: Promise<{ id: string }> };
 
-async function requireUser() {
-  const session = await auth();
-  return session?.user?.id ?? null;
-}
-
 export async function GET(_req: Request, { params }: Params) {
-  const userId = await requireUser();
-  if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
   // 直接打开 /edit/[id] 不经过文档列表，这里补一个 DAU 打点位
   void touchDailyActive(userId);
   const { id } = await params;
+  // 编辑器要整行（正文、时间戳都在响应里），这里不走 requireOwnedDoc 的轻量 select
   const doc = await prisma.document.findFirst({ where: { id, userId } });
   if (!doc || doc.deletedAt) {
     return NextResponse.json({ error: "文档不存在" }, { status: 404 });
@@ -32,8 +22,8 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PUT(req: Request, { params }: Params) {
-  const userId = await requireUser();
-  if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
   const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const { id } = await params;
@@ -51,51 +41,26 @@ export async function PUT(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true });
   }
 
-  const data: { title?: string; content?: string; category?: string } = {};
-  if (typeof body.title === "string") data.title = body.title.slice(0, 200) || "未命名文章";
-  if (typeof body.content === "string") data.content = body.content;
-  if (typeof body.category === "string") {
-    data.category = body.category.trim().slice(0, 100) || "未分类";
-  }
-
-  const existing = await prisma.document.findFirst({ where: { id, userId } });
-  if (!existing) {
-    return NextResponse.json({ error: "文档不存在" }, { status: 404 });
-  }
-  await prisma.document.update({ where: { id }, data });
-
-  // 自动保存本身也留版：首存先留个底，之后每隔一段时间把当前内容定格一版
-  // （前端空闲定时器只在页面开着时才有效，这里才是真正的兜底）
-  if (typeof data.content === "string" && data.content !== existing.content) {
-    await autoSnapshot(id, data.title ?? existing.title, data.content, AUTOSAVE_RULE);
-    // 每日写作流水：保存次数 + 净增字数（删减不计负）
-    const delta = Math.max(0, wordCount(data.content) - wordCount(existing.content));
-    const date = chinaDate();
-    await prisma.writingActivity.upsert({
-      where: { userId_date: { userId, date } },
-      update: { saves: { increment: 1 }, charsAdded: { increment: delta } },
-      create: { userId, date, saves: 1, charsAdded: delta },
-    });
-  }
+  // 保存的副作用（字段裁剪、自动留版、当日写作流水，以及回收站里的文章不给改写）
+  // 全在服务层；MCP 的 update_document 走的也是这一条，两条通道语义不会漂
+  const saved = await updateDocument(userId, id, {
+    title: body.title,
+    content: body.content,
+    category: body.category,
+  });
+  if (!saved) return NextResponse.json({ error: "文档不存在" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const userId = await requireUser();
-  if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const userId = await requireUserId();
+  if (isResponse(userId)) return userId;
   const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const { id } = await params;
   const hard = new URL(req.url).searchParams.get("hard") === "1";
 
-  const result = hard
-    ? await prisma.document.deleteMany({ where: { id, userId } })
-    : await prisma.document.updateMany({
-        where: { id, userId, deletedAt: null },
-        data: { deletedAt: new Date() },
-      });
-  if (result.count === 0) {
-    return NextResponse.json({ error: "文档不存在" }, { status: 404 });
-  }
+  const removed = await deleteDocument(userId, id, hard);
+  if (!removed) return NextResponse.json({ error: "文档不存在" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

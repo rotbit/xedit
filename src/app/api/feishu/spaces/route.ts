@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { listFeishuSpaces } from "@/lib/feishu/api";
+import { serverError } from "@/lib/routeAuth";
 import { FeishuReconnectError, getFeishuAccessToken } from "@/lib/feishu/oauth";
 
 export const runtime = "nodejs";
@@ -19,9 +20,7 @@ export async function GET() {
     if (e instanceof FeishuReconnectError) {
       return NextResponse.json({ error: e.message, needReconnect: true }, { status: 400 });
     }
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "加载知识空间失败" },
-      { status: 500 }
-    );
+    // 飞书接口的原始报文可能带内部 id 与凭证片段，只留一句给用户
+    return serverError(e, "加载知识空间失败");
   }
 }
