@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { formatBytes } from "@/lib/format";
 
 /**
  * 写操作守卫：只读封禁与存储配额（后台管理的执行端）。
@@ -12,13 +13,6 @@ export const DEFAULT_STORAGE_QUOTA = (() => {
   const mb = Number(process.env.DEFAULT_STORAGE_QUOTA_MB);
   return Number.isFinite(mb) && mb >= 0 ? mb * 1024 * 1024 : 10 * 1024 * 1024 * 1024;
 })();
-
-export function formatBytes(n: number): string {
-  if (n >= 1024 * 1024 * 1024) return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
-  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
-  return `${n} B`;
-}
 
 function readOnlyMsg(reason: string | null): string {
   return reason

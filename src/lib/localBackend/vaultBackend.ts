@@ -7,7 +7,7 @@
  */
 
 import { toast } from "@/components/Toast";
-import { UNCATEGORIZED } from "@/features/workspace/constants";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import {
   summarize,
   type DocInit,
@@ -157,7 +157,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
     createDoc(init: DocInit): LocalDocMeta {
       const category = init.category?.trim() || UNCATEGORIZED;
       const content = init.content ?? "";
-      const title = init.title?.slice(0, 200) || "未命名文章";
+      const title = init.title?.slice(0, 200) || UNTITLED_DOC;
       const dirPath = catDir(category);
       const name = uniqueName(docs.values(), dirPath, sanitizeFileName(title), null);
       const relPath = join(dirPath, name);
@@ -196,7 +196,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
         if (dirPath) addCat(cats, category);
       }
       if (patch.title !== undefined) {
-        const title = patch.title.slice(0, 200) || "未命名文章";
+        const title = patch.title.slice(0, 200) || UNTITLED_DOC;
         name = uniqueName(docs.values(), dirPath, sanitizeFileName(title), id);
       } else if (dirPath !== parentPath(oldRel)) {
         name = uniqueName(docs.values(), dirPath, stripMd(name), id);

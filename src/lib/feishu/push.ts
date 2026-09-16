@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getDocument } from "@/lib/documents";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { hasFeishuWriteScopes } from "./config";
 import { getFeishuAccessToken } from "./oauth";
 import {
@@ -147,7 +148,7 @@ export async function pushDocumentToFeishu(
 
   const doc = await getDocument(userId, documentId);
   if (!doc) return { error: "文章不存在" };
-  const title = doc.title.trim() || "未命名文章";
+  const title = doc.title.trim() || UNTITLED_DOC;
 
   const build = markdownToFeishuBlocks(doc.content);
   if (build.blocks.size > MAX_BLOCKS) {

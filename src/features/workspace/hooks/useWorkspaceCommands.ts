@@ -6,6 +6,7 @@
 import { useRegisterCommands } from "@/hooks/useRegisterCommands";
 import type { Command } from "@/lib/commandRegistry";
 import { listTemplates } from "@/lib/templates";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { ALL, TRASH } from "../constants";
 import type { Workspace } from "./useWorkspace";
 
@@ -24,7 +25,7 @@ export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
   const templateCmds: Command[] = templates.map((tpl) => ({
     id: `template.${tpl.id}`,
     group: "模板",
-    label: `用「${tpl.title || "未命名文章"}」新建`,
+    label: `用「${tpl.title || UNTITLED_DOC}」新建`,
     run: () => docActions.createFromTemplate(tpl),
   }));
 

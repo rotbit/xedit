@@ -18,7 +18,8 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { Dropdown, menuItemCls } from "@/components/Dropdown";
+import { Dropdown } from "@/components/Dropdown";
+import { menuItemCls } from "@/components/menuStyles";
 import { Toaster, toast } from "@/components/Toast";
 import { askConfirm } from "@/components/PromptDialog";
 import { menuDangerCls } from "@/features/workspace/constants";

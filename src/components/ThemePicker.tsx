@@ -6,6 +6,7 @@ import { useStore } from "@/store/useStore";
 import {
   THEME_PRESETS,
   BASE_CSS,
+  DEFAULT_TUNE,
   customThemeToPreset,
   CUSTOM_THEME_PREFIX,
   type ThemePreset,
@@ -186,7 +187,7 @@ function TypographyTuner() {
         className="mx-3.5 my-1 cursor-pointer rounded px-1.5 py-0.5 text-[11.5px] text-[var(--ink-faint)] hover:text-[var(--accent)]"
         onClick={(e) => {
           e.stopPropagation();
-          setTune({ tuneFontSize: 16, tuneLineHeight: 1.75, tuneParaSpacing: 16 });
+          setTune({ ...DEFAULT_TUNE });
         }}
       >
         重置排版微调

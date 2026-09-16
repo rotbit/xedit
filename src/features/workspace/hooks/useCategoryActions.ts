@@ -138,7 +138,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     const to = parent ? `${parent}/${nameOf(path)}` : nameOf(path);
     if (to === path) return;
     if (to === UNCATEGORIZED) {
-      toast("不能与「未分类」同名", "error");
+      toast(`不能与「${UNCATEGORIZED}」同名`, "error");
       return;
     }
     if (!requireOnline()) return;
@@ -152,7 +152,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
   const removeCategory = async (path: string) => {
     const ok = await askConfirm({
       title: "删除文件夹",
-      message: `删除文件夹「${path}」及其子文件夹？其中的文章会移入「未分类」。`,
+      message: `删除文件夹「${path}」及其子文件夹？其中的文章会移入「${UNCATEGORIZED}」。`,
       confirmText: "删除",
       danger: true,
     });

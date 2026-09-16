@@ -1,19 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FileInput, Loader2, X } from "lucide-react";
-import { useEscape } from "@/hooks/useEscape";
+import { FileInput, Loader2 } from "lucide-react";
 import type {
   DocImporter,
   ImportMode,
   ImportResult,
 } from "@/features/workspace/hooks/useImportDocs";
+import { Modal, btnPrimary } from "./Modal";
 
 /** 失败清单最多列这么多条，再多只报总数——弹窗不该被一个坏文件夹撑成长卷 */
 const MAX_FAILED_SHOWN = 20;
-
-const btnPrimary =
-  "flex cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)] disabled:opacity-60";
 
 /**
  * 导入本地 Markdown：选文件或选整个文件夹，一次性导入成文章。
@@ -37,7 +34,6 @@ export function ImportDialog({
   const { progress } = importer;
   // 关掉这个弹窗不会中断导入，但结果摘要就再也看不到了，所以跑着时先不给关
   const running = busy || importer.importing;
-  useEscape(onClose, !running);
 
   /** 同一个隐藏 input 两用：点之前按当前模式改属性（webkitdirectory 是 DOM 属性，JSX 上没有类型） */
   const pick = () => {
@@ -60,41 +56,23 @@ export function ImportDialog({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
-      onClick={() => {
-        if (!running) onClose();
-      }}
+    <Modal
+      title="导入 Markdown"
+      icon={<FileInput size={15} className="text-[var(--accent)]" />}
+      width={520}
+      locked={running}
+      onClose={onClose}
     >
-      <div
-        className="flex max-h-[92vh] w-[520px] max-w-[94vw] flex-col overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--hairline)] px-4">
-          <span className="flex items-center gap-2 text-[14px] font-medium [font-family:var(--serif)]">
-            <FileInput size={15} className="text-[var(--accent)]" />
-            导入 Markdown
-          </span>
-          <button
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)] disabled:opacity-40"
-            onClick={onClose}
-            disabled={running}
-          >
-            <X size={16} />
-          </button>
-        </div>
+      <input ref={inputRef} type="file" hidden onChange={(e) => void onPicked(e)} />
 
-        <input ref={inputRef} type="file" hidden onChange={(e) => void onPicked(e)} />
-
-        {running ? (
-          <Running done={progress.done} total={progress.total} />
-        ) : result ? (
-          <Done result={result} onClose={onClose} />
-        ) : (
-          <Pick mode={mode} targetCat={importer.targetCat} onSwitch={setMode} onPick={pick} />
-        )}
-      </div>
-    </div>
+      {running ? (
+        <Running done={progress.done} total={progress.total} />
+      ) : result ? (
+        <Done result={result} onClose={onClose} />
+      ) : (
+        <Pick mode={mode} targetCat={importer.targetCat} onSwitch={setMode} onPick={pick} />
+      )}
+    </Modal>
   );
 }
 

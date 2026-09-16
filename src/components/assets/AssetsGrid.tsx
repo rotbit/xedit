@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Loader2, Play } from "lucide-react";
-import { formatSize, isVideo, type Asset } from "../AssetsLightbox";
+import type { Asset } from "./types";
+import { formatSize, isVideo } from "./utils";
 
 /** 图片库网格：分列瀑布流，单击选中、双击开大图 */
 

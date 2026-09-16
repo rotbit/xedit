@@ -1,8 +1,9 @@
 "use client";
 
 import { FileText, MoreHorizontal } from "lucide-react";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { formatRelativeTime } from "@/lib/format";
 import { UNCATEGORIZED } from "../constants";
-import { formatTime } from "../lib/docSource";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /** 紧凑列表视图：一行一篇，右侧依次为分类、字数、时间 */
@@ -25,7 +26,7 @@ export function DocListView({ ws }: { ws: Workspace }) {
           >
             <FileText size={14} className="shrink-0 text-[var(--ink-faint)]" />
             <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-[var(--ink)]">
-              {doc.title || "未命名文章"}
+              {doc.title || UNTITLED_DOC}
             </span>
             <span className="hidden max-w-[160px] truncate text-[11.5px] text-[var(--ink-soft)] sm:block">
               {cat}
@@ -36,7 +37,7 @@ export function DocListView({ ws }: { ws: Workspace }) {
                 : ""}
             </span>
             <span className="w-[76px] shrink-0 text-right text-[11.5px] text-[var(--ink-faint)]">
-              {formatTime(doc.updatedAt)}
+              {formatRelativeTime(doc.updatedAt)}
             </span>
             <button
               className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)] group-hover:visible [@media(hover:none)]:visible"

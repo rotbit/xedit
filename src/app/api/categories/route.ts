@@ -3,8 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
-
-const UNCATEGORIZED = "未分类";
+import { UNCATEGORIZED } from "@/lib/docDefaults";
 
 /**
  * 分类批量操作（支持「父/子」多级路径，重命名/删除会级联到子分类）：

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { FilePlus2, FolderInput, FolderPlus, PenLine, RotateCw, Trash2 } from "lucide-react";
 import { askCategoryPick } from "@/components/CategoryPickDialog";
 import { useEscape } from "@/hooks/useEscape";
-import { useDismissMenu } from "../hooks/useDismissMenu";
+import { useDismissMenu } from "@/hooks/useDismissMenu";
 import {
   ALL,
   MAX_DEPTH,

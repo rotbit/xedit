@@ -4,7 +4,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { menuItemCls } from "./Dropdown";
+import { useDismissMenu } from "@/hooks/useDismissMenu";
+import { useEscape } from "@/hooks/useEscape";
+import { menuItemCls } from "./menuStyles";
 
 /** 字体颜色色板：常用的正文强调色，深浅主题下都够醒目 */
 const TEXT_COLORS = [
@@ -59,24 +61,11 @@ export function ColorPicker({
     return () => onOpenChange?.(false);
   }, [panel, onOpenChange]);
 
-  // 点面板和按钮以外的地方收起
-  useEffect(() => {
-    if (!panel) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (panelRef.current?.contains(t) || btnRef.current?.contains(t)) return;
-      setPanel(null);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPanel(null);
-    };
-    document.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [panel]);
+  // 点面板以外的地方收起：按钮自己带 data-menu-trigger，按在它上面交给上面的 toggle。
+  // 窗口失焦不收（closeOnBlur=false）——自定义取色会唤起系统取色面板，那一下就是失焦
+  const closePanel = () => setPanel(null);
+  useDismissMenu(panelRef, closePanel, panel !== null, false);
+  useEscape(closePanel, panel !== null);
 
   const pick = (color: string | null) => {
     if (color) setLast(color);
@@ -85,7 +74,13 @@ export function ColorPicker({
 
   return (
     <>
-      <button ref={btnRef} className={className} title="字体颜色" onClick={toggle}>
+      <button
+        ref={btnRef}
+        data-menu-trigger
+        className={className}
+        title="字体颜色"
+        onClick={toggle}
+      >
         <span className="flex flex-col items-center leading-none">
           <span className="text-[13px] font-semibold leading-none [font-family:var(--sans)]">
             A

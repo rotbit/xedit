@@ -18,6 +18,7 @@ import {
 } from "./docStore";
 import { getBrowserBackend } from "./localBackend";
 import { isLocalId } from "./localDocs";
+import { UNCATEGORIZED } from "@/lib/docDefaults";
 
 export const SYNC_DONE_EVENT = "xedit:sync-done";
 
@@ -39,7 +40,7 @@ export async function pushMirrorDoc(id: string): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: dirty.title,
-        category: dirty.category ?? "未分类",
+        category: dirty.category ?? UNCATEGORIZED,
         ...(content === null ? {} : { content }),
       }),
     });

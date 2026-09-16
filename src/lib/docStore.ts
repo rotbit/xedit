@@ -5,6 +5,7 @@
  */
 
 import { notifyDocsChanged, summarize } from "./localDocs";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 
 export interface MirrorMeta {
   id: string;
@@ -72,11 +73,11 @@ export function saveMirrorLocal(
   const list = readIndex();
   let meta = list.find((d) => d.id === id);
   if (!meta) {
-    meta = { id, title: "未命名文章", updatedAt: new Date().toISOString() };
+    meta = { id, title: UNTITLED_DOC, updatedAt: new Date().toISOString() };
     list.unshift(meta);
   }
-  if (patch.title !== undefined) meta.title = patch.title.slice(0, 200) || "未命名文章";
-  if (patch.category !== undefined) meta.category = patch.category.trim() || "未分类";
+  if (patch.title !== undefined) meta.title = patch.title.slice(0, 200) || UNTITLED_DOC;
+  if (patch.category !== undefined) meta.category = patch.category.trim() || UNCATEGORIZED;
   if (patch.content !== undefined) {
     localStorage.setItem(DOC_PREFIX + id, patch.content);
     Object.assign(meta, summarize(patch.content));
@@ -95,7 +96,7 @@ export function applyServerDoc(doc: ServerDoc) {
   const meta: MirrorMeta = {
     id: doc.id,
     title: doc.title,
-    category: doc.category ?? "未分类",
+    category: doc.category ?? UNCATEGORIZED,
     updatedAt:
       typeof doc.updatedAt === "string" ? doc.updatedAt : new Date(doc.updatedAt).toISOString(),
     ...summarize(doc.content),

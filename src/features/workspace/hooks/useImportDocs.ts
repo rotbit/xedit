@@ -12,6 +12,7 @@ import { getDocContent } from "@/lib/docContent";
 import { applyServerDoc, saveMirrorLocal } from "@/lib/docStore";
 import { syncNow } from "@/lib/sync";
 import { uploadMediaFile } from "@/lib/uploadMedia";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { MAX_DEPTH, UNCATEGORIZED, isVirtualCat } from "../constants";
 import { mergedCloudList } from "../lib/docSource";
 import type { DocMeta } from "../types";
@@ -73,7 +74,7 @@ const isHidden = (path: string) => path.split("/").some((seg) => seg.startsWith(
 /** 文件名去扩展名当标题 */
 function titleOf(file: File): string {
   const name = pathOf(file).split("/").pop() ?? file.name;
-  return name.replace(MD_RE, "").trim().slice(0, 200) || "未命名文章";
+  return name.replace(MD_RE, "").trim().slice(0, 200) || UNTITLED_DOC;
 }
 
 /**

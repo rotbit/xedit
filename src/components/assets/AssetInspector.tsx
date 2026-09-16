@@ -1,7 +1,10 @@
 "use client";
 
 import { Code2, FileText, Link2, Trash2, X } from "lucide-react";
-import { copyText, formatSize, isVideo, type Asset, type UsageDoc } from "../AssetsLightbox";
+import type { Asset, UsageDoc } from "./types";
+import { copyText, formatSize, isVideo } from "./utils";
+import { formatDateTime } from "@/lib/format";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 
 /** 右侧详情栏：预览 + 操作 + 基本信息 + 引用反查 */
 
@@ -11,14 +14,6 @@ const SOURCE_LABEL: Record<string, string> = {
   mcp: "MCP",
   feishu: "飞书",
 };
-
-/** 上传时间统一 YYYY/MM/DD HH:mm，不带秒 */
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
 
 const actionCls =
   "flex h-7 flex-1 cursor-pointer items-center justify-center gap-1 rounded-md border border-[var(--hairline-strong)] text-[12px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]";
@@ -57,7 +52,7 @@ function UsageList({
           const inner = (
             <>
               <FileText size={11} className="shrink-0 text-[var(--ink-faint)]" />
-              <span className="truncate">{d.title || "未命名文章"}</span>
+              <span className="truncate">{d.title || UNTITLED_DOC}</span>
             </>
           );
           const base =
@@ -174,7 +169,7 @@ export function AssetInspector({
         <InfoRow label="大小" value={formatSize(asset.size)} />
         <InfoRow label="格式" value={(asset.mime.split("/")[1] ?? asset.mime).toUpperCase()} />
         <InfoRow label="来源" value={SOURCE_LABEL[asset.source] ?? asset.source} />
-        <InfoRow label="上传时间" value={formatTime(asset.createdAt)} />
+        <InfoRow label="上传时间" value={formatDateTime(asset.createdAt, { pad: true })} />
       </div>
 
       {divider}

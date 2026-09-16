@@ -5,6 +5,8 @@ import { X, History, Loader2, ArchiveRestore, BookmarkPlus, Trash2 } from "lucid
 import { useStore } from "@/store/useStore";
 import { useEscape } from "@/hooks/useEscape";
 import { diffLines } from "@/lib/diffLines";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { formatDateTime } from "@/lib/format";
 import { toast } from "./Toast";
 import { askConfirm } from "./PromptDialog";
 
@@ -22,13 +24,8 @@ const KIND_LABEL: Record<VersionMeta["kind"], { text: string; cls: string }> = {
   restore: { text: "回滚备份", cls: "bg-[var(--accent-wash)] text-[var(--accent-deep)]" },
 };
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const sameYear = d.getFullYear() === new Date().getFullYear();
-  const date = `${sameYear ? "" : d.getFullYear() + "/"}${d.getMonth() + 1}/${d.getDate()}`;
-  return `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+/** 版本列表里的时刻：同年的省掉年份——这里的条目绝大多数是今年的，年份纯噪音 */
+const versionTime = (iso: string) => formatDateTime(iso, { omitCurrentYear: true });
 
 export function VersionsPanel({
   open,
@@ -155,7 +152,7 @@ function VersionPreview({
   return (
     <section className="fixed bottom-7 left-0 right-[340px] top-12 flex flex-col border-r border-[var(--hairline)] bg-[var(--paper)] max-md:right-0">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--hairline)] bg-[var(--panel)] pl-5 pr-2">
-        <span className="text-[13px] font-medium">{formatTime(version.createdAt)}</span>
+        <span className="text-[13px] font-medium">{versionTime(version.createdAt)}</span>
         <span className={`rounded px-1.5 py-px text-[10px] ${KIND_LABEL[version.kind]?.cls ?? ""}`}>
           {KIND_LABEL[version.kind]?.text ?? version.kind}
         </span>
@@ -209,11 +206,11 @@ function VersionPreview({
               <div className="mb-4 rounded-md border border-[var(--hairline)] bg-[var(--panel)] px-3 py-2 text-[12px]">
                 标题：
                 <span className="text-red-600 line-through dark:text-red-400">
-                  {currentTitle || "未命名文章"}
+                  {currentTitle || UNTITLED_DOC}
                 </span>
                 <span className="mx-1.5 text-[var(--ink-faint)]">→</span>
                 <span className="text-emerald-700 dark:text-emerald-300">
-                  {snap.title || "未命名文章"}
+                  {snap.title || UNTITLED_DOC}
                 </span>
               </div>
             ) : null}
@@ -301,7 +298,7 @@ function VersionList({
   const restore = async (v: VersionMeta) => {
     const ok = await askConfirm({
       title: "回滚到该版本",
-      message: `回滚到 ${formatTime(v.createdAt)} 的版本？\n当前内容会先自动备份为一个新版本。`,
+      message: `回滚到 ${versionTime(v.createdAt)} 的版本？\n当前内容会先自动备份为一个新版本。`,
       confirmText: "回滚",
     });
     if (!ok) return;
@@ -382,7 +379,7 @@ function VersionList({
                     preview?.id === v.id ? "text-[var(--accent-deep)]" : "text-[var(--ink)]"
                   }`}
                 >
-                  {formatTime(v.createdAt)}
+                  {versionTime(v.createdAt)}
                 </span>
                 <span
                   className={`rounded px-1.5 py-px text-[10px] ${KIND_LABEL[v.kind]?.cls ?? ""}`}
@@ -419,7 +416,7 @@ function VersionList({
                 </button>
               </div>
               <p className="mt-0.5 truncate text-[11.5px] text-[var(--ink-faint)]">
-                {v.title || "未命名文章"} · {v.chars} 字
+                {v.title || UNTITLED_DOC} · {v.chars} 字
               </p>
             </div>
           ))}
