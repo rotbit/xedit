@@ -10,10 +10,8 @@ import {
   isLinkableTitle,
 } from "@/lib/renameLinks";
 import { normalizeTitle } from "@/lib/wikiLink";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import type { DocMeta } from "@/features/workspace/types";
-
-/** 占位标题：没人会去链接一篇「未命名文章」，两头都当作「没有标题」处理 */
-const UNTITLED = "未命名文章";
 
 interface Params {
   docId: string;
@@ -90,8 +88,8 @@ export function useRenameLinks({ docId, docs, title, docVersion, refresh }: Para
     const oldTitle = before.trim();
     const newTitle = title.trim();
     // 原来没有标题（新稿、占位）就没人链得上；新标题为空调用方会填回占位，同样不算改名
-    if (!oldTitle || oldTitle === UNTITLED) return;
-    if (!newTitle || newTitle === UNTITLED) return;
+    if (!oldTitle || oldTitle === UNTITLED_DOC) return;
+    if (!newTitle || newTitle === UNTITLED_DOC) return;
     if (normalizeTitle(oldTitle) === normalizeTitle(newTitle)) return;
     // 带方括号 / 竖线的标题写进 `[[…]]` 会把链接结构本身弄坏，宁可不动
     if (!isLinkableTitle(newTitle)) return;

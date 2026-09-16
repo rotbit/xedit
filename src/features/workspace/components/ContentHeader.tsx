@@ -10,6 +10,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { ALL, ASSETS } from "../constants";
 import type { DocMeta } from "../types";
 import type { DocView } from "../hooks/useSidebarPrefs";
@@ -45,7 +46,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
           </>
         ) : null}
         {sep}
-        <span className={crumbNow}>{readingDoc.title || "未命名文章"}</span>
+        <span className={crumbNow}>{readingDoc.title || UNTITLED_DOC}</span>
         {/* 关闭文章：回到打开前所在的目录列表 */}
         <button
           className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"

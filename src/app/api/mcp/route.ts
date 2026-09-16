@@ -19,6 +19,7 @@ import {
   uploadMediaFromUrl,
 } from "@/lib/assets";
 import { writeBlocked } from "@/lib/guards";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { touchDailyActive } from "@/lib/active";
 
 export const runtime = "nodejs";
@@ -92,9 +93,9 @@ const handler = createMcpHandler(
       {
         description: "新建文档，正文为 Markdown。返回新文档 id。",
         inputSchema: {
-          title: z.string().optional().describe("标题，缺省为「未命名文章」"),
+          title: z.string().optional().describe(`标题，缺省为「${UNTITLED_DOC}」`),
           content: z.string().optional().describe("Markdown 正文"),
-          category: z.string().optional().describe("分类，缺省为「未分类」"),
+          category: z.string().optional().describe(`分类，缺省为「${UNCATEGORIZED}」`),
         },
       },
       async (args, extra) => {

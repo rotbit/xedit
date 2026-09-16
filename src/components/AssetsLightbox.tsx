@@ -2,43 +2,11 @@
 
 import { useEffect } from "react";
 import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
-import { toast } from "./Toast";
+import { useEscape } from "@/hooks/useEscape";
+import type { Asset, UsageDoc } from "./assets/types";
+import { copyText, formatSize, isVideo } from "./assets/utils";
 
-/** 图片库的大图预览层 + 素材相关的共享类型/小工具（列表本体见 AssetsGallery） */
-
-export interface Asset {
-  id: string;
-  key: string;
-  url: string;
-  size: number;
-  mime: string;
-  source: string;
-  createdAt: string;
-  /** 像素尺寸：入库时没记的历史文件为 null，由网格里的缩略图量出来后补录 */
-  width: number | null;
-  height: number | null;
-}
-
-/** 引用该素材的文章（/api/assets/[id]/usage） */
-export interface UsageDoc {
-  id: string;
-  title: string;
-  category: string;
-  updatedAt: string;
-  deletedAt: string | null;
-}
-
-export function formatSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
-}
-
-export const isVideo = (asset: Asset) => asset.mime.startsWith("video/");
-
-export function copyText(text: string, label: string) {
-  void navigator.clipboard.writeText(text).then(() => toast(`${label}已复制`, "success"));
-}
+/** 图片库的大图预览层：类型见 assets/types，小工具见 assets/utils，列表本体见 assets/AssetsGallery */
 
 export function AssetsLightbox({
   assets,
@@ -64,16 +32,17 @@ export function AssetsLightbox({
 }) {
   const asset = assets[index];
 
-  // 键盘导航大图
+  useEscape(onClose);
+
+  // 左右键翻图（Escape 关闭交给 useEscape，和其它弹层同一份实现）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft" && index > 0) onNavigate(index - 1);
       if (e.key === "ArrowRight" && index < assets.length - 1) onNavigate(index + 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [index, assets.length, onClose, onNavigate]);
+  }, [index, assets.length, onNavigate]);
 
   if (!asset) return null;
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
+import { UNCATEGORIZED } from "@/lib/docDefaults";
 import {
   isLocalId,
   listLocalDocs,
@@ -90,10 +91,10 @@ export function useEditorDoc(routeDocId: string | null) {
         docId: doc.id,
         title: doc.title,
         content: doc.content,
-        category: doc.category ?? "未分类",
+        category: doc.category ?? UNCATEGORIZED,
       });
       now.setDoc({ id: doc.id, title: doc.title, content: doc.content });
-      now.setCategory(doc.category ?? "未分类");
+      now.setCategory(doc.category ?? UNCATEGORIZED);
       now.setSaveState("saved");
       setDocVersion((v) => v + 1);
       showRefreshHint();
@@ -108,7 +109,7 @@ export function useEditorDoc(routeDocId: string | null) {
       // 本地文稿模式：沿用持久化的本地内容
       const s = useStore.getState();
       s.setDoc({ id: null, title: s.title, content: s.content });
-      s.setCategory("未分类");
+      s.setCategory(UNCATEGORIZED);
       s.setSaveState("local");
       return;
     }
@@ -147,11 +148,11 @@ export function useEditorDoc(routeDocId: string | null) {
         docId: routeDocId,
         title: meta.title,
         content,
-        category: meta.category ?? "未分类",
+        category: meta.category ?? UNCATEGORIZED,
       });
       const s = useStore.getState();
       s.setDoc({ id: routeDocId, title: meta.title, content });
-      s.setCategory(meta.category ?? "未分类");
+      s.setCategory(meta.category ?? UNCATEGORIZED);
       s.setSaveState("local");
       prefetchAttachments(content); // 磁盘文库的图片先读起来，少几帧空图
       queueMicrotask(() => {
@@ -171,11 +172,11 @@ export function useEditorDoc(routeDocId: string | null) {
         docId: routeDocId,
         title: mirrorMeta.title,
         content: mirrorContent,
-        category: mirrorMeta.category ?? "未分类",
+        category: mirrorMeta.category ?? UNCATEGORIZED,
       });
       const s = useStore.getState();
       s.setDoc({ id: routeDocId, title: mirrorMeta.title, content: mirrorContent });
-      s.setCategory(mirrorMeta.category ?? "未分类");
+      s.setCategory(mirrorMeta.category ?? UNCATEGORIZED);
       s.setSaveState(mirrorMeta.dirty ? "pending" : "saved");
       queueMicrotask(() => {
         setDocVersion((v) => v + 1);
@@ -218,10 +219,10 @@ export function useEditorDoc(routeDocId: string | null) {
         docId: doc.id,
         title: doc.title,
         content: doc.content,
-        category: doc.category ?? "未分类",
+        category: doc.category ?? UNCATEGORIZED,
       });
       useStore.getState().setDoc({ id: doc.id, title: doc.title, content: doc.content });
-      useStore.getState().setCategory(doc.category ?? "未分类");
+      useStore.getState().setCategory(doc.category ?? UNCATEGORIZED);
       useStore.getState().setSaveState("saved");
       setDocVersion((v) => v + 1);
       setLoading(false);

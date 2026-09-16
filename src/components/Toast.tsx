@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 
 export type ToastType = "success" | "error" | "info";
@@ -40,13 +40,13 @@ const LEAVE_MS = 200;
 export function Toaster() {
   const [items, setItems] = useState<ToastItem[]>([]);
 
+  /** 收起一条：先标记 leaving 放退场动画，动画结束再真正移除。超时自动收与点击手动收共用 */
+  const dismiss = useCallback((id: number) => {
+    setItems((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), LEAVE_MS);
+  }, []);
+
   useEffect(() => {
-    const dismiss = (id: number) => {
-      setItems((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
-      setTimeout(() => {
-        setItems((prev) => prev.filter((t) => t.id !== id));
-      }, LEAVE_MS);
-    };
     const onToast: Listener = (item) => {
       setItems((prev) => [...prev.slice(-2), item]);
       setTimeout(() => dismiss(item.id), DURATION[item.type]);
@@ -55,12 +55,7 @@ export function Toaster() {
     return () => {
       listeners.delete(onToast);
     };
-  }, []);
-
-  const dismissNow = (id: number) => {
-    setItems((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
-    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), LEAVE_MS);
-  };
+  }, [dismiss]);
 
   return (
     <div className="pointer-events-none fixed left-1/2 top-16 z-[100] flex -translate-x-1/2 flex-col items-center gap-2">
@@ -68,7 +63,7 @@ export function Toaster() {
         <div
           key={t.id}
           className={`${t.leaving ? "toast-out" : "toast-in"} pointer-events-auto group flex max-w-[calc(100vw-48px)] cursor-pointer items-center gap-2.5 rounded-full bg-[var(--ink)] py-2.5 pl-4 pr-3.5 shadow-[0_10px_36px_-8px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur`}
-          onClick={() => dismissNow(t.id)}
+          onClick={() => dismiss(t.id)}
           role="status"
         >
           {ICONS[t.type]}

@@ -13,7 +13,9 @@ import { useEffect, useRef, type RefObject } from "react";
 export function useDismissMenu(
   panelRef: RefObject<HTMLElement | null>,
   onClose: () => void,
-  active: boolean
+  active: boolean,
+  /** 窗口失焦是否关闭：唤起系统面板（如取色器）的菜单要传 false，否则一选色就被收走 */
+  closeOnBlur = true
 ) {
   // closeXxxMenu 每次渲染都是新函数，存进 ref，监听只随 active 挂卸一次
   const closeRef = useRef(onClose);
@@ -40,12 +42,12 @@ export function useDismissMenu(
       close();
     };
     document.addEventListener("wheel", onWheel, { capture: true, passive: true });
-    window.addEventListener("blur", close);
+    if (closeOnBlur) window.addEventListener("blur", close);
     return () => {
       document.removeEventListener("mousedown", onOutside, true);
       document.removeEventListener("contextmenu", onOutside, true);
       document.removeEventListener("wheel", onWheel, { capture: true });
       window.removeEventListener("blur", close);
     };
-  }, [active, panelRef]);
+  }, [active, panelRef, closeOnBlur]);
 }

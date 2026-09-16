@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 import type { CustomThemeSpec } from "@/lib/themes/custom";
 import { DEFAULT_MARKDOWN } from "@/lib/welcomeDoc";
+import { DEFAULT_TUNE, type TuneValues } from "@/lib/themes/tune";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 
 /** pending：已存本地镜像、等待联网后同步云端 */
 export type SaveState = "local" | "saving" | "saved" | "pending" | "error";
@@ -58,7 +60,7 @@ interface EditorState extends SettingsSlice {
   removeCustomTheme: (id: string) => void;
   setCustomThemes: (list: CustomThemeSpec[]) => void;
   setSplitRatio: (r: number) => void;
-  setTune: (t: { tuneFontSize?: number; tuneLineHeight?: number; tuneParaSpacing?: number }) => void;
+  setTune: (t: Partial<TuneValues>) => void;
   setCategory: (c: string) => void;
 }
 
@@ -116,14 +118,12 @@ export const useStore = create<EditorState>()(
       syncScroll: true,
       sourceMode: false,
       splitRatio: 0.5,
-      tuneFontSize: 16,
-      tuneLineHeight: 1.75,
-      tuneParaSpacing: 16,
+      ...DEFAULT_TUNE,
 
       docId: null,
-      title: "未命名文章",
+      title: UNTITLED_DOC,
       content: DEFAULT_MARKDOWN,
-      category: "未分类",
+      category: UNCATEGORIZED,
       saveState: "local",
       cssDialogOpen: false,
       themeStudio: "closed" as const,

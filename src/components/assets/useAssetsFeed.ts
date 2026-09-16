@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Asset } from "../AssetsLightbox";
+import type { Asset } from "./types";
 
 /** 图片库的数据层：分页拉取 + 模块缓存 + 哨兵预取 + 过滤 + 历史尺寸补录 */
 

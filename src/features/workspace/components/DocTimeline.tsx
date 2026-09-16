@@ -1,9 +1,10 @@
 "use client";
 
 import { MoreHorizontal } from "lucide-react";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { formatRelativeTime } from "@/lib/format";
 import { UNCATEGORIZED } from "../constants";
 import { groupByDay } from "../lib/dayGroups";
-import { formatTime } from "../lib/docSource";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
@@ -46,8 +47,9 @@ function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
   );
 }
 
-/** 时间流里的一篇：左边标题 + 单行摘要，右边浅字分类与时间，无边框只靠留白分隔 */
-function DocRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
+/** 时间流里的一篇：左边标题 + 单行摘要，右边浅字分类与时间，无边框只靠留白分隔。
+ *  名字别再叫 DocRow——侧栏树里那个同名组件是另一套布局（components/DocRow.tsx） */
+function TimelineRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
   const { nav, menus, drag } = ws;
   const { isTrash } = nav;
   const cat = doc.category || UNCATEGORIZED;
@@ -71,7 +73,7 @@ function DocRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
     >
       <div className="min-w-0">
         <p className="truncate text-[15.5px] font-semibold leading-[1.4] text-[var(--ink)]">
-          {doc.title || "未命名文章"}
+          {doc.title || UNTITLED_DOC}
         </p>
         <p
           className={`mt-0.5 truncate text-[13px] ${
@@ -91,7 +93,7 @@ function DocRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
               {cat.split("/").pop()}
             </span>
             <span className="block tabular-nums text-[var(--ink-faint)]">
-              {formatTime(doc.updatedAt)}
+              {formatRelativeTime(doc.updatedAt)}
               {chars > 0 ? ` · ${chars.toLocaleString()} 字` : ""}
             </span>
           </div>
@@ -140,7 +142,7 @@ export function DocTimeline({ ws }: { ws: Workspace }) {
           </div>
           <div className="min-w-0">
             {group.docs.map((doc) => (
-              <DocRow key={doc.id} ws={ws} doc={doc} />
+              <TimelineRow key={doc.id} ws={ws} doc={doc} />
             ))}
           </div>
         </div>

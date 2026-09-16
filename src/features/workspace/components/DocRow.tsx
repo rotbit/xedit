@@ -1,6 +1,7 @@
 "use client";
 
 import { FileText, Trash2 } from "lucide-react";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { DROP_LINE_BOTTOM, DROP_LINE_TOP, rowCls, rowInset } from "../constants";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -9,7 +10,7 @@ import type { Workspace } from "../hooks/useWorkspace";
 export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth: number }) {
   const { nav, menus, drag, docActions } = ws;
   const active = nav.readingId === doc.id;
-  const label = doc.title || "未命名文章";
+  const label = doc.title || UNTITLED_DOC;
   const spot = drag.dropSpot;
   const zone = spot?.kind === "doc" && spot.key === doc.id ? spot.zone : null;
   const dropCls = zone === "before" ? DROP_LINE_TOP : zone === "after" ? DROP_LINE_BOTTOM : "";

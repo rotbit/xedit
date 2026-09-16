@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import { BookUp, PenLine, TextCursorInput, Trash2, FolderInput, FolderPlus } from "lucide-react";
 import { askCategoryPick } from "@/components/CategoryPickDialog";
 import { useEscape } from "@/hooks/useEscape";
-import { useDismissMenu } from "../hooks/useDismissMenu";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { UNCATEGORIZED, menuDangerCls, menuItemCls } from "../constants";
 import { allCategories } from "../lib/catTree";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -39,7 +40,7 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
   /** 分类可能有几百个且层级很深，弹带搜索的选择器而不是在菜单里平铺 */
   const moveViaPicker = async () => {
     const target = await askCategoryPick({
-      title: `移动「${doc.title || "未命名文章"}」到分类`,
+      title: `移动「${doc.title || UNTITLED_DOC}」到分类`,
       categories: allCategories(library.customCats, library.docs),
       current: cat,
     });
