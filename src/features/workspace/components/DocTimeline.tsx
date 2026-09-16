@@ -4,7 +4,6 @@ import { MoreHorizontal } from "lucide-react";
 import { UNCATEGORIZED } from "../constants";
 import { groupByDay } from "../lib/dayGroups";
 import { formatTime } from "../lib/docSource";
-import { DocContextMenu } from "./DocContextMenu";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
@@ -108,7 +107,6 @@ function DocRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
           </button>
         </>
       )}
-      <DocContextMenu ws={ws} doc={doc} cat={cat} />
     </div>
   );
 }

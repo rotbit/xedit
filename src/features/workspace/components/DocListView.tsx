@@ -3,7 +3,6 @@
 import { FileText, MoreHorizontal } from "lucide-react";
 import { UNCATEGORIZED } from "../constants";
 import { formatTime } from "../lib/docSource";
-import { DocContextMenu } from "./DocContextMenu";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /** 紧凑列表视图：一行一篇，右侧依次为分类、字数、时间 */
@@ -47,7 +46,6 @@ export function DocListView({ ws }: { ws: Workspace }) {
             >
               <MoreHorizontal size={15} />
             </button>
-            <DocContextMenu ws={ws} doc={doc} cat={cat} />
           </div>
         );
       })}

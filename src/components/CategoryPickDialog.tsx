@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Folder, FolderPlus, FolderUp, Search } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
+import { nameOf } from "@/features/workspace/lib/catPath";
 
 /** 选中「新建分类」入口时的返回哨兵（\0 不可能出现在真实分类名里） */
 export const CREATE_CATEGORY = "\u0000create";
@@ -30,9 +31,6 @@ export function askCategoryPick(opts: CategoryPickOptions): Promise<string | nul
   if (!opener) return Promise.resolve(null);
   return opener(opts);
 }
-
-const nameOf = (path: string) =>
-  path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
 
 /** 深层缩进与侧栏同思路：前两层大步进，之后小步进并封顶 */
 const indentOf = (depth: number) =>

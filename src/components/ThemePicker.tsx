@@ -11,22 +11,28 @@ import {
   type ThemePreset,
 } from "@/lib/themes";
 
+/** 所有缩略图共用的作用域类：BASE_CSS 只按它注入一份（见 ThemePickerPanel） */
+const THUMB_SCOPE = "tp-thumb";
+
+/** 每张卡都注一份 BASE_CSS 就是 14+ 份 100KB 的重复文本，解析也重复 14 遍。
+ *  改成模块级算一次、面板里注一次；注入点在卡片之前，
+ *  同特异度下仍是「基础在前、主题在后」，主题照样覆盖基础 */
+const BASE_THUMB_CSS = BASE_CSS.replaceAll("#nice", `.${THUMB_SCOPE}`);
+
 /**
  * 主题缩略图：用主题真实 CSS 渲染一段迷你样张（标题/正文/引用），
  * 把选择器里的 #nice 换成本卡片的独立 class 实现隔离，再整体缩放。
+ * 卡片自己只注入本主题那份差异 CSS，结构性基础样式由 THUMB_SCOPE 那一份提供。
  */
 function ThemeThumb({ theme }: { theme: ThemePreset }) {
   const cls = `tp-${theme.id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
-  const css = useMemo(
-    () => (BASE_CSS + theme.css).replaceAll("#nice", `.${cls}`),
-    [theme, cls]
-  );
+  const css = useMemo(() => theme.css.replaceAll("#nice", `.${cls}`), [theme, cls]);
 
   return (
     <div className="light-lock pointer-events-none h-[88px] overflow-hidden rounded-[5px] bg-white">
       <style>{css}</style>
       <div
-        className={cls}
+        className={`${THUMB_SCOPE} ${cls}`}
         style={{
           transform: "scale(0.5)",
           transformOrigin: "top left",
@@ -201,6 +207,9 @@ export function ThemePickerPanel() {
 
   return (
     <div className="max-h-[72vh] overflow-y-auto">
+      {/* 缩略图的结构性基础样式，全面板共用这一份；必须排在卡片之前，
+          这样主题 CSS 在后、同特异度时照旧覆盖它 */}
+      <style>{BASE_THUMB_CSS}</style>
       {customThemes.length > 0 ? (
         <>
           <p className="px-3.5 pb-1.5 pt-1.5 text-[11px] tracking-widest text-[var(--ink-faint)]">

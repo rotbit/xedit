@@ -3,7 +3,9 @@
 import { PanelLeftClose, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
+import { useDragDivider } from "@/hooks/useDragDivider";
 import { ALL } from "../constants";
+import { clampSidebarWidth } from "../hooks/useSidebarPrefs";
 import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
 import type { ImportMode } from "../hooks/useImportDocs";
@@ -27,27 +29,20 @@ export function Sidebar({
   /** 统计文字兼作「全部文章」入口：当前就在全部列表时文字加深 */
   const allActive = nav.activeCat === ALL && !nav.readingId;
 
-  /** 右缘手柄拖拽调宽：过程中只改状态，松手才落盘 */
-  const onResizeStart = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startW = prefs.sidebarWidth;
-    const onMove = (ev: PointerEvent) => prefs.setSidebarWidth(startW + ev.clientX - startX, false);
-    const onUp = (ev: PointerEvent) => {
-      prefs.setSidebarWidth(startW + ev.clientX - startX);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  };
+  /** 右缘手柄拖拽调宽：过程中只用本地值，松手才落盘（与阅读器分隔条同一套 hook） */
+  const resize = useDragDivider<{ x: number; w: number }>({
+    start: (e) => ({ x: e.clientX, w: prefs.sidebarWidth }),
+    move: (ev, from) => clampSidebarWidth(from.w + ev.clientX - from.x),
+    commit: prefs.setSidebarWidth,
+  });
+  const shownWidth = resize.value ?? prefs.sidebarWidth;
 
   return (
     <aside
       className={`fixed inset-y-0 left-0 z-40 flex max-w-[85vw] shrink-0 flex-col bg-[var(--sidebar)] transition-transform duration-200 md:relative md:translate-x-0 ${
         prefs.sidebarOpen ? "" : "-translate-x-full md:hidden"
       }`}
-      style={{ width: prefs.sidebarWidth }}
+      style={{ width: shownWidth }}
     >
       {/* app-titlebar / traffic-inset：桌面壳里这条顶栏充当系统标题栏并给红绿灯留位 */}
       <div className="app-titlebar traffic-inset flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
@@ -117,7 +112,7 @@ export function Sidebar({
       <div
         className="absolute inset-y-0 -right-px z-10 hidden w-[5px] cursor-col-resize hover:bg-[var(--accent)]/25 active:bg-[var(--accent)]/40 md:block"
         title="拖动调整侧栏宽度，双击恢复默认"
-        onPointerDown={onResizeStart}
+        onPointerDown={resize.onPointerDown}
         onDoubleClick={prefs.resetSidebarWidth}
       />
     </aside>

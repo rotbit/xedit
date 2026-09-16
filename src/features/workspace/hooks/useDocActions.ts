@@ -183,12 +183,14 @@ export function useDocActions({ auth, library, nav }: Params) {
   const restoreDoc = async (doc: DocMeta) => {
     const vault = localMode ? getActiveVault() : null;
     if (vault) {
+      // 先看恢复成不成，再动列表：失败时把行留在回收站里，否则文件还在 .trash/
+      // 却已从列表消失，用户再也找不到它（只能刷新页面）
       const back = vault.restoreFromTrash(doc.id);
-      setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
       if (!back) {
         toast("恢复失败：回收站里找不到这个文件", "error");
         return;
       }
+      setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
       setDocs(listLocalDocs());
       notifyDocsChanged();
       toast("已恢复", "success");
