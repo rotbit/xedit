@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { isDocumentSaved, persistEditorDocument } from "@/lib/editorPersistence";
+import { isDocumentSaved, persistEditorDocument } from "@/lib/editor/persistence";
 import { useStore } from "@/store/useStore";
 import { ALL, ASSETS, TRASH, isVirtualCat } from "../constants";
 import { removeLocal } from "../lib/storage";

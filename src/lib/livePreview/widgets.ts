@@ -1,8 +1,8 @@
 import { EditorView, WidgetType } from "@codemirror/view";
-import { deleteFencedBlock, fencedCodeAt } from "@/lib/livePreviewFenceKeys";
+import { deleteFencedBlock, fencedCodeAt } from "@/lib/livePreview/fenceKeys";
 
 /** 即时渲染用到的替换部件（图片/视频/代码语言下拉/分割线/列表点/复选框），
- *  装饰构建逻辑见 livePreview.ts */
+ *  装饰构建逻辑见 livePreview/index.ts */
 
 export class ImageWidget extends WidgetType {
   constructor(readonly src: string, readonly alt: string) {

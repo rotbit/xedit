@@ -390,4 +390,3 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 }
 
-export type DocActions = ReturnType<typeof useDocActions>;

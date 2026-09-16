@@ -2,12 +2,12 @@ import type { SyntaxNode, SyntaxNodeRef } from "@lezer/common";
 import { Decoration } from "@codemirror/view";
 import { isAttachmentSrc, resolveAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
-import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreviewWidgets";
-import { caretInside, caretTouches, type LpContext } from "@/lib/livePreviewContext";
+import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreview/widgets";
+import { caretInside, caretTouches, type LpContext } from "@/lib/livePreview/context";
 
 /**
  * 行内语法的即时渲染分支（强调、行内代码、删除线、链接、颜色 span、图片/视频、分割线）。
- * 从 livePreview.ts 里抽出来只为控制单文件长度，行为与判定规则未变：
+ * 从 livePreview/index.ts 里抽出来只为控制单文件长度，行为与判定规则未变：
  * 光标进入该语法范围内才显示标记，位移只发生在焦点处。
  */
 

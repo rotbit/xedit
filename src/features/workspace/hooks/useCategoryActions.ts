@@ -197,4 +197,3 @@ export function useCategoryActions({ auth, library, nav }: Params) {
   return { createCategory, renameCategory, moveCategory, removeCategory };
 }
 
-export type CategoryActions = ReturnType<typeof useCategoryActions>;

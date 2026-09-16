@@ -35,7 +35,7 @@ function findClose(cx: InlineContext, from: number): number {
 
 export const wikiLinkExtension: MarkdownConfig = {
   // style 直接挂在 NodeSpec 上：不用另写 styleTags，编辑器已有的
-  // tags.link / tags.processingInstruction 配色（见 editorHighlight.ts）自动生效，
+  // tags.link / tags.processingInstruction 配色（见 lib/editor/highlight.ts）自动生效，
   // 源码模式下也一眼看得出这是链接
   defineNodes: [
     { name: "WikiLink", style: tags.link },

@@ -17,7 +17,7 @@ import {
   insertCallout,
   insertCodeBlock,
   TABLE_TEMPLATE,
-} from "@/lib/editorFormat";
+} from "@/lib/editor/format";
 import { toast } from "@/components/Toast";
 
 export type FormatCommand =

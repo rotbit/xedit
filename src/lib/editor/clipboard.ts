@@ -1,6 +1,6 @@
 import { EditorView } from "@codemirror/view";
 import type TurndownService from "turndown";
-import { handleMediaFiles } from "@/lib/editorCommands";
+import { handleMediaFiles } from "@/lib/editor/commands";
 
 // 富文本粘贴 → Markdown。turndown 不小且只有粘贴用得到，不进编辑器主包：
 // 编辑器挂载后异步预载，粘贴时同步取用；加载完成前粘贴则退化为纯文本粘贴。

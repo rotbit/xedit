@@ -8,7 +8,7 @@ import {
   ViewPlugin,
   ViewUpdate,
 } from "@codemirror/view";
-import { BulletWidget, CalloutBadgeWidget, CheckboxWidget } from "@/lib/livePreviewWidgets";
+import { BulletWidget, CalloutBadgeWidget, CheckboxWidget } from "@/lib/livePreview/widgets";
 import { calloutStyle, parseCalloutHead } from "@/lib/callout";
 import { ATTACHMENTS_RESOLVED_EVENT } from "@/lib/localBackend/attachmentUrls";
 import {
@@ -20,11 +20,11 @@ import {
   inCodeRanges,
   refreshLivePreview,
   type LpContext,
-} from "@/lib/livePreviewContext";
-import { INLINE_NODE_NAMES, inlineDecorations } from "@/lib/livePreviewInline";
-import { fencedCodeDecorations } from "@/lib/livePreviewFence";
-import { fenceKeymap } from "@/lib/livePreviewFenceKeys";
-import { livePreviewBlocks, renderedBlockRanges } from "@/lib/livePreviewBlocks";
+} from "@/lib/livePreview/context";
+import { INLINE_NODE_NAMES, inlineDecorations } from "@/lib/livePreview/inline";
+import { fencedCodeDecorations } from "@/lib/livePreview/fence";
+import { fenceKeymap } from "@/lib/livePreview/fenceKeys";
+import { livePreviewBlocks, renderedBlockRanges } from "@/lib/livePreview/blocks";
 import { requestOpenWikiLink } from "@/lib/wikiLink";
 
 /**
@@ -37,7 +37,7 @@ import { requestOpenWikiLink } from "@/lib/wikiLink";
  * - 图片/分割线/表格/公式：atomicRanges 让光标只停在两侧，路过不还原；点击部件才展开源码
  *
  * 跨行替换（表格、$$ 公式）不在这个插件里 —— CodeMirror 禁止插件提供跨行 replace，
- * 见 livePreviewBlocks.ts 的状态字段。
+ * 见 blocks.ts 的状态字段。
  */
 
 /** 行首标记（#、>）连同其后空格：不在焦点行时整段隐藏，在焦点行时淡灰缩小显示 */
