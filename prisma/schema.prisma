@@ -133,6 +133,8 @@ model ShareComment {
   createdAt     DateTime  @default(now())
 
   @@index([shareId, createdAt])
+  /// 删顶级批注时按 parentId 连带删回复，这条 where 不带 shareId
+  @@index([parentId])
 }
 
 // 版本快照：自动保存按时间间隔留存，支持一键回滚
@@ -328,4 +330,6 @@ model Asset {
 
   @@unique([userId, key])
   @@index([userId, createdAt(sort: Desc)])
+  /// 飞书同步按 source 找已转存的素材：没有这条只能顺着 userId 扫这人全部素材
+  @@index([userId, source])
 }

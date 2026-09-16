@@ -288,6 +288,20 @@ class Converter {
   }
 }
 
+/**
+ * 扫出整篇用到的图片素材 token（块是扁平数组，直接遍历即可）。
+ * 转换前先拿到全集，调用方就能一次查完已转存的记录，不必逐图查库。
+ */
+export function feishuImageTokens(blocks: FeishuBlock[]): string[] {
+  const tokens = new Set<string>();
+  for (const block of blocks) {
+    if (block.block_type !== B.image) continue;
+    const token = (block.image as { token?: string } | undefined)?.token;
+    if (token) tokens.add(token);
+  }
+  return [...tokens];
+}
+
 export async function feishuBlocksToMarkdown(
   blocks: FeishuBlock[],
   ctx: ConvertContext
