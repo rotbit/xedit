@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Asset } from "../AssetsLightbox";
 
-/** 图片库的数据层：分页拉取 + 模块缓存 + 哨兵预取 + 过滤/搜索 + 历史尺寸补录 */
+/** 图片库的数据层：分页拉取 + 模块缓存 + 哨兵预取 + 过滤 + 历史尺寸补录 */
 
 const PAGE_SIZE = 24;
 
@@ -17,30 +17,25 @@ interface AssetPage {
 }
 
 /**
- * 视图键 = 过滤档 + 关键字，唯一决定一份列表。
+ * 视图键 = 过滤档，唯一决定一份列表。
  * 键一变，渲染期就把旧列表判为作废（而不是在 effect 里 setState 清空），
  * 既避免闪一帧旧数据，也不碰 react-hooks/set-state-in-effect。
  */
-const viewKeyOf = (filter: AssetFilter, q: string) => `${filter}|${q}`;
+const viewKeyOf = (filter: AssetFilter) => filter;
 
-/** 默认视图：无过滤无搜索，只有它享受模块缓存 */
-const DEFAULT_KEY = viewKeyOf("all", "");
+/** 默认视图：无过滤，只有它享受模块缓存 */
+const DEFAULT_KEY = viewKeyOf("all");
 
-function searchParams(filter: AssetFilter, q: string, cursor: string | null) {
+function searchParams(filter: AssetFilter, cursor: string | null) {
   const qs = new URLSearchParams({ limit: String(PAGE_SIZE) });
   if (filter === "image" || filter === "video") qs.set("kind", filter);
   if (filter === "unused") qs.set("filter", "unused");
-  if (q) qs.set("q", q);
   if (cursor) qs.set("cursor", cursor);
   return qs;
 }
 
-async function fetchPage(
-  filter: AssetFilter,
-  q: string,
-  cursor: string | null
-): Promise<AssetPage | null> {
-  const res = await fetch(`/api/assets?${searchParams(filter, q, cursor)}`);
+async function fetchPage(filter: AssetFilter, cursor: string | null): Promise<AssetPage | null> {
+  const res = await fetch(`/api/assets?${searchParams(filter, cursor)}`);
   if (!res.ok) return null;
   return res.json();
 }
@@ -90,10 +85,7 @@ export interface AssetsFeed {
   hasMore: boolean;
   filter: AssetFilter;
   setFilter: (filter: AssetFilter) => void;
-  /** 输入框里的即时值（拉取用的是防抖后的值） */
-  query: string;
-  setQuery: (q: string) => void;
-  /** 是否处于「无过滤无搜索」的默认视图——空态文案要分情况 */
+  /** 是否处于「无过滤」的默认视图——空态文案要分情况 */
   isDefaultView: boolean;
   sentinelRef: React.RefObject<HTMLDivElement | null>;
   loadMore: () => Promise<void>;
@@ -106,8 +98,6 @@ export interface AssetsFeed {
 
 export function useAssetsFeed(): AssetsFeed {
   const [filter, setFilter] = useState<AssetFilter>("all");
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [state, setState] = useState<FeedState>(() =>
     galleryCache ? { key: DEFAULT_KEY, ...galleryCache } : emptyState(DEFAULT_KEY)
   );
@@ -115,13 +105,7 @@ export function useAssetsFeed(): AssetsFeed {
   const measuredRef = useRef<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // 搜索防抖 300ms：敲字期间不打接口
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  const viewKey = viewKeyOf(filter, debouncedQuery);
+  const viewKey = viewKeyOf(filter);
   // 键不匹配说明 state 属于上一个视图，渲染期直接当空处理
   const view = state.key === viewKey ? state : emptyState(viewKey);
 
@@ -141,7 +125,7 @@ export function useAssetsFeed(): AssetsFeed {
   useEffect(() => {
     let cancelled = false;
     const cached = viewKey === DEFAULT_KEY ? galleryCache : null;
-    void fetchPage(filter, debouncedQuery, null)
+    void fetchPage(filter, null)
       .catch(() => null)
       .then((page) => {
         if (cancelled) return;
@@ -151,12 +135,12 @@ export function useAssetsFeed(): AssetsFeed {
     return () => {
       cancelled = true;
     };
-  }, [viewKey, filter, debouncedQuery]);
+  }, [viewKey, filter]);
 
   /** 上传 / 同步之后回到第一页重拉：要的是最新结果，绕开缓存比对直接整体替换 */
   const refresh = useCallback(
     () =>
-      fetchPage(filter, debouncedQuery, null)
+      fetchPage(filter, null)
         .catch(() => null)
         .then((page) => {
           // 重拉失败就保持现状，不能把已经显示出来的列表清空
@@ -164,7 +148,7 @@ export function useAssetsFeed(): AssetsFeed {
           const next = firstPageState(viewKey, page, null);
           if (next) setState(next);
         }),
-    [filter, debouncedQuery, viewKey]
+    [filter, viewKey]
   );
 
   const loadMore = useCallback(async () => {
@@ -172,7 +156,7 @@ export function useAssetsFeed(): AssetsFeed {
     if (loadingMoreRef.current || !cursor) return;
     loadingMoreRef.current = true;
     try {
-      const page = await fetchPage(filter, debouncedQuery, cursor).catch(() => null);
+      const page = await fetchPage(filter, cursor).catch(() => null);
       if (!page) return;
       setState((prev) => {
         if (prev.key !== viewKey) return prev; // 翻页途中换了视图，结果作废
@@ -187,7 +171,7 @@ export function useAssetsFeed(): AssetsFeed {
     } finally {
       loadingMoreRef.current = false;
     }
-  }, [view.nextCursor, filter, debouncedQuery, viewKey]);
+  }, [view.nextCursor, filter, viewKey]);
 
   // 滚动哨兵：离底部还有一段距离就预取下一页
   useEffect(() => {
@@ -233,8 +217,6 @@ export function useAssetsFeed(): AssetsFeed {
       hasMore: view.nextCursor !== null,
       filter,
       setFilter,
-      query,
-      setQuery,
       isDefaultView: viewKey === DEFAULT_KEY,
       sentinelRef,
       loadMore,
@@ -247,7 +229,6 @@ export function useAssetsFeed(): AssetsFeed {
       view.total,
       view.nextCursor,
       filter,
-      query,
       viewKey,
       loadMore,
       refresh,

@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef } from "react";
-import { Loader2, RefreshCw, Search, Upload } from "lucide-react";
+import { Loader2, RefreshCw, Upload } from "lucide-react";
 import { VIDEO_EXT } from "@/lib/media";
 import type { AssetFilter } from "./useAssetsFeed";
 
-/** 图片库顶栏：分段过滤 + 计数 + 搜索 + 缩放滑杆 + 同步/上传 */
+/** 图片库顶栏：分段过滤 + 计数 + 缩放滑杆 + 同步/上传 */
 
 const FILTERS: [AssetFilter, string][] = [
   ["all", "全部"],
@@ -17,8 +17,6 @@ const FILTERS: [AssetFilter, string][] = [
 export function AssetsToolbar({
   filter,
   onFilterChange,
-  query,
-  onQueryChange,
   total,
   loading,
   cols,
@@ -32,8 +30,6 @@ export function AssetsToolbar({
 }: {
   filter: AssetFilter;
   onFilterChange: (filter: AssetFilter) => void;
-  query: string;
-  onQueryChange: (q: string) => void;
   total: number;
   loading: boolean;
   cols: number;
@@ -70,19 +66,8 @@ export function AssetsToolbar({
         {loading ? "加载中…" : `共 ${total} 个文件`}
       </p>
 
-      {/* 搜索框 */}
-      <div className="relative min-w-[140px] flex-1">
-        <Search
-          size={13}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
-        />
-        <input
-          className="h-8 w-full max-w-[280px] rounded-md border border-[var(--hairline)] bg-[var(--panel)] pl-8 pr-3 text-[12.5px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--hairline-strong)]"
-          placeholder="按文件名搜索"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-        />
-      </div>
+      {/* 计数与右侧按钮之间留空 */}
+      <div className="flex-1" />
 
       {/* 缩放滑杆：控制列数，越往右列数越多、图越小 */}
       <div className="hidden items-center sm:flex" title="缩略图大小（越往右列数越多）">

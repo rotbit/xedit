@@ -184,8 +184,6 @@ export function AssetsGallery({
       <AssetsToolbar
         filter={feed.filter}
         onFilterChange={feed.setFilter}
-        query={feed.query}
-        onQueryChange={feed.setQuery}
         total={feed.total}
         loading={assets === null}
         cols={colCount}
