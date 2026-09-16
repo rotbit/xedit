@@ -1,5 +1,7 @@
+/** 编辑器的对外类型契约：选区快照与命令式句柄，浮动工具条和各视图按它对接编辑器。 */
+
 import type { EditorView } from "@codemirror/view";
-import type { FormatCommand } from "@/lib/editorCommands";
+import type { FormatCommand } from "@/lib/editor/commands";
 
 /** 选区快照：浮动工具条据此决定出现/隐藏与落点 */
 export interface SelectionInfo {

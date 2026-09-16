@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "@/components/Toast";
-import { hasPendingContent, rememberSavedDocument } from "@/lib/editorPersistence";
+import { hasPendingContent, rememberSavedDocument } from "@/lib/editor/persistence";
 import {
   getLocalDocContent,
   listLocalDocs,

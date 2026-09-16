@@ -2,15 +2,6 @@ import { MAX_DEPTH, UNCATEGORIZED } from "../constants";
 import { EMPTY_ORDER, catKey, docKey, type SidebarOrder } from "./sidebarOrder";
 import type { CatItem, CatNode, DocMeta } from "../types";
 
-/** 分类圆点色：顶级分类名哈希到固定色板，子分类跟随父级；未分类恒为中性灰 */
-export function catColorOf(cat: string): string {
-  if (cat === UNCATEGORIZED) return "var(--hairline-strong)";
-  const root = cat.split("/")[0];
-  let h = 0;
-  for (let i = 0; i < root.length; i++) h = (h * 31 + root.charCodeAt(i)) >>> 0;
-  return `var(--cat-${(h % 6) + 1})`;
-}
-
 /** 中文排序用的 collator：localeCompare 每次比较都要重建排序器，提到模块级复用 */
 const zhCollator = new Intl.Collator("zh");
 

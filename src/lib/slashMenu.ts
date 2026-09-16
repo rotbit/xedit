@@ -24,8 +24,8 @@ import {
   Film,
   type LucideIcon,
 } from "lucide-react";
-import { caretInFencedCode } from "@/lib/livePreviewContext";
-import { runFormatCommand, type FormatCommand } from "@/lib/editorCommands";
+import { caretInFencedCode } from "@/lib/livePreview/context";
+import { runFormatCommand, type FormatCommand } from "@/lib/editor/commands";
 
 export interface SlashItem {
   cmd: FormatCommand;

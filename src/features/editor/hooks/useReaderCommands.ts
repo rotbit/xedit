@@ -5,7 +5,7 @@
 
 import { useRegisterCommands } from "@/hooks/useRegisterCommands";
 import type { Command } from "@/lib/commandRegistry";
-import type { FormatCommand } from "@/lib/editorCommands";
+import type { FormatCommand } from "@/lib/editor/commands";
 import { useStore } from "@/store/useStore";
 import { copyDoc } from "../lib/copyDoc";
 import { EXPORT_ITEMS, runExport } from "../lib/exportDoc";

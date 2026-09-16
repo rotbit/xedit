@@ -1,7 +1,7 @@
 "use client";
 
 // 输入 `[[` 时的文章标题补全浮层：portal 到 body、fixed 定位、跟随滚动。
-// 真相全在 CodeMirror 的 StateField 里（见 lib/wikiLinkMenu.ts），这里只订阅渲染 ——
+// 真相全在 CodeMirror 的 StateField 里（见 lib/wikiLink/menu.ts），这里只订阅渲染 ——
 // 组件自己 setState，打字时重渲染范围就止步于这块菜单，不会波及整篇文章视图。
 
 import { useEffect, useRef, useState } from "react";
@@ -16,7 +16,7 @@ import {
   pickWikiItem,
   wikiQueryEnd,
   type WikiMenuState,
-} from "@/lib/wikiLinkMenu";
+} from "@/lib/wikiLink/menu";
 import { UNCATEGORIZED } from "@/features/workspace/constants";
 import type { DocMeta } from "@/features/workspace/types";
 

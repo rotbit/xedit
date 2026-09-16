@@ -7,7 +7,7 @@
 
 import { Prec, StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { caretInFencedCode } from "@/lib/livePreviewContext";
+import { caretInFencedCode } from "@/lib/livePreview/context";
 import { normalizeTitle } from "@/lib/wikiLink";
 import type { DocMeta } from "@/features/workspace/types";
 

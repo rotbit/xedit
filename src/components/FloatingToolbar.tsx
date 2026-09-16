@@ -7,8 +7,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { Bold, Italic, Strikethrough, Quote, Code, Link2 } from "lucide-react";
 import { ColorPicker } from "./ColorPicker";
-import type { EditorHandle, SelectionInfo } from "@/lib/editorTypes";
-import type { FormatCommand } from "@/lib/editorCommands";
+import type { EditorHandle, SelectionInfo } from "@/lib/editor/types";
+import type { FormatCommand } from "@/lib/editor/commands";
 
 const ICON = 16;
 const STROKE = 1.75;

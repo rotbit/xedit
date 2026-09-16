@@ -1,8 +1,8 @@
 import { syntaxTree } from "@codemirror/language";
 import { RangeSet, StateField, type EditorState, type Extension, type Range, type Transaction } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
-import { MathBlockWidget, TableWidget } from "@/lib/livePreviewBlockWidgets";
-import { FrontmatterWidget } from "@/lib/livePreviewFrontmatterWidget";
+import { MathBlockWidget, TableWidget } from "@/lib/livePreview/blockWidgets";
+import { FrontmatterWidget } from "@/lib/livePreview/frontmatterWidget";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import {
   caretInside,
@@ -11,7 +11,7 @@ import {
   refreshLivePreview,
   selectionTouches,
   type CodeRange,
-} from "@/lib/livePreviewContext";
+} from "@/lib/livePreview/context";
 
 /**
  * 块级即时渲染（表格、$$ 公式）——必须走状态字段而不是视图插件：

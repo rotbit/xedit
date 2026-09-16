@@ -6,7 +6,7 @@
 import { createBrowserBackend } from "./browserBackend";
 import type { LocalBackend } from "./types";
 
-export type { DocInit, DocPatch, LocalBackend, LocalDocMeta } from "./types";
+export type { LocalBackend, LocalDocMeta } from "./types";
 export { summarize } from "./types";
 
 /** 后端被替换（打开/关闭 Vault）时广播，供依赖本地库的视图整体重载 */

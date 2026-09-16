@@ -1,3 +1,5 @@
+/** 编辑器扩展的组装处：把高亮、光标、按键、即时渲染等扩展拼成 CodeMirror 的扩展数组。 */
+
 import { type Compartment, type Extension, type Text } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, placeholder, type KeyBinding } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -6,15 +8,15 @@ import { languages } from "@codemirror/language-data";
 import { syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import { livePreview } from "@/lib/livePreview";
-import { codeHighlight, mdHighlight, sourceHeadingHighlight } from "@/lib/editorHighlight";
-import { caretAndActiveLine } from "@/lib/editorCaret";
+import { codeHighlight, mdHighlight, sourceHeadingHighlight } from "@/lib/editor/highlight";
+import { caretAndActiveLine } from "@/lib/editor/caret";
 import { lineSelectionWithoutNewline } from "@/lib/lineSelection";
-import { runFormatCommand, type FormatCommand } from "@/lib/editorCommands";
+import { runFormatCommand, type FormatCommand } from "@/lib/editor/commands";
 import { slashMenu, type SlashState } from "@/lib/slashMenu";
-import { editorClipboard } from "@/lib/editorClipboard";
-import { wikiLinkExtension } from "@/lib/wikiLinkParser";
-import { wikiLinkMenu, type WikiMenuState } from "@/lib/wikiLinkMenu";
-import type { SelectionInfo } from "@/lib/editorTypes";
+import { editorClipboard } from "@/lib/editor/clipboard";
+import { wikiLinkExtension } from "@/lib/wikiLink/parser";
+import { wikiLinkMenu, type WikiMenuState } from "@/lib/wikiLink/menu";
+import type { SelectionInfo } from "@/lib/editor/types";
 import type { DocMeta } from "@/features/workspace/types";
 
 interface EditorExtensionOptions {

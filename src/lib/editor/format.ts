@@ -1,3 +1,5 @@
+/** 行内与行级格式的底层文本变换：识别已有标记、构造包裹事务，供命令层（commands.ts）调用。 */
+
 import { EditorSelection, type EditorState, type SelectionRange } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
