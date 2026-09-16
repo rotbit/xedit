@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ALL, UNCATEGORIZED } from "../constants";
+import { nameOf, parentOf } from "../lib/catPath";
 import { allCategories, canNestCategory } from "../lib/catTree";
 import { catKey, docKey } from "../lib/sidebarOrder";
 import type { DocMeta, DragItem } from "../types";
@@ -44,12 +45,6 @@ interface Params {
     zone: "before" | "after"
   ) => void;
 }
-
-const parentOf = (path: string) =>
-  path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-
-const nameOf = (path: string) =>
-  path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
 
 /** 指针在行内的纵向位置 → 落区。edge 是上下边缘占比 */
 function zoneOf(e: React.DragEvent, edge: number): "before" | "after" | "into" {

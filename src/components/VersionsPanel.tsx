@@ -107,8 +107,14 @@ function VersionPreview({
   onRestore: () => void;
   restoring: boolean;
 }) {
-  const currentContent = useStore((s) => s.content);
-  const currentTitle = useStore((s) => s.title);
+  // 当前稿只在挂载（= 选中这个版本）那一刻快照一次：活订阅的话，编辑区后台自动保存
+  // 或同步引擎一改 store，整份 diff 就会在用户眼前重算/跳动。version.id 是 key，
+  // 换版本重挂载即重新取一份最新的当前稿
+  const [current] = useState(() => {
+    const s = useStore.getState();
+    return { title: s.title, content: s.content };
+  });
+  const currentTitle = current.title;
   const [snap, setSnap] = useState<{ title: string; content: string } | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -130,10 +136,10 @@ function VersionPreview({
     };
   }, [docId, version.id]);
 
-  // 预览盖住编辑区，期间当前稿不会变，diff 只算一次
+  // 当前稿已是快照，diff 只在版本内容到手时算一次
   const diff = useMemo(
-    () => (snap ? diffLines(currentContent, snap.content) : null),
-    [snap, currentContent]
+    () => (snap ? diffLines(current.content, snap.content) : null),
+    [snap, current.content]
   );
   const stats = useMemo(() => {
     if (!diff) return null;

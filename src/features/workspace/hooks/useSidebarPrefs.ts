@@ -44,14 +44,15 @@ export function useSidebarPrefs() {
   const [sidebarWidth, setSidebarWidthState] = useState(() => {
     if (typeof window === "undefined") return SIDEBAR_DEFAULT_W;
     const n = Number(readLocal(K_WIDTH));
-    return Number.isFinite(n) ? clampWidth(n) : SIDEBAR_DEFAULT_W;
+    return Number.isFinite(n) ? clampSidebarWidth(n) : SIDEBAR_DEFAULT_W;
   });
 
-  /** 拖拽过程中高频调用不落盘（persist=false），松手时那次再写 */
-  const setSidebarWidth = (px: number, persist = true) => {
-    const w = clampWidth(px);
+  /** 设定侧栏宽度并落盘。拖动过程中不走这里：实时宽度由 useDragDivider 的本地状态出，
+   *  松手才调一次（同一个夹取区间靠 clampSidebarWidth 共用） */
+  const setSidebarWidth = (px: number) => {
+    const w = clampSidebarWidth(px);
     setSidebarWidthState(w);
-    if (persist) writeLocal(K_WIDTH, String(w));
+    writeLocal(K_WIDTH, String(w));
   };
 
   const resetSidebarWidth = () => setSidebarWidth(SIDEBAR_DEFAULT_W);
@@ -121,7 +122,8 @@ export function useSidebarPrefs() {
   };
 }
 
-function clampWidth(px: number): number {
+/** 侧栏宽度的合法区间。导出给拖动手柄用：拖动中显示的值必须和最终落盘的值同一套夹取 */
+export function clampSidebarWidth(px: number): number {
   return Math.round(Math.min(Math.max(px, SIDEBAR_MIN_W), SIDEBAR_MAX_W));
 }
 

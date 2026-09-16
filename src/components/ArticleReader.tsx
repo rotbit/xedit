@@ -8,6 +8,7 @@ import { wordCount } from "@/lib/wordCount";
 import { askInput } from "./PromptDialog";
 import { toast } from "./Toast";
 import { useStore } from "@/store/useStore";
+import { useDragDivider } from "@/hooks/useDragDivider";
 import { useEditorDoc } from "@/hooks/useEditorDoc";
 import { useSyncScroll } from "@/hooks/useSyncScroll";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -81,8 +82,6 @@ export function ArticleReader({
   const [shareOpen, setShareOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
-  // 拖拽分隔条期间关闭宽度过渡，避免宽度动画滞后于鼠标。
-  const [draggingSplit, setDraggingSplit] = useState(false);
 
   const editorRef = useRef<EditorHandle>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -125,23 +124,19 @@ export function ArticleReader({
     previewRef
   );
 
-  const onDividerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const divider = e.currentTarget;
-    divider.setPointerCapture(e.pointerId);
-    setDraggingSplit(true);
-    const onMove = (ev: PointerEvent) => {
-      const rect = splitAreaRef.current?.getBoundingClientRect();
-      if (!rect || rect.width === 0) return;
-      setSplitRatio((ev.clientX - rect.left) / rect.width);
-    };
-    const onUp = () => {
-      divider.removeEventListener("pointermove", onMove);
-      setDraggingSplit(false);
-    };
-    divider.addEventListener("pointermove", onMove);
-    divider.addEventListener("pointerup", onUp, { once: true });
-  };
+  // 源码/预览分隔条：拖动中只走本地值，松手才写 store——
+  // splitRatio 是 persist 持久化字段，每帧写它等于一次拖动往 localStorage 刷上百次
+  const splitDrag = useDragDivider<DOMRect | null>({
+    start: () => splitAreaRef.current?.getBoundingClientRect() ?? null,
+    move: (ev, rect) => {
+      if (!rect || rect.width === 0) return undefined;
+      // 夹的区间与 store 里的 setSplitRatio 一致：拖动中显示的就是最终会落库的值
+      return Math.min(0.75, Math.max(0.25, (ev.clientX - rect.left) / rect.width));
+    },
+    commit: setSplitRatio,
+  });
+  // 拖动中用实时值，松手后回到 store 那份
+  const shownRatio = splitDrag.value ?? splitRatio;
 
   /** 移动分类：改 store 即可，持久化走自动保存管线（本地/云端/离线一致） */
   const moveToCategory = (c: string) => {
@@ -240,11 +235,11 @@ export function ArticleReader({
         {/* 源码编辑列 */}
         <div
           className={`flex min-w-0 flex-col bg-[var(--panel)] ${
-            draggingSplit
-              ? ""
+            splitDrag.dragging
+              ? "" // 拖动期间关掉宽度过渡，否则宽度动画滞后于指针
               : "transition-[width] duration-300 ease-[cubic-bezier(0.22,0.9,0.26,1)]"
           }`}
-          style={{ width: split ? `${splitRatio * 100}%` : "100%" }}
+          style={{ width: split ? `${shownRatio * 100}%` : "100%" }}
           onPointerEnter={() => setActive("editor")}
         >
           <div className="flex min-h-0 flex-1">
@@ -364,7 +359,7 @@ export function ArticleReader({
           <>
             <div
               className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline-soft)] bg-[var(--panel)] hover:bg-[var(--accent-wash)]"
-              onPointerDown={onDividerPointerDown}
+              onPointerDown={splitDrag.onPointerDown}
               title="拖动调整源码/预览宽度"
             >
               <span className="absolute left-1/2 top-1/2 h-8 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--hairline-strong)] group-hover:bg-[var(--accent)]" />

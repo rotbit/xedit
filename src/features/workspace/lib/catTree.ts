@@ -1,4 +1,5 @@
 import { MAX_DEPTH, UNCATEGORIZED } from "../constants";
+import { nameOf, parentOf } from "./catPath";
 import { EMPTY_ORDER, catKey, docKey, type SidebarOrder } from "./sidebarOrder";
 import type { CatItem, CatNode, DocMeta } from "../types";
 
@@ -27,10 +28,9 @@ export function findNode(roots: CatNode[], path: string): CatNode | null {
 export function canNestCategory(path: string, parent: string, all: string[]): boolean {
   if (path === UNCATEGORIZED || parent === UNCATEGORIZED) return false;
   if (parent === path || parent.startsWith(`${path}/`)) return false; // 不能挂进自己或子孙
-  const curParent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-  if (parent === curParent) return false;
+  if (parent === parentOf(path)) return false;
   const subtree = all.filter((c) => c === path || c.startsWith(`${path}/`));
-  const name = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
+  const name = nameOf(path);
   const toPath = parent ? `${parent}/${name}` : name;
   const longest = subtree.reduce((m, c) => Math.max(m, c.length), path.length);
   if (longest - path.length + toPath.length > 100) return false;
@@ -55,14 +55,11 @@ export function buildTree(
   const ensure = (path: string): CatNode => {
     const existing = nodeMap.get(path);
     if (existing) return existing;
-    const name = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
-    const node: CatNode = { name, path, children: [], docs: [], items: [], count: 0 };
+    const node: CatNode = { name: nameOf(path), path, children: [], docs: [], items: [], count: 0 };
     nodeMap.set(path, node);
-    if (path.includes("/")) {
-      ensure(path.slice(0, path.lastIndexOf("/"))).children.push(node);
-    } else {
-      roots.push(node);
-    }
+    const parent = parentOf(path);
+    if (parent) ensure(parent).children.push(node);
+    else roots.push(node);
     return node;
   };
 

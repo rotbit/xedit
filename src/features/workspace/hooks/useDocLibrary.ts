@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
+import {
+  queueSettingsWrite,
+  useCloudSettings,
+  type UserSettingsRow,
+} from "@/hooks/useSettings";
 import { listLocalDocs, listLocalCats, DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { getBrowserBackend, LOCAL_BACKEND_CHANGED_EVENT } from "@/lib/localBackend";
 import { getActiveVault } from "@/lib/localBackend/vaultSession";
@@ -58,22 +63,23 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
   const [order, setOrder] = useState<SidebarOrder>(readActiveOrder);
   const migratedRef = useRef(false);
 
-  /** 更新排序：本地立即生效并缓存，登录态异步推服务端（失败不打扰，下次改动再带上） */
+  // updater 里只能算新值：StrictMode 会把它跑两遍，写盘/PUT 放进去就成了双份。
+  // 副作用挪到外面，新值靠这个 ref 前移（同一 tick 里连着调也基于最新值）
+  const orderRef = useRef(order);
+  useEffect(() => {
+    orderRef.current = order;
+  }, [order]);
+
+  /** 更新排序：本地立即生效并缓存，登录态经防抖通道推服务端（失败不打扰，下次改动再带上） */
   const updateOrder = (mutate: (prev: SidebarOrder) => SidebarOrder) => {
-    setOrder((prev) => {
-      const next = mutate(prev);
-      const vault = localMode ? getActiveVault() : null;
-      if (vault) vault.saveOrder(next);
-      else writeLocalOrder(next);
-      if (loggedIn) {
-        void fetch("/api/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sidebarOrder: next }),
-        }).catch(() => undefined);
-      }
-      return next;
-    });
+    const next = mutate(orderRef.current);
+    orderRef.current = next;
+    setOrder(next);
+    const vault = localMode ? getActiveVault() : null;
+    if (vault) vault.saveOrder(next);
+    else writeLocalOrder(next);
+    // 连续拖排序会连着调好几次，交给通道合并成一个 PUT
+    if (loggedIn) queueSettingsWrite({ sidebarOrder: next });
   };
 
   // 本地模式：文章与分类都从本地库读；渲染期间带守卫地装载（React 推荐模式）
@@ -120,34 +126,25 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     return () => window.removeEventListener(LOCAL_BACKEND_CHANGED_EVENT, reload);
   }, [localMode]);
 
-  // 自建分类（允许空分类存在）
-  useEffect(() => {
-    if (!loggedIn) return;
-    let cancelled = false;
-    void fetch("/api/settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((st) => {
-        if (cancelled || !st) return;
-        try {
-          const list = JSON.parse(st.categories ?? "[]");
-          if (Array.isArray(list)) {
-            setCustomCats(list.filter((c: unknown): c is string => typeof c === "string"));
-          }
-        } catch {
-          // 忽略脏数据
-        }
-        // 服务端的排序覆盖本地缓存（跨设备一致）；服务端还没存过则保留本地
-        if (st.sidebarOrder && st.sidebarOrder !== "{}") {
-          const remote = parseSidebarOrder(st.sidebarOrder);
-          setOrder(remote);
-          writeLocalOrder(remote);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [loggedIn]);
+  // 自建分类（允许空分类存在）与侧栏排序。与排版偏好共用 useSettings 里那一次 GET，
+  // 首屏不再为同一份设置发两个请求
+  const applySettings = useCallback((st: UserSettingsRow) => {
+    try {
+      const list = JSON.parse(st.categories ?? "[]");
+      if (Array.isArray(list)) {
+        setCustomCats(list.filter((c: unknown): c is string => typeof c === "string"));
+      }
+    } catch {
+      // 忽略脏数据
+    }
+    // 服务端的排序覆盖本地缓存（跨设备一致）；服务端还没存过则保留本地
+    if (st.sidebarOrder && st.sidebarOrder !== "{}") {
+      const remote = parseSidebarOrder(st.sidebarOrder);
+      setOrder(remote);
+      writeLocalOrder(remote);
+    }
+  }, []);
+  useCloudSettings(loggedIn, applySettings);
 
   // 同步引擎：每轮完成后刷新列表；云端为空且编辑器里有未登录时写的稿子，就把它搬上云
   //（欢迎稿由服务端在账号创建时生成一次，这里不补：删光文章的老用户不该每次登录都多一篇）
