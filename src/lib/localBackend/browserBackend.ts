@@ -30,6 +30,20 @@ function writeIndex(list: LocalDocMeta[]) {
   localStorage.setItem(INDEX_KEY, JSON.stringify(list));
 }
 
+/**
+ * 批量改索引：整份读进来、内存里改完所有条目、最多写回一次。
+ * 分类搬家/删除要动的是全库文档，逐篇走 updateDoc 的话每篇都要把整份索引
+ * 反序列化再序列化写回，是 O(n²)。
+ */
+function patchIndex(patch: (meta: LocalDocMeta) => boolean): void {
+  const list = readIndex();
+  let dirty = false;
+  for (const meta of list) {
+    if (patch(meta)) dirty = true;
+  }
+  if (dirty) writeIndex(list);
+}
+
 const backend: LocalBackend = {
   kind: "browser",
 
@@ -96,18 +110,24 @@ const backend: LocalBackend = {
   relocateCategory(from: string, to: string) {
     const remap = (c: string) =>
       c === from ? to : c.startsWith(`${from}/`) ? to + c.slice(from.length) : c;
-    for (const d of this.listDocs()) {
-      const cat = d.category || UNCATEGORIZED;
-      if (remap(cat) !== cat) this.updateDoc(d.id, { category: remap(cat) });
-    }
+    // 只动 category，时间戳本来也不该变（仅移动分类不算编辑），所以能走批量路径
+    patchIndex((meta) => {
+      const cat = meta.category || UNCATEGORIZED;
+      const next = remap(cat);
+      if (next === cat) return false;
+      meta.category = next;
+      return true;
+    });
     this.saveCats(Array.from(new Set([...this.listCats().map(remap), to])));
   },
 
   removeCategory(path: string) {
     const inSub = (c: string) => c === path || c.startsWith(`${path}/`);
-    for (const d of this.listDocs()) {
-      if (inSub(d.category || UNCATEGORIZED)) this.updateDoc(d.id, { category: UNCATEGORIZED });
-    }
+    patchIndex((meta) => {
+      if (!inSub(meta.category || UNCATEGORIZED)) return false;
+      meta.category = UNCATEGORIZED;
+      return true;
+    });
     this.saveCats(this.listCats().filter((c) => !inSub(c)));
   },
 };
