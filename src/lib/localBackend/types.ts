@@ -3,7 +3,7 @@
  * 现有的 localStorage 实现在 ./browserBackend，后续的磁盘 Vault 再加一个实现即可。
  */
 
-import { stripFrontmatter } from "@/lib/frontmatter";
+import { summarize as excerptOf } from "@/lib/excerpt";
 import { wordCount } from "@/lib/wordCount";
 
 export interface LocalDocMeta {
@@ -46,17 +46,8 @@ export interface LocalBackend {
   removeCategory(path: string): void;
 }
 
-/** 摘要与字数口径与服务端列表接口保持一致。
- *  摘要只要前 90 个字，先截前 2000 字符再跑正则（服务端同款），别把整篇长文扫 5 遍。
- *  frontmatter 是元数据不是正文，先剥掉，免得列表摘要开头全是 `tags: ...` */
+/** 本地库列表项的摘要与字数。两者的口径都不在这里定：
+ *  摘要走 excerpt.ts（与服务端列表接口同一份实现），字数走 wordCount。 */
 export function summarize(content: string): { excerpt: string; chars: number } {
-  const plain = stripFrontmatter(content)
-    .slice(0, 2000)
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/[#>*`~$|-]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return { excerpt: plain.slice(0, 90), chars: wordCount(content) };
+  return { excerpt: excerptOf(content), chars: wordCount(content) };
 }

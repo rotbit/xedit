@@ -12,6 +12,7 @@
  */
 
 import { getDocContent } from "@/lib/docContent";
+import { plainText } from "@/lib/excerpt";
 import { parseWikiLinks, wikiLinkText, type WikiLinkRef } from "@/lib/wikiLink";
 import type { DocMeta } from "@/features/workspace/types";
 
@@ -22,16 +23,9 @@ export interface DocIndexEntry {
   text: string;
 }
 
-/** 抹掉 Markdown 记号，让「**重点**」能被「重点」搜到（正则口径同 localDocs.summarize） */
-export function plainText(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/[#>*`~$|-]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+// 纯文本化的实现搬去了 excerpt.ts（列表摘要、服务端列表接口共用同一口径）；
+// 出口保留在这里不变——docSearch 还在往外转发这个符号
+export { plainText };
 
 /**
  * 纯文本化，并把 `[[目标|别名]]` 摊平成它显示出来的文字 —— 摘要里不该露方括号。

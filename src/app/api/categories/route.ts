@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
@@ -19,15 +20,16 @@ export async function POST(req: Request) {
   const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const body = await req.json().catch(() => ({}));
-  const action: string = body?.action;
+  // 请求体是外来的，标成 unknown 再逐个校验；标 string 只是骗过编译器，值该是什么还是什么
+  const action: unknown = body?.action;
   const from: string = typeof body?.from === "string" ? body.from.trim() : "";
   const to: string = typeof body?.to === "string" ? body.to.trim().slice(0, 100) : "";
 
-  if (!from || (action === "rename" && !to)) {
-    return NextResponse.json({ error: "参数缺失" }, { status: 400 });
-  }
   if (action !== "rename" && action !== "remove") {
     return NextResponse.json({ error: "不支持的操作" }, { status: 400 });
+  }
+  if (!from || (action === "rename" && !to)) {
+    return NextResponse.json({ error: "参数缺失" }, { status: 400 });
   }
 
   // 命中该路径及其子孙的文章
@@ -50,11 +52,16 @@ export async function POST(req: Request) {
     list.push(a.id);
     groups.set(target, list);
   }
+  // 文章改分类与自建分类列表落库要一起成或一起不成：中途失败会留下
+  // 「文章已经改名、侧栏分类还是旧的」这种谁也修不动的半截状态，所以攒到一个事务里
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
   for (const [target, ids] of groups) {
-    await prisma.document.updateMany({
-      where: { id: { in: ids } },
-      data: { category: target },
-    });
+    ops.push(
+      prisma.document.updateMany({
+        where: { id: { in: ids } },
+        data: { category: target },
+      })
+    );
   }
 
   // 同步自建分类列表（子树整体处理）
@@ -75,11 +82,14 @@ export async function POST(req: Request) {
     if (!categories.includes(to)) categories.push(to);
     categories = Array.from(new Set(categories));
   }
-  await prisma.userSettings.upsert({
-    where: { userId },
-    update: { categories: JSON.stringify(categories) },
-    create: { userId, categories: JSON.stringify(categories) },
-  });
+  ops.push(
+    prisma.userSettings.upsert({
+      where: { userId },
+      update: { categories: JSON.stringify(categories) },
+      create: { userId, categories: JSON.stringify(categories) },
+    })
+  );
+  await prisma.$transaction(ops);
 
   return NextResponse.json({ ok: true });
 }
