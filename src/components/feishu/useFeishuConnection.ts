@@ -13,7 +13,7 @@ import {
 } from "@/hooks/useFeishuSync";
 import { toast } from "../Toast";
 
-/** 回调地址随站点部署固定，订阅无需做任何事（与 McpDialog 同款写法） */
+/** 回调地址随站点部署固定，订阅无需做任何事，故 subscribe 返回空清理函数 */
 const subscribeNoop = () => () => {};
 const getCallbackUrl = () => `${window.location.origin}/api/feishu/callback`;
 

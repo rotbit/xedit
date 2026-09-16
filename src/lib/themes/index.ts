@@ -33,10 +33,6 @@ export const CODE_THEMES: CodeTheme[] = [
   { id: "xcode", name: "Xcode", file: "xcode.css", dark: false },
 ];
 
-export function getTheme(id: string): ThemePreset {
-  return THEME_PRESETS.find((t) => t.id === id) ?? THEME_PRESETS[0];
-}
-
 export function getCodeTheme(id: string): CodeTheme {
   return CODE_THEMES.find((t) => t.id === id) ?? CODE_THEMES[0];
 }

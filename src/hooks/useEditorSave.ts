@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { toast } from "@/components/Toast";
 import { isLocalId } from "@/lib/localDocs";
-import { isDocumentSaved, persistEditorDocument, type EditorDocument, type PersistResult } from "@/lib/editorPersistence";
+import { isDocumentSaved, persistEditorDocument, type EditorDocument, type PersistResult } from "@/lib/editor/persistence";
 import { useStore, type SaveState } from "@/store/useStore";
 
 /** 保留两种入口的提示策略：手动保存失败显示待同步，自动保存在线失败显示错误。 */

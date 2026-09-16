@@ -1,3 +1,5 @@
+/** 编辑器落盘：维护本次编辑会话的落盘基准，按本地/云端文档分别写本地库或镜像并触发同步。 */
+
 import { getMirrorContent, saveMirrorLocal } from "@/lib/docStore";
 import { isLocalId, updateLocalDoc } from "@/lib/localDocs";
 import { pushMirrorDoc } from "@/lib/sync";

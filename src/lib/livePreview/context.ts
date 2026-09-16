@@ -6,7 +6,7 @@ import { StateEffect, type EditorState, type Range } from "@codemirror/state";
 /**
  * 即时渲染的共用判定与装饰收集器。
  *
- * 装饰分两条通路：行内/行级的走视图插件（livePreview.ts），跨行替换（表格、块级公式）
+ * 装饰分两条通路：行内/行级的走视图插件（livePreview/index.ts），跨行替换（表格、块级公式）
  * 只能走状态字段（CodeMirror 禁止插件提供跨行 replace）。两边必须共用同一套光标/选区
  * 规则，否则同一次移动会得到互相矛盾的还原结果，所以判定函数集中放这里。
  */

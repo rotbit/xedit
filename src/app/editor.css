@@ -51,7 +51,7 @@
   border-left-width: 2px;
 }
 /* 光标平滑滑到新位置（点击定位、上下翻行）。只在根元素挂着 cm-caret-smooth 时生效：
-   打字那一拍插件会把类摘掉（见 editorCaret.ts），否则光标追不上字符，拖出残影 */
+   打字那一拍插件会把类摘掉（见 lib/editor/caret.ts），否则光标追不上字符，拖出残影 */
 .cm-editor.cm-caret-smooth .cm-cursor {
   transition:
     left 80ms,

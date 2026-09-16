@@ -1,6 +1,6 @@
 import type { SyntaxNodeRef } from "@lezer/common";
-import { CodeLangWidget } from "@/lib/livePreviewWidgets";
-import { caretTouches, selectionTouches, type LpContext } from "@/lib/livePreviewContext";
+import { CodeLangWidget } from "@/lib/livePreview/widgets";
+import { caretTouches, selectionTouches, type LpContext } from "@/lib/livePreview/context";
 
 /**
  * 围栏代码块的即时渲染：整块铺随主题的浅色卡片、开栏行换成带语言下拉的标题条、闭栏行折成块底内边距。

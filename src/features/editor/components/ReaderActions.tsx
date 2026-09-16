@@ -28,7 +28,7 @@ import {
   Table,
   Trash2,
 } from "lucide-react";
-import type { FormatCommand } from "@/lib/editorCommands";
+import type { FormatCommand } from "@/lib/editor/commands";
 import { ThemePickerPanel } from "@/components/ThemePicker";
 import { resolveTheme } from "@/lib/themes";
 import { useStore } from "@/store/useStore";

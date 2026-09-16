@@ -78,11 +78,6 @@ export function isAvailable(cmd: Command): boolean {
   return !cmd.when || cmd.when();
 }
 
-/** 当前可用的命令，注册顺序 */
-export function listCommands(): Command[] {
-  return commandsSnapshot().filter(isAvailable);
-}
-
 export function subscribeCommands(cb: () => void): () => void {
   listeners.add(cb);
   return () => {

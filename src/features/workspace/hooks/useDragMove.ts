@@ -249,4 +249,3 @@ export function useDragMove({
   return { dragItem, dropSpot, dragSrcProps, dropProps, docDropProps, isDragging };
 }
 
-export type DragMove = ReturnType<typeof useDragMove>;

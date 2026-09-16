@@ -6,7 +6,7 @@ import { parseFrontmatter } from "@/lib/frontmatter";
  *
  * 不隐藏、也不美化成正文的一部分——frontmatter 是给机器看的元数据，
  * 排成「键 值」两列的卡片正好把它和正文划清界限（Obsidian 的属性面板也是这个思路）。
- * 光标进入区间即还原源码（判定在 livePreviewBlocks.ts），所以卡片不必可编辑。
+ * 光标进入区间即还原源码（判定在 blocks.ts），所以卡片不必可编辑。
  *
  * DOM 全部用 textContent 拼，没有一处 innerHTML：frontmatter 里可能写着任何字符，
  * 这条路径上也就不需要再过一次 DOMPurify。

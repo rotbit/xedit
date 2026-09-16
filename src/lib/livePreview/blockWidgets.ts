@@ -2,10 +2,10 @@ import MarkdownIt from "markdown-it";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { ensureMathJax, texToSvg } from "@/lib/markdown/mathjax";
-import { refreshLivePreview } from "@/lib/livePreviewContext";
+import { refreshLivePreview } from "@/lib/livePreview/context";
 
 /** 即时渲染的块级部件（表格、$$ 公式）。跨行替换只能由状态字段提供，
- *  装饰构建见 livePreviewBlocks.ts。所有写进 DOM 的 HTML 一律先过 DOMPurify（sanitizeHtml） */
+ *  装饰构建见 blocks.ts。所有写进 DOM 的 HTML 一律先过 DOMPurify（sanitizeHtml） */
 
 /** 单元格只跑 inline 渲染：块级规则会把一格内容再包成 <p>，撑坏表格行高。
  *  实例懒建一次，编辑器里每次重排都复用 */

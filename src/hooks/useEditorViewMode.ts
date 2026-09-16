@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import type { EditorHandle } from "@/lib/editorTypes";
+import type { EditorHandle } from "@/lib/editor/types";
 import { useStore } from "@/store/useStore";
 
 type EditorViewMode = "edit" | "split" | "read";

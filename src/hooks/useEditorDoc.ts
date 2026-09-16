@@ -18,7 +18,7 @@ import {
   applyServerDoc,
   removeMirrorDoc,
 } from "@/lib/docStore";
-import { getSavedDocument, rememberSavedDocument, hasPendingContent } from "@/lib/editorPersistence";
+import { getSavedDocument, rememberSavedDocument, hasPendingContent } from "@/lib/editor/persistence";
 import { useEditorSave } from "@/hooks/useEditorSave";
 import { useEditorSettings } from "@/hooks/useEditorSettings";
 
