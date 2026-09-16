@@ -16,6 +16,21 @@ import { imageRun, inlineOf, mathImage, pushInline, videoLink } from "./inline";
 import { BLOCK_TAGS, GRAY, HEADINGS, MONO_FONT, OL_REF } from "./types";
 import type { Build, BlockChild, InlineChild, PreparedImage } from "./types";
 
+// —— 版式尺寸 ——
+// docx 里长度单位是 DXA（1/20 磅，1440 DXA = 1 英寸），字号是半磅，边框粗细是 1/8 磅。
+// 三套单位数值区间又撞在一起（都在两三位数），所以一律提成有名常量并标注单位。
+
+/** 列表首层左缩进：720 DXA = 0.5 英寸，与 Word 默认列表缩进一致 */
+const LIST_INDENT_DXA = 720;
+/** 列表每往下嵌一层追加的缩进：480 DXA = 1/3 英寸 */
+const LIST_INDENT_STEP_DXA = 480;
+/** 引用每层的左缩进：240 DXA = 1/6 英寸，嵌套引用按层数累加 */
+const QUOTE_INDENT_STEP_DXA = 240;
+/** 引用左侧竖线粗细：18/8 = 2.25 磅（边框单位是 1/8 磅，不是 DXA） */
+const QUOTE_BORDER_EIGHTH_PT = 18;
+/** 图注与代码块的小字号：18/2 = 9 磅（字号单位是半磅，不是 DXA） */
+const SMALL_FONT_HALF_PT = 18;
+
 // —— 块级节点 → Paragraph / Table ——
 
 interface Ctx {
@@ -25,15 +40,17 @@ interface Ctx {
 function quoteOpts(ctx: Ctx): Pick<IParagraphOptions, "border" | "indent"> {
   if (!ctx.quote) return {};
   return {
-    border: { left: { style: BorderStyle.SINGLE, size: 18, color: "D0D3D6", space: 8 } },
-    indent: { left: 240 * ctx.quote },
+    border: {
+      left: { style: BorderStyle.SINGLE, size: QUOTE_BORDER_EIGHTH_PT, color: "D0D3D6", space: 8 },
+    },
+    indent: { left: QUOTE_INDENT_STEP_DXA * ctx.quote },
   };
 }
 
 function captionPara(text: string): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.CENTER,
-    children: [new TextRun({ text, size: 18, color: GRAY })],
+    children: [new TextRun({ text, size: SMALL_FONT_HALF_PT, color: GRAY })],
     spacing: { before: 0, after: 200 },
   });
 }
@@ -103,7 +120,9 @@ function codeBlocks(pre: Element): Paragraph[] {
   return lines.map(
     (line, i) =>
       new Paragraph({
-        children: [new TextRun({ text: line || " ", font: MONO_FONT, size: 18 })],
+        children: [
+          new TextRun({ text: line || " ", font: MONO_FONT, size: SMALL_FONT_HALF_PT }),
+        ],
         shading: { type: ShadingType.CLEAR, fill: "F6F8FA" },
         spacing: { before: i === 0 ? 120 : 0, after: i === lines.length - 1 ? 160 : 0, line: 260 },
       })
@@ -145,7 +164,7 @@ function tableBlock(tableEl: Element, b: Build): Table {
 function listBlocks(listEl: Element, level: number, b: Build): BlockChild[] {
   const ordered = listEl.tagName === "OL";
   const instance = ordered ? b.olInstance++ : 0;
-  const indentLeft = 720 + 480 * level;
+  const indentLeft = LIST_INDENT_DXA + LIST_INDENT_STEP_DXA * level;
   const out: BlockChild[] = [];
 
   const marker = (first: boolean) => {

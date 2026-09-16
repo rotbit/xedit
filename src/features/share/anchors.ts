@@ -47,10 +47,13 @@ export function anchorFromSelection(
   return { anchorText: text, anchorPrefix: prefix, anchorIndex: index, start, end: start + text.length };
 }
 
-/** 在当前正文中重新定位锚点；正文已改到找不到时返回 null（批注失效） */
-export function locateAnchor(root: HTMLElement, a: AnchorInput): AnchorRange | null {
+/**
+ * 在当前正文中重新定位锚点；正文已改到找不到时返回 null（批注失效）。
+ * full = 正文的全文纯文本，由调用方一次算好传进来：铺高亮时要逐条定位，
+ * 每条各读一次 root.textContent 就是 O(批注数 × 全文长度)，长文加十几条批注很肉。
+ */
+export function locateAnchor(full: string, a: AnchorInput): AnchorRange | null {
   if (!a.anchorText) return null;
-  const full = root.textContent ?? "";
   if (a.anchorPrefix) {
     const i = full.indexOf(a.anchorPrefix + a.anchorText);
     if (i !== -1) {

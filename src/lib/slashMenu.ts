@@ -25,7 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { caretInFencedCode } from "@/lib/livePreview/context";
-import { runFormatCommand, type FormatCommand } from "@/lib/editor/commands";
+import { runFormatCommand, type FormatCommand, type Notify } from "@/lib/editor/commands";
 
 export interface SlashItem {
   cmd: FormatCommand;
@@ -181,7 +181,15 @@ const setSlashIndex = StateEffect.define<number>();
 
 const slashField = StateField.define<SlashFieldValue>({
   create: () => EMPTY,
-  update(value, tr) {
+  update(prev, tr) {
+    // dismissed 记的是文档里的绝对偏移：前方插入/删除文本后这个位置会漂，
+    // 不跟着映射，Esc 关掉的那个 `/` 就认不出来了 —— 菜单立刻弹回来，
+    // 或者反过来误把另一个 `/` 当成已关闭的那个。
+    // 不 docChanged 时保持同一个对象引用，React 侧的「无变化不重渲染」才成立。
+    const value =
+      tr.docChanged && prev.dismissed !== null
+        ? { ...prev, dismissed: tr.changes.mapPos(prev.dismissed, -1) }
+        : prev;
     for (const e of tr.effects) {
       if (e.is(closeSlash)) {
         return { open: null, dismissed: e.value ? (value.open?.from ?? null) : null };
@@ -205,8 +213,9 @@ const slashField = StateField.define<SlashFieldValue>({
       value.open && value.open.from === next.from && value.open.query === next.query
         ? value.open.index
         : 0;
+    // 上面 !items.length 已提前返回，这里 items 必然非空，直接 clamp
     return {
-      open: { ...next, index: items.length ? Math.min(keep, items.length - 1) : 0 },
+      open: { ...next, index: Math.min(keep, items.length - 1) },
       dismissed: null,
     };
   },
@@ -219,20 +228,26 @@ export function slashStateOf(state: EditorState): SlashState | null {
 /** 选中一项：先一笔删掉 `/query`，再执行命令。
  *  两笔分开是必要的——insertBlock / prefixLines 都要读「删干净之后」的当前行，
  *  行首触发时删完是空行就不再补空行，行中触发时才另起一段 */
-export function runSlashItem(view: EditorView, item: SlashItem, from: number, to: number) {
+export function runSlashItem(
+  view: EditorView,
+  item: SlashItem,
+  from: number,
+  to: number,
+  notify: Notify
+) {
   view.dispatch({ changes: { from, to, insert: "" }, selection: { anchor: from } });
-  runFormatCommand(view, item.cmd);
+  runFormatCommand(view, item.cmd, notify);
   view.focus();
 }
 
-function pickCurrent(view: EditorView): boolean {
+function pickCurrent(view: EditorView, notify: Notify): boolean {
   const st = slashStateOf(view.state);
   if (!st) return false;
   const items = filterSlashItems(st.query);
   // 无匹配时不消费 Enter/Tab，交回 CodeMirror 该换行换行、该缩进缩进
   const item = items[st.index];
   if (!item) return false;
-  runSlashItem(view, item, st.from, st.from + 1 + st.query.length);
+  runSlashItem(view, item, st.from, st.from + 1 + st.query.length, notify);
   return true;
 }
 
@@ -247,22 +262,23 @@ function moveHighlight(view: EditorView, delta: number): boolean {
 }
 
 /** 菜单开着才消费按键，否则一律 false 放行 —— ⌘B/⌘I/⌘K、Enter、Tab 都不受影响 */
-const slashKeymap = Prec.highest(
-  keymap.of([
-    { key: "ArrowDown", run: (v) => moveHighlight(v, 1) },
-    { key: "ArrowUp", run: (v) => moveHighlight(v, -1) },
-    { key: "Enter", run: pickCurrent },
-    { key: "Tab", run: pickCurrent },
-    {
-      key: "Escape",
-      run: (v) => {
-        if (!slashStateOf(v.state)) return false;
-        v.dispatch({ effects: closeSlash.of(true) });
-        return true;
+const slashKeymap = (notify: Notify) =>
+  Prec.highest(
+    keymap.of([
+      { key: "ArrowDown", run: (v) => moveHighlight(v, 1) },
+      { key: "ArrowUp", run: (v) => moveHighlight(v, -1) },
+      { key: "Enter", run: (v) => pickCurrent(v, notify) },
+      { key: "Tab", run: (v) => pickCurrent(v, notify) },
+      {
+        key: "Escape",
+        run: (v) => {
+          if (!slashStateOf(v.state)) return false;
+          v.dispatch({ effects: closeSlash.of(true) });
+          return true;
+        },
       },
-    },
-  ])
-);
+    ])
+  );
 
 /** 鼠标 hover 高亮：由 React 侧调进来，保证键鼠共用同一份下标 */
 export function highlightSlashIndex(view: EditorView, index: number) {
@@ -272,11 +288,18 @@ export function highlightSlashIndex(view: EditorView, index: number) {
 /**
  * 装配扩展。onState 在菜单状态真的变了时才调用（含关闭时的 null），
  * 由 MarkdownEditor 推给 <SlashMenu>，避免走 props 引发整棵文章视图重渲染。
+ * notify：`/视频` 会拉起上传，提示由调用方弹（lib 不 import components）。
  */
-export function slashMenu(onState: (s: SlashState | null) => void): Extension {
+export function slashMenu({
+  onState,
+  notify,
+}: {
+  onState: (s: SlashState | null) => void;
+  notify: Notify;
+}): Extension {
   return [
     slashField,
-    slashKeymap,
+    slashKeymap(notify),
     EditorView.updateListener.of((update) => {
       const prev = update.startState.field(slashField).open;
       const next = update.state.field(slashField).open;
