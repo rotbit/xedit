@@ -3,6 +3,7 @@ import { EditorView, WidgetType } from "@codemirror/view";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { ensureMathJax, texToSvg } from "@/lib/markdown/mathjax";
 import { refreshLivePreview } from "@/lib/livePreview/context";
+import { editOnClick } from "@/lib/livePreview/widgetUtils";
 
 /** 即时渲染的块级部件（表格、$$ 公式）。跨行替换只能由状态字段提供，
  *  装饰构建见 blocks.ts。所有写进 DOM 的 HTML 一律先过 DOMPurify（sanitizeHtml） */
@@ -47,35 +48,33 @@ function parseAlign(cell: string): "left" | "right" | "center" | null {
   return null;
 }
 
-/** 点击块级部件＝有意编辑：把光标送进语法内部（严格落在区间内才会还原源码） */
-function editOnClick(el: HTMLElement, view: EditorView, offset: number) {
-  el.addEventListener("mousedown", (e) => {
-    if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const pos = view.posAtDOM(el);
-    const cell = (e.target as Element).closest<HTMLElement>("[data-source-offset]");
-    const target = cell ? Number(cell.dataset.sourceOffset) : offset;
-    view.dispatch({ selection: { anchor: pos + target }, scrollIntoView: true });
-    view.focus();
-  });
-}
+/** 表格一行的高度：单元格上下内边距 6+6，加 15px 字号 × 1.6 行高，取整约 33px
+ *  （见 live-blocks.css 的 .cm-lp-table table 与 th/td） */
+const TABLE_ROW_HEIGHT = 33;
+/** 外框上下边框各 1px，再留一点零头（.cm-lp-table 的 border + border-radius） */
+const TABLE_CHROME_HEIGHT = 4;
+
+/** 公式块的估高：上下内边距各 10px（.cm-lp-math），加一行公式 SVG 的常见高度 */
+const MATH_BLOCK_HEIGHT = 64;
 
 export class TableWidget extends WidgetType {
+  /** 切行只做一次：估高与建 DOM 都要按行走，而 source 变了就是另一个部件（见 eq） */
+  private readonly rows: string[];
   constructor(readonly source: string) {
     super();
+    this.rows = source.split("\n");
   }
   eq(other: TableWidget) {
     return other.source === this.source;
   }
   get estimatedHeight() {
-    return this.source.split("\n").length * 33 + 4;
+    return this.rows.length * TABLE_ROW_HEIGHT + TABLE_CHROME_HEIGHT;
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement("div");
     wrap.className = "cm-lp-table";
     const table = document.createElement("table");
-    const rows = this.source.split("\n");
+    const { rows } = this;
     const aligns = (rows[1] ? splitRow(rows[1]) : []).map((cell) => parseAlign(cell.text));
     const head = document.createElement("thead");
     const body = document.createElement("tbody");
@@ -112,6 +111,26 @@ export class TableWidget extends WidgetType {
 /** MathJax 是异步动态加载的：首次渲染多半还没就绪，先出原文占位，
  *  就绪后由 refreshLivePreview 触发重建。ready 进 eq 比较，否则部件“相等”会留住旧 DOM */
 let mathReady = false;
+/** 加载只等一次：每个未就绪的公式块各自 then 一次的话，一篇 N 个公式就要触发 N 次全量重建 */
+let mathLoading = false;
+/** 就绪后要刷新的视图。总是记最后一个请求的：切文档时前一个 view 已经销毁 */
+let mathRefreshTarget: EditorView | null = null;
+
+function refreshWhenMathReady(view: EditorView) {
+  mathRefreshTarget = view;
+  if (mathLoading) return;
+  mathLoading = true;
+  void ensureMathJax().then(() => {
+    mathReady = true;
+    mathLoading = false;
+    const target = mathRefreshTarget;
+    mathRefreshTarget = null;
+    // 等一帧再派发：避开 CodeMirror 更新周期内再次 dispatch
+    requestAnimationFrame(() => {
+      if (target?.dom.isConnected) target.dispatch({ effects: refreshLivePreview.of(null) });
+    });
+  });
+}
 
 export class MathBlockWidget extends WidgetType {
   private readonly ready = mathReady;
@@ -122,7 +141,7 @@ export class MathBlockWidget extends WidgetType {
     return other.tex === this.tex && other.ready === this.ready;
   }
   get estimatedHeight() {
-    return 64;
+    return MATH_BLOCK_HEIGHT;
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement("div");
@@ -132,13 +151,7 @@ export class MathBlockWidget extends WidgetType {
       holder.className = "cm-lp-math-loading";
       holder.textContent = this.tex;
       wrap.appendChild(holder);
-      void ensureMathJax().then(() => {
-        mathReady = true;
-        // 等一帧再派发：避开 CodeMirror 更新周期内再次 dispatch
-        requestAnimationFrame(() => {
-          if (view.dom.isConnected) view.dispatch({ effects: refreshLivePreview.of(null) });
-        });
-      });
+      refreshWhenMathReady(view);
     } else {
       try {
         // texToSvg 产出的是 MathJax 自己的 SVG，仍按统一管线消毒后再入 DOM

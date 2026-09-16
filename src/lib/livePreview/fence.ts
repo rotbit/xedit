@@ -1,6 +1,6 @@
 import type { SyntaxNodeRef } from "@lezer/common";
 import { CodeLangWidget } from "@/lib/livePreview/widgets";
-import { caretTouches, selectionTouches, type LpContext } from "@/lib/livePreview/context";
+import type { LpContext } from "@/lib/livePreview/context";
 
 /**
  * 围栏代码块的即时渲染：整块铺随主题的浅色卡片、开栏行换成带语言下拉的标题条、闭栏行折成块底内边距。
@@ -10,7 +10,7 @@ import { caretTouches, selectionTouches, type LpContext } from "@/lib/livePrevie
  * cm-lp-code-mid），首尾行不外扩以保住圆角边缘。
  */
 export function fencedCodeDecorations(ctx: LpContext, node: SyntaxNodeRef): void {
-  const { state, caret } = ctx;
+  const { state } = ctx;
   ctx.codeRanges.push({ from: node.from, to: node.to });
 
   ctx.eachLine(node.from, node.to, (n, first, last) =>
@@ -26,11 +26,7 @@ export function fencedCodeDecorations(ctx: LpContext, node: SyntaxNodeRef): void
   const firstLine = state.doc.lineAt(node.from);
 
   // 开栏行换语言下拉：光标落到该行才还原 ``` 源码，平时这一行只当块顶留白
-  if (
-    marks.length > 0 &&
-    !caretTouches(caret, firstLine.from, firstLine.to) &&
-    !selectionTouches(state, firstLine.from, firstLine.to)
-  ) {
+  if (marks.length > 0 && !ctx.lineActive(firstLine.from)) {
     const lang = info ? state.sliceDoc(info.from, info.to).trim() : "";
     ctx.replaceAtomic(
       firstLine.from,
@@ -41,12 +37,7 @@ export function fencedCodeDecorations(ctx: LpContext, node: SyntaxNodeRef): void
 
   if (marks.length < 2) return;
   const lastLine = state.doc.lineAt(marks[marks.length - 1].from);
-  if (
-    lastLine.number === firstLine.number ||
-    lastLine.from >= lastLine.to ||
-    caretTouches(caret, lastLine.from, lastLine.to) ||
-    selectionTouches(state, lastLine.from, lastLine.to)
-  ) {
+  if (lastLine.number === firstLine.number || lastLine.from >= lastLine.to || ctx.lineActive(lastLine.from)) {
     return;
   }
   // 闭栏行被整行隐藏后文字没了、行高还在，块底会多出一条空行。
