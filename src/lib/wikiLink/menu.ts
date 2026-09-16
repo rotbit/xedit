@@ -102,7 +102,14 @@ const setWikiIndex = StateEffect.define<number>();
 
 const wikiField = StateField.define<WikiFieldValue>({
   create: () => EMPTY,
-  update(value, tr) {
+  update(prev, tr) {
+    // dismissed 记的是文档里的绝对偏移：前方插入/删除文本后这个位置会漂，
+    // 不跟着映射，Esc 关掉的那个 `[[` 就认不出来了（菜单会立刻弹回来）。
+    // 不 docChanged 时保持同一个对象引用，React 侧的「无变化不重渲染」才成立。
+    const value =
+      tr.docChanged && prev.dismissed !== null
+        ? { ...prev, dismissed: tr.changes.mapPos(prev.dismissed, -1) }
+        : prev;
     for (const e of tr.effects) {
       if (e.is(closeWiki)) {
         return { open: null, dismissed: e.value ? (value.open?.from ?? null) : null };

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { EditorView } from "@codemirror/view";
 import { useAnchoredMenu } from "@/hooks/useAnchoredMenu";
+import { toast } from "@/components/Toast";
 import {
   filterSlashItems,
   highlightSlashIndex,
@@ -82,7 +83,8 @@ export function SlashMenu({
               }}
               onClick={() => {
                 const v = viewRef.current;
-                if (v) runSlashItem(v, item, st.from, to);
+                // `/视频` 会拉起上传，提示由组件层的 toast 负责弹
+                if (v) runSlashItem(v, item, st.from, to, toast);
               }}
             >
               <Icon size={16} strokeWidth={1.75} className="shrink-0 text-[var(--ink-soft)]" />

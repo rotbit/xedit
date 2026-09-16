@@ -87,13 +87,15 @@ export function SharedArticle(props: SharePayload) {
 
   // 批注的读写（身份、轮询、发表、解决、删除）全在这个 hook 里
   const {
-    comments, guestName, setGuestName, draft, setDraft, busy,
+    comments, guestName, setGuestName, busy,
     submit, resolveThread, removeComment,
   } = useShareComments({
     token,
     viewerIsOwner,
     initialComments: props.initialComments,
     activeId,
+    // 新批注卡或线程面板开着就是读者正在交互，这一轮轮询先别换列表
+    overlayOpen: composer !== null || activeId !== null,
     onRootPosted,
     onThreadClosed: closeThread,
   });
@@ -127,12 +129,22 @@ export function SharedArticle(props: SharePayload) {
 
   // —— 线程组装 ——
   const threads = useMemo<Thread[]>(() => {
-    const roots = comments.filter((c) => !c.parentId);
-    return roots.map((root) => ({
-      root,
-      replies: comments.filter((c) => c.parentId === root.id),
-      range: ranges.get(root.id) ?? null,
-    }));
+    // 先按 parentId 把回复归一次堆：原先每个根批注都 filter 一遍全表，
+    // 是 O(批注数²)，几百条批注的热门文章每 30 秒轮询就白算一轮
+    const byParent = new Map<string, ShareCommentJson[]>();
+    for (const c of comments) {
+      if (!c.parentId) continue;
+      const list = byParent.get(c.parentId);
+      if (list) list.push(c);
+      else byParent.set(c.parentId, [c]);
+    }
+    return comments
+      .filter((c) => !c.parentId)
+      .map((root) => ({
+        root,
+        replies: byParent.get(root.id) ?? [],
+        range: ranges.get(root.id) ?? null,
+      }));
   }, [comments, ranges]);
 
   const sortedThreads = useMemo(() => {
@@ -155,6 +167,11 @@ export function SharedArticle(props: SharePayload) {
     } else {
       clearHighlights(root);
     }
+    // 全文纯文本在循环外取一次：locateAnchor 每条批注都要在全文里搜，
+    // 让它自己读 root.textContent 就成了 O(批注数 × 全文长度)。
+    // 下面的 highlightRange/markMedia 只切文本节点、加 span，不改文字内容，
+    // 所以这份快照在整轮铺设里一直有效。
+    const fullText = root.textContent ?? "";
     const next = new Map<string, AnchorRange | null>();
     for (const c of comments) {
       if (c.parentId) continue;
@@ -171,7 +188,7 @@ export function SharedArticle(props: SharePayload) {
         }
         continue;
       }
-      const range = locateAnchor(root, c);
+      const range = locateAnchor(fullText, c);
       next.set(c.id, range);
       if (range && !c.resolvedAt && allowComment) highlightRange(root, range, c.id);
     }
@@ -232,7 +249,6 @@ export function SharedArticle(props: SharePayload) {
     const wrap = wrapRef.current;
     const span = articleRef.current?.querySelector<HTMLElement>(`[data-anno~="${id}"]`);
     setActiveId(id);
-    setDraft("");
     if (span && wrap) {
       if (scrollTo) span.scrollIntoView({ behavior: "smooth", block: "center" });
       const rect = span.getBoundingClientRect();
@@ -244,7 +260,7 @@ export function SharedArticle(props: SharePayload) {
     } else {
       setPanelPos(null); // 失效/已解决批注：无高亮，仅侧栏展开
     }
-  }, [setDraft]);
+  }, []);
 
   // —— 媒体「批注」浮标的显示与延迟隐藏 ——
   const cancelMediaHide = useCallback(() => {
@@ -374,26 +390,20 @@ export function SharedArticle(props: SharePayload) {
 
             <AnnotationOverlay
               wrapRef={wrapRef}
-              selBtn={selBtn}
-              mediaBtn={mediaBtn}
-              composer={composer}
-              setComposer={setComposer}
-              setMediaBtn={setMediaBtn}
-              cancelMediaHide={cancelMediaHide}
-              scheduleMediaHide={scheduleMediaHide}
-              setDraft={setDraft}
-              setActiveId={setActiveId}
-              setPanelPos={setPanelPos}
-              draft={draft}
-              guestName={guestName}
-              busy={busy}
-              needName={needName}
-              nameInput={nameInput}
-              submit={submit}
-              activeThread={activeThread}
-              panelPos={panelPos}
-              resolveThread={resolveThread}
-              removeComment={removeComment}
+              selection={{ selBtn, mediaBtn, composer }}
+              thread={{ active: activeThread, pos: panelPos }}
+              handlers={{
+                setComposer,
+                setMediaBtn,
+                setActiveId,
+                setPanelPos,
+                cancelMediaHide,
+                scheduleMediaHide,
+                submit,
+                resolveThread,
+                removeComment,
+              }}
+              compose={{ guestName, busy, needName, nameInput }}
               allowComment={allowComment}
             />
           </div>

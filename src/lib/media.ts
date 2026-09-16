@@ -30,6 +30,11 @@ export function isVideoMime(mime: string): boolean {
   return mime in VIDEO_EXT;
 }
 
+/** 去掉文件名末尾的扩展名：插进正文的图片/视频说明文字里不该带 `.png` */
+export function stripExt(name: string): string {
+  return name.replace(/\.[^.]+$/, "");
+}
+
 export function maxSizeOf(mime: string): number {
   return isVideoMime(mime) ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
 }
