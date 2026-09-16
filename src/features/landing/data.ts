@@ -1,3 +1,8 @@
+/**
+ * 落地页的静态文案与数据源。抽成单独一个文件，是为了让页面组件和结构化数据（JsonLd）读同一份，
+ * 不会出现「正文写 13 套主题、FAQ 里写 12 套」这种对不上的情况。
+ * 这些文字同时承担长尾搜索词，改的时候别把具体做法改成形容词。
+ */
 import {
   ClipboardCheck,
   Cloud,
@@ -15,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+/** 一条能力项：图标 + 标题 + 一句讲做法的描述。 */
 export interface Feature {
   icon: LucideIcon;
   title: string;
@@ -118,12 +124,14 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
   },
 ];
 
+/** 上手三步里的一步。 */
 export interface Step {
   num: string;
   title: string;
   desc: string;
 }
 
+/** 「怎么用」的三步，对应首页主视觉下方那条步骤带。 */
 export const STEPS: Step[] = [
   {
     num: "01",
@@ -142,6 +150,7 @@ export const STEPS: Step[] = [
   },
 ];
 
+/** Mac 客户端的卖点清单。桌面壳的能力变化不会反映到这里，改客户端时记得回来对一遍。 */
 export const MAC_FEATURES: string[] = [
   "登录态持久保存，重启不用重新登录",
   "⌘N 新建文章、⇧⌘H 回工作台、⌘ +/- 缩放",
@@ -150,6 +159,7 @@ export const MAC_FEATURES: string[] = [
   "服务端更新即时生效，不必频繁升级客户端",
 ];
 
+/** 一条常见问题；a 必须是纯文本，原因见 FAQ 上方说明。 */
 export interface FaqItem {
   q: string;
   a: string;

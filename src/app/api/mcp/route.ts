@@ -1,3 +1,9 @@
+/**
+ * MCP server 入口：把文档与素材的增删改查暴露成 MCP 工具，供 Claude 这类客户端调用。
+ * 鉴权走自建 OAuth（/api/oauth/*）签出的 Bearer token，没有 session 也没有 cookie，
+ * 所以每个工具都必须自己从 token 里取 userId 做数据隔离，写操作还要单独过 writeBlocked。
+ * 工具的 description 是模型唯一的使用说明，改措辞会直接影响调用正确率，不要当普通文案改。
+ */
 import { z } from "zod";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
@@ -23,6 +29,7 @@ import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { touchDailyActive } from "@/lib/active";
 
 export const runtime = "nodejs";
+// 上传类工具要在服务端抓远端文件，默认时限不够；与下面 createMcpHandler 里的 maxDuration 保持一致
 export const maxDuration = 60;
 
 /** 从已验证的 token 里取 userId；工具全部据此隔离 */
@@ -32,9 +39,11 @@ function requireUserId(extra: { authInfo?: AuthInfo }): string {
   return uid;
 }
 
+/** 统一的成功返回。MCP 只认 content 数组，结构化数据一律序列化成文本塞进去。 */
 function ok(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
+/** 统一的失败返回。isError 让客户端知道这是工具报错，而不是把错误文本当结果读进去。 */
 function fail(message: string) {
   return { content: [{ type: "text" as const, text: message }], isError: true };
 }
@@ -191,6 +200,7 @@ const handler = createMcpHandler(
         // 视频没有对应的 MCP 内容类型，只返回 URL 文本
         if (args.include_data && !img.mime.startsWith("video/")) {
           try {
+            // 15 秒超时：图片在对象存储上，取不回来也不能把整次工具调用挂死
             const res = await fetch(img.url, { signal: AbortSignal.timeout(15000) });
             if (res.ok) {
               const buf = Buffer.from(await res.arrayBuffer());
@@ -272,6 +282,7 @@ const handler = createMcpHandler(
     );
   },
   { serverInfo: { name: "xedit", version: "1.0.0" } },
+  // disableSse：只保留可流式 HTTP 传输。SSE 要长连接和会话粘性，当前部署形态给不了
   { basePath: "/api", disableSse: true, maxDuration: 60 }
 );
 
@@ -292,9 +303,11 @@ async function verifyToken(req: Request, bearerToken?: string): Promise<AuthInfo
   };
 }
 
+// required: true 时未带 token 的请求会拿到 401 和 resourceMetadataPath，客户端据此自动发现授权服务器
 const authHandler = withMcpAuth(handler, verifyToken, {
   required: true,
   resourceMetadataPath: "/.well-known/oauth-protected-resource",
 });
 
+// 三个方法共用一个 handler：MCP 用 POST 发消息、GET 拉流、DELETE 结束会话
 export { authHandler as GET, authHandler as POST, authHandler as DELETE };

@@ -1,3 +1,8 @@
+/**
+ * 落地页整页。文案数据来自 ./data，主题样张样式来自 ./lib/themeStyles，需要点击的按钮来自
+ * ./components/LandingChrome，本文件只管版面骨架和栏目顺序。
+ * 整个文件没有 "use client"，所以这里不能放 hook 和事件；凡是要交互的都已拆成独立的客户端组件。
+ */
 import Link from "next/link";
 import { Apple, ArrowRight, Check, Download } from "lucide-react";
 import { GithubMark } from "@/components/GithubMark";
@@ -26,6 +31,7 @@ import {
 } from "./components/LandingChrome";
 import { Showcase } from "./components/Showcase";
 
+// 各栏目的栏宽/内边距统一走这个常量，否则相邻栏目的左右边界会差几像素，改宽度只改这里
 const SHELL = "mx-auto max-w-[1140px] px-5 sm:px-8";
 
 /** 栏目头：小号字距标签 + 大标题 + 一句副题 */
@@ -65,6 +71,7 @@ function ThemeCard({ id, name, color, tag }: (typeof THEME_METAS)[number]) {
         <div
           className={themeClass(id)}
           style={{
+            // 真实样张按 0.55 缩小塞进 122px 高的窗口里；width 取 1/0.55≈182%，缩放后刚好铺满卡片宽度
             transform: "scale(0.55)",
             transformOrigin: "top left",
             width: "182%",
@@ -87,8 +94,11 @@ function ThemeCard({ id, name, color, tag }: (typeof THEME_METAS)[number]) {
   );
 }
 
+/** 首页全文。栏目顺序按读者的顾虑排：先看到成品，再知道怎么用，然后是能力、主题、客户端、疑问，最后收束到行动。 */
 export function Landing() {
   return (
+    // landing-scroll 表示落地页有自己的滚动容器（不是整页滚动），globals.css 里给它配了平滑滚动，
+    // 并给带 id 的锚点留了 90px 上边距，避开吸顶导航
     <div className="landing-scroll h-full overflow-y-auto overflow-x-hidden bg-[var(--paper)]">
       {/* 13 套主题样张共用一份样式表，整页只注入这一次 */}
       <style>{buildThemeStyles()}</style>
@@ -104,6 +114,7 @@ export function Landing() {
           />
           <div className={`${SHELL} relative pb-14 pt-14 sm:pt-20 lg:pt-24`}>
             <div className="mx-auto max-w-[760px] text-center">
+              {/* rise 是入场动画，靠递增的 animationDelay 造出自上而下依次浮现；延迟值是照节奏手调的，插入新行要顺着往后顺一遍 */}
               <p className="rise flex items-center justify-center gap-3 text-[12px] font-medium tracking-[0.14em] text-[var(--brand)]">
                 <span className="h-px w-8 bg-[var(--brand)]" />
                 为中文写作者做的排版工具
@@ -146,6 +157,7 @@ export function Landing() {
                 无需注册，打开就写；文章先存在本设备，登录后自动同步云端
               </p>
               <p
+                // 下面三个数字是手写的，没有和 THEME_METAS、导出实现联动；加主题或加导出格式时要回来改
                 className="rise mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12.5px] text-[var(--ink-faint)]"
                 style={{ animationDelay: "0.22s" }}
               >
@@ -189,6 +201,7 @@ export function Landing() {
         {/* ———— 三步 ———— */}
         <section className={`${SHELL} pb-24`}>
           <div className="grid border-y border-[var(--hairline)] sm:grid-cols-3">
+            {/* 三步是并排的卡片，视觉上不需要栏目标题，但缺个 h2 会让屏幕阅读器读出的层级断档 */}
             <h2 className="sr-only">三步把 Markdown 发成公众号文章</h2>
             {STEPS.map((s, index) => (
               <div
@@ -325,6 +338,7 @@ export function Landing() {
                 </span>
                 <LogoMark className="h-6 w-auto text-[var(--ink)]" />
               </div>
+              {/* 分类和文章列表都是写死的示意数据，只为让人看懂桌面窗口长什么样，不要接真实接口 */}
               <div className="grid grid-cols-[104px_1fr]">
                 <div className="space-y-1.5 border-r border-[var(--hairline)] bg-[var(--sidebar)] p-3">
                   {["全部文章", "技术", "职场", "随笔", "图片素材"].map((c, i) => (

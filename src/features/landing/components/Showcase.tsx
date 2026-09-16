@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
  * 既能随主题变色，正文也是真实文字、进得了索引。
  */
 
+/** 一段左右分栏：左文案右示意图。reverse 时左右互换，相邻两段错开排比一顺到底耐看。 */
 function Row({
   eyebrow,
   title,
@@ -46,6 +47,7 @@ function Row({
   );
 }
 
+// 三张示意图共用的卡片外观，保证三段的视觉重量一致
 const card =
   "rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]";
 
@@ -98,6 +100,7 @@ function InlinePipeline() {
   );
 }
 
+// 写死的假数据，只为画出版本列表的样子。不要改成从接口取：落地页是静态页，不该为了示意图发请求
 const VERSIONS = [
   { time: "今天 14:32", kind: "自动", chars: "2,418 字", current: true },
   { time: "今天 11:07", kind: "手动", chars: "2,105 字", current: false },
@@ -155,6 +158,7 @@ function VersionMock() {
   );
 }
 
+// 与 /api/mcp 里实际注册的工具名对齐。那边增删工具时这里要跟着改，否则页面上是过期的承诺
 const MCP_TOOLS = [
   "list_documents",
   "search_documents",
@@ -200,6 +204,7 @@ function McpMock() {
   );
 }
 
+/** 三段展示的排布。顺序对应用户的三个顾虑（样式会不会丢、写崩了怎么办、能不能交给 AI），调顺序会打乱叙述。 */
 export function Showcase() {
   return (
     <div className="space-y-20 sm:space-y-28">

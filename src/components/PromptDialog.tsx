@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 稿纸风格的 prompt / confirm 替代品，两者共用 createDialogHost。
+ * 业务侧只 await askInput() / askConfirm()，不必在每个调用处自己维护开关状态和 Promise。
+ * 两个 Host 都必须挂在根布局；没挂载时 open() 会立刻 resolve 兜底值（null / false），调用方不会卡死。
+ */
 import { useEffect, useRef, useState } from "react";
 import { createDialogHost } from "@/hooks/useDialogHost";
 import { PaperDialog } from "./Modal";
@@ -31,6 +36,7 @@ const confirmHost = createDialogHost<ConfirmOptions, boolean>(false);
 /** 稿纸风格的确认对话框，替代浏览器原生 confirm()；取消 / 宿主未挂载时 resolve false */
 export const askConfirm = confirmHost.open;
 
+/** 输入弹窗宿主。挂在根布局，未打开时不渲染任何 DOM。 */
 export function PromptHost() {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +49,7 @@ export function PromptHost() {
       const t = setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
+      // 延后一小会儿再聚焦：元素刚挂载且正在走入场动画，同步调 focus/select 不一定生效
       }, 20);
       return () => clearTimeout(t);
     }
@@ -50,6 +57,7 @@ export function PromptHost() {
 
   if (!state) return null;
 
+  // 全空白输入按取消处理：这个弹窗的用处（新建、重命名）都不接受空名字
   const submit = () => {
     const v = value.trim();
     close(v ? v : null);
@@ -93,6 +101,7 @@ export function PromptHost() {
   );
 }
 
+/** 确认弹窗宿主。没有内部状态，点任一按钮即 resolve 并关闭。 */
 export function ConfirmHost() {
   const { state, close } = confirmHost.useHost();
 

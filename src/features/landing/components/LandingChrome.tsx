@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 落地页共用的外壳零件：按钮样式常量、行动按钮、顶部导航栏。
+ * 按钮的实际行为（新建还是继续本地文稿、弹哪个登录框）由 LandingActions 的 Provider 提供，
+ * 所以 /themes 这类独立静态页可以直接复用这些组件，不用各自接一套逻辑。
+ */
 import Link from "next/link";
 import { ArrowRight, PenLine } from "lucide-react";
 import { DarkToggle } from "@/components/DarkToggle";
@@ -8,6 +13,7 @@ import { LogoMark } from "@/components/LogoMark";
 import { GITHUB_URL, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 import { useLandingActions } from "../LandingActions";
 
+// 按钮外观做成类名常量而不是组件：落地页里有几处要把这套样式套在 Link 或别的标签上
 export const BTN_PRIMARY =
   "inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-6 text-[14.5px] font-medium text-[var(--brand-fg)] transition-all hover:bg-[var(--brand-deep)] hover:shadow-[0_8px_22px_-8px_rgba(72,71,143,0.55)]";
 
@@ -31,6 +37,7 @@ export function StartWritingButton({
   );
 }
 
+/** 登录入口。点击行为由 Provider 决定，通常是就地弹登录框而不是跳页面。 */
 export function LoginButton({ className = BTN_GHOST }: { className?: string }) {
   const { onLogin } = useLandingActions();
   return (
@@ -54,6 +61,7 @@ export function StartWritingLink() {
   );
 }
 
+// 全是页内锚点，对应 Landing.tsx 里各 section 的 id；改 id 必须同步改这里，否则导航点了不动
 const NAV = [
   { href: "#features", label: "功能" },
   { href: "#themes", label: "主题" },

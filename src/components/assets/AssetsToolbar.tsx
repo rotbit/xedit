@@ -14,6 +14,7 @@ const FILTERS: [AssetFilter, string][] = [
   ["unused", "未引用"],
 ];
 
+/** 顶栏自己不持有筛选条件和列数，全部由 AssetsGallery 传入、改动回调上去，保证刷新后状态一致。 */
 export function AssetsToolbar({
   filter,
   onFilterChange,
@@ -42,6 +43,7 @@ export function AssetsToolbar({
   onSync: () => void;
   onUpload: (files: FileList | null) => void;
 }) {
+  // 隐藏的 file input：浏览器只在真实用户手势里允许打开文件选择框，所以得由按钮的 click 转发过来
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -97,6 +99,7 @@ export function AssetsToolbar({
       <button
         className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
         onClick={() => fileInputRef.current?.click()}
+        // 对象存储没配好就没地方放文件，按钮直接禁用，不要让用户传完才看到失败
         disabled={uploading || !ossConfigured}
       >
         {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
@@ -110,6 +113,7 @@ export function AssetsToolbar({
         className="hidden"
         onChange={(e) => {
           onUpload(e.target.files);
+          // 用完清空 value：否则连着选同一个文件不会再触发 change，用户会以为按钮坏了
           e.target.value = "";
         }}
       />

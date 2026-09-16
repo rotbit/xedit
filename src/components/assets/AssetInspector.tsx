@@ -20,6 +20,7 @@ const actionCls =
 
 const labelCls = "shrink-0 text-[11.5px] text-[var(--ink-faint)]";
 const valueCls = "min-w-0 break-all text-right text-[11.5px] text-[var(--ink-soft)]";
+// 模块级的 JSX 常量：同一份元素在下面用了两次，React 允许一个元素对象渲染到多个位置
 const divider = <div className="my-4 h-px bg-[var(--hairline)]" />;
 const sectionTitle = "mb-2 text-[11.5px] font-medium text-[var(--ink-faint)]";
 
@@ -40,6 +41,7 @@ function UsageList({
   docs: UsageDoc[] | undefined;
   onOpenDoc?: (id: string) => void;
 }) {
+  // undefined 是「还没查回来」，空数组是「查过、确实没人引用」，两种状态的文案不能混
   if (!docs) return <p className="text-[11.5px] text-[var(--ink-faint)]">正在查询引用…</p>;
   if (docs.length === 0) {
     return <p className="text-[11.5px] text-[var(--ink-faint)]">未被任何文章引用</p>;
@@ -77,6 +79,7 @@ function UsageList({
                 </button>
               ) : (
                 <a
+                  // 没传 onOpenDoc（比如独立的图片库页面）时退回整页跳转，功能不缺只是慢一点
                   href={`/?doc=${d.id}`}
                   className={`${base} text-[var(--ink-soft)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]`}
                   title={`打开「${d.title}」`}
@@ -92,6 +95,7 @@ function UsageList({
   );
 }
 
+/** 素材详情栏。asset 换了就整块换内容，不做进出场动画；usage 由上层按需查，这里只负责把三种状态呈现清楚。 */
 export function AssetInspector({
   asset,
   usage,
@@ -109,6 +113,7 @@ export function AssetInspector({
 }) {
   const video = isVideo(asset);
   const size =
+    // 视频本来就没记尺寸，用「—」表示不适用；图片缺尺寸是入库数据没补全，用「未记录」区分开
     asset.width && asset.height ? `${asset.width} × ${asset.height}` : video ? "—" : "未记录";
 
   return (

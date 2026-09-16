@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 全局轻提示。刻意不做成 Context：toast() 是模块级函数，任何位置（包括非组件代码、工具函数）都能直接调，
+ * 消息通过 listeners 推给挂在根布局里的 <Toaster />。
+ * 代价是全应用只能有一个 Toaster，多挂一份就会看到每条提示出现两次。
+ */
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 
@@ -17,6 +22,7 @@ type Listener = (item: ToastItem) => void;
 let nextId = 1;
 const listeners = new Set<Listener>();
 
+/** 发一条提示。Toaster 尚未挂载时这条消息直接丢弃（没有监听者），不会排队补发。 */
 export function toast(message: string, type: ToastType = "info"): void {
   const item = { id: nextId++, message, type };
   listeners.forEach((fn) => fn(item));
@@ -35,8 +41,10 @@ const DURATION: Record<ToastType, number> = {
   error: 5000,
 };
 
+// 必须和全局样式里 toast-out 动画的时长对齐：这里短了会看到提示闪回，长了会留一块空白占位
 const LEAVE_MS = 200;
 
+/** 提示容器，挂在根布局。同屏最多 3 条，更早的会被新消息挤掉。 */
 export function Toaster() {
   const [items, setItems] = useState<ToastItem[]>([]);
 
@@ -48,6 +56,7 @@ export function Toaster() {
 
   useEffect(() => {
     const onToast: Listener = (item) => {
+      // 只保留最近两条再接上新的这条：提示叠太高会挡住正文，也没人会去读第四条
       setItems((prev) => [...prev.slice(-2), item]);
       setTimeout(() => dismiss(item.id), DURATION[item.type]);
     };

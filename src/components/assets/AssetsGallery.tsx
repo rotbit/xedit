@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 图片库整页的编排层：工具栏 / 网格 / 详情栏 / 大图各在自己的文件里，列表分页与搜索在 useAssetsFeed，
+ * 这里只管跨组件的那几件事——选中的是哪张、大图停在第几张、素材被哪些文章引用。
+ * 素材本身都在云端（OSS + /api/assets），本地只存一个列数偏好，换设备只会丢列数。
+ */
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useSession } from "next-auth/react";
 import { Images, Loader2 } from "lucide-react";
@@ -17,6 +22,7 @@ import { useAssetsFeed } from "./useAssetsFeed";
 /** 图片库：左网格 + 右详情栏的通栏两栏视图，双击开大图 */
 
 const COLS_KEY = "xedit-assets-cols";
+// 3～8 与 AssetsToolbar 里滑杆的 min / max 是两份各自写死的数，改范围要同时改两处
 const COLS_MIN = 3;
 const COLS_MAX = 8;
 const COLS_DEFAULT = 5;
@@ -41,6 +47,7 @@ const useNarrow = () =>
     () => false
   );
 
+/** 图片库主视图：ossConfigured 为 false 时服务端存不了新文件，页面退化成只浏览已有记录 */
 export function AssetsGallery({
   ossConfigured,
   onOpenDoc,
@@ -54,6 +61,7 @@ export function AssetsGallery({
   const feed = useAssetsFeed();
   const { assets, measure, loadMore, refresh, dropLocal, hasMore } = feed;
 
+  // 没存过时 readLocal 给 null、Number(null) 是 0，clampCols 会把它夹成 COLS_MIN；COLS_DEFAULT 只在服务端渲染和存了非数字时用得上
   const [colCount, setColCount] = useState(() =>
     typeof window === "undefined" ? COLS_DEFAULT : clampCols(Number(readLocal(COLS_KEY)))
   );
@@ -97,6 +105,7 @@ export function AssetsGallery({
     return () => {
       cancelled = true;
     };
+  // 依赖里带着 usage 会让 setUsage 重新触发本 effect，靠开头那句缓存命中挡住，不会变成死循环
   }, [targetId, usage]);
 
   // 详情栏打开时：←/→ 换选中，Esc 收起。大图自己有一套键盘，开着就让位
@@ -139,6 +148,7 @@ export function AssetsGallery({
     }
   };
 
+  // 串行传而不是 Promise.all：某个文件失败只弹它自己的错，剩下的照传，最后按成功条数汇总一句
   const uploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
@@ -172,7 +182,9 @@ export function AssetsGallery({
         toast("删除失败", "error");
         return;
       }
+      // 删完只把这一条从本地列表摘掉：refresh 会退回第一页整体替换，已经往下翻出来的页和滚动位置全丢
       dropLocal(asset.id);
+      // 删的不一定是详情栏里那张（大图里也能删），所以只有正好是它时才收起详情栏
       setSelectedId((prev) => (prev === asset.id ? null : prev));
       setLightbox(null);
       toast("已删除", "success");

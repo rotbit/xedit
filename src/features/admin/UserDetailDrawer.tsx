@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 后台的账号明细抽屉：进来时一次性拉 /api/admin/users/[id]，展示账号信息、近期文章和素材清单。
+ * 纯只读视图，封禁、改配额等动作在 AdminDashboard 那边的弹窗里做。
+ * 接口返回的文章与素材都是截断后的若干条，所以小标题写的是「近 N 篇」而不是总数。
+ */
 import { useEffect, useState } from "react";
 import { ExternalLink, FileText, Film, Image as ImageIcon, Loader2, ShieldCheck, X } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
@@ -33,6 +38,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
   const t = detail?.totals;
 
   return (
+    // z-[105] 夹在页面内容和后台确认弹窗（dialogs.tsx 用 z-[110]）之间：从抽屉里点封禁弹出的确认框必须压在抽屉上面
     <div className="fixed inset-0 z-[105]" onClick={onClose}>
       <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" />
       <div
@@ -50,6 +56,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* u、t 是 detail 的字段，TS 无法从 detail 非空推出它们非空，这里连带一起判，下面才能直接取值 */}
           {error ? (
             <p className="py-16 text-center text-[13px] text-red-600 dark:text-red-400">{error}</p>
           ) : !detail || !u || !t ? (
@@ -61,6 +68,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
               {/* 基本信息 */}
               <div className="flex items-center gap-3">
                 {u.image ? (
+                  // 头像地址来自第三方登录，域名不固定，配不进 next/image 的远端白名单，只能用原生 img
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={u.image}
@@ -69,6 +77,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
                   />
                 ) : (
                   <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent-wash)] text-[16px] text-[var(--accent)]">
+                    {/* 没头像时用昵称或邮箱首字母兜底；两者都空给个问号，免得出现一个空圆圈 */}
                     {(u.name ?? u.email ?? "?").slice(0, 1).toUpperCase()}
                   </span>
                 )}
@@ -108,6 +117,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
                     / {quotaLabel(u.storageQuota, t.defaultQuota)}
                   </span>
                 </p>
+                {/* 配额 0 约定为不限制，没有分母也就没有占比，这时不画进度条（见 format.ts 的 quotaLabel） */}
                 {u.storageQuota !== 0 ? (
                   <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--panel)]">
                     <div
@@ -166,6 +176,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
                         <ImageIcon size={13} className="shrink-0 text-[var(--ink-faint)]" />
                       )}
                       <p className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--ink)] group-hover:text-[var(--accent-deep)]">
+                        {/* 素材表只存了 url，没留原始文件名，取路径末段当名字显示 */}
                         {a.url.split("/").pop()}
                       </p>
                       <span className="shrink-0 text-[11.5px] text-[var(--ink-faint)]">
