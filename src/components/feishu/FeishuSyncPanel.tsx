@@ -2,6 +2,11 @@
 
 // 飞书同步状态面板：从 FeishuDialog 搬出，展示扫描中/进度条/最近处理/失败列表/中断提示
 
+/**
+ * 飞书同步的状态卡片：扫描中、进度条、当前文档、自动重试、失败列表、中断提示。
+ * 只读 useFeishuSync 暴露的状态，自己不发任何请求；同步循环跑在 hook 里，
+ * 所以关掉对话框（本组件卸载）不会影响同步进度。
+ */
 import { Loader2 } from "lucide-react";
 import type { FeishuSyncState } from "@/hooks/useFeishuSync";
 
@@ -10,6 +15,7 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
   const syncing = sync.syncing;
   const progress = sync.progress;
 
+  // 三者都没有说明这个账号从没同步过：整块不渲染，别在对话框里留一张空卡片
   if (!(syncing || progress || sync.error)) return null;
 
   return (
@@ -28,6 +34,7 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
                 className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
                 style={{
                   width: `${
+                    // total 为 0（空知识库）时直接按 100% 画满，否则这里会算出 0/0
                     progress.total > 0
                       ? Math.round(
                           ((progress.total - progress.pending) / progress.total) * 100
@@ -64,6 +71,7 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
           ) : null}
           {sync.recent.length > 0 ? (
             <ul className="mt-1.5 space-y-0.5 text-[var(--ink-faint)]">
+              {/* 最近处理只留 4 条、失败只留 5 条：这块嵌在对话框里，再长会把底部按钮挤出可视区 */}
               {sync.recent.slice(0, 4).map((it, i) => (
                 <li key={i} className="truncate">
                   {it.action === "created" ? "新增" : "更新"}：{it.title}
@@ -85,6 +93,7 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
           ) : null}
         </>
       ) : null}
+      {/* 中断提示只在停下来之后显示：同步中的网络抖动会自动重试，那时候报错只会吓人 */}
       {!syncing && sync.error ? (
         <p className={`text-red-600/90 ${progress ? "mt-1.5" : ""}`}>
           同步已中断：{sync.error}。已同步的内容都已保存，点「继续同步」从断点继续。

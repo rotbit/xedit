@@ -1,3 +1,8 @@
+/**
+ * 分享页批注的公开读写接口，不需要登录。匿名读者靠自己生成的 guest key 认领自己发的批注，
+ * 服务端只存它的 sha256（authorKeyHash），响应里从不下发这个 hash。
+ * 作者带登录态发表时标记 isOwner，前端据此显示「作者」身份。
+ */
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -41,6 +46,7 @@ export async function POST(req: Request, { params }: Params) {
   const body = await req.json().catch(() => ({}));
   const text = typeof body.body === "string" ? body.body.trim().slice(0, 2000) : "";
   if (!text) return NextResponse.json({ error: "批注内容不能为空" }, { status: 400 });
+  // key 由前端生成并只存在本地，换浏览器就认不回自己的批注了；这是可接受的取舍——批注不是账号数据
   const key = typeof body.key === "string" ? body.key.slice(0, 64) : "";
   const parentId = typeof body.parentId === "string" ? body.parentId : null;
 
@@ -65,6 +71,7 @@ export async function POST(req: Request, { params }: Params) {
     }
   }
 
+  // 计数和写入不在一个事务里，并发下可能略微超过上限；这里只是挡灌水，不追求精确
   const total = await prisma.shareComment.count({ where: { shareId: share.id } });
   if (total >= SHARE_COMMENT_CAP) {
     return NextResponse.json({ error: "该分享的批注数已达上限" }, { status: 429 });
@@ -75,6 +82,7 @@ export async function POST(req: Request, { params }: Params) {
       shareId: share.id,
       parentId,
       author,
+      // 作者发的批注不记 guest key（靠登录态识别就够）；空串的含义是「谁都认领不了这条」
       authorKeyHash: !isOwner && key ? hashGuestKey(key) : "",
       isOwner,
       anchorType: parentId ? "text" : anchorType,
@@ -84,6 +92,7 @@ export async function POST(req: Request, { params }: Params) {
       anchorPrefix: parentId
         ? ""
         : (typeof body.anchorPrefix === "string" ? body.anchorPrefix.slice(0, 64) : ""),
+      // 同一段文字在正文里可能出现多次，anchorIndex 记的是第几处；回复挂在父批注上、不需要锚点，一律置 0
       anchorIndex:
         !parentId && Number.isInteger(body.anchorIndex) && body.anchorIndex >= 0
           ? Math.min(body.anchorIndex, 9999)

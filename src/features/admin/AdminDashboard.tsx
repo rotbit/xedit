@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 管理后台整页。概览数据来自 /api/admin/overview，账号列表来自 /api/admin/users。
+ * 管理员身份由服务端按 ADMIN_EMAILS 白名单判定，本文件不做任何权限判断，只按接口返回渲染。
+ * 每次写操作成功后统一 refreshAll，让概览和列表一起重拉，避免两处数字对不上。
+ */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -33,6 +38,7 @@ import { UserDetailDrawer } from "./UserDetailDrawer";
 export function AdminDashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [list, setList] = useState<UserListResp | null>(null);
+  // q 是输入框里的字，query 是已提交的搜索词：分成两个状态，敲字时才不会每键一次就发请求
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -122,6 +128,7 @@ export function AdminDashboard() {
     refreshAll();
   };
 
+  // 至少算 1 页：搜索无结果时 total 为 0，不兜底会显示成「第 1 / 0 页」
   const totalPages = list ? Math.max(1, Math.ceil(list.total / list.pageSize)) : 1;
 
   return (
@@ -277,6 +284,7 @@ export function AdminDashboard() {
                     </span>
                   )}
                 </td>
+                {/* 整行点击会打开明细抽屉，所以操作列要吞掉冒泡，否则点菜单的同时抽屉也弹出来 */}
                 <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <Dropdown
                     width={168}
@@ -305,6 +313,7 @@ export function AdminDashboard() {
                         只读封禁…
                       </button>
                     )}
+                    {/* 白名单管理员不给封禁和删除入口；服务端对这两个动作也会直接返回 400，前端只是少一次白跑 */}
                     {u.admin ? null : (
                       <>
                         <div className="my-1 border-t border-[var(--hairline)]" />
@@ -318,6 +327,7 @@ export function AdminDashboard() {
                 </td>
               </tr>
             ))}
+            {/* colSpan 必须等于表头列数，加减列时这两处空态要一起改，否则占位单元格会把表格撑歪 */}
             {list === null ? (
               <tr>
                 <td colSpan={8} className="px-4 py-14">
@@ -416,6 +426,7 @@ function StatCard({
       <p className="mt-1.5 text-[22px] font-semibold leading-none text-[var(--ink)] [font-family:var(--serif)]">
         {value}
       </p>
+      {/* 提示行留固定高度：四张卡里有的没有提示，不占位的话卡片高度会参差 */}
       <p className="mt-1.5 h-4 text-[11.5px] text-[var(--ink-faint)]">{hint}</p>
     </div>
   );
@@ -424,6 +435,7 @@ function StatCard({
 /** 用量条：已用 / 生效配额，逼近上限时染红 */
 function StorageCell({ u, defaultQuota }: { u: AdminUser; defaultQuota: number }) {
   const percent = usagePercent(u.storageUsed, u.storageQuota, defaultQuota);
+  // 90% 就染红，留出腾挪余地：真到配额上限时上传会被 uploadBlocked 直接拒掉
   const nearLimit = percent >= 90;
   return (
     <div className="min-w-[140px]">

@@ -2,10 +2,16 @@
 
 // 飞书对话框内的「使用说明」折叠面板：从 FeishuDialog 搬出，配置前后都可查看操作指引
 
+/**
+ * 「使用说明」折叠面板，内容是纯文案。
+ * 但里面列的 4+3 个权限点、重定向 URL 形态和同步规则必须和服务端实际申请的 scope 一致，
+ * 改动飞书侧权限或回调路径时，这份说明要一起改，否则用户照着配会连不上。
+ */
 import { useState } from "react";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { toast } from "../Toast";
 
+// 权限名一律等宽字体，左右各留一点空隙，免得和中文正文糊在一起认不出边界
 const codeCls = "mx-0.5 [font-family:var(--mono)]";
 
 /** 使用说明：折叠收纳在对话框底部，配置前后都可查看 */
@@ -17,6 +23,7 @@ export function Guide({ callbackUrl, defaultOpen }: { callbackUrl: string; defau
     try {
       await navigator.clipboard.writeText(callbackUrl);
       setCopied(true);
+      // 只把按钮上的对勾复原，不额外弹 toast：用户此刻正盯着这个按钮，图标变化就是反馈
       setTimeout(() => setCopied(false), 1500);
     } catch {
       toast("复制失败", "error");

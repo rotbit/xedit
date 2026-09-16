@@ -1,3 +1,8 @@
+/**
+ * 自托管授权服务器的 token 端点，配合 /api/oauth/authorize 与 /api/mcp 使用。
+ * 接入的都是公有客户端：没有 client_secret，安全性靠 PKCE S256 校验和刷新令牌轮换撑着。
+ * 所有出口都带 CORS 头（corsJson / oauthError / corsPreflight），因为 MCP 客户端从别的源直接打过来。
+ */
 import { OAUTH, mcpResourceUrl, publicOrigin } from "@/lib/oauth/config";
 import { corsJson, corsPreflight, oauthError, readCredentials } from "@/lib/oauth/http";
 import {
@@ -12,6 +17,8 @@ import { signAccessToken } from "@/lib/oauth/token";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** 签发一组令牌。existingRefresh 有值表示调用方已经轮换出了新的刷新令牌，直接沿用；
+ *  这里不能再签一个，否则一次刷新会留下两个都有效的刷新令牌。 */
 async function issueTokens(
   origin: string,
   clientId: string,
@@ -20,6 +27,7 @@ async function issueTokens(
   resource: string,
   existingRefresh?: string
 ): Promise<Response> {
+  // access token 必须绑定受众（RFC 8707），客户端没传 resource 时退回本站的 MCP 资源标识
   const aud = resource || mcpResourceUrl(origin);
   const accessToken = await signAccessToken({ userId, clientId, scope, issuer: origin, resource: aud });
   const refreshToken =
@@ -40,6 +48,7 @@ export async function POST(req: Request): Promise<Response> {
   const grantType = form.get("grant_type") ?? "";
   const clientId = form.get("client_id") ?? "";
 
+  // 客户端身份相关的错误按规范回 401，其余参数类错误走 oauthError 默认的 400
   if (!clientId) return oauthError("invalid_client", "缺少 client_id", 401);
   const client = await getClient(clientId);
   if (!client) return oauthError("invalid_client", "客户端不存在", 401);
@@ -77,6 +86,7 @@ export async function POST(req: Request): Promise<Response> {
   return oauthError("unsupported_grant_type", `不支持的 grant_type: ${grantType}`);
 }
 
+/** 跨源预检。少了它，浏览器里的 MCP 客户端连令牌都换不到。 */
 export function OPTIONS(): Response {
   return corsPreflight();
 }

@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * 版本历史抽屉（贴右）与版本预览盖层（占满左边），数据全来自 /api/documents/[id]/versions。
+ * 只有登录用户的云端文档才有版本表，本地模式与未登录时这里只放一段说明文案。
+ * 服务端每篇最多留 100 版、按时间倒序返回（见 lib/versions.ts），所以列表第一条就是最新的。
+ */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X, History, Loader2, ArchiveRestore, BookmarkPlus, Trash2 } from "lucide-react";
 import { useStore } from "@/store/useStore";
@@ -10,6 +15,7 @@ import { formatDateTime } from "@/lib/format";
 import { toast } from "./Toast";
 import { askConfirm } from "./PromptDialog";
 
+/** 列表项：接口刻意不返回正文（只带字数），正文由 VersionPreview 单独再取一次 */
 export interface VersionMeta {
   id: string;
   title: string;
@@ -18,6 +24,7 @@ export interface VersionMeta {
   chars: number;
 }
 
+// 三种来源都由服务端写死：auto=写作途中定时定格，manual=点了「存档」，restore=回滚前对当前稿的自动备份
 const KIND_LABEL: Record<VersionMeta["kind"], { text: string; cls: string }> = {
   auto: { text: "自动", cls: "bg-[var(--paper)] text-[var(--ink-faint)]" },
   manual: { text: "手动", cls: "bg-[#eef4fb] text-[#1e6bb8] dark:bg-[#1c2a3a] dark:text-[#7fb3e8]" },
@@ -27,6 +34,7 @@ const KIND_LABEL: Record<VersionMeta["kind"], { text: string; cls: string }> = {
 /** 版本列表里的时刻：同年的省掉年份——这里的条目绝大多数是今年的，年份纯噪音 */
 const versionTime = (iso: string) => formatDateTime(iso, { omitCurrentYear: true });
 
+/** 版本历史抽屉：列出这篇文档的版本快照，可预览 diff、回滚、删除，或立刻存一版 */
 export function VersionsPanel({
   open,
   onClose,
@@ -41,11 +49,14 @@ export function VersionsPanel({
 }) {
   const docId = useStore((s) => s.docId);
   useEscape(onClose, open);
+  // 上面两个 hook 必须无条件调用（useEscape 靠第二个参数开关），所以 return 只能放在它们后面
   if (!open) return null;
 
   return (
+    // z-80 低于弹窗外壳的默认 110（见 components/Modal.tsx）：回滚、删除的确认框要能压在抽屉上面
     <div className="fixed inset-0 z-[80]" onClick={onClose}>
       <aside
+        // top-12 让开顶栏、bottom-7 让开底部状态条；340 的宽度与 VersionPreview 的 right-[340px] 是一对，改一个就要改两处
         className="absolute bottom-7 right-0 top-12 flex w-[340px] flex-col border-l border-[var(--hairline)] bg-[var(--panel)] shadow-[-8px_0_30px_rgba(0,0,0,0.08)]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -150,6 +161,7 @@ function VersionPreview({
   }, [diff]);
 
   return (
+    // right-[340px] 正好让开右边的抽屉；窄屏（max-md）改成铺满，它在 DOM 里排在抽屉之后，会直接盖住抽屉
     <section className="fixed bottom-7 left-0 right-[340px] top-12 flex flex-col border-r border-[var(--hairline)] bg-[var(--paper)] max-md:right-0">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--hairline)] bg-[var(--panel)] pl-5 pr-2">
         <span className="text-[13px] font-medium">{versionTime(version.createdAt)}</span>
@@ -280,10 +292,12 @@ function VersionList({
     };
   }, [load]);
 
+  // load 失败返回 null，而 null 在下面的渲染里表示「加载中」：刷新失败会停在加载态，不会留一份可能已过期的列表
   const refresh = async () => {
     setVersions(await load());
   };
 
+  // 不带 body：服务端按 manual 存档，只与最近一版去重（lib/versions.ts 的 snapshot），所以 created=false 就是内容没变
   const saveNow = async () => {
     const res = await fetch(`/api/documents/${docId}/versions`, { method: "POST" });
     const data = await res.json().catch(() => ({}));
@@ -295,6 +309,7 @@ function VersionList({
     }
   };
 
+  // 提示里那句「当前内容会先自动备份」不是这里做的：服务端在同一个事务里先存一版 kind=restore，再用旧内容覆盖文档
   const restore = async (v: VersionMeta) => {
     const ok = await askConfirm({
       title: "回滚到该版本",
@@ -386,9 +401,11 @@ function VersionList({
                 >
                   {KIND_LABEL[v.kind]?.text ?? v.kind}
                 </span>
+                {/* 接口按 createdAt 倒序给，所以只有下标 0 才是最新的一版 */}
                 {i === 0 ? <span className="text-[10px] text-[var(--ink-faint)]">最新</span> : null}
                 <span className="flex-1" />
                 <button
+                  // 触屏没有 hover，group-hover 永远不会触发，所以 hover:none 下让删除、回滚两个按钮常显，否则根本点不出来
                   className="invisible cursor-pointer rounded p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-red-600 dark:hover:text-red-400 group-hover:visible [@media(hover:none)]:visible"
                   title="删除该版本"
                   onClick={(e) => {
