@@ -192,13 +192,8 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
           if (mark) headMark(ctx, mark.from, mark.to);
           return;
         }
-        if (name === "SetextHeading1" || name === "SetextHeading2") {
-          const line = state.doc.lineAt(node.from);
-          ctx.lineClass(line.from, name === "SetextHeading1" ? "cm-lp-h1" : "cm-lp-h2");
-          if (line.number === 1) ctx.lineClass(line.from, "cm-lp-first");
-          for (const m of node.node.getChildren("HeaderMark")) headMark(ctx, m.from, m.to);
-          return;
-        }
+        // 下划线式的 Setext 标题不必处理：markdown 扩展已 remove: ["SetextHeading"]
+        // （见 src/lib/editor/extensions.ts），语法树里压根不会出现这两个节点
         if (name === "Blockquote") {
           if (calloutDecorations(ctx, node.from, node.to)) return;
           ctx.eachLine(node.from, node.to, () => "cm-lp-quote");

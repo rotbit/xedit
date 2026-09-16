@@ -1,5 +1,6 @@
 import { EditorView, WidgetType } from "@codemirror/view";
 import { deleteFencedBlock, fencedCodeAt } from "@/lib/livePreview/fenceKeys";
+import { editOnClick } from "@/lib/livePreview/widgetUtils";
 
 /** 即时渲染用到的替换部件（图片/视频/代码语言下拉/分割线/列表点/复选框），
  *  装饰构建逻辑见 livePreview/index.ts */
@@ -25,15 +26,8 @@ export class ImageWidget extends WidgetType {
     fallback.textContent = this.alt ? `${this.alt}（图片未加载）` : "图片未加载";
     wrap.appendChild(img);
     wrap.appendChild(fallback);
-    // 点击图片＝有意编辑：把光标放进语法内部，仅此刻还原为源码
-    wrap.addEventListener("mousedown", (e) => {
-      if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const pos = view.posAtDOM(wrap);
-      view.dispatch({ selection: { anchor: pos + 2 }, scrollIntoView: true });
-      view.focus();
-    });
+    // 点击图片＝有意编辑：把光标放进语法内部（`![` 之后），仅此刻还原为源码
+    editOnClick(wrap, view, 2);
     return wrap;
   }
   ignoreEvent() {
@@ -62,14 +56,8 @@ export class VideoWidget extends WidgetType {
     bar.className = "cm-lp-video-bar";
     bar.textContent = this.alt ? `▶ ${this.alt}` : "▶ 视频";
     bar.title = "点击编辑视频源码";
-    bar.addEventListener("mousedown", (e) => {
-      if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const pos = view.posAtDOM(wrap);
-      view.dispatch({ selection: { anchor: pos + 2 }, scrollIntoView: true });
-      view.focus();
-    });
+    // 监听挂在说明栏上，位置按外层容器回查（播放条自己会吃掉点击）
+    editOnClick(bar, view, 2, wrap);
     wrap.appendChild(video);
     wrap.appendChild(bar);
     return wrap;
@@ -201,14 +189,7 @@ export class HrWidget extends WidgetType {
   toDOM(view: EditorView) {
     const el = document.createElement("span");
     el.className = "cm-lp-hr";
-    el.addEventListener("mousedown", (e) => {
-      if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const pos = view.posAtDOM(el);
-      view.dispatch({ selection: { anchor: pos + 1 }, scrollIntoView: true });
-      view.focus();
-    });
+    editOnClick(el, view, 1);
     return el;
   }
   ignoreEvent() {
