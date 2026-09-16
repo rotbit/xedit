@@ -7,6 +7,7 @@ import { reportScrollLine, scrollLineIntoView } from "@/lib/editor/scroll";
 import { useThrottledCallback } from "@/hooks/useThrottledCallback";
 import { useMenuChannel } from "@/hooks/useMenuChannel";
 import { runFormatCommand } from "@/lib/editor/commands";
+import { toast } from "@/components/Toast";
 import type { EditorHandle, SelectionInfo } from "@/lib/editor/types";
 import { createEditorExtensions, editorModeExtension } from "@/lib/editor/extensions";
 import { preloadClipboardConverter } from "@/lib/editor/clipboard";
@@ -102,6 +103,8 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         onSlashChange: emitSlash,
         onWikiMenuChange: emitWiki,
         getDocs: () => docsRef.current ?? [],
+        // 命令层（上传图片/视频、存入文库）的提示都从这里弹，lib 自己不碰 UI
+        notify: toast,
         onChange: pushChange,
         flush: pushChange.flush,
         onSelectionChange: (info) => onSelectionChangeRef.current?.(info),
@@ -173,7 +176,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     },
     applyFormat: (cmd, arg) => {
       const view = viewRef.current;
-      if (view) runFormatCommand(view, cmd, arg);
+      if (view) runFormatCommand(view, cmd, toast, arg);
     },
   }));
 

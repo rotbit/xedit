@@ -11,7 +11,7 @@ import { livePreview } from "@/lib/livePreview";
 import { codeHighlight, mdHighlight, sourceHeadingHighlight } from "@/lib/editor/highlight";
 import { caretAndActiveLine } from "@/lib/editor/caret";
 import { lineSelectionWithoutNewline } from "@/lib/lineSelection";
-import { runFormatCommand, type FormatCommand } from "@/lib/editor/commands";
+import { runFormatCommand, type FormatCommand, type Notify } from "@/lib/editor/commands";
 import { slashMenu, type SlashState } from "@/lib/slashMenu";
 import { editorClipboard } from "@/lib/editor/clipboard";
 import { wikiLinkExtension } from "@/lib/wikiLink/parser";
@@ -30,14 +30,16 @@ interface EditorExtensionOptions {
   /** `[[` 补全的候选来源：编辑器只建一次，文库随时在变，所以现读现取 */
   getDocs: () => DocMeta[];
   onScroll: (view: EditorView) => void;
+  /** 命令层（上传图片/视频等）要弹的提示：lib 不 import components，由组件传 toast 进来 */
+  notify: Notify;
 }
 
 /** 快捷键与工具栏、斜杠菜单共用命令入口，格式行为只在命令层定义。 */
-function formatKey(key: string, command: FormatCommand): KeyBinding {
+function formatKey(key: string, command: FormatCommand, notify: Notify): KeyBinding {
   return {
     key,
     run: (view) => {
-      runFormatCommand(view, command);
+      runFormatCommand(view, command, notify);
       return true;
     },
   };
@@ -68,13 +70,13 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
     syntaxHighlighting(codeHighlight),
     options.liveCompartment.of(editorModeExtension(options.live)),
     // 斜杠菜单内部通过 Prec.highest 提升按键优先级，只在菜单打开时消费导航按键。
-    slashMenu(options.onSlashChange),
+    slashMenu({ onState: options.onSlashChange, notify: options.notify }),
     // `[[` 文章标题补全：同样只在打开时消费按键，两个菜单的触发条件互不重叠。
     wikiLinkMenu({ getDocs: options.getDocs, onState: options.onWikiMenuChange }),
     keymap.of([
-      formatKey("Mod-b", "bold"),
-      formatKey("Mod-i", "italic"),
-      formatKey("Mod-k", "link"),
+      formatKey("Mod-b", "bold", options.notify),
+      formatKey("Mod-i", "italic", options.notify),
+      formatKey("Mod-k", "link", options.notify),
       {
         key: "Mod-s",
         run: () => {
@@ -107,6 +109,6 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
         return false;
       },
     }),
-    editorClipboard,
+    editorClipboard(options.notify),
   ];
 }

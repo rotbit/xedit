@@ -33,6 +33,11 @@ export async function runExport(kind: ExportKind): Promise<void> {
   else if (kind === "pdf") await exportPdf(s.title, s.content, opts);
   else {
     toast("正在生成长图…");
-    await exportImage(s.title, s.content, opts);
+    try {
+      await exportImage(s.title, s.content, opts);
+    } catch {
+      // 跨域外链图片会让 html-to-image 整张失败，给用户一个能看懂的原因
+      toast("长图生成失败（外链图片可能跨域受限）", "error");
+    }
   }
 }

@@ -1,5 +1,4 @@
 import { buildWechatHtml, type WechatBuildOptions } from "./copy/wechat";
-import { toast } from "@/components/Toast";
 
 export function downloadFile(filename: string, content: BlobPart, mime: string): void {
   const blob = new Blob([content], { type: mime });
@@ -8,7 +7,9 @@ export function downloadFile(filename: string, content: BlobPart, mime: string):
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  // click() 只是把下载排进队列，浏览器随后才真正去读这个 blob URL：
+  // 同步 revoke 会让下载拿到一个空文件（Safari/Firefox 尤其明显），留一秒再释放
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function exportMarkdown(title: string, markdown: string): void {
@@ -65,18 +66,34 @@ export async function exportPdf(
   iframe.style.border = "none";
   document.body.appendChild(iframe);
   const doc = iframe.contentDocument;
-  if (!doc) return;
-  doc.open();
-  doc.write(html);
-  doc.close();
-  iframe.onload = () => {
+  if (!doc) {
+    // 拿不到文档就写不进内容，可 iframe 已经插进 body 了，先摘掉再退出，别留个空壳
+    iframe.remove();
+    return;
+  }
+  // 打印只该发生一次，下面两条触发路径都从这里收口
+  let printed = false;
+  const printOnce = () => {
+    if (printed) return;
+    printed = true;
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
     setTimeout(() => iframe.remove(), 60_000);
   };
+  // onload 要挂在 doc.open() 之前：正文没有外链资源时 load 可能在 close() 里就派发掉，
+  // 挂晚了这个回调永远不跑 —— 表现是「导出 PDF 点了没反应」，还漏一个 iframe 在 body 上。
+  // 再拿 readyState 兜一道底，覆盖 load 已经错过的情况。
+  iframe.onload = printOnce;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  requestAnimationFrame(() => {
+    if (doc.readyState === "complete") printOnce();
+  });
 }
 
-/** 导出长图：以 750px 宽渲染内联样式版全文，转 PNG 下载 */
+/** 导出长图：以 750px 宽渲染内联样式版全文，转 PNG 下载。
+ *  失败（多是跨域外链图片）时直接抛错，由调用方决定怎么提示 —— lib 不认识 UI 层 */
 export async function exportImage(
   title: string,
   markdown: string,
@@ -96,8 +113,6 @@ export async function exportImage(
     a.href = dataUrl;
     a.download = `${title || "untitled"}.png`;
     a.click();
-  } catch {
-    toast("长图生成失败（外链图片可能跨域受限）", "error");
   } finally {
     holder.remove();
   }

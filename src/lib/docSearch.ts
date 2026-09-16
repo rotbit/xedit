@@ -5,13 +5,8 @@
  * 逐篇读 localStorage 的开销由调用方兜住（快速切换器防抖 120ms，侧栏用 useMemo 缓存一轮结果）。
  */
 
-import { getDocContent } from "@/lib/docContent";
-import { indexOf, plainText } from "@/lib/docIndex";
+import { indexOf } from "@/lib/docIndex";
 import type { DocMeta } from "@/features/workspace/types";
-
-// 正文读取搬去了 docContent.ts、纯文本化搬去了 docIndex.ts（都是更底层，留在这儿会成环）；
-// 出口保持在这里不变
-export { getDocContent, plainText };
 
 export interface DocHit {
   doc: DocMeta;
