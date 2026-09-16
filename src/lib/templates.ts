@@ -7,6 +7,7 @@
  */
 
 import type { DocMeta } from "@/features/workspace/types";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 
 /** 模板所在的分类名；子分类（如「模板/周报」）同样算模板 */
 export const TEMPLATE_CATEGORY = "模板";
@@ -32,7 +33,7 @@ export function listTemplates(docs: readonly DocMeta[] | null | undefined): DocM
 
 /** 从模板标题推出新文章的默认标题：「周报模板」→「周报」 */
 export function defaultTitleFromTemplate(templateTitle: string): string {
-  return templateTitle.replaceAll(TEMPLATE_CATEGORY, "").trim() || "未命名文章";
+  return templateTitle.replaceAll(TEMPLATE_CATEGORY, "").trim() || UNTITLED_DOC;
 }
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];

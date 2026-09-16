@@ -3,7 +3,7 @@
  * 原先直接写在 @/lib/localDocs 里，现在挪到 LocalBackend 实现下，登录后由首页批量同步上云并清空。
  */
 
-import { UNCATEGORIZED } from "@/features/workspace/constants";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import {
   summarize,
   type DocInit,
@@ -60,7 +60,7 @@ const backend: LocalBackend = {
     const content = init.content ?? "";
     const meta: LocalDocMeta = {
       id: `local-${crypto.randomUUID()}`,
-      title: init.title?.slice(0, 200) || "未命名文章",
+      title: init.title?.slice(0, 200) || UNTITLED_DOC,
       category: init.category?.trim() || UNCATEGORIZED,
       updatedAt: new Date().toISOString(),
       ...summarize(content),
@@ -74,7 +74,7 @@ const backend: LocalBackend = {
     const list = readIndex();
     const meta = list.find((d) => d.id === id);
     if (!meta) return false;
-    if (patch.title !== undefined) meta.title = patch.title.slice(0, 200) || "未命名文章";
+    if (patch.title !== undefined) meta.title = patch.title.slice(0, 200) || UNTITLED_DOC;
     if (patch.category !== undefined) meta.category = patch.category.trim() || UNCATEGORIZED;
     if (patch.content !== undefined) {
       localStorage.setItem(DOC_PREFIX + id, patch.content);

@@ -4,7 +4,8 @@ import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import { AlignLeft, Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
 import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
-import { wordCount } from "@/lib/wordCount";
+import { CHARS_PER_MINUTE, wordCount } from "@/lib/wordCount";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { askInput } from "./PromptDialog";
 import { toast } from "./Toast";
 import { useStore } from "@/store/useStore";
@@ -107,7 +108,7 @@ export function ArticleReader({
   // [[双向链接]]：编辑器与预览只派事件，按标题找文章 / 追问是否新建都落在这个 hook 里
   useWikiLinkOpen({
     docs: docs ?? [],
-    category: category || "未分类",
+    category: category || UNCATEGORIZED,
     openDoc: onOpenDoc ?? (() => {}),
     createDoc: onCreateDoc ?? (() => {}),
   });
@@ -140,7 +141,7 @@ export function ArticleReader({
 
   /** 移动分类：改 store 即可，持久化走自动保存管线（本地/云端/离线一致） */
   const moveToCategory = (c: string) => {
-    if (c === (category || "未分类")) return;
+    if (c === (category || UNCATEGORIZED)) return;
     setCategory(c);
     onCategoryChange?.(c);
     toast(`已移动到「${c}」`, "success");
@@ -159,7 +160,7 @@ export function ArticleReader({
     const target = await askCategoryPick({
       title: "移动到分类",
       categories: categories ?? [],
-      current: category || "未分类",
+      current: category || UNCATEGORIZED,
       createOption: "新建分类并移入…",
     });
     if (target === CREATE_CATEGORY) return void moveToNewCategory();
@@ -280,16 +281,16 @@ export function ArticleReader({
                   <input
                     className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
                     value={title}
-                    placeholder="未命名文章"
+                    placeholder={UNTITLED_DOC}
                     onChange={(e) => setTitle(e.target.value)}
                     onFocus={() => {
                       // 先记原样再清占位：清空后的 "" 不该被当成「改名前叫这个」
                       onTitleFocus();
-                      if (title === "未命名文章") setTitle("");
+                      if (title === UNTITLED_DOC) setTitle("");
                     }}
                     onBlur={() => {
                       onTitleBlur();
-                      if (!title.trim()) setTitle("未命名文章");
+                      if (!title.trim()) setTitle(UNTITLED_DOC);
                     }}
                   />
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
@@ -298,14 +299,14 @@ export function ArticleReader({
                         平时不带底色，和同行的保存状态、字数一种质感，悬停才浮出浅底提示可点 */}
                     <button
                       className="-ml-1 flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-                      title={`${category || "未分类"}\n点击移动到分类`}
+                      title={`${category || UNCATEGORIZED}\n点击移动到分类`}
                       onClick={() => void pickCategory()}
                     >
                       <Folder size={12} className="shrink-0" />
                       <span className="truncate">
-                        {(category || "未分类").includes("/")
-                          ? `…/${(category || "未分类").split("/").pop()}`
-                          : category || "未分类"}
+                        {(category || UNCATEGORIZED).includes("/")
+                          ? `…/${(category || UNCATEGORIZED).split("/").pop()}`
+                          : category || UNCATEGORIZED}
                       </span>
                       <ChevronDown size={11} className="shrink-0 opacity-60" />
                     </button>
@@ -324,7 +325,7 @@ export function ArticleReader({
                     {chars > 0 ? (
                       <>
                         <span>·</span>
-                        <span>约 {Math.max(1, Math.ceil(chars / 400))} 分钟读完</span>
+                        <span>约 {Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE))} 分钟读完</span>
                       </>
                     ) : null}
                   </div>

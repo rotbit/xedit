@@ -18,3 +18,7 @@ export function wordCount(md: string): number {
   const words = text.match(WORD_RE)?.length ?? 0;
   return cjk + words;
 }
+
+// 阅读时长的估算口径：中文默认 400 字/分钟（阅读模式顶栏与文章页元信息行共用，
+// 两处显示的数字必须一致，别各写一遍除数）
+export const CHARS_PER_MINUTE = 400;

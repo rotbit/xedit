@@ -7,6 +7,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import { ackSyncError, useFeishuSync } from "@/hooks/useFeishuSync";
 import { createLocalDoc, listLocalDocs } from "@/lib/localDocs";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { Toaster, toast } from "@/components/Toast";
 import { openAuth } from "@/components/AuthDialog";
 import { LogoMark } from "@/components/LogoMark";
@@ -136,7 +137,7 @@ export function Home({ landing }: HomeProps) {
         ? createLocalDoc({ title: s.title, content: s.content })
         : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN });
       // 草稿已入库，清空旧缓冲，避免登录后被旧迁移逻辑重复上传
-      if (hasDraft) s.setDoc({ id: null, title: "未命名文章", content: DEFAULT_MARKDOWN });
+      if (hasDraft) s.setDoc({ id: null, title: UNTITLED_DOC, content: DEFAULT_MARKDOWN });
       // 走 ref 取 ws：这个回调要进落地页的 context，函数身份得一直稳定
       wsRef.current.library.setDocs(listLocalDocs());
       wsRef.current.nav.openDoc(doc.id);

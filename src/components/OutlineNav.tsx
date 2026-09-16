@@ -3,6 +3,7 @@
 // 大纲导航（桌面）：从渲染结果提取 h1~h3，点击平滑跳转（分享页与阅读模式共用）
 
 import { ChevronsLeft } from "lucide-react";
+import { outlineIndent } from "@/hooks/useOutline";
 
 export function OutlineNav({
   outline,
@@ -42,7 +43,7 @@ export function OutlineNav({
             <button
               key={`${i}-${h.text}`}
               className="cursor-pointer truncate rounded-md px-2 py-1 text-left text-[12px] leading-relaxed text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-              style={{ paddingLeft: 8 + (h.level - 1) * 14 }}
+              style={{ paddingLeft: outlineIndent(h.level) }}
               title={h.text}
               onClick={() => onJump(i)}
             >

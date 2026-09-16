@@ -1,11 +1,9 @@
 /** 后台展示用的格式化小工具（客户端安全） */
 
-export function formatBytes(n: number): string {
-  if (n >= 1024 * 1024 * 1024) return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
-  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
-  return `${n} B`;
-}
+// 字节格式化与服务端的配额提示共用一份实现；这里转出去，后台各处照旧从 "./format" 取
+import { formatBytes } from "@/lib/format";
+
+export { formatBytes };
 
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("zh-CN", {

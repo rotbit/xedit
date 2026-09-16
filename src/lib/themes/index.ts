@@ -1,8 +1,9 @@
 import { THEME_PRESETS, type ThemePreset } from "./presets";
 import { BASE_CSS } from "./base";
+import { DEFAULT_TUNE, type TuneValues } from "./tune";
 
-export { THEME_PRESETS, BASE_CSS };
-export type { ThemePreset };
+export { THEME_PRESETS, BASE_CSS, DEFAULT_TUNE };
+export type { ThemePreset, TuneValues };
 export {
   CUSTOM_THEME_PREFIX,
   HEADING_STYLE_OPTIONS,
@@ -58,17 +59,16 @@ export function getCodeThemeCss(id: string): Promise<string> {
   return fetchCss(`/code-themes/${getCodeTheme(id).file}`);
 }
 
-/** 排版微调 CSS 层（叠加在主题之后、自定义 CSS 之前） */
-export function buildTuneCss(t: {
-  tuneFontSize: number;
-  tuneLineHeight: number;
-  tuneParaSpacing: number;
-}): string {
+/** 排版微调 CSS 层（叠加在主题之后、自定义 CSS 之前）。等于默认值就不出规则，交给主题自己的排版 */
+export function buildTuneCss(t: TuneValues): string {
   const rules: string[] = [];
-  if (t.tuneFontSize !== 16 || t.tuneLineHeight !== 1.75) {
+  if (
+    t.tuneFontSize !== DEFAULT_TUNE.tuneFontSize ||
+    t.tuneLineHeight !== DEFAULT_TUNE.tuneLineHeight
+  ) {
     rules.push(`#nice { font-size: ${t.tuneFontSize}px; line-height: ${t.tuneLineHeight}; }`);
   }
-  if (t.tuneParaSpacing !== 16) {
+  if (t.tuneParaSpacing !== DEFAULT_TUNE.tuneParaSpacing) {
     rules.push(`#nice p { margin: ${t.tuneParaSpacing}px 0; }`);
   }
   return rules.join("\n");

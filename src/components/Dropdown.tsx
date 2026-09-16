@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-/** 下拉菜单条目的通用样式；需要点击后保持展开的条目自行 stopPropagation */
-export const menuItemCls =
-  "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]";
+import { useRef, useState } from "react";
+import { useDismissMenu } from "@/hooks/useDismissMenu";
+import { useEscape } from "@/hooks/useEscape";
 
 export function Dropdown({
   trigger,
@@ -21,21 +19,10 @@ export function Dropdown({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  // 触发器也在 ref 里：按在它上面不由这里关，交给下面的 toggle（否则「先关再开」点了像没反应）
+  const close = () => setOpen(false);
+  useDismissMenu(ref, close, open);
+  useEscape(close, open);
 
   return (
     <div className="relative shrink-0" ref={ref}>

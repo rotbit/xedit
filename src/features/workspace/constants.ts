@@ -8,8 +8,9 @@ export function isVirtualCat(path: string): boolean {
   return path === ALL || path === TRASH || path === ASSETS;
 }
 
-/** 无分类文章的归属；同时是保留名，不允许用户新建同名分类 */
-export const UNCATEGORIZED = "未分类";
+/** 无分类文章的归属；同时是保留名，不允许用户新建同名分类。
+ *  定义在 lib/docDefaults 里（服务端也要用），这里只转出去，老的 import 路径照旧能用 */
+export { UNCATEGORIZED } from "@/lib/docDefaults";
 
 /** 分类树最大层级：飞书镜像前缀（飞书知识库/空间/…）自身就占 3~4 层，
  *  再叠用户目录轻松过 8 层；真正的硬约束是分类字段 100 字符（拖拽前另行校验），
@@ -46,9 +47,8 @@ export function countCls(active: boolean): string {
   return active ? "bg-[var(--panel)]/70 text-[var(--accent-deep)]" : "text-[var(--ink-faint)]";
 }
 
-/** 弹出菜单条目样式 */
-export const menuItemCls =
-  "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-[var(--ink)] hover:bg-[var(--paper)]";
+/** 弹出菜单条目样式：定义在 components 层（下拉菜单也用同一份），这里只做转出 */
+export { menuItemCls } from "@/components/menuStyles";
 
 /** 弹出菜单里的危险操作条目样式 */
 export const menuDangerCls =

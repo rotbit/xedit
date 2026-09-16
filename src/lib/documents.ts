@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { chinaDate } from "@/lib/active";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { plainText, summarize } from "@/lib/excerpt";
 import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
 import { wordCount } from "@/lib/wordCount";
@@ -7,11 +9,6 @@ import { wordCount } from "@/lib/wordCount";
  * 文档增删改查的共享服务层：REST 路由与 MCP 工具共用同一套逻辑，避免行为漂移。
  * 所有操作都以 userId 隔离，跨用户不可见、不可改。
  */
-
-/** 东八区日期串 YYYY-MM-DD（与 REST 路由一致） */
-function chinaDate(): string {
-  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-}
 
 function clampLimit(v: number | undefined, def: number, max: number): number {
   if (!v || !Number.isFinite(v)) return def;
@@ -134,12 +131,12 @@ export async function createDocument(
   const doc = await prisma.document.create({
     data: {
       userId,
-      title: input.title && input.title.trim() ? input.title.slice(0, 200) : "未命名文章",
+      title: input.title && input.title.trim() ? input.title.slice(0, 200) : UNTITLED_DOC,
       content: typeof input.content === "string" ? input.content : "",
       category:
         input.category && input.category.trim()
           ? input.category.trim().slice(0, 100)
-          : "未分类",
+          : UNCATEGORIZED,
     },
     select: { id: true, title: true, category: true },
   });
@@ -159,10 +156,10 @@ export async function updateDocument(
   if (!existing || existing.deletedAt) return false;
 
   const data: { title?: string; content?: string; category?: string } = {};
-  if (typeof input.title === "string") data.title = input.title.slice(0, 200) || "未命名文章";
+  if (typeof input.title === "string") data.title = input.title.slice(0, 200) || UNTITLED_DOC;
   if (typeof input.content === "string") data.content = input.content;
   if (typeof input.category === "string") {
-    data.category = input.category.trim().slice(0, 100) || "未分类";
+    data.category = input.category.trim().slice(0, 100) || UNCATEGORIZED;
   }
   await prisma.document.update({ where: { id }, data });
 

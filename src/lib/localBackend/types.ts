@@ -42,7 +42,7 @@ export interface LocalBackend {
   saveCats(cats: string[]): void;
   /** 把分类 from（含子孙分类与其中文章）整体迁移为 to；文章仅改分类不刷新 updatedAt */
   relocateCategory(from: string, to: string): void;
-  /** 删除分类 path 及其子孙；其中文章归到 UNCATEGORIZED（"未分类"） */
+  /** 删除分类 path 及其子孙；其中文章归到 UNCATEGORIZED（即「未分类」） */
   removeCategory(path: string): void;
 }
 

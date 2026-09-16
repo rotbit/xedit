@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { readOnlyGuard } from "@/lib/guards";
 import { isResponse, requireUserId } from "@/lib/routeAuth";
 import { touchDailyActive } from "@/lib/active";
@@ -67,12 +68,12 @@ export async function POST(req: Request) {
   const doc = await prisma.document.create({
     data: {
       userId,
-      title: typeof body.title === "string" && body.title ? body.title.slice(0, 200) : "未命名文章",
+      title: typeof body.title === "string" && body.title ? body.title.slice(0, 200) : UNTITLED_DOC,
       content: typeof body.content === "string" ? body.content : "",
       category:
         typeof body.category === "string" && body.category.trim()
           ? body.category.trim().slice(0, 100)
-          : "未分类",
+          : UNCATEGORIZED,
     },
   });
   return NextResponse.json(doc);

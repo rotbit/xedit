@@ -8,6 +8,13 @@ export interface OutlineItem {
 }
 
 /**
+ * 大纲行的左缩进（px）：8 是列表自身的内边距，层级每深一级再多缩 14。
+ * 编辑器侧（OutlinePanel，从 Markdown 源码解析）与阅读/分享侧（OutlineNav，从 DOM 提取）
+ * 数据源不同但缩进必须对齐，所以公式只留这一份。
+ */
+export const outlineIndent = (level: number) => 8 + (level - 1) * 14;
+
+/**
  * 大纲：从已渲染的正文 DOM 里提取 h1~h3，并按序号平滑跳转。
  * 分享页与编辑器阅读模式共用，两处大纲的提取口径必然一致。
  *

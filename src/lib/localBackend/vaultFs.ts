@@ -5,6 +5,7 @@
  */
 
 import { MAX_DEPTH } from "@/features/workspace/constants";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 
 // TS 5.9 的 lib.dom 里还缺目录选择器、句柄权限查询、handle.move，
 // 目录异步迭代在 dom.asynciterable（未进 tsconfig.lib），这里按 Chromium 实际行为补最小声明
@@ -76,7 +77,7 @@ export async function requestVaultPermission(handle: FileSystemDirectoryHandle):
 export function sanitizeFileName(title: string): string {
   let name = title.trim().replace(ILLEGAL, "-").replace(/\s+/g, " ").replace(/[.\s]+$/, "");
   if (name.length > MAX_NAME) name = name.slice(0, MAX_NAME).replace(/[.\s]+$/, "");
-  return name || "未命名文章";
+  return name || UNTITLED_DOC;
 }
 
 export interface VaultFileEntry {

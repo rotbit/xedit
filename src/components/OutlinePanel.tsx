@@ -1,7 +1,13 @@
 "use client";
 
+// 编辑器侧的目录面板。这里从 Markdown 源码解析标题，而不像阅读/分享侧的 useOutline 那样
+// 从渲染后的 DOM 里提取：编辑态左边是 textarea，右边预览可能收起或滚动在别处，没有稳定的
+// 渲染 DOM 可读；而且跳转要落到「源码第几行」，只有解析源码才拿得到行号。
+// 两种口径并存，不合并；缩进公式共用 useOutline 里的 outlineIndent。
+
 import { useDeferredValue, useMemo } from "react";
 import { ChevronsLeft } from "lucide-react";
+import { outlineIndent } from "@/hooks/useOutline";
 import { useStore } from "@/store/useStore";
 
 interface Heading {
@@ -81,7 +87,7 @@ export function OutlinePanel({
                   : "text-[12px] text-[var(--ink-faint)]"
             }`}
             style={{
-              paddingLeft: `${8 + (h.level - 1) * 14}px`,
+              paddingLeft: outlineIndent(h.level),
               // 一级标题之间空开一点，形成章节分组感
               marginTop: h.level === 1 && i > 0 ? 6 : 0,
             }}

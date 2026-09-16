@@ -8,10 +8,11 @@ export interface DocMeta {
   chars?: number;
 }
 
-/** /api/config 暴露的部署能力开关 */
+/** /api/config 暴露的部署能力开关（第三方登录按钮、图片库入口据此显隐） */
 export interface AppConfig {
   github: boolean;
   google: boolean;
+  wechat: boolean;
   oss: boolean;
 }
 

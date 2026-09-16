@@ -7,7 +7,7 @@ import { useMemo } from "react";
 import { Palette } from "lucide-react";
 import { Dropdown } from "@/components/Dropdown";
 import { ThemePickerPanel } from "@/components/ThemePicker";
-import { wordCount } from "@/lib/wordCount";
+import { CHARS_PER_MINUTE, wordCount } from "@/lib/wordCount";
 import { useStore } from "@/store/useStore";
 
 /** 预览顶栏右侧的排版主题入口：主题只作用于渲染后的成品，所以入口就放在成品旁边，
@@ -40,7 +40,7 @@ export function ReadingMeta() {
   return (
     <span className="flex items-center gap-2 text-[12px] text-[var(--ink-faint)]">
       <span>{chars} 字</span>
-      {chars > 0 ? <span>· 约 {Math.max(1, Math.ceil(chars / 400))} 分钟读完</span> : null}
+      {chars > 0 ? <span>· 约 {Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE))} 分钟读完</span> : null}
     </span>
   );
 }

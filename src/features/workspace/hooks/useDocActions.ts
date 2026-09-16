@@ -15,6 +15,7 @@ import { getDocContent } from "@/lib/docContent";
 import { saveMirrorLocal, removeMirrorDoc, applyServerDoc } from "@/lib/docStore";
 import { syncNow } from "@/lib/sync";
 import { applyTemplate, defaultTitleFromTemplate, isTemplateCategory } from "@/lib/templates";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
 import { askInput, askConfirm } from "@/components/PromptDialog";
@@ -86,7 +87,7 @@ export function useDocActions({ auth, library, nav }: Params) {
   /** @param init 预填字段：标题（`[[双向链接]]` 指向不存在的文章时按目标标题建稿）与正文（套模板） */
   const createDoc = async (category?: string, init?: { title?: string; content?: string }) => {
     const cat = category ?? (isVirtualCat(nav.activeCat) ? UNCATEGORIZED : nav.activeCat);
-    const title = init?.title?.trim() || "未命名文章";
+    const title = init?.title?.trim() || UNTITLED_DOC;
     const content = init?.content ?? "";
     if (localMode) return createDocLocally(cat, listLocalDocs, title, content);
     if (!online) return createDocLocally(cat, mergedCloudList, title, content);
@@ -136,7 +137,7 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 
   const removeDoc = async (doc: DocMeta) => {
-    const label = doc.title || "未命名文章";
+    const label = doc.title || UNTITLED_DOC;
     if (localMode) {
       // 磁盘文库的删除是移进 .trash/（后端 deleteDoc 已如此），浏览器存储则是真删
       const vault = getActiveVault();
@@ -216,8 +217,8 @@ export function useDocActions({ auth, library, nav }: Params) {
     const ok = await askConfirm({
       title: "彻底删除",
       message: vault
-        ? `彻底删除「${doc.title || "未命名文章"}」？彻底删除后无法找回。`
-        : `彻底删除「${doc.title || "未命名文章"}」？包括全部版本历史，无法找回。`,
+        ? `彻底删除「${doc.title || UNTITLED_DOC}」？彻底删除后无法找回。`
+        : `彻底删除「${doc.title || UNTITLED_DOC}」？包括全部版本历史，无法找回。`,
       confirmText: "彻底删除",
       danger: true,
     });
@@ -277,7 +278,7 @@ export function useDocActions({ auth, library, nav }: Params) {
       await askInput({
         title: "重命名文章",
         placeholder: "文章标题",
-        defaultValue: doc.title || "未命名文章",
+        defaultValue: doc.title || UNTITLED_DOC,
       })
     )?.trim();
     if (!name || name === doc.title) return;
@@ -331,7 +332,7 @@ export function useDocActions({ auth, library, nav }: Params) {
       if (res.status === 409 && data.conflict) {
         const ok = await askConfirm({
           title: "飞书侧有更新",
-          message: `「${doc.title || "未命名文章"}」在飞书里自上次同步后有改动，继续推送会用 xedit 的内容覆盖飞书侧。要覆盖吗？`,
+          message: `「${doc.title || UNTITLED_DOC}」在飞书里自上次同步后有改动，继续推送会用 xedit 的内容覆盖飞书侧。要覆盖吗？`,
           confirmText: "覆盖推送",
           danger: true,
         });

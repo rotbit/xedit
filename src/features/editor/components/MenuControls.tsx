@@ -1,6 +1,6 @@
 "use client";
 
-import { menuItemCls } from "@/components/Dropdown";
+import { menuItemCls } from "@/components/menuStyles";
 
 /** 菜单里的开关行：点击不关闭菜单，便于连续切换 */
 export function ToggleRow({
