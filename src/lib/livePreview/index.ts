@@ -12,6 +12,7 @@ import { BulletWidget, CalloutBadgeWidget, CheckboxWidget } from "@/lib/livePrev
 import { calloutStyle, parseCalloutHead } from "@/lib/callout";
 import { ATTACHMENTS_RESOLVED_EVENT } from "@/lib/localBackend/attachmentUrls";
 import {
+  caretAtStartOrInside,
   caretInFencedCode,
   caretPositions,
   caretTouches,
@@ -21,7 +22,10 @@ import {
   refreshLivePreview,
   type LpContext,
 } from "@/lib/livePreview/context";
-import { INLINE_NODE_NAMES, inlineDecorations } from "@/lib/livePreview/inline";
+import { INLINE_NODE_NAMES, inlineDecorations, linkTargetAt } from "@/lib/livePreview/inline";
+import { scanVisibleLines } from "@/lib/livePreview/lineScan";
+import { inlineMathLine } from "@/lib/livePreview/inlineMath";
+import { footnoteDefLine, isFootnoteDefLine } from "@/lib/livePreview/footnote";
 import { fencedCodeDecorations } from "@/lib/livePreview/fence";
 import { fenceKeymap } from "@/lib/livePreview/fenceKeys";
 import { livePreviewBlocks, renderedBlockRanges } from "@/lib/livePreview/blocks";
@@ -34,9 +38,11 @@ import { requestOpenWikiLink } from "@/lib/wikiLink";
  * - 行内标记（**、`、~~、链接）：光标进入该语法范围内才显示标记，位移只发生在焦点处
  * - 行首标记（#、>）：光标不在该行时完全不占位；在该行时以零宽悬挂盒挂到正文左缘之外，
  *   两种状态下正文左缘都不动
- * - 分割线/表格/公式：atomicRanges 让光标只停在两侧，路过不还原；点击部件才展开源码
- * - 图片/视频：平时同上，但光标一碰到两侧边界就展开源码（点击部件、上下键路过都算），
- *   展开时源码原样显示、图片改挂到源码下方 —— 整张图消失版面会塌一块（见 inline.ts 的 Image 分支）
+ * - 整体部件（图片/视频/分割线/表格/公式）：光标一碰到两侧边界就展开源码（点击部件、
+ *   上下键路过都算），碰不到时 atomicRanges 让光标整体跳过；图片展开时源码原样显示、
+ *   图片改挂到源码下方 —— 整张图消失版面会塌一块（见 inline.ts 的 Image 分支）。
+ *   一律只认光标不认横扫而过的选区：⌘A/拖选要是把全篇部件都炸成源码，版面会整个跳一次
+ * - 任务清单：`- ` 始终隐藏、`[ ]` 只在光标进到记号里才现出，Home/← 走到行首零位移
  *
  * 跨行替换（表格、$$ 公式）不在这个插件里 —— CodeMirror 禁止插件提供跨行 replace，
  * 见 blocks.ts 的状态字段。
@@ -174,12 +180,24 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
   const { state } = view;
   const ctx = createLpContext(state, caret);
 
+  // 按原文逐行扫的两样东西先做：行内公式 `$…$`（lezer 不认 `$`）与脚注定义行。
+  // 公式必须排在语法树那一趟之前——扫出来的区间要先登记到 ctx，
+  // 里面的 `*`、`[` 才不会被当成 Markdown 标记再藏一次（见 context.ts 的 inMath）
+  scanVisibleLines(view, (line, guards) => {
+    inlineMathLine(ctx, view, line, guards);
+    footnoteDefLine(ctx, line, guards);
+  });
+
   for (const range of view.visibleRanges) {
     syntaxTree(state).iterate({
       from: range.from,
       to: range.to,
       enter: (node) => {
         const { name } = node;
+        // 脚注定义行 `[^id]: 内容`，内容不含空格时会被 lezer 整行当成链接引用定义，
+        // 内容还成了 URL 节点。整棵子树跳过：行首标签已由 footnoteDefLine 换成小标签，
+        // 再进去只会把正文染成一条点不开的假链接
+        if (name === "LinkReference" && isFootnoteDefLine(state, node.from)) return false;
         if (INLINE_NODE_NAMES.has(name)) return inlineDecorations(ctx, node);
 
         if (/^ATXHeading[1-6]$/.test(name)) {
@@ -228,27 +246,34 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
             return;
           }
           if (listType !== "BulletList") return;
+          if (/^ \[[ xX]\]/.test(state.sliceDoc(node.to, node.to + 4))) {
+            // 任务项的 "- " 一律整段隐藏，光标停在行首/"-"后/"["前也不现出：复选框顶替的是
+            // "[ ]"，"- " 在渲染形态里没有对应物，一现出就是净 2ch 的位移——按 Home 回行首
+            // 整行往右挪两格正是这么来的。这三个位置的光标本就都画在行首同一点，看不出区别；
+            // 记号照常可删可改，改到不再是任务项时整行会落回源码，反馈是看得见的
+            ctx.hide(node.from, node.to + 1);
+            return;
+          }
           if (caretTouches(caret, node.from, node.to)) {
             // 光标在本行时露出原始 "-"，也占 1ch（与圆点同宽），光标进出行时正文零位移
             ctx.decos.push(Decoration.mark({ class: "cm-lp-rawmark" }).range(node.from, node.to));
             return;
           }
-          if (/^ \[[ xX]\]/.test(state.sliceDoc(node.to, node.to + 4))) {
-            ctx.hide(node.from, node.to + 1); // 任务项只留 checkbox
-          } else {
-            // 嵌套深度决定圆点形态（实心/空心/方点循环），与 Notion 的层级语汇一致
-            let depth = 0;
-            for (let p = node.node.parent; p; p = p.parent)
-              if (p.name === "BulletList" || p.name === "OrderedList") depth++;
-            const level = ((depth - 1) % 3) + 1;
-            ctx.decos.push(
-              Decoration.replace({ widget: new BulletWidget(level) }).range(node.from, node.to)
-            );
-          }
+          // 嵌套深度决定圆点形态（实心/空心/方点循环），与 Notion 的层级语汇一致
+          let depth = 0;
+          for (let p = node.node.parent; p; p = p.parent)
+            if (p.name === "BulletList" || p.name === "OrderedList") depth++;
+          const level = ((depth - 1) % 3) + 1;
+          ctx.decos.push(
+            Decoration.replace({ widget: new BulletWidget(level) }).range(node.from, node.to)
+          );
           return;
         }
         if (name === "TaskMarker") {
-          if (!caretTouches(caret, node.from, node.to)) {
+          // 左闭右开（caretAtStartOrInside）：光标停在 `]` 之后仍显示复选框——那是从正文
+          // 首字按 ← 过来的落点，也是最常停的位置，含右边界的话一按左键复选框就翻成
+          // `[x]` 文字、整行跟着跳。落在 `[` 之前或方括号内部才现出源码，那是有意进记号里改
+          if (!caretAtStartOrInside(caret, node.from, node.to)) {
             const checked = /x/i.test(state.sliceDoc(node.from, node.to));
             ctx.decos.push(
               Decoration.replace({ widget: new CheckboxWidget(checked) }).range(node.from, node.to)
@@ -276,6 +301,14 @@ function buildDecorations(view: EditorView, caret: number[]): Built {
 const caretInCodeAttr = EditorView.editorAttributes.compute(["selection", "doc"], (state) => ({
   class: caretInFencedCode(state) ? "cm-caret-in-code" : "",
 }));
+
+/**
+ * 解冻拖选布局的信号。mouseup 之外还要多几道保险：拖到窗口外松手、拖到一半切走应用，
+ * mouseup 根本不会派到这个窗口，冻结标志就永远留着——此后所有光标移动都不再重建装饰，
+ * 整个即时渲染像是“卡住了”。blur（含捕获阶段的元素失焦）、下一次 pointerdown
+ * （规范里先于 mousedown，所以不会误伤本次手势）、下一次 keydown 各补一刀。
+ */
+const SELECTION_END_EVENTS = ["mouseup", "blur", "pointerdown", "keydown"] as const;
 
 const livePreviewPlugin = ViewPlugin.fromClass(
   class {
@@ -323,11 +356,9 @@ const livePreviewPlugin = ViewPlugin.fromClass(
 
       this.selectingWithMouse = true;
       const finish = () => this.finishMouseSelection(view);
-      win.addEventListener("mouseup", finish, true);
-      win.addEventListener("blur", finish, true);
+      for (const type of SELECTION_END_EVENTS) win.addEventListener(type, finish, true);
       this.removeMouseListeners = () => {
-        win.removeEventListener("mouseup", finish, true);
-        win.removeEventListener("blur", finish, true);
+        for (const type of SELECTION_END_EVENTS) win.removeEventListener(type, finish, true);
       };
     }
 
@@ -387,29 +418,29 @@ export const livePreview: Extension = [
   attachmentRefresh,
   caretInCodeAttr,
   livePreviewBlocks,
-  // 部件按整体跳过：上下键路过时光标停在两侧边界，不会落进被替换掉的源码里
-  // （分割线到此为止；图片/视频的边界同时是展开源码的信号，见 inline.ts 的 Image 分支）
+  // 部件按整体跳过：上下键路过时光标停在两侧边界，不会落进被替换掉的源码里。
+  // 登记的只有此刻真以部件形态渲染的区间——光标贴上来把源码展开之后，这一段就不再 atomic，
+  // 删除键于是按字符走（退一次只掉一个 `-`，而不是整条分割线无声消失）
   EditorView.atomicRanges.of((view) => view.plugin(livePreviewPlugin)?.atomics ?? RangeSet.empty),
   EditorView.editorAttributes.of({ class: "cm-live-preview" }),
   EditorView.domEventHandlers({
+    // 修饰键按着点链接：先把 mousedown 截下来，否则 CodeMirror 已经把光标放进链接里
+    // （源码当场炸开、⌘ 还可能多加一个光标），等 click 再打开时版面已经跳过一次
     mousedown: (e) => {
-      // 链接点击即打开；⌥+点击放行给 CodeMirror 定位光标（还原源码可编辑）
-      if (e.button !== 0 || e.altKey) return false;
-      const dom = e.target as HTMLElement;
-      const href = dom.closest?.("[data-lp-href]")?.getAttribute("data-lp-href");
-      if (href) {
-        window.open(href, "_blank", "noopener");
-        e.preventDefault();
-        return true;
-      }
-      // [[双向链接]]：编辑器不认识文库，派事件让应用层按标题找文章
-      const wiki = dom.closest?.("[data-lp-wiki]")?.getAttribute("data-lp-wiki");
-      if (wiki) {
-        requestOpenWikiLink(wiki);
-        e.preventDefault();
-        return true;
-      }
-      return false;
+      if (!linkTargetAt(e)) return false;
+      e.preventDefault();
+      return true;
+    },
+    // 打开动作放在 click 而不是 mousedown：从链接文字起手拖选时只有 mousedown，
+    // 松手前浏览器不会派 click，拖选于是绝不会误跳转
+    click: (e) => {
+      const target = linkTargetAt(e);
+      if (!target) return false;
+      if (target.wiki) requestOpenWikiLink(target.wiki);
+      // noopener 必须给：新窗口能通过 opener 反向操纵本页
+      else if (target.href) window.open(target.href, "_blank", "noopener");
+      e.preventDefault();
+      return true;
     },
   }),
   // 围栏代码块的删除键接管：开栏/闭栏行是 atomic 的，默认删除会把 ``` 删穿

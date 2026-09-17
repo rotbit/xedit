@@ -53,10 +53,52 @@ function wrapRange(state: EditorState, range: SelectionRange, before: string, af
   };
 }
 
-/** 添加前后缀，保留内容选区；用于链接等不具备切换语义的插入命令。 */
-export function wrapSelection(view: EditorView, before: string, after: string, placeholder: string) {
+const LINK_TEXT = "链接文字";
+const LINK_URL = "https://";
+/** 长得像网址就当网址：选中一段地址按 Cmd+K，地址该进括号而不是当链接文字 */
+const URL_LIKE = /^(?:https?:\/\/|mailto:|www\.)\S+$/i;
+
+/**
+ * 插入链接，并把光标停在「下一步要填的那一格」上：
+ * - 选中的是普通文字 → 文字位已经有了，光标停进空的 `()` 里，接着就能粘地址；
+ * - 选中的是网址 → 地址位已经有了，反过来选中文字占位，接着给链接起名字；
+ * - 没选中 → 两格都是占位，先选文字位，从写文字开始。
+ */
+export function insertLink(view: EditorView) {
   const { state } = view;
-  view.dispatch(state.changeByRange((range) => wrapRange(state, range, before, after, placeholder)));
+  view.dispatch(
+    state.changeByRange((range) => {
+      const text = state.doc.sliceString(range.from, range.to);
+      const trimmed = text.trim();
+      // `www.x.com` 直接进括号会被当成站内相对路径，补上协议头
+      const url = URL_LIKE.test(trimmed)
+        ? /^www\./i.test(trimmed)
+          ? `https://${trimmed}`
+          : trimmed
+        : null;
+      if (url) {
+        const insert = `[${LINK_TEXT}](${url})`;
+        return {
+          changes: { from: range.from, to: range.to, insert },
+          range: EditorSelection.range(range.from + 1, range.from + 1 + LINK_TEXT.length),
+        };
+      }
+      if (!text) {
+        const insert = `[${LINK_TEXT}](${LINK_URL})`;
+        return {
+          changes: { from: range.from, to: range.to, insert },
+          range: EditorSelection.range(range.from + 1, range.from + 1 + LINK_TEXT.length),
+        };
+      }
+      // 地址位留空、放一个光标（不是选区）：即时渲染只认光标来现出链接源码，
+      // 选中一段藏起来的 `https://` 用户看不见，选区还会画成一条横跨整行的灰带
+      const insert = `[${text}]()`;
+      return {
+        changes: { from: range.from, to: range.to, insert },
+        range: EditorSelection.cursor(range.from + text.length + "[](".length),
+      };
+    })
+  );
   view.focus();
 }
 

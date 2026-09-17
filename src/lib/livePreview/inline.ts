@@ -3,13 +3,16 @@ import { Decoration } from "@codemirror/view";
 import { isAttachmentSrc, resolveAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
 import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreview/widgets";
-import { caretInside, caretTouches, type LpContext } from "@/lib/livePreview/context";
+import { footnoteRef } from "@/lib/livePreview/footnote";
+import { caretTouches, type LpContext } from "@/lib/livePreview/context";
 import { COLOR_SPAN_OPEN_EXACT } from "@/lib/editor/colorSpan";
 
 /**
  * 行内语法的即时渲染分支（强调、行内代码、删除线、链接、颜色 span、图片/视频、分割线）。
- * 从 livePreview/index.ts 里抽出来只为控制单文件长度，行为与判定规则未变：
+ * 从 livePreview/index.ts 里抽出来只为控制单文件长度，判定规则一以贯之：
  * 光标进入该语法范围内才显示标记，位移只发生在焦点处。
+ * 链接的点击语义（协议白名单、⌘/Ctrl+点击打开）也放这里 —— 生成 data-lp-href 的是本文件，
+ * 让「什么样的地址可点」和「点了怎么办」待在一处，改一边不会漏掉另一边。
  */
 
 /**
@@ -19,6 +22,48 @@ import { COLOR_SPAN_OPEN_EXACT } from "@/lib/editor/colorSpan";
  * 会跟着这里的字号一起缩小，所以行高不受影响、不会引起竖向跳动。
  */
 const INLINE_MARK = Decoration.mark({ class: "cm-lp-mark-inline" });
+
+/** Mac 上 Ctrl+点击等同右键（会弹上下文菜单），打开链接只认 ⌘；其余平台只认 Ctrl。
+    模块级算一次就够：装饰每次重建都要拼提示串，点击每次都要判修饰键 */
+const IS_MAC = typeof navigator === "undefined" || /Mac|iPhone|iPad/i.test(navigator.userAgent);
+const OPEN_HINT = IS_MAC ? "⌘ + 点击打开" : "Ctrl + 点击打开";
+
+/** 允许交给 window.open 的协议：其余（javascript:、data:、vbscript: …）点一下就是在
+    自己的页面里跑别人写的代码，而文档内容可能来自导入/分享/协作，必须挡在渲染这一层——
+    过不了这关的链接连 data-lp-href 都不挂，既打不开也不给指针样式，看着就不是能点的东西 */
+const SAFE_SCHEME = /^(?:https?|mailto|tel):/i;
+
+/** 通过则返回可安全打开的地址，挡下的返回 null。无协议的相对路径/锚点一律放行 */
+function safeHref(raw: string): string | null {
+  const href = raw.trim();
+  if (!href) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return SAFE_SCHEME.test(href) ? href : null;
+  return href;
+}
+
+/** 渲染态链接的点击目标：外链给 href，[[双向链接]] 给 wiki 标题 */
+export interface LinkTarget {
+  readonly href?: string;
+  readonly wiki?: string;
+}
+
+/**
+ * ⌘/Ctrl+点击落在渲染出来的链接上时取出跳转目标，其余情况一律返回 null。
+ * 单击＝定位光标（交回 CodeMirror 默认行为，随即现出源码可编辑），⌘/Ctrl+点击＝打开，
+ * 与 Obsidian/Typora 一致：渲染后的链接文字首先是正文，点它多半是想在那儿落笔改字。
+ */
+export function linkTargetAt(e: MouseEvent): LinkTarget | null {
+  if (e.button !== 0 || !(IS_MAC ? e.metaKey : e.ctrlKey)) return null;
+  const dom = e.target as HTMLElement | null;
+  const raw = dom?.closest?.("[data-lp-href]")?.getAttribute("data-lp-href");
+  if (raw) {
+    // 装饰属性是 DOM 里的一串字符，渲染时虽已过滤，打开前仍再验一次
+    const href = safeHref(raw);
+    return href ? { href } : null;
+  }
+  const wiki = dom?.closest?.("[data-lp-wiki]")?.getAttribute("data-lp-wiki");
+  return wiki ? { wiki } : null;
+}
 
 /** 给一组标记节点铺上缩小淡化的样式（空区间会被 RangeSet 拒绝，先滤掉） */
 function softenMarks(ctx: LpContext, marks: readonly SyntaxNode[]) {
@@ -102,6 +147,9 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
 
   if (name === "Link") {
     const n = node.node;
+    // lezer 不认脚注，`[^id]` 会被解析成一个没有 URL 的链接。交给脚注分支处理并就此收手：
+    // 两边都装饰会在同一段上叠出两条 replace，CodeMirror 直接抛错
+    if (footnoteRef(ctx, n)) return false;
     if (caretTouches(caret, node.from, node.to)) {
       // 编辑链接时现出的源码是全篇位移最大的一处（一条 URL 能有几十个字符）。
       // URL 不截断也不 replace —— 要能正常编辑 —— 只把 "](url)" 整段缩小淡化，
@@ -119,13 +167,14 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
     for (const m of marks) ctx.hide(m.from, m.to);
     if (url) ctx.hide(url.from, url.to);
     if (title) ctx.hide(title.from, title.to);
-    // 链接文字提示 URL，点击直接打开（⌥+点击进入源码编辑）
-    const href = url ? state.sliceDoc(url.from, url.to) : "";
+    // 链接文字提示 URL，⌘/Ctrl+点击打开；单击照常定位光标（随即现出源码可编辑）——
+    // 与 Obsidian/Typora 一致：链接文字首先是正文，点它多半是想在那儿落笔改字
+    const href = url ? safeHref(state.sliceDoc(url.from, url.to)) : null;
     if (href && marks.length >= 2 && marks[1].from > marks[0].to) {
       ctx.decos.push(
         Decoration.mark({
           class: "cm-lp-link",
-          attributes: { "data-lp-href": href, title: `${href}\n点击打开 · ⌥+点击编辑` },
+          attributes: { "data-lp-href": href, title: `${href}\n${OPEN_HINT}` },
         }).range(marks[0].to, marks[1].from)
       );
     }
@@ -138,11 +187,12 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
     if (parent === "Link" || parent === "Image") return;
     if (caretTouches(caret, node.from, node.to)) return; // 编辑中不拦点击
     const raw = state.sliceDoc(node.from, node.to);
-    const href = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+    const href = safeHref(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+    if (!href) return;
     ctx.decos.push(
       Decoration.mark({
         class: "cm-lp-link",
-        attributes: { "data-lp-href": href, title: "点击打开 · ⌥+点击编辑" },
+        attributes: { "data-lp-href": href, title: OPEN_HINT },
       }).range(node.from, node.to)
     );
     return;
@@ -172,7 +222,8 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
           class: "cm-lp-wikilink",
           attributes: {
             "data-lp-wiki": target,
-            title: `打开「${target}」 · ⌥+点击编辑`,
+            // 与外链同一套规矩：单击落笔改字，⌘/Ctrl+点击才跳转
+            title: `「${target}」\n${OPEN_HINT}`,
           },
         }).range(textFrom, textTo)
       );
@@ -181,7 +232,7 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   }
 
   if (name === "Image") {
-    // 图片/视频的还原判定含边界（caretTouches 而非 caretInside）：点击部件把光标送到 from+2，
+    // 图片/视频的还原判定含边界（caretTouches）：点击部件把光标送到 from+2，
     // 之后在这行源码里挪到行首或 `)` 之后就踩在 from/to 上——按严格内部判定会当场翻回图片，
     // 同一行里移动光标于是来回闪。只认光标不认选区：全选/拖选时每张图都多出一行源码，
     // 版面会整体抖一下，而图片被选中时本来就看得出来（整块高亮），不必现原文。
@@ -216,7 +267,12 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   }
 
   if (name === "HorizontalRule") {
-    if (!caretInside(caret, node.from, node.to)) {
+    // 与图片同一档的含边界判定：光标一碰到 `---` 两端就现出源码。
+    // 用严格内部判定时，光标停在 `---` 的首/尾（点开部件后按 Home、或从下一行按 ← 上来）
+    // 会当场翻回分割线，在这一行里挪光标就成了来回闪。
+    // 顺带把「一次退格抹掉整条线」也解决了：atomicRanges 只登记此刻真被替换的区间，
+    // 光标贴着 `---` 时压根不登记，删除键于是按字符走，退一次只掉一个 `-`，看得见
+    if (!caretTouches(caret, node.from, node.to)) {
       ctx.replaceAtomic(node.from, node.to, new HrWidget());
     }
     return;

@@ -72,7 +72,7 @@ export function SlashMenu({
           const active = i === st.index;
           return (
             <button
-              key={item.cmd}
+              key={item.id}
               ref={active ? activeRef : undefined}
               className={`flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-md px-2 text-left text-[13px] text-[var(--ink)] ${
                 active ? "bg-[var(--accent-wash)]" : ""

@@ -35,23 +35,35 @@ export function caretInFencedCode(state: EditorState): boolean {
   return false;
 }
 
-/** 任一选区（含非空）与 [from, to] 有交叠 —— 被选中的内容必须现出原文，
-    否则选区落在被隐藏的文本上，用户既看不到选了什么，也看不到光标 */
+/** 任一选区（含非空）与 [from, to] 有交叠 —— 行级标记（#、>、围栏行）的还原判定。
+    行级标记现出时是零宽悬挂盒或等宽替换，不推动正文，所以可以大方地跟着选区走：
+    选到哪一行就让那行的记号露出来，用户看得见自己选中/将要复制的是什么。
+    块级部件（表格/公式/图片）不用这一档 —— 它们现出源码是整块的高度变化，
+    ⌘A 或拖选一过全篇就炸开，见 blocks.ts 的 renderable */
 export function selectionTouches(state: EditorState, from: number, to: number): boolean {
   return state.selection.ranges.some((r) => r.to >= from && r.from <= to);
 }
 
-/** 光标落在 [from, to]（含边界）内 —— 行内语法（含图片/视频）的还原判定。
-    图片也走含边界这一档：点开源码后光标挪到行首或 `)` 之后就正好踩在边界上，
-    用严格内部判定会当场翻回图片，在同一行里移动光标就成了来回闪 */
+/** 有非空选区整个落在 (from, to) 内部 —— 块级部件「已经展开着、正在里面选文字」的判定。
+    必须严格内部：拖选扫过一整块时 atomicRanges 会把选区两端对齐到 from/to，
+    含边界就会把「从外面拖过整块」也认成「在里面选」，整块当场炸成源码 */
+export function selectionInside(state: EditorState, from: number, to: number): boolean {
+  return state.selection.ranges.some((r) => !r.empty && r.from > from && r.to < to);
+}
+
+/** 光标落在 [from, to]（含边界）内 —— 行内语法与整体部件（图片/视频/分割线/表格/公式）
+    共用的还原判定。边界必须算数：点开源码后光标挪到区间两端（行首、`)` 之后、`---` 末尾）
+    就正好踩在边界上，用严格内部判定会当场翻回部件，在同一行里移动光标就成了来回闪。
+    只认光标不认选区：拖选/全选时每个部件都多出几行源码，版面会整体抖一下 */
 export function caretTouches(caret: number[], from: number, to: number): boolean {
   return caret.some((p) => p >= from && p <= to);
 }
 
-/** 光标严格位于 (from, to) 内部 —— 分割线/表格/公式等整体部件的还原判定。
-    边界不算：上下键路过时光标只会停在边界（atomicRanges 保证），不触发还原 */
-export function caretInside(caret: number[], from: number, to: number): boolean {
-  return caret.some((p) => p > from && p < to);
+/** 光标落在 [from, to) 内（含左边界、不含右边界）—— 任务记号 `[ ]` 的还原判定。
+    右边界（`]` 之后）是从正文首字按 ← 过来的落点，也是最常停的位置，含进来的话
+    复选框一按左键就翻成 `[x]` 文字；左边界是从行首往右走进记号的入口，得能现出源码改 */
+export function caretAtStartOrInside(caret: number[], from: number, to: number): boolean {
+  return caret.some((p) => p >= from && p < to);
 }
 
 export interface CodeRange {
@@ -71,6 +83,8 @@ export interface LpContext {
   readonly atomics: Range<Decoration>[];
   /** 本次收集到的围栏代码块区间：逐行扫描（空行、公式）要跳过它们 */
   readonly codeRanges: CodeRange[];
+  /** 本次扫出的行内公式区间（见 inlineMath.ts）：里面的字符是 TeX，不再当 Markdown 标记 */
+  readonly mathRanges: CodeRange[];
   /** 隐藏一段源码（不占位） */
   hide(from: number, to: number): void;
   /** 替换为部件并登记为 atomic：光标整体跳过，路过不还原 */
@@ -87,7 +101,14 @@ export function createLpContext(state: EditorState, caret: number[]): LpContext 
   const decos: Range<Decoration>[] = [];
   const atomics: Range<Decoration>[] = [];
   const codeRanges: CodeRange[] = [];
+  const mathRanges: CodeRange[] = [];
   const seenLineClass = new Set<string>();
+
+  /** 与已登记的行内公式区间相交。公式是先于语法树那一趟扫出来的，`$a*b*c$` 里的 `*`
+      是 TeX 的一部分：被当成强调标记藏掉的话，一来源码看不见也删不动，二来两条 replace
+      叠在同一段上 CodeMirror 直接抛错。所以所有替换类装饰都得先过这一关 */
+  const inMath = (from: number, to: number) =>
+    mathRanges.some((r) => from < r.to && to > r.from);
 
   const lineClass = (pos: number, cls: string) => {
     const line = state.doc.lineAt(pos);
@@ -103,10 +124,12 @@ export function createLpContext(state: EditorState, caret: number[]): LpContext 
     decos,
     atomics,
     codeRanges,
+    mathRanges,
     hide(from, to) {
-      if (from < to) decos.push(Decoration.replace({}).range(from, to));
+      if (from < to && !inMath(from, to)) decos.push(Decoration.replace({}).range(from, to));
     },
     replaceAtomic(from, to, widget) {
+      if (inMath(from, to)) return;
       const deco = Decoration.replace(widget ? { widget } : {}).range(from, to);
       decos.push(deco);
       atomics.push(deco);

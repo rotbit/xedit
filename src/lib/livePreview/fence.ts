@@ -37,12 +37,13 @@ export function fencedCodeDecorations(ctx: LpContext, node: SyntaxNodeRef): void
 
   if (marks.length < 2) return;
   const lastLine = state.doc.lineAt(marks[marks.length - 1].from);
-  if (lastLine.number === firstLine.number || lastLine.from >= lastLine.to || ctx.lineActive(lastLine.from)) {
-    return;
-  }
+  if (lastLine.number === firstLine.number || lastLine.from >= lastLine.to) return;
   // 闭栏行被整行隐藏后文字没了、行高还在，块底会多出一条空行。
-  // 额外挂一个行级类把它压成纯内边距（不能 display:none，CodeMirror 要求每行可测高）；
-  // 光标进入该行时装饰不再生效，类也随之消失，``` 与正常行高一起回来。
-  ctx.lineClass(lastLine.from, "cm-lp-code-last-hidden");
+  // 行级类把它压成一条固定高度的块底内边距（不能 display:none，CodeMirror 要求每行可测高）。
+  // 关键是这个类两种状态都下发：以前光标一落到闭栏行类就撤掉，行高从 12px 弹回 22px+10px，
+  // 整篇下文被顶开二十来像素——只是把光标挪过去而已，不该有这种跳动。
+  // 现在行盒高度钉死，光标在这一行时不替换、``` 以同样高度的小号淡字现出（见 CSS）
+  ctx.lineClass(lastLine.from, "cm-lp-code-close");
+  if (ctx.lineActive(lastLine.from)) return;
   ctx.replaceAtomic(lastLine.from, lastLine.to);
 }

@@ -28,6 +28,32 @@ export function reportScrollLine(
   cb(line, ratio);
 }
 
+/**
+ * 按「顶端第几行 + 行内比例」精确还原滚动位置（每篇文章记忆滚动位置用）。
+ *
+ * 与 scrollLineIntoView 的区别只在落点：那个把整行对齐到容器顶端（跳转用），
+ * 这个要把 reportScrollLine 报上去的那一刻原样放回来 —— 长段落、大图占一行时
+ * 只对齐行首会往回跳一大截，所以行内比例也得还原。恒定无动画：恢复是「页面本来就该
+ * 在这里」，滚动动画反而让人以为自己碰到了什么。
+ */
+export function scrollToLineRatio(
+  view: EditorView,
+  parent: HTMLElement | null,
+  line: number,
+  ratio: number
+): void {
+  // 记录之后文章被别处改短是常事，行号一律夹回文档范围内
+  const n = Math.min(view.state.doc.lines, Math.max(1, line + 1));
+  const block = view.lineBlockAt(view.state.doc.line(n).from);
+  const top = block.top + block.height * Math.min(1, Math.max(0, ratio));
+  if (parent) {
+    const delta = view.documentTop - parent.getBoundingClientRect().top;
+    parent.scrollTo({ top: Math.max(0, parent.scrollTop + delta + top), behavior: "auto" });
+  } else {
+    view.scrollDOM.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+  }
+}
+
 /** 把某行滚到容器顶端（留 margin 的余量），返回该行起点 */
 export function scrollLineIntoView(
   view: EditorView,

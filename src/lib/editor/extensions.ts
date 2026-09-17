@@ -1,19 +1,26 @@
 /** 编辑器扩展的组装处：把高亮、光标、按键、即时渲染等扩展拼成 CodeMirror 的扩展数组。 */
 
 import { type Compartment, type Extension, type Text } from "@codemirror/state";
-import { EditorView, drawSelection, keymap, placeholder, type KeyBinding } from "@codemirror/view";
+import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
+import { editorSearch } from "@/lib/editor/searchPanel";
 import { livePreview } from "@/lib/livePreview";
 import { codeHighlight, mdHighlight, sourceHeadingHighlight } from "@/lib/editor/highlight";
 import { caretAndActiveLine } from "@/lib/editor/caret";
+import { headingFolding } from "@/lib/editor/folding";
 import { lineSelectionWithoutNewline } from "@/lib/lineSelection";
-import { runFormatCommand, type FormatCommand, type Notify } from "@/lib/editor/commands";
+import type { Notify } from "@/lib/editor/commands";
+import { formatShortcuts } from "@/lib/editor/shortcuts";
+import { autoPairs } from "@/lib/editor/pairs";
+import { tableKeymap } from "@/lib/editor/tableKeys";
+import { listKeymap } from "@/lib/editor/listKeys";
 import { slashMenu, type SlashState } from "@/lib/slashMenu";
 import { editorClipboard } from "@/lib/editor/clipboard";
+import { uploadPlaceholders } from "@/lib/editor/uploadPlaceholder";
 import { wikiLinkExtension } from "@/lib/wikiLink/parser";
 import { wikiLinkMenu, type WikiMenuState } from "@/lib/wikiLink/menu";
 import type { SelectionInfo } from "@/lib/editor/types";
@@ -32,17 +39,6 @@ interface EditorExtensionOptions {
   onScroll: (view: EditorView) => void;
   /** 命令层（上传图片/视频等）要弹的提示：lib 不 import components，由组件传 toast 进来 */
   notify: Notify;
-}
-
-/** 快捷键与工具栏、斜杠菜单共用命令入口，格式行为只在命令层定义。 */
-function formatKey(key: string, command: FormatCommand, notify: Notify): KeyBinding {
-  return {
-    key,
-    run: (view) => {
-      runFormatCommand(view, command, notify);
-      return true;
-    },
-  };
 }
 
 export function editorModeExtension(live: boolean): Extension {
@@ -68,15 +64,24 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
     }),
     syntaxHighlighting(mdHighlight),
     syntaxHighlighting(codeHighlight),
+    // 标题折叠：折叠范围借 markdown() 自带的 foldService，把手是标题行首的零宽 widget。
+    // 排在即时渲染之前 —— 点三角那一下要抢在 livePreview 的 mousedown（拖选布局冻结）前面
+    // 消费掉，否则会白白进入一次「拖选中」状态，直到下次 mouseup 才解冻。
+    headingFolding,
     options.liveCompartment.of(editorModeExtension(options.live)),
     // 斜杠菜单内部通过 Prec.highest 提升按键优先级，只在菜单打开时消费导航按键。
     slashMenu({ onState: options.onSlashChange, notify: options.notify }),
     // `[[` 文章标题补全：同样只在打开时消费按键，两个菜单的触发条件互不重叠。
     wikiLinkMenu({ getDocs: options.getDocs, onState: options.onWikiMenuChange }),
+    // ⌘F 查找替换：面板中文化 + 停在顶部，样式见 app/editor.css；按键仍走下面的 searchKeymap。
+    editorSearch,
+    // 下面三个都用 Prec.highest：要抢在 markdownKeymap（Prec.high）和 indentWithTab 前面。
+    // 排在两个菜单之后 —— 同优先级按数组顺序先到先得，菜单开着时 Enter/Tab 仍归菜单。
+    tableKeymap,
+    listKeymap,
+    autoPairs,
     keymap.of([
-      formatKey("Mod-b", "bold", options.notify),
-      formatKey("Mod-i", "italic", options.notify),
-      formatKey("Mod-k", "link", options.notify),
+      ...formatShortcuts(options.notify),
       {
         key: "Mod-s",
         run: () => {
@@ -110,5 +115,7 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
       },
     }),
     editorClipboard(options.notify),
+    // 媒体上传期间在落点挂「上传中」小牌子，传完再落笔（粘贴、拖放、选文件三条路共用）
+    uploadPlaceholders,
   ];
 }

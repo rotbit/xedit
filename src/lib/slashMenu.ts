@@ -18,57 +18,79 @@ import {
   Lightbulb,
   SquareCode,
   Table,
+  List,
+  ListOrdered,
   ListTodo,
   Minus,
   Image as ImageIcon,
   Film,
+  Link as LinkIcon,
+  Bold,
   type LucideIcon,
 } from "lucide-react";
 import { caretInFencedCode } from "@/lib/livePreview/context";
 import { runFormatCommand, type FormatCommand, type Notify } from "@/lib/editor/commands";
+import { prefixLines } from "@/lib/editor/format";
 
 export interface SlashItem {
-  cmd: FormatCommand;
+  /** 唯一标识，同时当 React 列表的 key；有对应命令时就用命令名 */
+  id: string;
   label: string;
   /** 右侧灰字：对应的 Markdown 记号，顺带教会用户源码写法 */
   hint: string;
   icon: LucideIcon;
   /** 中文全称 / 拼音全拼 / 拼音首字母 / 英文 / markdown 记号，手写不引拼音库 */
   keywords: string[];
+  /**
+   * 执行动作。绝大多数项直接转交命令层，与工具栏、快捷键同一个入口；
+   * 有序/无序列表命令层没有对应项（工具栏也没放），不为菜单单独在 FormatCommand
+   * 里开口子，就地调 prefixLines —— 它本身就是 toggle，再敲一次能退回普通段落。
+   */
+  run: (view: EditorView, notify: Notify) => void;
 }
 
-/** 顺序固定：标题三档 → 引用 → 提示块 → 代码块 → 表格 → 任务列表 → 分割线 → 图片 → 视频 */
+/** 走命令层的项：格式行为只在命令层定义，这里不复制一份 */
+const byCommand =
+  (cmd: FormatCommand) => (view: EditorView, notify: Notify) =>
+    runFormatCommand(view, cmd, notify);
+
+/** 顺序固定：标题三档 → 引用 → 提示块 → 代码块 → 表格 → 列表三种 → 分割线
+ *  → 图片 → 视频 → 行内的链接与加粗（行内格式排最后，块级的先露脸） */
 export const SLASH_ITEMS: SlashItem[] = [
   {
-    cmd: "h1",
+    id: "h1",
     label: "一级标题",
     hint: "#",
     icon: Heading1,
     keywords: ["一级标题", "yijibiaoti", "yjbt", "h1", "heading", "heading1", "title", "#"],
+    run: byCommand("h1"),
   },
   {
-    cmd: "h2",
+    id: "h2",
     label: "二级标题",
     hint: "##",
     icon: Heading2,
     keywords: ["二级标题", "erjibiaoti", "ejbt", "h2", "heading", "heading2", "title", "##"],
+    run: byCommand("h2"),
   },
   {
-    cmd: "h3",
+    id: "h3",
     label: "三级标题",
     hint: "###",
     icon: Heading3,
     keywords: ["三级标题", "sanjibiaoti", "sjbt", "h3", "heading", "heading3", "title", "###"],
+    run: byCommand("h3"),
   },
   {
-    cmd: "quote",
+    id: "quote",
     label: "引用",
     hint: ">",
     icon: Quote,
     keywords: ["引用", "yinyong", "yy", "quote", "blockquote", ">"],
+    run: byCommand("quote"),
   },
   {
-    cmd: "callout",
+    id: "callout",
     label: "提示块",
     hint: "> [!tip]",
     icon: Lightbulb,
@@ -83,48 +105,112 @@ export const SLASH_ITEMS: SlashItem[] = [
       "warning",
       "[!",
     ],
+    run: byCommand("callout"),
   },
   {
-    cmd: "codeblock",
+    id: "codeblock",
     label: "代码块",
     hint: "```",
     icon: SquareCode,
     keywords: ["代码块", "daimakuai", "dmk", "code", "codeblock", "```"],
+    run: byCommand("codeblock"),
   },
   {
-    cmd: "table",
+    id: "table",
     label: "表格",
     hint: "|",
     icon: Table,
     keywords: ["表格", "biaoge", "bg", "table", "grid", "|"],
+    run: byCommand("table"),
   },
   {
-    cmd: "tasklist",
+    id: "ul",
+    label: "无序列表",
+    hint: "-",
+    icon: List,
+    keywords: [
+      "无序列表",
+      "wuxuliebiao",
+      "wxlb",
+      "列表",
+      "liebiao",
+      "lb",
+      "list",
+      "ul",
+      "bullet",
+      "unordered",
+      "- ",
+    ],
+    run: (view) => prefixLines(view, "- "),
+  },
+  {
+    id: "ol",
+    label: "有序列表",
+    hint: "1.",
+    icon: ListOrdered,
+    keywords: [
+      "有序列表",
+      "youxuliebiao",
+      "yxlb",
+      "列表",
+      "liebiao",
+      "lb",
+      "list",
+      "ol",
+      "number",
+      "ordered",
+      "1. ",
+    ],
+    // 只铺第一行的 "1. "，续行的自动编号交给编辑器的列表按键处理
+    run: (view) => prefixLines(view, "1. "),
+  },
+  {
+    id: "tasklist",
     label: "任务列表",
     hint: "- [ ]",
     icon: ListTodo,
     keywords: ["任务列表", "renwuliebiao", "rwlb", "task", "tasklist", "todo", "checkbox", "- [ ]"],
+    run: byCommand("tasklist"),
   },
   {
-    cmd: "hr",
+    id: "hr",
     label: "分割线",
     hint: "---",
     icon: Minus,
     keywords: ["分割线", "fengexian", "fgx", "hr", "divider", "rule", "---"],
+    run: byCommand("hr"),
   },
   {
-    cmd: "image",
+    id: "image",
     label: "图片",
     hint: "![]()",
     icon: ImageIcon,
     keywords: ["图片", "tupian", "tp", "image", "img", "picture", "photo", "!["],
+    run: byCommand("image"),
   },
   {
-    cmd: "video",
+    id: "video",
     label: "视频（上传）",
     hint: "上传",
     icon: Film,
     keywords: ["视频", "shipin", "sp", "video", "movie", "mp4", "upload"],
+    run: byCommand("video"),
+  },
+  {
+    id: "link",
+    label: "链接",
+    hint: "[]()",
+    icon: LinkIcon,
+    keywords: ["链接", "lianjie", "lj", "超链接", "link", "url", "href", "[]("],
+    run: byCommand("link"),
+  },
+  {
+    id: "bold",
+    label: "加粗",
+    hint: "**",
+    icon: Bold,
+    keywords: ["加粗", "jiacu", "jc", "粗体", "cuti", "ct", "bold", "strong", "**"],
+    run: byCommand("bold"),
   },
 ];
 
@@ -159,8 +245,24 @@ interface SlashFieldValue {
 
 const EMPTY: SlashFieldValue = { open: null, dismissed: null };
 
-/** 触发条件：`/` 前是行首或空白 —— `a/b`、`http://` 这类路径写法不该弹菜单 */
-const TRIGGER = /(^|\s)\/([^\s/]*)$/;
+/**
+ * 触发条件：`/` 前是行首、空白，或一个中日文字符 / 中文全角标点。
+ *
+ * 只认空白的老写法在中文里基本用不上 —— 中文正文不打空格，「今天/」永远弹不出菜单，
+ * 用户只能先敲个空格再删掉。放开的范围严格限定在「半角 ASCII 之外」：
+ * 字母、数字、`:`、`/` 前依旧不触发，`http://`、`src/lib`、`1/2`、`2026/09/17` 这些
+ * 写法不受影响。全角数字与全角字母也一并排除（０-９、Ａ-Ｚ、
+ * ａ-ｚ 不在下面的区间里），免得「２０２６／」这类写法被误当成触发。
+ *
+ * 涵盖：中文标点与全角空格（　-〿，。、「」『』《》【】〔〕…）、
+ * 日文假名（぀-ヿ）、汉字与扩展 A（一-鿿、㐀-䶿）、
+ * 弯引号与省略号（‘-”、…）、全角标点（！-／、：-＠、
+ * ［-｀、｛-･，含 ！？：；，）］｝～｣）。
+ */
+const BEFORE_SLASH =
+  "\\s\\u2018-\\u201d\\u2026\\u3000-\\u303f\\u3040-\\u30ff\\u3400-\\u4dbf\\u4e00-\\u9fff" +
+  "\\uff01-\\uff0f\\uff1a-\\uff20\\uff3b-\\uff40\\uff5b-\\uff65";
+const TRIGGER = new RegExp(`(^|[${BEFORE_SLASH}])/([^\\s/]*)$`);
 
 function detectSlash(state: EditorState): { from: number; query: string } | null {
   const sel = state.selection.main;
@@ -236,7 +338,7 @@ export function runSlashItem(
   notify: Notify
 ) {
   view.dispatch({ changes: { from, to, insert: "" }, selection: { anchor: from } });
-  runFormatCommand(view, item.cmd, notify);
+  item.run(view, notify);
   view.focus();
 }
 

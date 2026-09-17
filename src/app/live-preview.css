@@ -359,7 +359,7 @@
   cursor: pointer;
 }
 /* 链接文字：只靠链接色示意可交互，不画下划线（长 URL 带下划线很花）；
-   悬停时再淡淡加一条，提示可点击打开（⌥+点击进入源码编辑） */
+   悬停时再淡淡加一条，提示这是条链接（单击落笔改字，⌘/Ctrl+点击才打开） */
 .cm-live-preview .cm-lp-link {
   cursor: pointer;
   text-decoration: none;
@@ -508,11 +508,61 @@
   top: -1px;
   bottom: 0;
 }
-/* 收尾围栏被隐藏时留下的空行：不能 display:none（CodeMirror 要能量到每一行的高度），
-   于是压成一条 12px 的块底内边距——看上去就是代码卡的下留白，不再是一道空行。
-   光标进到这一行时这个类不再下发，行高自动回弹并现出 ``` 源码 */
-.cm-live-preview .cm-line.cm-lp-code-last-hidden {
-  line-height: 0;
+/* 收尾围栏行：不能 display:none（CodeMirror 要能量到每一行的高度），于是把行盒钉成 12px，
+   看上去就是代码卡的下留白而不是一道空行。高度与光标在不在这一行无关——光标落上来时
+   ``` 原文就在这 12px 里以 11px 淡字现出（字号、颜色由上面的 .cm-lp-code-last 给），
+   看得见也改得动，块底不动分毫；以前类只在隐藏态下发，光标一进来下文就被顶开二十来像素 */
+.cm-live-preview .cm-line.cm-lp-code-close {
+  line-height: 12px;
   padding-top: 0;
-  padding-bottom: 12px;
+  padding-bottom: 0;
+}
+
+/* —— 行内公式 —— */
+/* SVG 字形是 currentColor 填充的，容器给正文墨色即可，夜间自动跟着翻 */
+.cm-live-preview .cm-lp-imath {
+  color: var(--ink);
+  cursor: text;
+}
+/* Tailwind 的 preflight 把 svg 设成了 display:block —— 行内公式必须掰回 inline-block，
+   MathJax 写在 svg 上的 vertical-align 才生效；同时不给固定高度，
+   基线由那条 vertical-align 负责，行距不会被公式撑开 */
+.cm-live-preview .cm-lp-imath svg {
+  display: inline-block;
+  max-width: 100%;
+}
+/* 光标停进公式：源码现出并垫一层极淡的底，一眼看出这一段是公式而不是掺了美元号的文字。
+   底色画在 ::before 且 z-index 低于 drawSelection(-2)，拖选时选中色仍盖得住（同 .cm-lp-ic） */
+.cm-live-preview .cm-lp-math-src {
+  position: relative;
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.cm-live-preview .cm-lp-math-src::before {
+  content: "";
+  position: absolute;
+  inset: -1px 0;
+  z-index: -3;
+  border-radius: 3px;
+  background: var(--accent-wash);
+}
+/* TeX 解析不了时不吞内容：源码原样留着，底下补一条红波浪线提示没渲染成 */
+.cm-live-preview .cm-lp-math-bad {
+  text-decoration: underline wavy rgb(224 72 76 / 0.75);
+  text-underline-offset: 3px;
+}
+
+/* —— 脚注 —— */
+/* 引用 `[^1]`：藏掉方括号只留编号，排成上标小字，颜色取链接色标明它是可跳转的记号 */
+.cm-live-preview .cm-lp-fn-ref {
+  vertical-align: super;
+  font-size: 0.72em;
+  color: var(--md-link);
+  cursor: text;
+}
+/* 定义行行首的 `[^1]:` 缩成一枚小号弱化的 `1.`：正文才是这一行的主体。
+   源码里 `:` 后面的空格没被替换掉，间距由它顶着，这里不再补外边距 */
+.cm-live-preview .cm-lp-fn-def {
+  font-size: 0.85em;
+  color: var(--ink-faint);
 }
