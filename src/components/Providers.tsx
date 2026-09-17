@@ -18,8 +18,11 @@ export function Providers({
   /** 服务端 auth() 解出的会话，注入后 SessionProvider 不再于首帧发起客户端请求 */
   session: Session | null;
 }) {
+  // refetchWhenOffline={false}：断网时别去拉会话，拉了也只会拿到 null，
+  // 白白把 useSession 打成未登录。回前台重拉照常保留——那正是恢复在线的途径之一，
+  // 误判由 useAuthMode 的服务器探测兜住
   return (
-    <SessionProvider session={session}>
+    <SessionProvider session={session} refetchWhenOffline={false}>
       <SwRegister />
       <ScrollbarReveal />
       {children}
