@@ -5,12 +5,18 @@ import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreview/widgets";
 import { footnoteRef } from "@/lib/livePreview/footnote";
 import { caretTouches, type LpContext } from "@/lib/livePreview/context";
-import { COLOR_SPAN_OPEN_EXACT } from "@/lib/editor/colorSpan";
+import { colorSpanPairFromOpen } from "@/lib/editor/colorSpan";
 
 /**
  * 行内语法的即时渲染分支（强调、行内代码、删除线、链接、颜色 span、图片/视频、分割线）。
  * 从 livePreview/index.ts 里抽出来只为控制单文件长度，判定规则一以贯之：
  * 光标进入该语法范围内才显示标记，位移只发生在焦点处。
+ *
+ * 只有颜色 span 不守这条规矩：它的标签常隐，光标进去也不现出源码（见下方 HTMLTag 分支）。
+ * 别的行内标记就两三个字符，现出来位移小、也确实要手改（`**` 改 `*`）；
+ * 颜色的开标签有三十多个字符，光标一进去整行被推出老远还夹着一串代码，
+ * 而用户从没想改那串 style —— 要改颜色有工具栏，要看源码有源码模式。
+ *
  * 链接的点击语义（协议白名单、⌘/Ctrl+点击打开）也放这里 —— 生成 data-lp-href 的是本文件，
  * 让「什么样的地址可点」和「点了怎么办」待在一处，改一边不会漏掉另一边。
  */
@@ -97,30 +103,26 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   }
 
   if (name === "HTMLTag") {
-    // 工具栏字体颜色写出的 <span style="color:…">…</span>：
-    // 隐藏首尾标签、中间文字直接上色；光标进入范围才还原源码可编辑
-    const open = state.sliceDoc(node.from, node.to).match(COLOR_SPAN_OPEN_EXACT);
-    if (!open) return;
-    // 向后找配对的 </span>（中间可能嵌套别的 span，按深度计数）
-    let depth = 1;
-    let close: SyntaxNode | null = null;
-    for (let sib = node.node.nextSibling; sib; sib = sib.nextSibling) {
-      if (sib.name !== "HTMLTag") continue;
-      const t = state.sliceDoc(sib.from, sib.to);
-      if (/^<span[\s>]/i.test(t)) depth++;
-      else if (/^<\/span\s*>$/i.test(t) && --depth === 0) {
-        close = sib;
-        break;
-      }
+    // 工具栏字体颜色写出的 <span style="color:…">…</span>：首尾标签一律藏起来、中间文字上色，
+    // 光标在不在范围里都一样（Notion/飞书式的「颜色是属性，不是代码」）。标签登记成 atomic，
+    // 左右键整体跳过；光标停在有色文字里可以直接改字，删除键由 editor/colorSpanKeys.ts 兜着。
+    const pair = colorSpanPairFromOpen(state, node.node);
+    if (!pair) return;
+    // 中间一个字都没有：藏了就成了看不见又删不掉的垃圾，原样现出源码让用户处理
+    // （真删空了还有 colorSpanKeys 的兜底清理把这对空标签收走）
+    if (pair.empty) return;
+    // 要藏就两个都藏：行内公式区间会被 hide 默默拒绝，只藏住一头会留个孤零零的标签在正文里
+    if (ctx.inMath(pair.open.from, pair.open.to) || ctx.inMath(pair.close.from, pair.close.to)) {
+      return;
     }
-    if (!close || caretTouches(caret, node.from, close.to)) return;
-    ctx.hide(node.from, node.to);
-    ctx.hide(close.from, close.to);
-    if (close.from > node.to) {
-      ctx.decos.push(
-        Decoration.mark({ attributes: { style: `color:${open[1]}` } }).range(node.to, close.from)
-      );
-    }
+    ctx.replaceAtomic(pair.open.from, pair.open.to);
+    ctx.replaceAtomic(pair.close.from, pair.close.to);
+    ctx.decos.push(
+      Decoration.mark({ attributes: { style: `color:${pair.color}` } }).range(
+        pair.open.to,
+        pair.close.from
+      )
+    );
     return;
   }
 
