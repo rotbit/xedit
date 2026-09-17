@@ -5,20 +5,31 @@ import { editOnClick } from "@/lib/livePreview/widgetUtils";
 /** 即时渲染用到的替换部件（图片/视频/代码语言下拉/分割线/列表点/复选框），
  *  装饰构建逻辑见 livePreview/index.ts */
 
+/**
+ * 图片部件的两种形态（视频部件同理），由 preview 决定：
+ * - preview=false：替换整段 `![](…)` 源码的渲染形态，点击即进入编辑；
+ * - preview=true：编辑源码时挂在源码下方的预览。源码此刻原样显示着，
+ *   再点它只会把光标拽回 `![` 之后，所以不挂 editOnClick、只吞掉 mousedown 保住焦点。
+ * 形态参与 eq：两种形态的 DOM 不一样，切换时必须重建部件。
+ */
 export class ImageWidget extends WidgetType {
-  constructor(readonly src: string, readonly alt: string) {
+  constructor(
+    readonly src: string,
+    readonly alt: string,
+    readonly preview = false
+  ) {
     super();
   }
   eq(other: ImageWidget) {
-    return other.src === this.src && other.alt === this.alt;
+    return other.src === this.src && other.alt === this.alt && other.preview === this.preview;
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement("span");
-    wrap.className = "cm-lp-image";
+    wrap.className = this.preview ? "cm-lp-image cm-lp-media-below" : "cm-lp-image";
     const img = document.createElement("img");
     img.src = this.src;
     img.alt = this.alt || "图片";
-    img.title = "点击编辑图片地址";
+    if (!this.preview) img.title = "点击编辑图片地址";
     // 加载失败时收起破图标，换成占位签（点击同样可编辑）
     img.addEventListener("error", () => wrap.classList.add("cm-lp-broken"));
     const fallback = document.createElement("span");
@@ -26,8 +37,14 @@ export class ImageWidget extends WidgetType {
     fallback.textContent = this.alt ? `${this.alt}（图片未加载）` : "图片未加载";
     wrap.appendChild(img);
     wrap.appendChild(fallback);
-    // 点击图片＝有意编辑：把光标放进语法内部（`![` 之后），仅此刻还原为源码
-    editOnClick(wrap, view, 2);
+    if (this.preview) {
+      // 部件是 contenteditable=false 的外来节点，点它会把浏览器的 DOM 选区挪进来、
+      // 编辑器随之失焦或把光标丢到部件边上；preventDefault 掉就当没点过
+      wrap.addEventListener("mousedown", (e) => e.preventDefault());
+    } else {
+      // 点击图片＝有意编辑：把光标放进语法内部（`![` 之后），仅此刻还原为源码
+      editOnClick(wrap, view, 2);
+    }
     return wrap;
   }
   ignoreEvent() {
@@ -36,21 +53,39 @@ export class ImageWidget extends WidgetType {
 }
 
 export class VideoWidget extends WidgetType {
-  constructor(readonly src: string, readonly alt: string, readonly poster: string | null) {
+  constructor(
+    readonly src: string,
+    readonly alt: string,
+    readonly poster: string | null,
+    readonly preview = false
+  ) {
     super();
   }
   eq(other: VideoWidget) {
-    return other.src === this.src && other.alt === this.alt && other.poster === this.poster;
+    return (
+      other.src === this.src &&
+      other.alt === this.alt &&
+      other.poster === this.poster &&
+      other.preview === this.preview
+    );
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement("span");
-    wrap.className = "cm-lp-video";
+    wrap.className = this.preview ? "cm-lp-video cm-lp-media-below" : "cm-lp-video";
     const video = document.createElement("video");
     video.src = this.src;
     if (this.poster) video.poster = this.poster;
     video.controls = true;
     video.preload = "metadata";
     video.playsInline = true;
+    wrap.appendChild(video);
+    if (this.preview) {
+      // 播放/进度条要拿到原生事件才点得动，只有落到容器留白上的点击才吞掉（防失焦）
+      wrap.addEventListener("mousedown", (e) => {
+        if (e.target !== video) e.preventDefault();
+      });
+      return wrap;
+    }
     // 播放条把点击都吃掉了，编辑入口放在下方说明栏
     const bar = document.createElement("span");
     bar.className = "cm-lp-video-bar";
@@ -58,7 +93,6 @@ export class VideoWidget extends WidgetType {
     bar.title = "点击编辑视频源码";
     // 监听挂在说明栏上，位置按外层容器回查（播放条自己会吃掉点击）
     editOnClick(bar, view, 2, wrap);
-    wrap.appendChild(video);
     wrap.appendChild(bar);
     return wrap;
   }

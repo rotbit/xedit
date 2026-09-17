@@ -41,12 +41,14 @@ export function selectionTouches(state: EditorState, from: number, to: number): 
   return state.selection.ranges.some((r) => r.to >= from && r.from <= to);
 }
 
-/** 光标落在 [from, to]（含边界）内 —— 行内语法的还原判定 */
+/** 光标落在 [from, to]（含边界）内 —— 行内语法（含图片/视频）的还原判定。
+    图片也走含边界这一档：点开源码后光标挪到行首或 `)` 之后就正好踩在边界上，
+    用严格内部判定会当场翻回图片，在同一行里移动光标就成了来回闪 */
 export function caretTouches(caret: number[], from: number, to: number): boolean {
   return caret.some((p) => p >= from && p <= to);
 }
 
-/** 光标严格位于 (from, to) 内部 —— 图片/表格/公式等整体部件的还原判定。
+/** 光标严格位于 (from, to) 内部 —— 分割线/表格/公式等整体部件的还原判定。
     边界不算：上下键路过时光标只会停在边界（atomicRanges 保证），不触发还原 */
 export function caretInside(caret: number[], from: number, to: number): boolean {
   return caret.some((p) => p > from && p < to);
