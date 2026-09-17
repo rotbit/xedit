@@ -1,5 +1,5 @@
 /**
- * 标题折叠（H1–H4）：标题行首挂一枚小三角，折起来的段落在行尾留一枚 "…" 药丸。
+ * 标题折叠（H1–H4）：标题行尾挂一枚小三角，折起来之后同一位置换成一枚 "…" 药丸。
  *
  * 折叠范围不自己算。@codemirror/lang-markdown 的 markdown() 里已经装了一个
  * headerIndent（foldService，见 node_modules/@codemirror/lang-markdown/dist/index.js），
@@ -9,9 +9,9 @@
  * - 围栏代码块里的 `#` 在语法树里是 CodeText 不是标题，不会被误当成分界。
  * 所以这里只调 foldable()，不重复造一个 foldService。
  *
- * 入口做成行首 widget 而不是 gutter：这版编辑器是所见即所得的版式，正文列居中、
- * 左右留白很大，加一条 gutter 会把「文档」重新变回「代码编辑器」。widget 的锚点
- * 零宽零高，三角绝对定位挂到正文左缘之外，行内排版与光标位置的计算都感觉不到它。
+ * 入口做成行尾 widget 而不是 gutter：这版编辑器是所见即所得的版式，正文列居中、
+ * 左右留白很大，加一条 gutter 会把「文档」重新变回「代码编辑器」。折与展都在行尾，
+ * 左边距留给即时渲染显形的 "## "。
  * 样式见 app/editor.css。
  */
 
@@ -100,28 +100,22 @@ function toggleHeadingFold(view: EditorView, line: Line): boolean {
   return true;
 }
 
-/** 标题行首的折叠三角：零宽锚点 + 绝对定位的把手，两层的分工见 editor.css */
+/**
+ * 标题行尾的折叠三角。只有展开态才出现：折起来之后同一个位置换成 "…" 药丸，
+ * 折与展的入口落在同一处，手不用来回找。
+ */
 class FoldChevron extends WidgetType {
-  constructor(private readonly folded: boolean) {
-    super();
-  }
-
-  /** 位置由装饰自己带着，部件只需要区分展开/折叠两种形态 */
-  eq(other: FoldChevron): boolean {
-    return other.folded === this.folded;
+  /** 无状态部件，全都长一个样，DOM 直接复用 */
+  eq(): boolean {
+    return true;
   }
 
   toDOM(): HTMLElement {
-    const anchor = document.createElement("span");
-    anchor.className = "cm-fold-anchor";
-
     const button = document.createElement("span");
     button.className = "cm-fold-chevron";
-    // 朝向与常显与否都由 CSS 按这个属性决定，JS 不碰样式
-    button.dataset.folded = this.folded ? "true" : "false";
-    button.title = this.folded ? "展开" : "折叠";
+    button.title = "折叠";
     button.setAttribute("role", "button");
-    button.setAttribute("aria-label", this.folded ? "展开这一节" : "折叠这一节");
+    button.setAttribute("aria-label", "折叠这一节");
 
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("viewBox", "0 0 16 16");
@@ -135,8 +129,7 @@ class FoldChevron extends WidgetType {
     path.setAttribute("stroke-linejoin", "round");
     svg.append(path);
     button.append(svg);
-    anchor.append(button);
-    return anchor;
+    return button;
   }
 
   /** mousedown 必须放行：返回 true 的事件 CodeMirror 连插件的 eventHandlers 都不派发，
@@ -147,9 +140,9 @@ class FoldChevron extends WidgetType {
 }
 
 /**
- * 只扫视口内的标题。side 取负是关键：Decoration.widget 会把负 side 折算成 -1e8，
- * 排在同位置一切装饰之前——尤其排在即时渲染那条隐藏 "## " 的 replace（startSide 约 +5e8）
- * 之前，于是三角落在被隐藏的记号外侧，不会被它吞掉，也不会被 cm-lp-mark 的负 margin 拖走。
+ * 只扫视口内的标题。三角挂在标题行行尾、side 取正：排在行内文字和光标之后，
+ * 光标停在行尾时画在三角前面，打字位置不受影响。放行尾而不是行首还有一个好处：
+ * 左边距留给即时渲染显形的 "## "，两者不必抢同一块地方。
  */
 function buildChevrons(view: EditorView): DecorationSet {
   const { state } = view;
@@ -167,12 +160,9 @@ function buildChevrons(view: EditorView): DecorationSet {
         // 空章节（下一行就是同级或更高级标题）折不动，不该给一个按了没反应的把手
         if (!foldable(state, line.from, line.to)) return;
         lastLineFrom = line.from;
-        decos.push(
-          Decoration.widget({
-            widget: new FoldChevron(foldedAt(state, line.to) !== null),
-            side: -1,
-          }).range(line.from)
-        );
+        // 已折叠的不挂三角：行尾那枚 "…" 药丸就是展开入口
+        if (foldedAt(state, line.to)) return;
+        decos.push(Decoration.widget({ widget: new FoldChevron(), side: 1 }).range(line.to));
       },
     });
   }
@@ -205,7 +195,7 @@ const foldChevrons = ViewPlugin.fromClass(
         if (event.button !== 0 || !target?.closest?.(".cm-fold-chevron")) return false;
         const lineEl = target.closest(".cm-line");
         if (!lineEl) return false;
-        // 必须截下来：默认这一下会把光标挪到三角所在的行首，还会顺手改变焦点
+        // 必须截下来：默认这一下会把光标挪到三角所在的行尾，还会顺手改变焦点
         event.preventDefault();
         toggleHeadingFold(view, view.state.doc.lineAt(view.posAtDOM(lineEl)));
         return true;

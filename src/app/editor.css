@@ -368,47 +368,28 @@
 
 /* ==================== 标题折叠（扩展装配见 lib/editor/folding.ts）====================
 
-   这版编辑器是所见即所得的版式：正文列居中、左右留白很大，没有 gutter 也不打算加
-   —— 加一条 gutter 会把「文档」重新变回「代码编辑器」。折叠把手于是挂在标题行首：
-   锚点是个零宽零高的 inline-block，只当定位参照；真正的三角绝对定位到正文左缘之外，
-   对行内布局的净贡献为零，文本排版和光标位置的计算都感觉不到它。 */
-
-/* 零宽锚点：没有在流内的行盒，按 CSS 规则它的基线就是自己的下边缘，
-   于是这个零尺寸盒正正坐在标题首行的基线上，成为三角的垂直参照 */
-.cm-editor .cm-fold-anchor {
-  position: relative;
-  display: inline-block;
-  width: 0;
-  height: 0;
-  line-height: 0;
-  vertical-align: baseline;
-}
+   这版编辑器是所见即所得的版式，没有 gutter 也不打算加 —— 加一条 gutter 会把「文档」
+   重新变回「代码编辑器」。折叠把手挂在标题行尾：折起来之后同一位置换成 "…" 药丸，
+   折与展的入口在同一处；左边距则留给光标进标题行时显形的 "## "。 */
 
 .cm-editor .cm-fold-chevron {
-  position: absolute;
-  /* 各级标题字号各不相同（1.75em / 1.35em / 1.15em / 1em），写死 px 只能对上其中一级，
-     所以用 em：锚点坐在基线上，上抬 0.36em 再回撤自身半高，三角中心正好落在
-     中西文字面的视觉中线上，四级标题一体适用 */
-  top: -0.36em;
-  /* 三角 14px 宽，左缘正好顶在行内缩（--lp-pad 28px）的外沿上，
-     中心于是落在正文左缘外 21px 处：既在正文列之外，又没溢出行盒，不会被滚动容器裁掉 */
-  left: calc(-1 * var(--fold-x, 28px));
-  display: flex;
-  width: 14px;
-  height: 14px;
+  display: inline-flex;
+  /* 钉成 px 不跟标题字号缩放，和 "…" 药丸一个量级 */
+  width: 16px;
+  height: 16px;
+  margin-left: 0.35em;
   align-items: center;
   justify-content: center;
   color: var(--ink-faint);
+  vertical-align: middle;
   cursor: pointer;
   opacity: 0;
-  transform: translateY(-50%);
   transition:
     opacity 120ms ease,
     color 120ms ease;
 }
-/* 悬停到标题行才淡入；已折叠的常显 —— 那时它交代的是状态，不只是把手 */
-.cm-editor .cm-line:hover .cm-fold-chevron,
-.cm-editor .cm-fold-chevron[data-folded="true"] {
+/* 悬停到标题行才淡入，平时不给正文添噪点 */
+.cm-editor .cm-line:hover .cm-fold-chevron {
   opacity: 1;
 }
 .cm-editor .cm-fold-chevron:hover {
@@ -417,19 +398,6 @@
 .cm-editor .cm-fold-chevron svg {
   width: 100%;
   height: 100%;
-  transition: transform 120ms ease;
-}
-/* 展开态朝下、折叠态朝右：箭头方向就是「这一节的内容往哪儿走」 */
-.cm-editor .cm-fold-chevron[data-folded="true"] svg {
-  transform: rotate(-90deg);
-}
-/* 光标进标题行时，即时渲染会把 "## " 放回同一块外边距里（live-preview.css 的 .cm-lp-mark
-   靠负 margin 挂在正文左缘之外），和三角抢同一个位置，两者会叠在一起。
-   记号在场时让位给记号：那会儿用户正在改标题本身，折叠把手不是重点；光标一离开
-   标题行三角立刻回来。折叠状态另有行尾的 "…" 药丸交代，这中间也不丢信息 */
-.cm-editor .cm-line:has(.cm-lp-mark) .cm-fold-chevron {
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* 折叠后的占位：标题行尾一枚弱化的小药丸，点一下展开。
@@ -453,12 +421,6 @@
   color: var(--ink);
 }
 
-/* 窄屏正文左侧没有可用的外边距，三角藏起来；折叠仍可用 ⌘⌥[ / ⌘⌥] */
-@media (max-width: 768px) {
-  .cm-editor .cm-fold-chevron {
-    display: none;
-  }
-}
 /* 触屏没有 hover 这一态，三角以低不透明度常显：摸得到，又不抢正文 */
 @media (hover: none) {
   .cm-editor .cm-fold-chevron {
@@ -467,7 +429,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .cm-editor .cm-fold-chevron,
-  .cm-editor .cm-fold-chevron svg,
   .cm-editor .cm-fold-pill {
     transition: none;
   }
