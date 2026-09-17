@@ -54,6 +54,26 @@ export function scrollToLineRatio(
   }
 }
 
+/** 把某行滚到容器顶端（留 margin 余量）所需的绝对 scrollTop，连同滚动元素与该行起点 */
+function lineTopTarget(
+  view: EditorView,
+  parent: HTMLElement | null,
+  line: number,
+  margin: number
+): { el: HTMLElement; top: number; pos: number } {
+  const n = Math.min(view.state.doc.lines, Math.max(1, line + 1));
+  const pos = view.state.doc.line(n).from;
+  const blockTop = view.lineBlockAt(pos).top;
+  const el = parent ?? view.scrollDOM;
+  // parent 情况下 scrollTop 与 documentTop 一增一减，两项之和与当前滚动位置无关，
+  // 算出来始终是「绝对目标」；滚动途中反复调用也稳定，除非 CM 重新量了高度
+  const raw = parent
+    ? parent.scrollTop + (view.documentTop - parent.getBoundingClientRect().top) + blockTop - margin
+    : blockTop - margin;
+  const max = Math.max(0, el.scrollHeight - el.clientHeight);
+  return { el, top: Math.min(max, Math.max(0, raw)), pos };
+}
+
 /** 把某行滚到容器顶端（留 margin 的余量），返回该行起点 */
 export function scrollLineIntoView(
   view: EditorView,
@@ -62,15 +82,84 @@ export function scrollLineIntoView(
   margin: number,
   smooth: boolean
 ): number {
-  const n = Math.min(view.state.doc.lines, Math.max(1, line + 1));
-  const pos = view.state.doc.line(n).from;
-  const blockTop = view.lineBlockAt(pos).top;
-  const behavior: ScrollBehavior = smooth ? "smooth" : "auto";
-  if (parent) {
-    const delta = view.documentTop - parent.getBoundingClientRect().top;
-    parent.scrollTo({ top: Math.max(0, parent.scrollTop + delta + blockTop - margin), behavior });
-  } else {
-    view.scrollDOM.scrollTo({ top: Math.max(0, blockTop - margin), behavior });
-  }
+  const { el, top, pos } = lineTopTarget(view, parent, line, margin);
+  el.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
   return pos;
+}
+
+/** 连续这么多帧目标与位置都没动就算滚到位了。约 100ms —— 目录高亮的 pin 靠跳转期间
+    不间断的滚动上报续命（useTopLine 的 PIN_QUIET_MS = 300），等太久会把它放掉 */
+const SETTLE_STABLE_FRAMES = 6;
+/** 平滑滚动被打断停在半路时直接补位的次数上限，防止和某些浏览器的惯性来回拉扯 */
+const SETTLE_MAX_SNAPS = 3;
+/** 再怎么收敛不了也就到此为止 */
+const SETTLE_TIMEOUT_MS = 2500;
+
+/**
+ * 带收敛修正的跳转：把某行滚到容器顶端，滚完再核对落点，不准就改道。返回取消函数。
+ *
+ * 为什么不能一次 scrollTo 了事：CodeMirror 对视口外的行只有 height map 里的「估算高度」，
+ * view.lineBlockAt(pos).top 对没渲染过的远处行只是估计值。即时渲染模式下图片、表格、
+ * 公式 widget、折行都会让估算严重偏离，于是首次跳转按估算坐标滚过去、途中 CM 才真正
+ * 量到这些行，目标行的真实 top 已经变了 —— 这就是「第一次点不准、第二次就准」的由来。
+ * 这里逐帧重算目标，发现变了就重新滚，直到位置与目标都稳定下来。
+ */
+export function settleScrollToLine(
+  view: EditorView,
+  parent: HTMLElement | null,
+  line: number,
+  margin: number
+): () => void {
+  const el = parent ?? view.scrollDOM;
+  let target = lineTopTarget(view, parent, line, margin).top;
+  el.scrollTo({ top: target, behavior: "smooth" });
+
+  const startedAt = performance.now();
+  const userEvents = ["wheel", "touchstart", "pointerdown"] as const;
+  let raf = 0;
+  let stable = 0;
+  let snaps = 0;
+  let lastTop = el.scrollTop;
+  let stopped = false;
+
+  // 用户一动手就收手：再抢滚动就是跟人较劲
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    cancelAnimationFrame(raf);
+    for (const type of userEvents) el.removeEventListener(type, stop);
+    view.dom.removeEventListener("keydown", stop);
+  };
+
+  const tick = () => {
+    if (stopped) return;
+    if (!view.dom.isConnected || performance.now() - startedAt > SETTLE_TIMEOUT_MS) return stop();
+
+    const next = lineTopTarget(view, parent, line, margin).top;
+    if (Math.abs(next - target) > 1) {
+      // CM 量过高度了，落点跟着变：改道
+      target = next;
+      stable = 0;
+      el.scrollTo({ top: target, behavior: "smooth" });
+    } else if (el.scrollTop === lastTop) {
+      stable += 1;
+      if (stable >= SETTLE_STABLE_FRAMES) {
+        if (Math.abs(el.scrollTop - target) <= 1) return stop();
+        // 目标没变、位置也不动了却没到位：平滑滚动被中途打断停在半路，直接补上去
+        if (snaps >= SETTLE_MAX_SNAPS) return stop();
+        snaps += 1;
+        stable = 0;
+        el.scrollTo({ top: target, behavior: "auto" });
+      }
+    } else {
+      stable = 0;
+    }
+    lastTop = el.scrollTop;
+    raf = requestAnimationFrame(tick);
+  };
+
+  for (const type of userEvents) el.addEventListener(type, stop, { passive: true });
+  view.dom.addEventListener("keydown", stop);
+  raf = requestAnimationFrame(tick);
+  return stop;
 }
