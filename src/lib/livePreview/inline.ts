@@ -181,24 +181,34 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   }
 
   if (name === "Image") {
-    if (!caretInside(caret, node.from, node.to)) {
-      const n = node.node;
-      const url = n.getChild("URL");
-      const marks = n.getChildren("LinkMark");
-      const src = url ? state.sliceDoc(url.from, url.to) : "";
-      const alt = marks.length >= 2 ? state.sliceDoc(marks[0].to, marks[1].from) : "";
-      if (src) {
-        // 视频复用图片语法，title 位携带 poster= 封面约定
-        const titleNode = n.getChild("LinkTitle");
-        const rawTitle = titleNode
-          ? state.sliceDoc(titleNode.from, titleNode.to).replace(/^["'(]|["')]$/g, "")
-          : "";
-        // 磁盘文库里的相对路径（attachments/…）换成能显示的 object URL；还没读出来先留原样，
-        // 附件解析好后 livePreview 会收到刷新事件重建部件（src 变了 eq 不成立）
-        const shown = isAttachmentSrc(src) ? (resolveAttachmentSrc(src) ?? src) : src;
-        const widget = isVideoUrl(src)
-          ? new VideoWidget(shown, alt, posterFromTitle(rawTitle))
-          : new ImageWidget(shown, alt);
+    // 图片/视频的还原判定含边界（caretTouches 而非 caretInside）：点击部件把光标送到 from+2，
+    // 之后在这行源码里挪到行首或 `)` 之后就踩在 from/to 上——按严格内部判定会当场翻回图片，
+    // 同一行里移动光标于是来回闪。只认光标不认选区：全选/拖选时每张图都多出一行源码，
+    // 版面会整体抖一下，而图片被选中时本来就看得出来（整块高亮），不必现原文。
+    const editing = caretTouches(caret, node.from, node.to);
+    const n = node.node;
+    const url = n.getChild("URL");
+    const marks = n.getChildren("LinkMark");
+    const src = url ? state.sliceDoc(url.from, url.to) : "";
+    const alt = marks.length >= 2 ? state.sliceDoc(marks[0].to, marks[1].from) : "";
+    if (src) {
+      // 视频复用图片语法，title 位携带 poster= 封面约定
+      const titleNode = n.getChild("LinkTitle");
+      const rawTitle = titleNode
+        ? state.sliceDoc(titleNode.from, titleNode.to).replace(/^["'(]|["')]$/g, "")
+        : "";
+      // 磁盘文库里的相对路径（attachments/…）换成能显示的 object URL；还没读出来先留原样，
+      // 附件解析好后 livePreview 会收到刷新事件重建部件（src 变了 eq 不成立）
+      const shown = isAttachmentSrc(src) ? (resolveAttachmentSrc(src) ?? src) : src;
+      const widget = isVideoUrl(src)
+        ? new VideoWidget(shown, alt, posterFromTitle(rawTitle), editing)
+        : new ImageWidget(shown, alt, editing);
+      if (editing) {
+        // 编辑态不藏源码，另在 node.to 后挂一份预览：图片整张消失会让版面塌一块，
+        // 改地址时也看不到改成了什么。side:1 让光标停在 `)` 之后时画在预览之前（还在源码行上）。
+        // 不登记 atomic —— 此刻源码要能逐字符编辑、正常插入换行
+        ctx.decos.push(Decoration.widget({ widget, side: 1 }).range(node.to));
+      } else {
         ctx.replaceAtomic(node.from, node.to, widget);
       }
     }
