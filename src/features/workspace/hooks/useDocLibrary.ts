@@ -10,7 +10,7 @@ import {
 import { listLocalDocs, listLocalCats, DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { getBrowserBackend, LOCAL_BACKEND_CHANGED_EVENT } from "@/lib/localBackend";
 import { getActiveVault } from "@/lib/localBackend/vaultSession";
-import { listMirrorDocs, setWasAuthed } from "@/lib/docStore";
+import { listMirrorDocs } from "@/lib/docStore";
 import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
 import { toast } from "@/components/Toast";
 import { TRASH } from "../constants";
@@ -149,8 +149,8 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
   // 同步引擎：每轮完成后刷新列表；云端为空且编辑器里有未登录时写的稿子，就把它搬上云
   //（欢迎稿由服务端在账号创建时生成一次，这里不补：删光文章的老用户不该每次登录都多一篇）
   useEffect(() => {
+    // 本机账号快照由 useAuthMode 写（它排在前面，换账号的清库也在那儿做完了）
     if (!loggedIn && !offlineAuthed) return;
-    if (loggedIn) setWasAuthed();
     const refresh = () => {
       setDocs(mergedCloudList());
       if (

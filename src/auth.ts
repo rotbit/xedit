@@ -73,8 +73,11 @@ providers.push(
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers,
-  // Credentials 只在 JWT 会话下可用；OAuth 亦复用同一策略
-  session: { strategy: "jwt" },
+  // Credentials 只在 JWT 会话下可用；OAuth 亦复用同一策略。
+  // maxAge 一年：默认的 30 天对「装上就常年开着」的写作工具太短，一到期就掉回落地页。
+  // 仍是滑动续期——每次在线取会话都会重签 JWT，把到期时间再推回一年后，
+  // 只有真的一年没上来过的账号才会过期（本地那份账号快照用同一个期限）
+  session: { strategy: "jwt", maxAge: 365 * 24 * 60 * 60 },
   trustHost: true,
   callbacks: {
     jwt({ token, user }) {
