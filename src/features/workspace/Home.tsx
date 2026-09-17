@@ -19,7 +19,6 @@ import { DocContextMenu } from "./components/DocContextMenu";
 import { Sidebar } from "./components/Sidebar";
 import { VaultGate } from "./components/VaultGate";
 import { WorkspaceContent } from "./components/WorkspaceContent";
-import type { ImportMode } from "./hooks/useImportDocs";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { useWorkspaceCommands } from "./hooks/useWorkspaceCommands";
 import { useHydrated } from "@/hooks/useHydrated";
@@ -49,9 +48,7 @@ interface HomeProps {
  */
 export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
-  const { auth, prefs, library, nav, vault } = ws;
-  const [feishuOpen, setFeishuOpen] = useState(false);
-  const [importMode, setImportMode] = useState<ImportMode | null>(null);
+  const { auth, prefs, library, nav, vault, dialogs } = ws;
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const feishuSync = useFeishuSync();
@@ -115,10 +112,11 @@ export function Home({ landing }: HomeProps) {
     window.history.replaceState(null, "", "/");
     // 挪到宏任务里执行，动作内部的同步 setState 不属于本 effect
     setTimeout(() => {
-      if (raw === "new") void wsRef.current.docActions.createDoc();
-      else if (raw === "import-file") setImportMode("file");
-      else if (raw === "import-folder") setImportMode("folder");
-      else if (raw === "feishu") setFeishuOpen(true);
+      const { docActions, dialogs: dlg } = wsRef.current;
+      if (raw === "new") void docActions.createDoc();
+      else if (raw === "import-file") dlg.openImport("file");
+      else if (raw === "import-folder") dlg.openImport("folder");
+      else if (raw === "feishu") dlg.openFeishu();
     }, 0);
   }, [searchParams, auth.status]);
 
@@ -206,7 +204,7 @@ export function Home({ landing }: HomeProps) {
           onClick={() => prefs.setSidebarOpen(false)}
         />
       ) : null}
-      <Sidebar ws={ws} onImport={setImportMode} onOpenFeishu={() => setFeishuOpen(true)} />
+      <Sidebar ws={ws} />
       <WorkspaceContent ws={ws} />
       {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
       {!auth.online && !auth.localMode ? (
@@ -215,10 +213,11 @@ export function Home({ landing }: HomeProps) {
         </div>
       ) : null}
       {/* 飞书同步在后台跑着（或悄悄中断了）而对话框已关：右下角留个胶囊，点开回到详情 */}
-      {!feishuOpen && (feishuSync.syncing || (feishuSync.error && !feishuSync.errorAcked)) ? (
+      {!dialogs.feishuOpen &&
+      (feishuSync.syncing || (feishuSync.error && !feishuSync.errorAcked)) ? (
         <button
           className="fixed bottom-4 right-4 z-40 flex cursor-pointer items-center gap-2 rounded-full border border-[var(--hairline)] bg-[var(--panel)] px-3.5 py-1.5 text-[12px] text-[var(--ink-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:text-[var(--ink)]"
-          onClick={() => setFeishuOpen(true)}
+          onClick={dialogs.openFeishu}
         >
           {feishuSync.syncing ? (
             <>
@@ -249,17 +248,18 @@ export function Home({ landing }: HomeProps) {
         }}
       />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-      {importMode ? (
+      {dialogs.importRequest ? (
         <ImportDialog
-          mode={importMode}
+          mode={dialogs.importRequest.mode}
+          targetCat={dialogs.importRequest.cat}
           importer={ws.importer}
-          onClose={() => setImportMode(null)}
+          onClose={dialogs.closeImport}
         />
       ) : null}
-      {feishuOpen ? (
+      {dialogs.feishuOpen ? (
         <FeishuDialog
           onClose={() => {
-            setFeishuOpen(false);
+            dialogs.closeFeishu();
             // 打开过对话框就算看过中断提示，胶囊不再提醒（面板里的原因保留）
             ackSyncError();
           }}

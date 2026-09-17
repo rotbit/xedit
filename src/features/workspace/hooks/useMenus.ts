@@ -25,6 +25,11 @@ export interface AccountMenuAnchor {
 /** 菜单宽 192px + 右锚定位时，右锚的下限：防止菜单被推出屏幕左缘 */
 const DOC_MENU_MIN_RIGHT = 208;
 
+/** 分类菜单的最大高度，用来算贴底时该上移多少。
+ *  最长的一份是普通文件夹：新建文章 / 新建子文件夹 + 两条导入 + 移动 / 重命名 / 删除 共 7 条，
+ *  外加 2 条分隔线与面板自身的上下内边距，按约 36px 一条估到 280 */
+const CAT_MENU_MAX_HEIGHT = 280;
+
 /**
  * 工作台的三个弹出菜单。侧栏与列表都可滚动，菜单一律 fixed 定位，
  * 因此这里只保存触发点的视口坐标，由各菜单组件 portal 到 body 渲染。
@@ -55,7 +60,7 @@ export function useMenus() {
     e.stopPropagation();
     setCatMenu({
       path,
-      top: Math.min(e.clientY + 2, window.innerHeight - 200),
+      top: Math.min(e.clientY + 2, window.innerHeight - CAT_MENU_MAX_HEIGHT),
       left: e.clientX,
     });
   }, []);
