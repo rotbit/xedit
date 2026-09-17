@@ -1,8 +1,8 @@
 import MarkdownIt from "markdown-it";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
-import { ensureMathJax, texToSvg } from "@/lib/markdown/mathjax";
-import { refreshLivePreview } from "@/lib/livePreview/context";
+import { texToSvg } from "@/lib/markdown/mathjax";
+import { mathJaxReady, refreshWhenMathReady } from "@/lib/livePreview/mathReady";
 import { editOnClick } from "@/lib/livePreview/widgetUtils";
 
 /** 即时渲染的块级部件（表格、$$ 公式）。跨行替换只能由状态字段提供，
@@ -108,32 +108,11 @@ export class TableWidget extends WidgetType {
   }
 }
 
-/** MathJax 是异步动态加载的：首次渲染多半还没就绪，先出原文占位，
- *  就绪后由 refreshLivePreview 触发重建。ready 进 eq 比较，否则部件“相等”会留住旧 DOM */
-let mathReady = false;
-/** 加载只等一次：每个未就绪的公式块各自 then 一次的话，一篇 N 个公式就要触发 N 次全量重建 */
-let mathLoading = false;
-/** 就绪后要刷新的视图。总是记最后一个请求的：切文档时前一个 view 已经销毁 */
-let mathRefreshTarget: EditorView | null = null;
-
-function refreshWhenMathReady(view: EditorView) {
-  mathRefreshTarget = view;
-  if (mathLoading) return;
-  mathLoading = true;
-  void ensureMathJax().then(() => {
-    mathReady = true;
-    mathLoading = false;
-    const target = mathRefreshTarget;
-    mathRefreshTarget = null;
-    // 等一帧再派发：避开 CodeMirror 更新周期内再次 dispatch
-    requestAnimationFrame(() => {
-      if (target?.dom.isConnected) target.dispatch({ effects: refreshLivePreview.of(null) });
-    });
-  });
-}
-
+/** MathJax 是异步动态加载的：首次渲染多半还没就绪，先出原文占位，就绪后由
+ *  refreshLivePreview 触发重建（就绪状态与刷新见 mathReady.ts，行内公式共用同一份）。
+ *  ready 进 eq 比较，否则部件“相等”会留住旧 DOM */
 export class MathBlockWidget extends WidgetType {
-  private readonly ready = mathReady;
+  private readonly ready = mathJaxReady();
   constructor(readonly tex: string) {
     super();
   }

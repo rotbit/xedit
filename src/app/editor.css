@@ -212,3 +212,263 @@
 }
 /* 高亮行的底色用 --accent-wash（两套主题各自定义过），行内不再另设 hover 色：
    hover 会直接改 CodeMirror 侧的高亮下标，键鼠共用同一份高亮，不会出现两处同时亮 */
+
+/* ==================== ⌘F 查找替换面板（扩展装配见 lib/editor/searchPanel.ts）====================
+
+   面板 DOM 是 @codemirror/search 生成的，结构与类名都改不了，只能整块重画皮肤。
+   两条必须知道的前提：
+   1) 我们没给 CodeMirror 配深色主题，编辑器根上永远挂着 .cm-light —— 官方那批
+      `&light .cm-panels/.cm-button/.cm-textfield` 规则在夜间也照样生效，逐条都得盖掉，
+      盖不掉的地方夜里就会冒出一块 #f5f5f5 的浅灰面板。
+   2) 官方样式由 style-mod 插在 <head> 最前面，本文件在其后，同权重时我们胜出；
+      仍统一比官方多一级选择器，免得将来注入顺序变了又被盖回去。
+   颜色一律走主题变量，不另写 [data-theme="dark"] 分支。 */
+
+.cm-editor .cm-panels.cm-panels-top {
+  background: var(--panel);
+  color: var(--ink);
+  border-bottom: 1px solid var(--hairline);
+  /* 面板浮在正文之上，给一点向下的投影交代层次（夜间面板本就深，投影同样能读出来） */
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.06);
+  /* 首页文章视图里 .cm-scroller 是 overflow:visible，真正滚动的是标题+正文的外层容器
+     （见 MarkdownEditor 的 scrollParent）。面板挂在 .cm-editor 上，sticky 的参照就是那个
+     容器，top:0 正好贴它的顶沿——而它的顶沿已经在应用固定头部之下，不用再加偏移。
+     position/top 官方已设过，这里重申一次，避免以后升级把它改成 static 而无人察觉 */
+  position: sticky;
+  top: 0;
+}
+
+.cm-editor .cm-panel.cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  /* 右侧多留 34px 给绝对定位的关闭按钮 */
+  padding: 8px 34px 8px 14px;
+  font-family: inherit;
+  font-size: 13px;
+}
+/* 面板里那个 <br> 在 flex 容器里不再换行：撑满一整行把「替换」挤到第二排 */
+.cm-editor .cm-panel.cm-search br {
+  flex-basis: 100%;
+  height: 0;
+  margin: 0;
+}
+
+.cm-editor .cm-panel.cm-search .cm-textfield {
+  margin: 0;
+  height: 28px;
+  min-width: 172px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  outline: none;
+}
+.cm-editor .cm-panel.cm-search .cm-textfield::placeholder {
+  color: var(--ink-faint);
+}
+.cm-editor .cm-panel.cm-search .cm-textfield:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-wash);
+}
+
+/* 官方按钮是一层灰色渐变 + #888 边框，与整站的发丝线按钮完全不搭：
+   渐变要显式置 none，只改 background-color 盖不住 background-image */
+.cm-editor .cm-panel.cm-search .cm-button {
+  margin: 0;
+  height: 28px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: transparent;
+  background-image: none;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background-color 120ms,
+    color 120ms;
+}
+.cm-editor .cm-panel.cm-search .cm-button:hover {
+  color: var(--ink);
+  background: var(--accent-wash);
+  background-image: none;
+}
+.cm-editor .cm-panel.cm-search .cm-button:active {
+  background: var(--accent-wash);
+  background-image: none;
+}
+
+.cm-editor .cm-panel.cm-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  /* 官方给的是 80%（≈10px）加 white-space: pre，中文勾选项挤成一团 */
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.cm-editor .cm-panel.cm-search label:hover {
+  color: var(--ink);
+}
+.cm-editor .cm-panel.cm-search input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.cm-editor .cm-panel.cm-search [name="close"] {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--ink-faint);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cm-editor .cm-panel.cm-search [name="close"]:hover {
+  color: var(--ink);
+  background: var(--accent-wash);
+}
+
+/* 命中高亮：正文里所有匹配一层淡墨底，当前那一处加深并加一圈描边。
+   不用纯色块压字——选区本身也是半透明灰，纯色会把两种状态糊在一起。
+   多一级 .cm-line 是为了稳压官方那四条 &light/&dark 的写死颜色（黄/橙、青/品红） */
+.cm-editor .cm-line .cm-searchMatch {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 2px;
+}
+.cm-editor .cm-line .cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+/* 选中一段文字时，正文里相同片段的浅标（门槛 2 字符，见 searchPanel.ts）：
+   比查找命中更淡，只是「顺带看见」，不该抢走注意力 */
+.cm-editor .cm-line .cm-selectionMatch {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-radius: 2px;
+}
+
+/* ==================== 标题折叠（扩展装配见 lib/editor/folding.ts）====================
+
+   这版编辑器是所见即所得的版式：正文列居中、左右留白很大，没有 gutter 也不打算加
+   —— 加一条 gutter 会把「文档」重新变回「代码编辑器」。折叠把手于是挂在标题行首：
+   锚点是个零宽零高的 inline-block，只当定位参照；真正的三角绝对定位到正文左缘之外，
+   对行内布局的净贡献为零，文本排版和光标位置的计算都感觉不到它。 */
+
+/* 零宽锚点：没有在流内的行盒，按 CSS 规则它的基线就是自己的下边缘，
+   于是这个零尺寸盒正正坐在标题首行的基线上，成为三角的垂直参照 */
+.cm-editor .cm-fold-anchor {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+  line-height: 0;
+  vertical-align: baseline;
+}
+
+.cm-editor .cm-fold-chevron {
+  position: absolute;
+  /* 各级标题字号各不相同（1.75em / 1.35em / 1.15em / 1em），写死 px 只能对上其中一级，
+     所以用 em：锚点坐在基线上，上抬 0.36em 再回撤自身半高，三角中心正好落在
+     中西文字面的视觉中线上，四级标题一体适用 */
+  top: -0.36em;
+  /* 三角 14px 宽，左缘正好顶在行内缩（--lp-pad 28px）的外沿上，
+     中心于是落在正文左缘外 21px 处：既在正文列之外，又没溢出行盒，不会被滚动容器裁掉 */
+  left: calc(-1 * var(--fold-x, 28px));
+  display: flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition:
+    opacity 120ms ease,
+    color 120ms ease;
+}
+/* 悬停到标题行才淡入；已折叠的常显 —— 那时它交代的是状态，不只是把手 */
+.cm-editor .cm-line:hover .cm-fold-chevron,
+.cm-editor .cm-fold-chevron[data-folded="true"] {
+  opacity: 1;
+}
+.cm-editor .cm-fold-chevron:hover {
+  color: var(--ink);
+}
+.cm-editor .cm-fold-chevron svg {
+  width: 100%;
+  height: 100%;
+  transition: transform 120ms ease;
+}
+/* 展开态朝下、折叠态朝右：箭头方向就是「这一节的内容往哪儿走」 */
+.cm-editor .cm-fold-chevron[data-folded="true"] svg {
+  transform: rotate(-90deg);
+}
+/* 光标进标题行时，即时渲染会把 "## " 放回同一块外边距里（live-preview.css 的 .cm-lp-mark
+   靠负 margin 挂在正文左缘之外），和三角抢同一个位置，两者会叠在一起。
+   记号在场时让位给记号：那会儿用户正在改标题本身，折叠把手不是重点；光标一离开
+   标题行三角立刻回来。折叠状态另有行尾的 "…" 药丸交代，这中间也不丢信息 */
+.cm-editor .cm-line:has(.cm-lp-mark) .cm-fold-chevron {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 折叠后的占位：标题行尾一枚弱化的小药丸，点一下展开。
+   字号钉成 13px 不跟标题缩放，否则 H1 上会鼓成一颗突兀的大药丸 */
+.cm-editor .cm-fold-pill {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0 0.5em;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.cm-editor .cm-fold-pill:hover {
+  color: var(--ink);
+}
+
+/* 窄屏正文左侧没有可用的外边距，三角藏起来；折叠仍可用 ⌘⌥[ / ⌘⌥] */
+@media (max-width: 768px) {
+  .cm-editor .cm-fold-chevron {
+    display: none;
+  }
+}
+/* 触屏没有 hover 这一态，三角以低不透明度常显：摸得到，又不抢正文 */
+@media (hover: none) {
+  .cm-editor .cm-fold-chevron {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-editor .cm-fold-chevron,
+  .cm-editor .cm-fold-chevron svg,
+  .cm-editor .cm-fold-pill {
+    transition: none;
+  }
+}
