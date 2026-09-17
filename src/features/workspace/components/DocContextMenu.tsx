@@ -68,11 +68,11 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
       </button>
       <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
         <FolderInput size={13} className="text-[var(--ink-faint)]" />
-        移动到分类…
+        移动到分类
       </button>
       <button className={menuItemCls} onClick={run(() => void docActions.moveToNewCategory(doc))}>
         <FolderPlus size={13} className="text-[var(--ink-faint)]" />
-        新建文件夹…
+        新建文件夹
       </button>
       {!auth.localMode ? (
         <>

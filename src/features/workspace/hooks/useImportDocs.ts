@@ -82,9 +82,11 @@ function titleOf(file: File): string {
  * 选了「工作笔记」，里面 `2024/a.md` 落到分类「工作笔记/2024」。
  * 层级超过 MAX_DEPTH 截断；总长再超字段上限就从尾部丢层级（切一半的段名没有意义）。
  */
-function categoryOf(path: string, fallback: string): string {
+function categoryOf(path: string, fallback: string, prefix = ""): string {
   const segs = path.split("/").filter(Boolean);
   segs.pop(); // 最后一段是文件名
+  // 指定了落点文件夹：整棵目录树嵌到它下面，深度与长度上限照旧一起截
+  if (prefix) segs.unshift(...prefix.split("/"));
   const kept = segs.slice(0, MAX_DEPTH);
   if (kept.length === 0) return fallback;
   while (kept.length > 1 && kept.join("/").length > MAX_CAT_LEN) kept.pop();
@@ -129,7 +131,9 @@ function mediaFor(baseDir: string, raw: string, media: Map<string, File>): File 
 function buildPlan(
   files: File[],
   mode: ImportMode,
-  fallbackCat: string
+  fallbackCat: string,
+  /** 文件夹模式下目录树要嵌进去的文件夹；空串 = 照旧落在顶级 */
+  prefix = ""
 ): { entries: Entry[]; media: Map<string, File> } {
   const entries: Entry[] = [];
   const media = new Map<string, File>();
@@ -143,7 +147,7 @@ function buildPlan(
     const folder = mode === "folder" && file.webkitRelativePath;
     entries.push({
       title: titleOf(file),
-      category: folder ? categoryOf(path, fallbackCat) : fallbackCat,
+      category: folder ? categoryOf(path, fallbackCat, prefix) : fallbackCat,
       file,
       baseDir: folder ? path.split("/").slice(0, -1).join("/") : "",
     });
@@ -200,10 +204,21 @@ export function useImportDocs({ auth, library, nav }: Params) {
   /** 文件模式落在当前分类（停在虚拟视图上时归「未分类」），与 createDoc 同一套算法 */
   const targetCat = isVirtualCat(nav.activeCat) ? UNCATEGORIZED : nav.activeCat;
 
-  const importFiles = async (files: File[], mode: ImportMode): Promise<ImportResult> => {
+  /**
+   * @param cat 指定落点（文件树里右键某个文件夹发起导入时带上），不传就跟着当前分类走。
+   *            传进来的同样过一遍虚拟视图归一，调用方不必自己判断。
+   */
+  const importFiles = async (
+    files: File[],
+    mode: ImportMode,
+    cat?: string
+  ): Promise<ImportResult> => {
     const result: ImportResult = { created: 0, updated: 0, skipped: 0, failed: [], imageFailed: 0 };
     if (importing) return result;
-    const { entries, media } = buildPlan(files, mode, targetCat);
+    const fallbackCat = cat === undefined ? targetCat : isVirtualCat(cat) ? UNCATEGORIZED : cat;
+    // 只有显式指定的真实文件夹才当前缀：默认的「当前分类」不嵌套，保住旧行为和重复导入的幂等
+    const prefix = cat !== undefined && !isVirtualCat(cat) && cat !== UNCATEGORIZED ? cat : "";
+    const { entries, media } = buildPlan(files, mode, fallbackCat, prefix);
     setProgress({ done: 0, total: entries.length });
     if (entries.length === 0) return result;
 

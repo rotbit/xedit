@@ -11,6 +11,7 @@ import type { CatNode, DragItem } from "../types";
 import { useAppConfig } from "./useAppConfig";
 import { useAuthMode } from "./useAuthMode";
 import { useCategoryActions } from "./useCategoryActions";
+import { useDialogs } from "./useDialogs";
 import { useDocActions } from "./useDocActions";
 import { useDocLibrary } from "./useDocLibrary";
 import { useDragMove } from "./useDragMove";
@@ -30,6 +31,7 @@ export function useWorkspace() {
   const config = useAppConfig();
   const prefs = useSidebarPrefs();
   const menus = useMenus();
+  const dialogs = useDialogs();
   const nav = useWorkspaceNav({ prefs, closeDocMenu: menus.closeDocMenu });
   const vault = useVaultBoot({ localMode: auth.localMode, nav });
   // 开着磁盘文库时盯外部改动：回到前台就跟磁盘对一次账
@@ -144,6 +146,7 @@ export function useWorkspace() {
     config,
     prefs,
     menus,
+    dialogs,
     nav,
     vault,
     library,

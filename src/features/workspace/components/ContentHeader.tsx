@@ -4,18 +4,10 @@
  * 内容区顶栏。所有状态都从 ws（useWorkspace 的聚合对象）里取，自己不持有任何状态。
  * 桌面壳里这条同时充当系统窗口标题栏（app-titlebar），高度和左侧留白牵扯到红绿灯位置，改动前先看下面的说明。
  */
-import {
-  ChevronRight,
-  FilePlus2,
-  CalendarDays,
-  List,
-  Loader2,
-  PanelLeftOpen,
-  Trash2,
-  X,
-} from "lucide-react";
+import { ChevronRight, CalendarDays, List, PanelLeftOpen, Trash2, X } from "lucide-react";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { ALL, ASSETS } from "../constants";
+import { NewDocButton } from "./NewDocButton";
 import type { DocMeta } from "../types";
 import type { DocView } from "../hooks/useSidebarPrefs";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -95,7 +87,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
 }
 
 /**
- * 内容区顶栏：面包屑 + 视图切换 + 新建按钮。
+ * 内容区顶栏：面包屑 + 视图切换 + 新建/导入分体按钮。
  * 阅读态下 ArticleReader 的操作按钮会 portal 进 actionSlot，与面包屑同处一行，省掉一整条横栏。
  */
 export function ContentHeader({
@@ -162,18 +154,7 @@ export function ContentHeader({
               </button>
             ))}
           </div>
-          <button
-            className="ml-2 flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 text-[12.5px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
-            onClick={() => void docActions.createDoc()}
-            disabled={docActions.creating}
-          >
-            {docActions.creating ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <FilePlus2 size={13} />
-            )}
-            新建文章
-          </button>
+          <NewDocButton ws={ws} />
         </>
       ) : null}
 

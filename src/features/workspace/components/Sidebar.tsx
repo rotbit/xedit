@@ -8,22 +8,13 @@ import { ALL } from "../constants";
 import { clampSidebarWidth } from "../hooks/useSidebarPrefs";
 import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
-import type { ImportMode } from "../hooks/useImportDocs";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /**
  * 工作区侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕。
  * 结构自上而下——工作区头 / 全局搜索 / 统计行 / 分类树 / 工具与账户。
  */
-export function Sidebar({
-  ws,
-  onImport,
-  onOpenFeishu,
-}: {
-  ws: Workspace;
-  onImport: (mode: ImportMode) => void;
-  onOpenFeishu: () => void;
-}) {
+export function Sidebar({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, menus, totalChars } = ws;
   const { docs } = library;
   /** 统计文字兼作「全部文章」入口：当前就在全部列表时文字加深 */
@@ -85,8 +76,8 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* 统计行不放按钮：新建文件夹 / 刷新 / 新建文章都在右键菜单里（这行和树的空白处都能右键），
-          新建文章另有主区域顶部的按钮，侧栏保持只有导航 */}
+      {/* 统计行不放按钮：新建文件夹 / 刷新 / 新建文章 / 导入都在右键菜单里（这行和树的空白处都能右键），
+          新建与导入另有主区域顶部的分体按钮，侧栏保持只有导航 */}
       <div
         className="flex h-6 shrink-0 items-center pl-4 pr-2.5"
         onContextMenu={(e) => menus.openCatMenuAt(e, ALL)}
@@ -106,7 +97,7 @@ export function Sidebar({
       </div>
 
       <CategoryTree ws={ws} />
-      <SidebarFooter ws={ws} onImport={onImport} onOpenFeishu={onOpenFeishu} />
+      <SidebarFooter ws={ws} />
 
       {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}
       <div
