@@ -87,22 +87,40 @@ export function scrollLineIntoView(
   return pos;
 }
 
-/** 连续这么多帧目标与位置都没动就算滚到位了。约 100ms —— 目录高亮的 pin 靠跳转期间
-    不间断的滚动上报续命（useTopLine 的 PIN_QUIET_MS = 300），等太久会把它放掉 */
-const SETTLE_STABLE_FRAMES = 6;
-/** 平滑滚动被打断停在半路时直接补位的次数上限，防止和某些浏览器的惯性来回拉扯 */
-const SETTLE_MAX_SNAPS = 3;
+/** 到位后还要连看这么多帧，确认 CM 不再改主意。约 4 帧 ≈ 65ms —— 目录高亮的 pin 靠跳转
+    期间不间断的滚动上报续命（useTopLine 的 PIN_QUIET_MS = 300），等太久会把它放掉 */
+const SETTLE_STABLE_FRAMES = 4;
+/** 指数趋近的时间常数：每帧吃掉剩余距离的 1 - e^(-dt/τ)，τ 越小收得越急 */
+const SETTLE_TAU_MS = 90;
+/** 单帧 dt 上限。切到后台再回来时 rAF 时间戳会跨掉几秒，夹住免得一步蹦到底 */
+const SETTLE_MAX_FRAME_MS = 50;
+/** 距离超过这么多屏就先瞬移过去 */
+const SETTLE_FAR_SCREENS = 1.5;
+/** 瞬移的落点留在目标前这么多屏，剩下的一小段再滑过去 */
+const SETTLE_APPROACH_SCREENS = 0.5;
+/** 位置与目标差到这以内就算到位 —— scrollTop 本来就常被浏览器取整，再抠没意义 */
+const SETTLE_EPSILON_PX = 0.5;
+/** 实际 scrollTop 与我们上帧写进去的值差这么多，就是别人（CM 的滚动锚定、浏览器的
+    scroll anchoring）挪过位置，以实际值为准 */
+const SETTLE_FOREIGN_PX = 2;
 /** 再怎么收敛不了也就到此为止 */
 const SETTLE_TIMEOUT_MS = 2500;
 
 /**
- * 带收敛修正的跳转：把某行滚到容器顶端，滚完再核对落点，不准就改道。返回取消函数。
+ * 带收敛修正的跳转：把某行滚到容器顶端，逐帧重算落点并趋近过去。返回取消函数。
  *
  * 为什么不能一次 scrollTo 了事：CodeMirror 对视口外的行只有 height map 里的「估算高度」，
  * view.lineBlockAt(pos).top 对没渲染过的远处行只是估计值。即时渲染模式下图片、表格、
  * 公式 widget、折行都会让估算严重偏离，于是首次跳转按估算坐标滚过去、途中 CM 才真正
  * 量到这些行，目标行的真实 top 已经变了 —— 这就是「第一次点不准、第二次就准」的由来。
- * 这里逐帧重算目标，发现变了就重新滚，直到位置与目标都稳定下来。
+ *
+ * 为什么不用浏览器原生 smooth：目标几乎每帧都在漂，每次改道都得重发 scrollTo，而原生
+ * 缓动一被重发就从头开始加速，连着来就是一卡一卡的顿挫。这里改成自己按 rAF 驱动的指数
+ * 趋近 —— 目标换了只是换个终点，速度是连续的，不会重启。
+ *
+ * 为什么远距离先瞬移：长距离滑过去要把途经的图片/表格/公式 widget 全渲染一遍，本身就掉帧；
+ * 先瞬移到目标前半屏（保持原来的行进方向，不至于像闪现那样失去方位感），CM 立刻就能实测
+ * 目标附近的高度，剩下的一小段再滑，既快又准。
  */
 export function settleScrollToLine(
   view: EditorView,
@@ -111,15 +129,25 @@ export function settleScrollToLine(
   margin: number
 ): () => void {
   const el = parent ?? view.scrollDOM;
+  // 一律 instant：缓动由下面自己算，不能再被 CSS 的 scroll-behavior 插一脚
+  const write = (top: number) => el.scrollTo({ top, behavior: "instant" });
+  const clamp = (top: number) =>
+    Math.min(Math.max(0, el.scrollHeight - el.clientHeight), Math.max(0, top));
+
   let target = lineTopTarget(view, parent, line, margin).top;
-  el.scrollTo({ top: target, behavior: "smooth" });
+  const gap = target - el.scrollTop;
+  if (Math.abs(gap) > SETTLE_FAR_SCREENS * el.clientHeight) {
+    write(clamp(target - Math.sign(gap) * SETTLE_APPROACH_SCREENS * el.clientHeight));
+  }
 
   const startedAt = performance.now();
   const userEvents = ["wheel", "touchstart", "pointerdown"] as const;
   let raf = 0;
   let stable = 0;
-  let snaps = 0;
-  let lastTop = el.scrollTop;
+  // scrollTop 在部分浏览器会取整，小步长写进去会被吞掉，所以位置自己用浮点记一份
+  let pos = el.scrollTop;
+  let written = pos;
+  let lastTime = startedAt;
   let stopped = false;
 
   // 用户一动手就收手：再抢滚动就是跟人较劲
@@ -131,30 +159,37 @@ export function settleScrollToLine(
     view.dom.removeEventListener("keydown", stop);
   };
 
-  const tick = () => {
+  const tick = (now: number) => {
     if (stopped) return;
-    if (!view.dom.isConnected || performance.now() - startedAt > SETTLE_TIMEOUT_MS) return stop();
+    if (!view.dom.isConnected) return stop();
 
     const next = lineTopTarget(view, parent, line, margin).top;
-    if (Math.abs(next - target) > 1) {
-      // CM 量过高度了，落点跟着变：改道
-      target = next;
-      stable = 0;
-      el.scrollTo({ top: target, behavior: "smooth" });
-    } else if (el.scrollTop === lastTop) {
+    // CM 又量过高度了，落点跟着变：到位的帧数重新数
+    if (Math.abs(next - target) > SETTLE_EPSILON_PX) stable = 0;
+    target = next;
+
+    if (now - startedAt > SETTLE_TIMEOUT_MS) {
+      write(target);
+      return stop();
+    }
+
+    if (Math.abs(el.scrollTop - written) > SETTLE_FOREIGN_PX) pos = el.scrollTop;
+    const dt = Math.min(SETTLE_MAX_FRAME_MS, Math.max(0, now - lastTime));
+    lastTime = now;
+
+    const diff = target - pos;
+    if (Math.abs(diff) < SETTLE_EPSILON_PX) {
+      pos = target;
       stable += 1;
-      if (stable >= SETTLE_STABLE_FRAMES) {
-        if (Math.abs(el.scrollTop - target) <= 1) return stop();
-        // 目标没变、位置也不动了却没到位：平滑滚动被中途打断停在半路，直接补上去
-        if (snaps >= SETTLE_MAX_SNAPS) return stop();
-        snaps += 1;
-        stable = 0;
-        el.scrollTo({ top: target, behavior: "auto" });
-      }
     } else {
       stable = 0;
+      pos += diff * (1 - Math.exp(-dt / SETTLE_TAU_MS));
     }
-    lastTop = el.scrollTop;
+    written = pos;
+    write(pos);
+
+    // 到位了也别立刻收 —— CM 常常要到后一两帧才把目标附近量完
+    if (stable >= SETTLE_STABLE_FRAMES) return stop();
     raf = requestAnimationFrame(tick);
   };
 
