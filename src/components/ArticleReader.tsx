@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlignLeft, Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
 import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
@@ -11,7 +11,9 @@ import { toast } from "./Toast";
 import { useStore } from "@/store/useStore";
 import { useDragDivider } from "@/hooks/useDragDivider";
 import { useEditorDoc } from "@/hooks/useEditorDoc";
+import { useScrollMemory } from "@/hooks/useScrollMemory";
 import { useSyncScroll } from "@/hooks/useSyncScroll";
+import { useTopLineChannel } from "@/hooks/useTopLine";
 import { MarkdownEditor } from "./MarkdownEditor";
 import type { EditorHandle, SelectionInfo } from "@/lib/editor/types";
 import type { FormatCommand } from "@/lib/editor/commands";
@@ -125,6 +127,26 @@ export function ArticleReader({
     previewRef
   );
 
+  // 编辑器重建的标识：docId 或装载批次一变就换了一篇内容（滚动记忆以它判断「切文档」）
+  const docKey = `${docId}:${docVersion}`;
+  // 记住每篇读到哪：切走再回来、刷新页面都回到原处
+  const recordScroll = useScrollMemory(docId, docKey, editorRef, scrollEl);
+  // 目录高亮走订阅：顶端行号每帧都在变，抬成 state 会连累整篇文章视图重渲染
+  const { publish: publishTopLine, subscribe: subscribeTopLine } = useTopLineChannel();
+  const onScrollLine = useCallback(
+    (line: number, ratio: number) => {
+      onEditorScrollLine(line, ratio); // 双屏同步滚动
+      recordScroll(line, ratio); // 滚动记忆
+      publishTopLine(line); // 目录当前章节
+    },
+    [onEditorScrollLine, recordScroll, publishTopLine]
+  );
+  // 换文档先把顶端行归零：短到不产生滚动事件的文章不会推来新行号，
+  // 不归零目录就还亮着上一篇读到的那一章
+  useEffect(() => {
+    publishTopLine(0);
+  }, [docKey, publishTopLine]);
+
   // 源码/预览分隔条：拖动中只走本地值，松手才写 store——
   // splitRatio 是 persist 持久化字段，每帧写它等于一次拖动往 localStorage 刷上百次
   const splitDrag = useDragDivider<DOMRect | null>({
@@ -206,8 +228,6 @@ export function ArticleReader({
     );
   }
 
-  const docKey = `${docId}:${docVersion}`;
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 顶部操作栏：插入 / 主题 / 版本 / 复制 / 双屏 / 阅读 / 更多
@@ -256,6 +276,7 @@ export function ArticleReader({
                 active={outlineOpen}
                 onClose={closeOutline}
                 onJump={(line) => editorRef.current?.scrollToLine(line)}
+                subscribeTopLine={subscribeTopLine}
               />
             </div>
             <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
@@ -345,7 +366,7 @@ export function ArticleReader({
                     live={!sourceMode}
                     docs={docs}
                     onChange={setContent}
-                    onScrollLine={onEditorScrollLine}
+                    onScrollLine={onScrollLine}
                     onSelectionChange={emitSelection}
                     scrollParent={scrollEl}
                   />
