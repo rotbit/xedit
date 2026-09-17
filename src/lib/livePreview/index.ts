@@ -29,6 +29,7 @@ import { footnoteDefLine, isFootnoteDefLine } from "@/lib/livePreview/footnote";
 import { fencedCodeDecorations } from "@/lib/livePreview/fence";
 import { fenceKeymap } from "@/lib/livePreview/fenceKeys";
 import { livePreviewBlocks, renderedBlockRanges } from "@/lib/livePreview/blocks";
+import { colorSpanKeys } from "@/lib/editor/colorSpanKeys";
 import { requestOpenWikiLink } from "@/lib/wikiLink";
 
 /**
@@ -445,4 +446,6 @@ export const livePreview: Extension = [
   }),
   // 围栏代码块的删除键接管：开栏/闭栏行是 atomic 的，默认删除会把 ``` 删穿
   fenceKeymap,
+  // 颜色 span 同理：首尾标签常隐且 atomic，删除键要跳过它们，被删剩一半时还要收拾孤儿
+  colorSpanKeys,
 ];

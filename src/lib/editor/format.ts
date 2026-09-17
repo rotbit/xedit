@@ -10,6 +10,7 @@ import {
   COLOR_SPAN_OPEN_AT_END,
   COLOR_SPAN_WRAPPED,
   colorSpanOpen,
+  colorSpanPairAt,
 } from "@/lib/editor/colorSpan";
 
 const INLINE_MARKUP = {
@@ -125,8 +126,33 @@ export function toggleInlineFormat(view: EditorView, marker: InlineMarker, place
  *  选区恰好是一个颜色 span、或恰好是其内部文字时，就地改写/剥掉原标签，避免嵌套套娃 */
 export function applyColor(view: EditorView, color: string | null) {
   const { state } = view;
+  // 多光标时不走「就地改写整段」那条路：两个光标落在同一个 span 里会生成两条重叠变更，
+  // ChangeSet 直接抛错。退回逐光标插占位的老行为，至少不会炸
+  const single = state.selection.ranges.length === 1;
   const changes = state.changeByRange((range) => {
     let { from, to } = range;
+    // 光标停在有色文字里（含紧贴标签内侧的两个边界）：即时渲染下标签是藏着的，
+    // 用户眼里就是「光标在这段有色字里」，此时改色/清色的对象当然是这一整段，
+    // 而不是在中间再插一段「有色文字」占位、套出个嵌套 span
+    const pair = single && range.empty ? colorSpanPairAt(state, range.head) : null;
+    // 空 span 不走这条：它该被填上占位文字，那正是下面老逻辑干的事
+    if (pair && !pair.empty) {
+      const offset = range.head - pair.open.to; // 光标在文字里的相对位置，改完保持不变
+      if (color === null) {
+        return {
+          changes: [
+            { from: pair.open.from, to: pair.open.to },
+            { from: pair.close.from, to: pair.close.to },
+          ],
+          range: EditorSelection.cursor(pair.open.from + offset),
+        };
+      }
+      const newOpen = colorSpanOpen(color);
+      return {
+        changes: { from: pair.open.from, to: pair.open.to, insert: newOpen },
+        range: EditorSelection.cursor(pair.open.from + newOpen.length + offset),
+      };
+    }
     // 选区两侧紧贴着一对颜色标签（比如刚上完色又换色）：扩到整个标签一起改写
     const beforeText = state.doc.sliceString(Math.max(0, from - COLOR_SPAN_LOOKBACK), from);
     const openAtLeft = beforeText.match(COLOR_SPAN_OPEN_AT_END);

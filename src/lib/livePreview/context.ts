@@ -89,6 +89,10 @@ export interface LpContext {
   hide(from: number, to: number): void;
   /** 替换为部件并登记为 atomic：光标整体跳过，路过不还原 */
   replaceAtomic(from: number, to: number, widget?: WidgetType): void;
+  /** 这一段是否落在行内公式里 —— hide/replaceAtomic 会默默拒绝这种区间（见下方 inMath）。
+      要「几段一起藏、要藏就全藏」的地方（颜色 span 的首尾标签）得先问一句再动手，
+      否则只藏住一头，另一头孤零零地露在正文里 */
+  inMath(from: number, to: number): boolean;
   /** 给 pos 所在行加行级类；同行同类只加一次（嵌套结构会重复命中） */
   lineClass(pos: number, cls: string): void;
   /** [from, to] 覆盖的每一行都加行级类 */
@@ -128,6 +132,7 @@ export function createLpContext(state: EditorState, caret: number[]): LpContext 
     hide(from, to) {
       if (from < to && !inMath(from, to)) decos.push(Decoration.replace({}).range(from, to));
     },
+    inMath,
     replaceAtomic(from, to, widget) {
       if (inMath(from, to)) return;
       const deco = Decoration.replace(widget ? { widget } : {}).range(from, to);
