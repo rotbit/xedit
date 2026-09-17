@@ -7,6 +7,7 @@ import type {
   ImportMode,
   ImportResult,
 } from "@/features/workspace/hooks/useImportDocs";
+import { UNCATEGORIZED } from "@/lib/docDefaults";
 import { Modal, btnPrimary } from "./Modal";
 
 /** 失败清单最多列这么多条，再多只报总数——弹窗不该被一个坏文件夹撑成长卷 */
@@ -18,10 +19,13 @@ const MAX_FAILED_SHOWN = 20;
  */
 export function ImportDialog({
   mode: initialMode,
+  targetCat,
   onClose,
   importer,
 }: {
   mode: ImportMode;
+  /** 指定落点（从文件树里某个文件夹发起导入时带上）；不给就落在当前分类 */
+  targetCat?: string;
   onClose: () => void;
   importer: DocImporter;
 }) {
@@ -50,14 +54,15 @@ export function ImportDialog({
     const files = [...(e.target.files ?? [])];
     if (files.length === 0) return;
     setBusy(true);
-    const done = await importer.importFiles(files, mode);
+    const done = await importer.importFiles(files, mode, targetCat);
     setBusy(false);
     setResult(done); // 与上一行同批提交，中间不会露出别的阶段
   };
 
   return (
     <Modal
-      title="导入 Markdown"
+      // 标题跟菜单条目同名，点哪条进来就看到哪条
+      title={mode === "folder" ? "导入文件夹" : "导入文件"}
       icon={<FileInput size={15} className="text-[var(--accent)]" />}
       width={520}
       locked={running}
@@ -70,7 +75,14 @@ export function ImportDialog({
       ) : result ? (
         <Done result={result} onClose={onClose} />
       ) : (
-        <Pick mode={mode} targetCat={importer.targetCat} onSwitch={setMode} onPick={pick} />
+        <Pick
+          mode={mode}
+          targetCat={targetCat ?? importer.targetCat}
+          // 指定了落点就直说是哪个文件夹，没指定才是「当前分类」——两者常常不是同一个
+          picked={targetCat !== undefined}
+          onSwitch={setMode}
+          onPick={pick}
+        />
       )}
     </Modal>
   );
@@ -80,11 +92,14 @@ export function ImportDialog({
 function Pick({
   mode,
   targetCat,
+  picked,
   onSwitch,
   onPick,
 }: {
   mode: ImportMode;
   targetCat: string;
+  /** 落点是调用方指定的（右键某个文件夹），而不是「当前分类」推出来的 */
+  picked: boolean;
   onSwitch: (mode: ImportMode) => void;
   onPick: () => void;
 }) {
@@ -93,8 +108,10 @@ function Pick({
     <div className="flex flex-col gap-4 px-5 py-6">
       <p className="text-[13px] leading-6 text-[var(--ink-soft)]">
         {folder
-          ? "选一个文件夹，子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。"
-          : `选一个或多个 .md 文件，导入到当前分类「${targetCat}」。`}
+          ? `选一个文件夹，${
+              picked && targetCat !== UNCATEGORIZED ? `整个目录会放进「${targetCat}」，` : ""
+            }子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。`
+          : `选一个或多个 .md 文件，导入到${picked ? "文件夹" : "当前分类"}「${targetCat}」。`}
       </p>
       <div className="flex items-center gap-3">
         <button className={btnPrimary} onClick={onPick}>
