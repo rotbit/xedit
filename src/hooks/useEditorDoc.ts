@@ -13,6 +13,7 @@ import {
   DOC_REPLACED_EVENT,
 } from "@/lib/localDocs";
 import { prefetchAttachments } from "@/lib/localBackend/attachmentUrls";
+import { wasAuthed } from "@/lib/authSnapshot";
 import {
   getMirrorMeta,
   getMirrorContent,
@@ -195,7 +196,14 @@ export function useEditorDoc(routeDocId: string | null) {
     // 无镜像：需要网络与登录（首次打开该文档，顺手落镜像供之后离线用）
     if (status === "loading") return;
     if (status === "unauthenticated") {
-      toast("请先登录后再打开云端文章", "error");
+      // unauthenticated 未必是真登出：断网或服务器够不着时 next-auth 给的也是这个。
+      // 本机记得登录过就别把人往登录上引，按「这篇没缓存过」说
+      toast(
+        wasAuthed()
+          ? "离线中，这篇文章还没有缓存到本地，联网后打开一次即可离线使用"
+          : "请先登录后再打开云端文章",
+        "error"
+      );
       router.replace("/");
       return;
     }

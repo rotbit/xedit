@@ -4,6 +4,7 @@
  * 云端只是同步目标——离线时列表、阅读、编辑全部照常，联网后由 sync 引擎推拉。
  */
 
+import { clearAuthSnapshot } from "./authSnapshot";
 import { notifyDocsChanged, summarize } from "./localDocs";
 import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 
@@ -28,7 +29,6 @@ export interface ServerDoc {
 
 const INDEX_KEY = "xedit-mirror-index";
 const DOC_PREFIX = "xedit-mirror-doc:";
-const AUTHED_KEY = "xedit-was-authed";
 /** 增量同步游标：上次成功拉取时见到的最大 updatedAt（服务端时间，ISO 串） */
 export const SYNC_CURSOR_KEY = "xedit-sync-cursor";
 
@@ -136,20 +136,10 @@ export function listDirtyMirrorDocs(): MirrorMeta[] {
   return readIndex().filter((d) => d.dirty);
 }
 
-/** 登出时清空镜像，避免下一个账号看到上一个账号的文章 */
+/** 登出时清空镜像，避免下一个账号看到上一个账号的文章；本机账号快照一并清掉 */
 export function clearMirror() {
   for (const d of readIndex()) localStorage.removeItem(DOC_PREFIX + d.id);
   localStorage.removeItem(INDEX_KEY);
-  localStorage.removeItem(AUTHED_KEY);
   localStorage.removeItem(SYNC_CURSOR_KEY);
-}
-
-/** 「曾登录」标志：离线时 next-auth 拿不到会话，用它兜底进入离线工作区而非落地页 */
-export function wasAuthed(): boolean {
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem(AUTHED_KEY) === "1";
-}
-
-export function setWasAuthed() {
-  localStorage.setItem(AUTHED_KEY, "1");
+  clearAuthSnapshot();
 }

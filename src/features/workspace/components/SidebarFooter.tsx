@@ -2,9 +2,11 @@
 
 /**
  * 工作台侧栏最底下那一排。三种形态互斥：已登录给图片库/回收站/账户菜单，
- * 离线态只留一行提示，未登录（本地模式）给登录引导和「打开文件夹作为文库」。
+ * 离线态照样显示账号（只是点不开菜单，那些都要联网），
+ * 未登录（本地模式）给登录引导和「打开文件夹作为文库」。
  * 状态都来自 useWorkspace 聚合出的 ws，本文件不发请求、不自己存状态。
  */
+import { useState } from "react";
 import { ChevronsUpDown, FolderOpen, Images, Loader2, LogIn, Trash2 } from "lucide-react";
 import { openAuth } from "@/components/AuthDialog";
 import { DarkToggle } from "@/components/DarkToggle";
@@ -23,7 +25,31 @@ import {
 } from "@/lib/localBackend/vaultSession";
 import { ASSETS, TRASH, countCls, rowCls } from "../constants";
 import { AccountMenu } from "./AccountMenu";
+import type { AuthUser } from "../hooks/useAuthMode";
 import type { Workspace } from "../hooks/useWorkspace";
+
+/** 账号头像。第三方头像离线必然加载失败，落回首字母，别留一个破图框 */
+function Avatar({ user }: { user: AuthUser | undefined }) {
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
+  const src = user?.image;
+  if (src && brokenSrc !== src) {
+    return (
+      // 头像地址来自第三方登录，域名不固定，配不进 next/image 的远端白名单
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt="avatar"
+        onError={() => setBrokenSrc(src)}
+        className="h-6 w-6 shrink-0 rounded-full ring-1 ring-[var(--hairline-strong)]"
+      />
+    );
+  }
+  return (
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--sidebar-active)] text-[11px] text-[var(--ink)]">
+      {(user?.name ?? user?.email ?? "U").slice(0, 1)}
+    </span>
+  );
+}
 
 /** 底部这排次要按钮：与工作台其他 ghost 按钮同款，压在深色侧栏上也够清楚 */
 const vaultBtnCls =
@@ -174,19 +200,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
               title="账户"
               onClick={menus.toggleAccountMenu}
             >
-              {auth.session?.user?.image ? (
-                // 头像地址来自第三方登录，域名不固定，配不进 next/image 的远端白名单
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={auth.session.user.image}
-                  alt="avatar"
-                  className="h-6 w-6 shrink-0 rounded-full ring-1 ring-[var(--hairline-strong)]"
-                />
-              ) : (
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--sidebar-active)] text-[11px] text-[var(--ink)]">
-                  {(auth.session?.user?.name ?? "U").slice(0, 1)}
-                </span>
-              )}
+              <Avatar user={auth.session?.user} />
               <span className="min-w-0 flex-1 truncate text-left text-[12px] text-[var(--ink-soft)]">
                 {auth.session?.user?.name ?? auth.session?.user?.email}
               </span>
@@ -202,9 +216,23 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
           </div>
         </>
       ) : auth.offlineAuthed ? (
-        <div className="mt-1.5 flex items-center justify-between px-1.5 pt-1">
-          <span className="text-[11px] text-[var(--ink-faint)]">离线中 · 联网后自动同步</span>
-          <DarkToggle />
+        // 服务器够不着，但本机还认得这是谁：账号照常摆着，右边一个克制的「离线」小标记。
+        // 不给账户菜单——登出、后台这些都要联网；图片库/回收站同理，先藏着
+        <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
+          <div
+            className="flex w-full items-center gap-2 rounded-md px-1.5 py-1"
+            title="离线中 · 联网后自动同步"
+          >
+            <Avatar user={auth.user} />
+            <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--ink-soft)]">
+              {auth.user?.name ?? auth.user?.email}
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--ink-faint)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ink-faint)]" />
+              离线
+            </span>
+            <DarkToggle />
+          </div>
         </div>
       ) : (
         <>
