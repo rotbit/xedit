@@ -145,15 +145,18 @@ export async function createDocument(
 
 /**
  * 更新文档。仅更新传入的字段；正文变化时自动留版并记当日写作流水，
- * 与编辑器保存走完全相同的副作用。文档不存在（或在回收站）返回 false。
+ * 与编辑器保存走完全相同的副作用。文档不存在（或在回收站）返回 null。
+ *
+ * 成功时把服务端 updatedAt 带回去：客户端镜像要记的是服务器时间，
+ * 本机时钟快的机器若拿本地时间当保存时刻，之后「服务端更新才替换」的比较会误判成本地更新。
  */
 export async function updateDocument(
   userId: string,
   id: string,
   input: { title?: string; content?: string; category?: string }
-): Promise<boolean> {
+): Promise<{ updatedAt: Date } | null> {
   const existing = await prisma.document.findFirst({ where: { id, userId } });
-  if (!existing || existing.deletedAt) return false;
+  if (!existing || existing.deletedAt) return null;
 
   const data: { title?: string; content?: string; category?: string } = {};
   if (typeof input.title === "string") data.title = input.title.slice(0, 200) || UNTITLED_DOC;
@@ -161,7 +164,12 @@ export async function updateDocument(
   if (typeof input.category === "string") {
     data.category = input.category.trim().slice(0, 100) || UNCATEGORIZED;
   }
-  await prisma.document.update({ where: { id }, data });
+  // 下面的留版与流水都不动 document 行，这里取到的 updatedAt 就是本次保存的最终时刻
+  const updated = await prisma.document.update({
+    where: { id },
+    data,
+    select: { updatedAt: true },
+  });
 
   if (typeof data.content === "string" && data.content !== existing.content) {
     await autoSnapshot(id, data.title ?? existing.title, data.content, AUTOSAVE_RULE);
@@ -173,7 +181,7 @@ export async function updateDocument(
       create: { userId, date, saves: 1, charsAdded: delta },
     });
   }
-  return true;
+  return updated;
 }
 
 /** 删除文档：默认软删除（移入回收站）；hard=true 永久删除。未命中返回 false。 */
