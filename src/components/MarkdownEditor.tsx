@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { EditorState, Compartment, type Text } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { reportScrollLine, scrollLineIntoView } from "@/lib/editor/scroll";
+import { reportScrollLine, scrollLineIntoView, settleScrollToLine } from "@/lib/editor/scroll";
 import { useThrottledCallback } from "@/hooks/useThrottledCallback";
 import { useMenuChannel } from "@/hooks/useMenuChannel";
 import { runFormatCommand } from "@/lib/editor/commands";
@@ -59,6 +59,8 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   const onScrollLineRef = useRef(onScrollLine);
   const onSelectionChangeRef = useRef(onSelectionChange);
   const scrollParentRef = useRef<HTMLElement | null>(null);
+  /** 正在收敛的那次跳转的取消函数（见 settleScrollToLine） */
+  const settleScrollRef = useRef<(() => void) | null>(null);
   const docsRef = useRef<DocMeta[] | undefined>(undefined);
   const liveCompartment = useRef(new Compartment());
   const liveRef = useRef(live);
@@ -123,6 +125,9 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     return () => {
       // 切文档/卸载前先把节流窗口里压着的最后一次编辑交出去
       pushChange.flush();
+      // 收敛中的跳转要在编辑器拆掉之前停，别让它再去量已经销毁的视图
+      settleScrollRef.current?.();
+      settleScrollRef.current = null;
       view.destroy();
       viewRef.current = null;
       // 切文档/卸载后旧选区已失效，明确清一次，别让工具条/斜杠菜单挂在空中
@@ -163,11 +168,16 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       if (!view) return;
       const n = Math.min(view.state.doc.lines, Math.max(1, line + 1));
       const pos = view.state.doc.line(n).from;
+      settleScrollRef.current?.(); // 连点目录时前一次跳转立刻让位
+      settleScrollRef.current = null;
       view.focus();
       view.dispatch({ selection: { anchor: pos } });
-      // 平滑滚动到目标行（rAF 等 CodeMirror 量完几何再取坐标；同步滚动会带预览一起跟过去）
+      // 平滑滚动到目标行（rAF 等 CodeMirror 量完几何再取坐标；同步滚动会带预览一起跟过去）。
+      // 远处的行只有估算高度，落点得边滚边修，交给 settleScrollToLine 收敛
       requestAnimationFrame(() => {
-        scrollLineIntoView(view, scrollParentRef.current, line, 12, true);
+        if (viewRef.current !== view) return; // 这一帧里切了文档
+        settleScrollRef.current?.();
+        settleScrollRef.current = settleScrollToLine(view, scrollParentRef.current, line, 12);
       });
     },
     scrollLineToTop: (line: number) => {
