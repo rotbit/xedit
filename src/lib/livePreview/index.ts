@@ -34,7 +34,9 @@ import { requestOpenWikiLink } from "@/lib/wikiLink";
  * - 行内标记（**、`、~~、链接）：光标进入该语法范围内才显示标记，位移只发生在焦点处
  * - 行首标记（#、>）：光标不在该行时完全不占位；在该行时以零宽悬挂盒挂到正文左缘之外，
  *   两种状态下正文左缘都不动
- * - 图片/分割线/表格/公式：atomicRanges 让光标只停在两侧，路过不还原；点击部件才展开源码
+ * - 分割线/表格/公式：atomicRanges 让光标只停在两侧，路过不还原；点击部件才展开源码
+ * - 图片/视频：平时同上，但光标一碰到两侧边界就展开源码（点击部件、上下键路过都算），
+ *   展开时源码原样显示、图片改挂到源码下方 —— 整张图消失版面会塌一块（见 inline.ts 的 Image 分支）
  *
  * 跨行替换（表格、$$ 公式）不在这个插件里 —— CodeMirror 禁止插件提供跨行 replace，
  * 见 blocks.ts 的状态字段。
@@ -164,7 +166,7 @@ function scanBlankLines(ctx: LpContext, view: EditorView) {
 
 interface Built {
   decorations: DecorationSet;
-  /** 图片/分割线的替换范围：光标移动按整体跳过，不落入内部 */
+  /** 此刻以部件形态渲染的替换范围（图片/视频/分割线/围栏行）：光标移动按整体跳过，不落入内部 */
   atomics: DecorationSet;
 }
 
@@ -385,7 +387,8 @@ export const livePreview: Extension = [
   attachmentRefresh,
   caretInCodeAttr,
   livePreviewBlocks,
-  // 图片/分割线按整体跳过：上下键路过时光标停在两侧边界，部件不还原、不跳动
+  // 部件按整体跳过：上下键路过时光标停在两侧边界，不会落进被替换掉的源码里
+  // （分割线到此为止；图片/视频的边界同时是展开源码的信号，见 inline.ts 的 Image 分支）
   EditorView.atomicRanges.of((view) => view.plugin(livePreviewPlugin)?.atomics ?? RangeSet.empty),
   EditorView.editorAttributes.of({ class: "cm-live-preview" }),
   EditorView.domEventHandlers({

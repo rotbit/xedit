@@ -246,6 +246,20 @@
   background: var(--accent-wash);
 }
 
+/* 编辑图片/视频源码时挂在源码下方的预览：源码还在原地，预览另起一行跟在后面
+   （block 会把同行剩下的内容挤到再下一行）。规则放在图片/视频之后才压得住它们的
+   margin —— 同为两级选择器，靠书写顺序决出胜负。
+   点它不进编辑（源码已经现出来了），光标样式也就不该是手型 */
+.cm-live-preview .cm-lp-media-below {
+  display: block;
+  margin: 0.35em 0 0;
+}
+.cm-live-preview .cm-lp-media-below img,
+.cm-live-preview .cm-lp-media-below .cm-lp-image-fallback {
+  margin: 0;
+  cursor: default;
+}
+
 /* 分割线 */
 .cm-live-preview .cm-lp-hr {
   display: inline-block;
