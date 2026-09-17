@@ -7,12 +7,31 @@ import { deleteDocument, updateDocument } from "@/lib/documents";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: Request, { params }: Params) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
   // 直接打开 /edit/[id] 不经过文档列表，这里补一个 DAU 打点位
   void touchDailyActive(userId);
   const { id } = await params;
+
+  // 带 since= 的是「已有镜像、只想知道云端有没有更新」的后台校新：
+  // 先用轻量 select 比一次时间戳，没变就 204 收场，整篇正文不必白下一趟。
+  // 不带（或时间串没法解析）时一切照旧，冷路径装载与其它调用方不受影响。
+  const since = new URL(req.url).searchParams.get("since");
+  const sinceAt = since ? new Date(since) : null;
+  if (sinceAt && !Number.isNaN(sinceAt.getTime())) {
+    const head = await prisma.document.findFirst({
+      where: { id, userId },
+      select: { updatedAt: true, deletedAt: true },
+    });
+    if (!head || head.deletedAt) {
+      return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+    }
+    if (head.updatedAt.getTime() <= sinceAt.getTime()) {
+      return new Response(null, { status: 204 });
+    }
+  }
+
   // 编辑器要整行（正文、时间戳都在响应里），这里不走 requireOwnedDoc 的轻量 select
   const doc = await prisma.document.findFirst({ where: { id, userId } });
   if (!doc || doc.deletedAt) {
@@ -49,7 +68,8 @@ export async function PUT(req: Request, { params }: Params) {
     category: body.category,
   });
   if (!saved) return NextResponse.json({ error: "文档不存在" }, { status: 404 });
-  return NextResponse.json({ ok: true });
+  // 回传服务端时间：客户端镜像据此记 updatedAt，本机时钟偏差就不会影响之后的新旧比较
+  return NextResponse.json({ ok: true, updatedAt: saved.updatedAt.toISOString() });
 }
 
 export async function DELETE(req: Request, { params }: Params) {

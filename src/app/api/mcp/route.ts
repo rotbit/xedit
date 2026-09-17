@@ -132,6 +132,7 @@ const handler = createMcpHandler(
         const userId = requireUserId(extra);
         const blocked = await writeBlocked(userId);
         if (blocked) return fail(blocked);
+        // 服务层返回服务端 updatedAt（null = 文档不在/在回收站）；工具对外只报成败
         const updated = await updateDocument(userId, args.id, args);
         return updated ? ok({ ok: true, id: args.id }) : fail("文档不存在");
       }

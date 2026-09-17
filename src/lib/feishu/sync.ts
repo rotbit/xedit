@@ -190,12 +190,13 @@ export async function syncFeishuSpace(
         // 分类只在文章仍留在「飞书知识库」镜像子树里时跟随飞书目录；
         // 推送来源的、以及被用户挪到自己分类下的（视为认领），拉取都只更新内容不动分类
         const followCategory = link.origin !== "push" && inMirrorTree(link.document.category);
-        const ok = await updateDocument(userId, link.documentId, {
+        // 返回的是服务端 updatedAt（null = 没写成），这里只关心写没写成
+        const updated = await updateDocument(userId, link.documentId, {
           title,
           content,
           ...(followCategory ? { category } : {}),
         });
-        if (ok) {
+        if (updated) {
           result.updated++;
           result.items.push({ title, action: "updated" });
         } else result.skipped++; // 文章在回收站（或已没了又被外键清走）：尊重用户删除，不再写

@@ -45,6 +45,8 @@ export async function pushMirrorDoc(id: string): Promise<boolean> {
       }),
     });
     if (!res.ok) return false;
+    // PUT 响应带回服务端 updatedAt：镜像记服务器时间，
+    // 本机时钟快的机器才不会把自己刚存的内容误判成「云端有更新」
     const doc = await res.json().catch(() => null);
     markMirrorSynced(id, typeof doc?.updatedAt === "string" ? doc.updatedAt : undefined);
     return true;

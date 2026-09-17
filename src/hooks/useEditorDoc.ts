@@ -69,6 +69,9 @@ export function useEditorDoc(routeDocId: string | null) {
   /**
    * 从云端校新当前文档：仅当镜像不 dirty（无未推送改动）且 store 与镜像一致
    * （无未落盘编辑）时才替换，本地一律优先。装载后、回到前台、网络恢复三处共用。
+   *
+   * 带上镜像时间戳 ?since=：没变服务端直接 204，不再把整篇正文白下一趟
+   * （这条路径每次打开文章、每次切回前台都会跑）。200 时仍留着下面的时间比较兜底。
    */
   const refreshFromServer = useCallback(async (id: string) => {
     if (!id || isLocalId(id) || !navigator.onLine) return;
@@ -79,7 +82,8 @@ export function useEditorDoc(routeDocId: string | null) {
     if (before.docId !== id || before.content !== mirrored || before.title !== meta.title) return;
     lastRefreshAtRef.current = Date.now();
     try {
-      const res = await fetch(`/api/documents/${id}`);
+      const res = await fetch(`/api/documents/${id}?since=${encodeURIComponent(meta.updatedAt)}`);
+      if (res.status === 204) return; // 云端没有更新
       if (!res.ok) return;
       const doc = await res.json();
       if (new Date(doc.updatedAt).getTime() <= new Date(meta.updatedAt).getTime()) return;
