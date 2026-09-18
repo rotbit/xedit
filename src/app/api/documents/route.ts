@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { readOnlyGuard } from "@/lib/guards";
 import { isResponse, requireUserId } from "@/lib/routeAuth";
 import { touchDailyActive } from "@/lib/active";
-import { listDocuments } from "@/lib/documents";
+import { createDocumentRow, listDocuments } from "@/lib/documents";
 
 export async function GET(req: Request) {
   const userId = await requireUserId();
@@ -57,24 +56,22 @@ export async function GET(req: Request) {
   return NextResponse.json(await listDocuments(userId, { trash, limit: "all" }));
 }
 
-/** 新建文章。不走服务层的 createDocument：前端要拿整行落本地镜像，
- *  而那个函数只回 id/title/category 三个字段（MCP 用不着更多）。 */
+/** 新建文章。走服务层的 createDocumentRow（不是 createDocument）：前端要拿整行落本地镜像，
+ *  createDocument 只回 id/title/category 三个字段（MCP 用不着更多）。
+ *  字段裁剪与 clientKey 去重都在服务层，REST 与 MCP 两条通道不会漂。 */
 export async function POST(req: Request) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
   const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const body = await req.json().catch(() => ({}));
-  const doc = await prisma.document.create({
-    data: {
-      userId,
-      title: typeof body.title === "string" && body.title ? body.title.slice(0, 200) : UNTITLED_DOC,
-      content: typeof body.content === "string" ? body.content : "",
-      category:
-        typeof body.category === "string" && body.category.trim()
-          ? body.category.trim().slice(0, 100)
-          : UNCATEGORIZED,
-    },
+  // clientKey 可选：离线新建、弱网重试会把同一条「新建」发好几遍，
+  // 带同一个 key 的重发只落一篇，后到的拿回先落的那篇（不带则行为照旧）
+  const doc = await createDocumentRow(userId, {
+    title: body.title,
+    content: body.content,
+    category: body.category,
+    clientKey: body.clientKey,
   });
   return NextResponse.json(doc);
 }

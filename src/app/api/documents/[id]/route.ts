@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { isResponse, requireUserId } from "@/lib/routeAuth";
 import { touchDailyActive } from "@/lib/active";
-import { deleteDocument, updateDocument } from "@/lib/documents";
+import { deleteDocument, parseBaseUpdatedAt, updateDocument } from "@/lib/documents";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -60,14 +60,41 @@ export async function PUT(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true });
   }
 
+  // baseUpdatedAt = 客户端这次编辑基于的服务端版本时刻，带了就是条件保存（乐观锁）：
+  // 服务端已被另一台设备写过就回 409 并附上当前这版，由客户端合并，不做后写覆盖。
+  // 不带则与历史行为一致（老客户端无条件覆盖）。给了但解析不出来的一律拦下——
+  // 这种时候悄悄退回无条件覆盖，等于保护没了却没人知道。
+  const baseUpdatedAt = parseBaseUpdatedAt(body?.baseUpdatedAt);
+  if (body?.baseUpdatedAt != null && !baseUpdatedAt) {
+    return NextResponse.json({ error: "baseUpdatedAt 无法解析" }, { status: 400 });
+  }
+
   // 保存的副作用（字段裁剪、自动留版、当日写作流水，以及回收站里的文章不给改写）
   // 全在服务层；MCP 的 update_document 走的也是这一条，两条通道语义不会漂
   const saved = await updateDocument(userId, id, {
     title: body.title,
     content: body.content,
     category: body.category,
+    baseUpdatedAt,
   });
   if (!saved) return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+  if (saved.conflict) {
+    // 409 带回服务端当前版本：客户端据此做合并，别再原样重试同一次保存
+    return NextResponse.json(
+      {
+        ok: false,
+        conflict: true,
+        doc: {
+          id: saved.doc.id,
+          title: saved.doc.title,
+          category: saved.doc.category,
+          content: saved.doc.content,
+          updatedAt: saved.doc.updatedAt.toISOString(),
+        },
+      },
+      { status: 409 }
+    );
+  }
   // 回传服务端时间：客户端镜像据此记 updatedAt，本机时钟偏差就不会影响之后的新旧比较
   return NextResponse.json({ ok: true, updatedAt: saved.updatedAt.toISOString() });
 }

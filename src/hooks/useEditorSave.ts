@@ -2,9 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "@/components/Toast";
-import { saveMirrorLocal } from "@/lib/docStore";
+import { getMirrorMeta, saveMirrorLocal } from "@/lib/docStore";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
 import { isLocalId, updateLocalDoc } from "@/lib/localDocs";
+import { isPushInFlight } from "@/lib/sync";
 import { isDocumentSaved, persistEditorDocument, type EditorDocument, type PersistResult } from "@/lib/editor/persistence";
 import { useStore, type SaveState } from "@/store/useStore";
 
@@ -13,18 +14,41 @@ function saveStateFor(result: PersistResult, manual: boolean): SaveState {
   switch (result) {
     case "draft":
     case "local": return "local";
-    case "local-error": return "error";
+    // 本地都写不进去，谈不上「已保存」也谈不上「待同步」；内容还在编辑器里等下一次尝试
+    case "local-error": return "local-error";
     case "offline": return "pending";
     case "push-failed": return manual || !navigator.onLine ? "pending" : "error";
     case "synced": return "saved";
   }
 }
 
+/** 本地写失败只提醒一次，别让配额满的机器每隔几百毫秒弹一条 */
+let localErrorNotified = false;
+
 async function saveDocument(doc: EditorDocument, manual: boolean): Promise<PersistResult> {
-  const result = await persistEditorDocument(doc, () => useStore.getState().setSaveState("saving"));
+  const result = await persistEditorDocument(doc, () => {
+    if (useStore.getState().docId === doc.docId) useStore.getState().setSaveState("saving");
+  });
+  if (result === "local-error") {
+    if (!localErrorNotified) {
+      localErrorNotified = true;
+      toast("本地保存失败，内容仍在编辑器中", "error");
+    }
+  } else {
+    localErrorNotified = false;
+  }
+  const store = useStore.getState();
+  // 往返期间用户切走了：状态行归新文章所有，旧结果不能往上盖
+  if (store.docId !== doc.docId) return result;
+  const state = saveStateFor(result, manual);
+  // 往返期间又改了：这次确认的是旧内容，别显示「已保存」误导人，
+  // 交给紧跟着的下一次自动保存去定状态
+  const edited =
+    store.title !== doc.title || store.content !== doc.content || store.category !== doc.category;
+  if (state === "saved" && edited) return result;
   // 手动同步成功后继续显示保存中，等版本请求结束再提示；无文档草稿沿用现有状态。
   if (!manual || (result !== "synced" && result !== "draft")) {
-    useStore.getState().setSaveState(saveStateFor(result, manual));
+    store.setSaveState(state);
   }
   return result;
 }
@@ -54,7 +78,8 @@ async function saveNow() {
     case "draft":
     case "local":
     case "offline": return;
-    case "local-error": return toast("保存失败：浏览器存储空间不足", "error");
+    // 本地写失败的提示已由 saveDocument 弹过（自动保存同样要提醒），这里不重复
+    case "local-error": return;
     case "push-failed": return toast("云端暂不可达，已存本地稍后自动同步", "error");
     case "synced": return saveManualVersion(doc.docId!);
   }
@@ -107,10 +132,16 @@ function persistOnHide() {
   // 「没有改动」而跳过云端推送，内容只能等同步引擎下一轮。保持脏值，正常那条链路照走。
 
   if (!navigator.onLine) return;
+  // 同步引擎正推着这一篇：那一轮要么带的就是这份内容，要么会自动再跑一轮补上。
+  // 这时再发 keepalive 就是同一篇两个请求抢着写，到达顺序还不保证，不如让路。
+  if (isPushInFlight(docId)) return;
+  // 冲突判定的基线：刚写完镜像，这里读到的就是这份本地副本派生自的服务端版本
+  const base = getMirrorMeta(docId)?.baseUpdatedAt;
   const body = JSON.stringify({
     title,
     category: category.trim() || UNCATEGORIZED,
     content,
+    ...(base ? { baseUpdatedAt: base } : {}),
   });
   // Blob 按 UTF-8 计字节：中文一个字 3 字节，不能拿字符串 length 当大小
   if (new Blob([body]).size > KEEPALIVE_LIMIT) return;

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getLocalBackend, LOCAL_BACKEND_CHANGED_EVENT } from "@/lib/localBackend";
 import { ATTACHMENTS_RESOLVED_EVENT } from "@/lib/localBackend/attachmentUrls";
 import { renderMarkdown } from "@/lib/markdown/renderer";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
@@ -28,13 +29,37 @@ export function usePreviewRender(debounceMs = 180) {
   const [html, setHtml] = useState("");
   const [codeCss, setCodeCss] = useState("");
   const [mathReady, setMathReady] = useState(false);
+
+  // 附件解析是异步的，事件回来时正文可能已经换了好几轮；处理器里读 ref 拿当次的正文，
+  // 才不至于为了「正文没变」这件事每敲一键就重新订阅一遍
+  const contentRef = useRef(content);
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  /** 磁盘文库才有本地附件；云端模式连订阅都不必挂 */
+  const [vaultMode, setVaultMode] = useState(false);
+  useEffect(() => {
+    const sync = () => setVaultMode(getLocalBackend().kind === "vault");
+    sync();
+    window.addEventListener(LOCAL_BACKEND_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(LOCAL_BACKEND_CHANGED_EVENT, sync);
+  }, []);
+
   /** 本地文库的附件是异步读出来的：读到一批就重渲染一次，空图换成真图 */
   const [attachmentTick, setAttachmentTick] = useState(0);
   useEffect(() => {
-    const onResolved = () => setAttachmentTick((n) => n + 1);
+    if (!vaultMode) return;
+    const onResolved = (e: Event) => {
+      const keys = (e as CustomEvent<{ keys?: string[] }>).detail?.keys;
+      // 只有这一批里有本篇引用到的图才值得重渲染：别人家的图解析好了，
+      // 这篇一个字没动，没道理跟着把整篇 Markdown 重跑一遍。没带 keys 的事件按全量处理
+      if (keys && !keys.some((key) => contentRef.current.includes(key))) return;
+      setAttachmentTick((n) => n + 1);
+    };
     window.addEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
     return () => window.removeEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
-  }, []);
+  }, [vaultMode]);
 
   // MathJax（连字体 1MB+）只在正文疑似有公式时才拉，加载完成后重渲染一次，
   // 公式从降级原文变为 SVG。用 $ 粗筛：偶尔误判（价格符号）也只是多下一次，
@@ -42,7 +67,14 @@ export function usePreviewRender(debounceMs = 180) {
   const mayHaveMath = content.includes("$");
   useEffect(() => {
     if (!mayHaveMath) return;
-    void ensureMathJax().then(() => setMathReady(true));
+    // 加载要好几秒，落回来时可能已经换了文档/卸载了预览，过期结果直接丢
+    let cancelled = false;
+    void ensureMathJax().then(() => {
+      if (!cancelled) setMathReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [mayHaveMath]);
 
   useEffect(() => {

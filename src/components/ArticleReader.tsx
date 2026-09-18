@@ -36,6 +36,7 @@ const SAVE_LABEL: Record<string, string> = {
   saved: "已保存",
   pending: "已存本地，联网后同步",
   error: "保存失败",
+  "local-error": "本地保存失败",
 };
 
 /**

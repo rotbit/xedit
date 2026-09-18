@@ -54,7 +54,12 @@ export async function persistEditorDocument(doc: EditorDocument, onCloudPush: ()
   }
 
   // 云端文档始终先落镜像，离线或推送失败后仍由同步引擎处理 dirty 内容。
-  saveMirrorLocal(docId, { title, content, category });
+  // 镜像写不进去（配额满）就别推平落盘基准：内容还在 store 里，下一次自动保存接着试。
+  try {
+    saveMirrorLocal(docId, { title, content, category });
+  } catch {
+    return "local-error";
+  }
   rememberSavedDocument(doc);
   if (!navigator.onLine) return "offline";
   onCloudPush();

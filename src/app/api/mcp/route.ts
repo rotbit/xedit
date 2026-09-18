@@ -132,6 +132,8 @@ const handler = createMcpHandler(
         const userId = requireUserId(extra);
         const blocked = await writeBlocked(userId);
         if (blocked) return fail(blocked);
+        // 这里不带 baseUpdatedAt：MCP 是显式的外部写入，调用方手里没有「基于哪一版」的概念，
+        // 所以不做版本条件，无条件更新——网页/桌面端下次校新会拉到这一版。
         // 服务层返回服务端 updatedAt（null = 文档不在/在回收站）；工具对外只报成败
         const updated = await updateDocument(userId, args.id, args);
         return updated ? ok({ ok: true, id: args.id }) : fail("文档不存在");

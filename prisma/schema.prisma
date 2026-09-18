@@ -80,6 +80,10 @@ model Document {
   category  String            @default("未分类")
   /// 软删除时间；非空表示在回收站
   deletedAt DateTime?
+  /// 客户端新建去重键：离线新建与弱网重试会重发同一条「新建」，带同一个 key 只落一篇。
+  /// 可空——老客户端与服务端建档（MCP、飞书同步）都不带，Postgres 唯一索引默认 NULLS DISTINCT，
+  /// 多行 NULL 互不冲突。
+  clientKey String?
   userId    String
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions  DocumentVersion[]
@@ -88,6 +92,7 @@ model Document {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
+  @@unique([userId, clientKey])
   @@index([userId, updatedAt(sort: Desc)])
   @@index([userId, category])
 }

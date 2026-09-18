@@ -37,9 +37,10 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
   const { html, codeCss, themeCss, themeName, tuneCss, customCss } = usePreviewRender(
     reading ? 0 : 180
   );
-  // 大纲只在阅读模式露出，但 hook 两个变体都调（提取一次的开销远小于条件调用的麻烦）
+  // 大纲只在阅读模式露出。hook 照样两个变体都调（React 不许条件调用），
+  // 但双屏传 enabled=false，里面就不去扫 DOM 了
   const sectionRef = useRef<HTMLElement>(null);
-  const { outline, jumpToHeading } = useOutline(sectionRef, html);
+  const { outline, jumpToHeading } = useOutline(sectionRef, html, reading);
   // 大纲开合：初值固定 true，localStorage 留到 useEffect 里回读——
   // 惰性初始化会让服务端渲的首帧与客户端不一致，直接踩 hydration
   const [outlineOpen, setOutlineOpen] = useState(true);

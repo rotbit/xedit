@@ -76,6 +76,47 @@ export function inCodeRanges(ranges: CodeRange[], pos: number): boolean {
   return ranges.some((r) => pos >= r.from && pos <= r.to);
 }
 
+/** 可见行区间（闭区间行号） */
+interface LineSpan {
+  first: number;
+  last: number;
+}
+
+/** 可见区各向外扩 margin 行，并对齐到整行。
+    留余量是为了滚动：视口边缘那一行滚进来的那一帧装饰才补上的话，行级底色会晚一拍。 */
+export function visibleLineRanges(
+  state: EditorState,
+  ranges: readonly CodeRange[],
+  margin = 2
+): CodeRange[] {
+  const total = state.doc.lines;
+  const clamp = (pos: number) => Math.max(0, Math.min(state.doc.length, pos));
+  return ranges.map((r) => {
+    const first = Math.max(1, state.doc.lineAt(clamp(r.from)).number - margin);
+    const last = Math.min(total, state.doc.lineAt(clamp(r.to)).number + margin);
+    return { from: state.doc.line(first).from, to: state.doc.line(last).to };
+  });
+}
+
+/** 位置区间换算成行号区间，顺带把重叠/相邻的两段并成一段。
+    不并的话，两段可见区落在同一个块里时交叠处要走两遍：行级类有去重画不重，
+    但白跑一趟，行数指标也会虚高 */
+function toLineSpans(state: EditorState, ranges: readonly CodeRange[]): LineSpan[] {
+  const spans = ranges
+    .map((r) => ({
+      first: state.doc.lineAt(r.from).number,
+      last: state.doc.lineAt(r.to).number,
+    }))
+    .sort((a, b) => a.first - b.first);
+  const merged: LineSpan[] = [];
+  for (const span of spans) {
+    const prev = merged[merged.length - 1];
+    if (prev && span.first <= prev.last + 1) prev.last = Math.max(prev.last, span.last);
+    else merged.push({ ...span });
+  }
+  return merged;
+}
+
 export interface LpContext {
   readonly state: EditorState;
   readonly caret: number[];
@@ -95,18 +136,36 @@ export interface LpContext {
   inMath(from: number, to: number): boolean;
   /** 给 pos 所在行加行级类；同行同类只加一次（嵌套结构会重复命中） */
   lineClass(pos: number, cls: string): void;
-  /** [from, to] 覆盖的每一行都加行级类 */
-  eachLine(from: number, to: number, cls: (n: number, first: number, last: number) => string): void;
+  /** [from, to] 覆盖的每一行都加行级类；传了 visible 时只画落在可见区里的那几行。
+      回调拿到的 first/last 始终是块的真实首末行号，返回本次实际访问的行数 */
+  eachLine(
+    from: number,
+    to: number,
+    cls: (n: number, first: number, last: number) => string
+  ): number;
   /** 光标或选区落在 pos 所在行 —— 行首标记（#、>）的还原判定 */
   lineActive(pos: number): boolean;
+  /** 诊断/单测可读的计数：eachLine 累计访问过的行数 */
+  readonly stats: { linesVisited: number };
 }
 
-export function createLpContext(state: EditorState, caret: number[]): LpContext {
+/**
+ * @param visible 可见区（位置区间，通常来自 view.visibleRanges 再外扩几行，见 visibleLineRanges）。
+ *   不传就是老行为：eachLine 遍历整块。传了则只遍历与可见区相交的行——一个三千行的代码块
+ *   只要有一行在视口里，以前就得铺三千条行级装饰，光标每动一下重来一遍。
+ */
+export function createLpContext(
+  state: EditorState,
+  caret: number[],
+  visible?: readonly CodeRange[]
+): LpContext {
   const decos: Range<Decoration>[] = [];
   const atomics: Range<Decoration>[] = [];
   const codeRanges: CodeRange[] = [];
   const mathRanges: CodeRange[] = [];
   const seenLineClass = new Set<string>();
+  const spans = visible ? toLineSpans(state, visible) : null;
+  const stats = { linesVisited: 0 };
 
   /** 与已登记的行内公式区间相交。公式是先于语法树那一趟扫出来的，`$a*b*c$` 里的 `*`
       是 TeX 的一部分：被当成强调标记藏掉的话，一来源码看不见也删不动，二来两条 replace
@@ -141,13 +200,33 @@ export function createLpContext(state: EditorState, caret: number[]): LpContext 
     },
     lineClass,
     eachLine(from, to, cls) {
+      // first/last 按块的真实首末行算，与可见区无关：可见区只决定「画哪几行」，
+      // 不决定「谁是首行」——否则滚到代码块中段时，视口第一行会顶着圆角当块首画
       const first = state.doc.lineAt(from).number;
       const last = state.doc.lineAt(to).number;
-      for (let n = first; n <= last; n++) lineClass(state.doc.line(n).from, cls(n, first, last));
+      let visited = 0;
+      const run = (lo: number, hi: number) => {
+        for (let n = lo; n <= hi; n++) {
+          lineClass(state.doc.line(n).from, cls(n, first, last));
+          visited++;
+        }
+      };
+      if (spans) {
+        for (const span of spans) {
+          const lo = Math.max(first, span.first);
+          const hi = Math.min(last, span.last);
+          if (lo <= hi) run(lo, hi);
+        }
+      } else {
+        run(first, last);
+      }
+      stats.linesVisited += visited;
+      return visited;
     },
     lineActive(pos) {
       const line = state.doc.lineAt(pos);
       return caretTouches(caret, line.from, line.to) || selectionTouches(state, line.from, line.to);
     },
+    stats,
   };
 }

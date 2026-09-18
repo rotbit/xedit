@@ -21,6 +21,9 @@ export function fencedCodeDecorations(ctx: LpContext, node: SyntaxNodeRef): void
         : "cm-lp-code cm-lp-code-mid"
   );
 
+  // 下面这几样一律按节点位置取行，不受 eachLine 可见区裁剪的影响：
+  // 滚到长代码块中段时开栏行远在视口之上，首行标题条/闭栏行内边距照旧挂在真正的首末行上
+  // （视口外的装饰本就不渲染），绝不会把视口里的中间行误当成开栏行
   const marks = node.node.getChildren("CodeMark");
   const info = node.node.getChild("CodeInfo");
   const firstLine = state.doc.lineAt(node.from);
