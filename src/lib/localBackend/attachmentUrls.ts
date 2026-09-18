@@ -8,7 +8,8 @@
 import { getLocalBackend, LOCAL_BACKEND_CHANGED_EVENT } from "./index";
 import type { VaultBackend } from "./vaultBackend";
 
-/** 有附件读出来了：预览与编辑器听到后重渲染一次 */
+/** 有附件读出来了：预览与编辑器听到后重渲染一次。
+ *  detail.keys 是这一批读出来的相对路径，订阅方据此判断跟自己这篇有没有关系 */
 export const ATTACHMENTS_RESOLVED_EVENT = "xedit:attachments-resolved";
 
 /** 附件目录前缀，与 vaultFs 的 ATTACHMENTS_DIR 对应 */
@@ -24,6 +25,8 @@ const loading = new Set<string>();
 const missing = new Set<string>();
 /** 换库计数：切库前发出的读取回来时已作废，不能再塞进缓存 */
 let generation = 0;
+/** 这一批读出来的相对路径，随事件一起派出去 */
+const resolved = new Set<string>();
 let notifyTimer: ReturnType<typeof setTimeout> | null = null;
 let watching = false;
 
@@ -76,6 +79,7 @@ async function load(rel: string): Promise<void> {
     return;
   }
   urls.set(rel, url);
+  resolved.add(rel);
   scheduleNotify();
 }
 
@@ -83,7 +87,9 @@ function scheduleNotify(): void {
   if (notifyTimer) return;
   notifyTimer = setTimeout(() => {
     notifyTimer = null;
-    window.dispatchEvent(new CustomEvent(ATTACHMENTS_RESOLVED_EVENT));
+    const keys = [...resolved];
+    resolved.clear();
+    window.dispatchEvent(new CustomEvent(ATTACHMENTS_RESOLVED_EVENT, { detail: { keys } }));
   }, NOTIFY_GAP);
 }
 

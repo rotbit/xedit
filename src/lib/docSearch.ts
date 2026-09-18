@@ -3,6 +3,9 @@
  * 正文全部躺在 localStorage —— 本地库 `xedit-local-doc:*`、云端镜像 `xedit-mirror-doc:*`，
  * 所以检索完全在客户端做：离线照样能搜，也不必为搜索开一条接口。
  * 逐篇读 localStorage 的开销由调用方兜住（快速切换器防抖 120ms，侧栏用 useMemo 缓存一轮结果）。
+ *
+ * 出口两个：要展示的列表用 searchDocs（带摘要与高亮区间），只要「哪些文章命中」用 searchDocIds。
+ * 两者共用同一套匹配判定，语义必然一致；差别只在命不命中之后还做不做摘要。
  */
 
 import { indexOf } from "@/lib/docIndex";
@@ -47,6 +50,24 @@ export function matchRanges(text: string, terms: string[]): [number, number][] {
     else merged.push([start, end]);
   }
   return merged;
+}
+
+/** 标题是否全词命中：只碰元信息，不读正文，全库扫一遍也便宜 */
+function titleHit(doc: DocMeta, terms: string[]): boolean {
+  const title = doc.title.toLowerCase();
+  return terms.every((t) => title.includes(t));
+}
+
+/**
+ * 正文是否命中；命中返回那份正文（给摘要用），没中返回 null。
+ * 词可以分散在标题和正文里：搜「张三 采访」应该命中标题带张三、正文提采访的那篇。
+ * 正文走 docIndex 的缓存（`[[目标|别名]]` 已摊平成显示文字，搜别名也能命中）；
+ * 镜像没拉下来时退回摘要，至少不漏掉能匹配的那点文字。
+ */
+function bodyHit(doc: DocMeta, terms: string[]): string | null {
+  const body = indexOf(doc).text || (doc.excerpt ?? "");
+  const hay = `${doc.title}\n${body}`.toLowerCase();
+  return terms.every((t) => hay.includes(t)) ? body : null;
 }
 
 /** 摘要窗口的锚点：优先第一个词，它只在标题里时退而用最早出现的那个词 */
@@ -102,8 +123,7 @@ export function searchDocs(
   const titleHits: DocHit[] = [];
   const rest: DocMeta[] = [];
   for (const doc of recent) {
-    const title = doc.title.toLowerCase();
-    if (terms.every((t) => title.includes(t))) {
+    if (titleHit(doc, terms)) {
       const snippet = doc.excerpt ?? "";
       titleHits.push({ doc, where: "title", snippet, ranges: matchRanges(snippet, terms) });
     } else {
@@ -114,14 +134,27 @@ export function searchDocs(
   const hits = titleHits.slice(0, limit);
   for (const doc of rest) {
     if (hits.length >= limit) break;
-    // 正文走 docIndex 的缓存（`[[目标|别名]]` 已摊平成显示文字，搜别名也能命中）；
-    // 镜像没拉下来时退回摘要，至少不漏掉能匹配的那点文字
-    const body = indexOf(doc).text || (doc.excerpt ?? "");
-    // 词可以分散在标题和正文里：搜「张三 采访」应该命中标题带张三、正文提采访的那篇
-    const hay = `${doc.title}\n${body}`.toLowerCase();
-    if (!terms.every((t) => hay.includes(t))) continue;
+    const body = bodyHit(doc, terms);
+    if (body === null) continue;
     const snippet = buildSnippet(body, terms);
     hits.push({ doc, where: "content", snippet, ranges: matchRanges(snippet, terms) });
   }
   return hits;
+}
+
+/**
+ * 只要命中的 id 集合：侧栏过滤列表用这个。
+ * 与 searchDocs 同一套判定，但不排序、不截长度、不做摘要也不算高亮区间——
+ * 那三样的结果侧栏当场就扔了，几百篇文章白算一轮。
+ * 空查询（只打了空格）当全部命中，与 searchDocs 的「列出全部」对齐。
+ */
+export function searchDocIds(docs: DocMeta[], query: string): Set<string> {
+  const ids = new Set<string>();
+  const terms = splitQuery(query);
+  for (const doc of docs) {
+    if (terms.length === 0 || titleHit(doc, terms) || bodyHit(doc, terms) !== null) {
+      ids.add(doc.id);
+    }
+  }
+  return ids;
 }

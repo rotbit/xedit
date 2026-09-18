@@ -6,7 +6,7 @@ import { DEFAULT_TUNE, type TuneValues } from "@/lib/themes/tune";
 import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 
 /** pending：已存本地镜像、等待联网后同步云端 */
-export type SaveState = "local" | "saving" | "saved" | "pending" | "error";
+export type SaveState = "local" | "saving" | "saved" | "pending" | "error" | "local-error";
 
 export { DEFAULT_MARKDOWN } from "@/lib/welcomeDoc";
 
@@ -64,43 +64,106 @@ interface EditorState extends SettingsSlice {
   setCategory: (c: string) => void;
 }
 
-/** 防抖落盘的 persist 存储。middleware 每次 set 都会「全量 partialize → 序列化 → 同步写
- *  localStorage」，而正文也在持久化清单里，等于每敲一键就把整篇文章序列化写一次盘。
- *  这里攒 400ms 一起写，页面隐藏/关闭时强制冲刷；最坏丢最后 400ms 的击键，
+/** 设置项落在这个键下（persist 自己管） */
+const SETTINGS_KEY = "xedit-store";
+/** 文稿（未登录时的本地草稿）单独一个键：以前它和设置挤在 SETTINGS_KEY 里，
+ *  改一次字号就要把整篇正文重新序列化写一遍盘，而正文动辄几万字。 */
+const DOC_KEY = "xedit-store-doc";
+
+/** 落在 DOC_KEY 下的文稿字段 */
+interface DocDraft {
+  title: string;
+  content: string;
+}
+
+/** 防抖落盘。persist 每次 set 都会「partialize → 序列化 → 同步写 localStorage」，
+ *  这里按键攒 400ms 一起写，页面隐藏/关闭时强制冲刷；最坏丢最后 400ms 的击键，
  *  且本地文库镜像另有独立落盘，不依赖这一份。 */
-let pendingWrite: unknown = null;
+const pending = new Map<string, unknown>();
+/** 上一次真正写进去的字符串。设置没动而正文在变时，persist 仍会把同一份设置反复递过来，
+ *  值一样就不必再占一次同步写。 */
+const lastWritten = new Map<string, string>();
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
-const flushWrite = () => {
-  writeTimer = null;
-  if (pendingWrite === null) return;
+
+/** 写一个键；写不进就算了（私密模式 / 配额满），内存态不受影响，一个键失败不牵连另一个 */
+function writeNow(key: string, value: unknown): void {
   try {
-    localStorage.setItem("xedit-store", JSON.stringify(pendingWrite));
+    const text = JSON.stringify(value);
+    if (lastWritten.get(key) === text) return;
+    localStorage.setItem(key, text);
+    lastWritten.set(key, text);
   } catch {
-    // 私密模式 / 配额满：写不进就算了，内存态不受影响
+    // 吞掉：落盘失败不该把页面带崩
   }
-  pendingWrite = null;
+}
+
+const flushWrite = () => {
+  if (writeTimer !== null) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
+  for (const [key, value] of pending) writeNow(key, value);
+  pending.clear();
 };
+
+const scheduleWrite = (key: string, value: unknown) => {
+  pending.set(key, value);
+  if (writeTimer === null) writeTimer = setTimeout(flushWrite, 400);
+};
+
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", flushWrite);
 }
+
+function readJson(key: string): unknown {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 开机读一次本地文稿。DOC_KEY 不在（老用户）就去 SETTINGS_KEY 里捞——
+ * 正文以前是和设置存在一起的——捞到当场搬到新键下：
+ * 否则用户只改了个设置、一个字没敲，那边被重写成不含正文的版本，草稿就没了。
+ */
+function bootDocDraft(): DocDraft | null {
+  if (typeof window === "undefined") return null;
+  const own = readJson(DOC_KEY) as Partial<DocDraft> | null;
+  if (own && typeof own.content === "string") {
+    return {
+      title: typeof own.title === "string" ? own.title : UNTITLED_DOC,
+      content: own.content,
+    };
+  }
+  const legacy = (readJson(SETTINGS_KEY) as { state?: Partial<DocDraft> } | null)?.state;
+  if (legacy && typeof legacy.content === "string") {
+    const draft: DocDraft = {
+      title: typeof legacy.title === "string" ? legacy.title : UNTITLED_DOC,
+      content: legacy.content,
+    };
+    writeNow(DOC_KEY, draft);
+    return draft;
+  }
+  return null;
+}
+
+const bootDraft = bootDocDraft();
 
 function debouncedStorage<S>(): PersistStorage<S> {
   return {
     getItem: (name) => {
       if (typeof window === "undefined") return null;
-      try {
-        const raw = localStorage.getItem(name);
-        return raw ? (JSON.parse(raw) as StorageValue<S>) : null;
-      } catch {
-        return null;
-      }
+      return (readJson(name) as StorageValue<S> | null) ?? null;
     },
-    setItem: (_name, value) => {
-      pendingWrite = value;
-      if (writeTimer === null) writeTimer = setTimeout(flushWrite, 400);
+    setItem: (name, value) => {
+      scheduleWrite(name, value);
     },
     removeItem: (name) => {
-      pendingWrite = null;
+      pending.delete(name);
+      lastWritten.delete(name);
       if (typeof window !== "undefined") localStorage.removeItem(name);
     },
   };
@@ -121,8 +184,9 @@ export const useStore = create<EditorState>()(
       ...DEFAULT_TUNE,
 
       docId: null,
-      title: UNTITLED_DOC,
-      content: DEFAULT_MARKDOWN,
+      // 文稿从 DOC_KEY 回读（老用户从 SETTINGS_KEY 搬过来），persist 只管设置
+      title: bootDraft?.title ?? UNTITLED_DOC,
+      content: bootDraft?.content ?? DEFAULT_MARKDOWN,
       category: UNCATEGORIZED,
       saveState: "local",
       cssDialogOpen: false,
@@ -158,16 +222,20 @@ export const useStore = create<EditorState>()(
       setCategory: (category) => set({ category }),
     }),
     {
-      name: "xedit-store",
-      version: 4,
+      name: SETTINGS_KEY,
+      version: 5,
       storage: debouncedStorage(),
       // v1 起代码主题固定 VS 2015、Mac 风格固定开启；v2 起移除手机预览模式，清掉历史持久化值；
       // v3 起专注模式下线：即时渲染并入首页文章视图，编辑页固定分屏；
       // v4 起 AI 密钥改为服务端按账号加密存储，清掉本地遗留的接口地址/密钥/模型；
-      // v4 同版补充：AI 写作/生图下线，清掉本地记住的临时模型选择
+      // v4 同版补充：AI 写作/生图下线，清掉本地记住的临时模型选择；
+      // v5 起文稿（title/content）搬去 DOC_KEY 单独存，这里清掉老副本——
+      // 内存里的那一份已由 bootDocDraft 从老键读出来了，清的只是重复的一份
       migrate: (persisted) => {
         const state = persisted as Record<string, unknown> | undefined;
         if (state) {
+          delete state.title;
+          delete state.content;
           delete state.codeThemeId;
           delete state.macCode;
           delete state.previewMode;
@@ -180,6 +248,14 @@ export const useStore = create<EditorState>()(
         }
         return state as never;
       },
+      // 文稿只认 DOC_KEY 一个出处：设置那份里万一还留着 title/content（老版本写的、
+      // 或手改过的 localStorage），也不许它盖掉刚从文稿键读出来的草稿
+      merge: (persisted, current) => {
+        const state = { ...(persisted as Record<string, unknown> | null) };
+        delete state.title;
+        delete state.content;
+        return { ...current, ...state };
+      },
       partialize: (state) => ({
         themeId: state.themeId,
         customCss: state.customCss,
@@ -191,10 +267,16 @@ export const useStore = create<EditorState>()(
         tuneFontSize: state.tuneFontSize,
         tuneLineHeight: state.tuneLineHeight,
         tuneParaSpacing: state.tuneParaSpacing,
-        // 未登录时的本地文稿也持久化，防止刷新丢失
-        title: state.title,
-        content: state.content,
       }),
     }
   )
 );
+
+// 未登录时的本地文稿也要持久化（防止刷新丢失），但它自己一个键：
+// 设置变来变去不必带上正文，敲字也不必把设置重写一遍。
+if (typeof window !== "undefined") {
+  useStore.subscribe((s, prev) => {
+    if (s.title === prev.title && s.content === prev.content) return;
+    scheduleWrite(DOC_KEY, { title: s.title, content: s.content } satisfies DocDraft);
+  });
+}
