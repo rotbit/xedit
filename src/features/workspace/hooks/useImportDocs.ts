@@ -9,7 +9,7 @@ import {
   updateLocalDoc,
 } from "@/lib/localDocs";
 import { getDocContent } from "@/lib/docContent";
-import { applyServerDoc, markMirrorSynced, saveMirrorLocal } from "@/lib/docStore";
+import { applyServerDoc, getMirrorRev, markMirrorSynced, saveMirrorLocal } from "@/lib/docStore";
 import { syncNow } from "@/lib/sync";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
@@ -300,8 +300,10 @@ export function useImportDocs({ auth, library, nav }: Params) {
         const saved = await res.json().catch(() => null);
         saveMirrorLocal(existing, { content }, false); // 云端已确认，镜像跟上但不标脏
         // saveMirrorLocal 记的是本机时间，改盖成响应里的服务端时间，
-        // 否则本机时钟快时打开这篇文章会被校新误判成「云端更旧」而永远不校新
-        if (typeof saved?.updatedAt === "string") markMirrorSynced(existing, saved.updatedAt);
+        // 否则本机时钟快时打开这篇文章会被校新误判成「云端更旧」而永远不校新。
+        // rev 传刚写完的那个：确认的就是这一份，同时把冲突基线记成服务端版本
+        if (typeof saved?.updatedAt === "string")
+          markMirrorSynced(existing, getMirrorRev(existing), saved.updatedAt);
         result.updated += 1;
         return;
       }

@@ -16,7 +16,7 @@ import nginx from "highlight.js/lib/languages/nginx";
 hljs.registerLanguage("dockerfile", dockerfile);
 hljs.registerLanguage("http", http);
 hljs.registerLanguage("nginx", nginx);
-import { stripFrontmatter } from "@/lib/frontmatter";
+import { parseFrontmatter } from "@/lib/frontmatter";
 import { mathPlugin } from "./math";
 import {
   headingPlugin,
@@ -32,6 +32,8 @@ import {
 export interface RenderEnv {
   /** 代码块使用 Mac 窗口风格 */
   macCode?: boolean;
+  /** 内部用：frontmatter 剥掉的行数，data-line 要加回来（由 renderMarkdown 填，调用方不必给） */
+  lineOffset?: number;
 }
 
 /** fence 高亮结果缓存：预览每次防抖触发都全文重渲，长文里代码高亮是最贵的一段，
@@ -106,11 +108,16 @@ function createMd(): MarkdownIt {
 // 懒加载单例：实例本身可反复 render（状态都在 env 里），而注册十来个插件不便宜，所以只建一次
 let mdInstance: MarkdownIt | null = null;
 
-/** 把正文渲染成 HTML。src 允许带 frontmatter，会在这里剥掉（连带的行号偏移见下）。 */
+/** 把正文渲染成 HTML。src 允许带 frontmatter，会在这里剥掉（行号偏移一并补上）。 */
 export function renderMarkdown(src: string, env: RenderEnv = {}): string {
   if (!mdInstance) mdInstance = createMd();
   // frontmatter 是给机器看的元数据，不该出现在公众号正文里：预览、复制、导出共用这一个入口，
-  // 一处剥掉就三处干净。代价是带 frontmatter 的文章里 data-line 比编辑器行号小了那几行，
-  // 同步滚动会偏一屏之内的距离（见 useSyncScroll）
-  return mdInstance.render(stripFrontmatter(src), env);
+  // 一处剥掉就三处干净。剥掉之后 markdown-it 从 0 重新数行，于是把 frontmatter 占的行数
+  // 作为 lineOffset 透进去，data-line 仍是编辑器里的真实行号（见 lineMapPlugin），
+  // 同步滚动不再整体偏那几行
+  const fm = parseFrontmatter(src);
+  if (!fm) return mdInstance.render(src, env);
+  // 被剥掉那段里有几个换行就是几行（收尾 `---` 在文末时没有换行，正文也已经空了）
+  const lineOffset = src.slice(0, fm.end).split("\n").length - 1;
+  return mdInstance.render(fm.body, { ...env, lineOffset });
 }

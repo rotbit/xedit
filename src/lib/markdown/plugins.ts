@@ -118,6 +118,9 @@ export function tocPlugin(md: MarkdownIt): void {
 export function blankLinePlugin(md: MarkdownIt): void {
   md.core.ruler.push("preserve_blank_lines", (state) => {
     const tokens = state.tokens;
+    // 这些空段落的 data-line 是当场拼进 HTML 的，赶在 lineMapPlugin 挪 token.map 之前，
+    // 所以 frontmatter 的行偏移得自己加（见 renderMarkdown 的 lineOffset）
+    const offset = lineOffsetOf(state.env);
     let depth = 0;
     let prevEnd = 0; // 上一个顶层块的结束行（不含尾随空行）
     let atStart = true;
@@ -130,7 +133,7 @@ export function blankLinePlugin(md: MarkdownIt): void {
           const firstLine = atStart ? prevEnd : prevEnd + 1;
           let html = "";
           for (let n = 0; n < extra; n++) {
-            html += `<p data-line="${firstLine + n}"><br></p>\n`;
+            html += `<p data-line="${firstLine + n + offset}"><br></p>\n`;
           }
           const filler = new state.Token("html_block", "", 0);
           filler.map = [prevEnd, token.map[0]];
@@ -146,11 +149,22 @@ export function blankLinePlugin(md: MarkdownIt): void {
   });
 }
 
+/** 本次渲染要补的行号偏移：frontmatter 被 renderMarkdown 剥掉了几行 */
+function lineOffsetOf(env: unknown): number {
+  const value = (env as { lineOffset?: unknown } | null)?.lineOffset;
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 // —— 块级元素写入 data-line，用于编辑器与预览的同步滚动 ——
+// 这条规则排在所有 core 规则最后，所以顺手把 frontmatter 的行偏移落到 token.map 上：
+// 标题、代码块、表格、公式的 data-line 都是渲染期才从 token.map 现取的，
+// 在这里挪一次，它们不必各自再加一遍，口径也不会走散。
 export function lineMapPlugin(md: MarkdownIt): void {
   md.core.ruler.push("line_map", (state) => {
+    const offset = lineOffsetOf(state.env);
     const walk = (tokens: Token[]) => {
       for (const token of tokens) {
+        if (offset !== 0 && token.map) token.map = [token.map[0] + offset, token.map[1] + offset];
         if (token.map && token.nesting === 1 && !token.attrGet("data-line")) {
           token.attrSet("data-line", String(token.map[0]));
         }

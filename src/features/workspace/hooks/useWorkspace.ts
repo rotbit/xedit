@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { pruneIndex } from "@/lib/docIndex";
-import { searchDocs } from "@/lib/docSearch";
+import { searchDocIds } from "@/lib/docSearch";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { nameOf, parentOf } from "../lib/catPath";
 import { buildTree, findNode } from "../lib/catTree";
@@ -115,14 +115,14 @@ export function useWorkspace() {
 
   /**
    * 侧栏搜索的命中集合：标题之外还搜正文（正文在 localStorage，纯客户端算）。
-   * 全库扫一遍要逐篇读 localStorage，所以结果整体挂在 useMemo 上——
-   * 同一个词的后续重渲染直接复用，只有词或文章列表变了才重算一轮。
+   * 这里只要「哪些文章命中」，所以走 searchDocIds —— 摘要与高亮区间是列表展示才用得上的东西，
+   * 侧栏拿到手就扔。结果整体挂在 useMemo 上：同一个词的后续重渲染直接复用，
+   * 只有词或文章列表变了才重算一轮。
    * 回收站另说：删掉的文章正文已随之清掉，仍按标题/摘要匹配。
    */
   const searchHitIds = useMemo(() => {
     if (isTrash || !search.trim()) return null;
-    const list = docs ?? [];
-    return new Set(searchDocs(list, search, { limit: list.length }).map((h) => h.doc.id));
+    return searchDocIds(docs ?? [], search);
   }, [docs, search, isTrash]);
 
   /** 当前视图下要展示的文章：按分类过滤（含子分类），再按搜索词过滤 */

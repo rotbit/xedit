@@ -5,7 +5,7 @@ import type { RefObject } from "react";
 import type { EditorHandle } from "@/lib/editor/types";
 import { useStore } from "@/store/useStore";
 
-interface Anchor {
+export interface Anchor {
   line: number;
   top: number;
 }
@@ -19,6 +19,9 @@ interface AnchorCache {
 
 /** 这一帧要做的同步方向；同一帧内后来的覆盖先来的 */
 type Pending = { kind: "editor"; line: number; ratio: number } | { kind: "preview" };
+
+/** 顶部留白：锚点顶到容器顶上会顶得太死，两个方向都让开这么多 */
+const EDGE_GAP = 24;
 
 /** 沿 offsetParent 链累加的纵坐标（不含滚动量，纯布局坐标） */
 function offsetChainTop(el: HTMLElement): number {
@@ -48,6 +51,48 @@ function collectAnchors(container: HTMLElement): Anchor[] {
 }
 
 /**
+ * 行号（可带小数：行内滚过的比例）落在预览里的纵坐标。
+ * 两个锚点之间按比例插值，否则一段长代码块里滚半天预览纹丝不动。
+ * 锚点按 line 升序，空表返回 0。纯函数，单测直接喂锚点表。
+ */
+export function topForLine(anchors: Anchor[], target: number): number {
+  if (anchors.length === 0) return 0;
+  let prev = anchors[0];
+  let next: Anchor | null = null;
+  for (const a of anchors) {
+    if (a.line <= target) prev = a;
+    else {
+      next = a;
+      break;
+    }
+  }
+  if (next && next.line !== prev.line) {
+    const frac = (target - prev.line) / (next.line - prev.line);
+    return prev.top + (next.top - prev.top) * frac;
+  }
+  return prev.top;
+}
+
+/** 反过来：预览的纵坐标落在哪一行（同样按相邻锚点插值），空表返回 0 */
+export function lineForTop(anchors: Anchor[], top: number): number {
+  if (anchors.length === 0) return 0;
+  let prev = anchors[0];
+  let next: Anchor | null = null;
+  for (const a of anchors) {
+    if (a.top <= top) prev = a;
+    else {
+      next = a;
+      break;
+    }
+  }
+  if (next && next.top !== prev.top) {
+    const frac = (top - prev.top) / (next.top - prev.top);
+    return prev.line + (next.line - prev.line) * frac;
+  }
+  return prev.line;
+}
+
+/**
  * 编辑器与预览的双向同步滚动。
  * 以最近获得指针的窗格为“主动方”，避免互相触发形成回环。
  *
@@ -55,6 +100,8 @@ function collectAnchors(container: HTMLElement): Anchor[] {
  * 1. 滚动事件一帧能来好几个，这里统一 rAF 合帧，一帧最多算一次（同 FloatingToolbar）；
  * 2. 锚点表按「预览 DOM 有没有变 + 容器尺寸」缓存，不再每次滚动都重新扫一遍 DOM。
  *    DOM 变化用 MutationObserver 只置一个脏标记，真正重量推到下一次用到时。
+ *    图片读出来、字体落地、字号/主题改版式都只改高度不改结构，MutationObserver 看不见，
+ *    所以另配 ResizeObserver + img 的 load 事件 + document.fonts.ready 一起标脏。
  */
 export function useSyncScroll(
   editorRef: RefObject<EditorHandle | null>,
@@ -69,19 +116,48 @@ export function useSyncScroll(
   // —— 锚点缓存 ——
   const cacheRef = useRef<AnchorCache | null>(null);
   const dirtyRef = useRef(true);
-  const observerRef = useRef<MutationObserver | null>(null);
   const observedRef = useRef<HTMLElement | null>(null);
+  /** 解绑当前容器上的一整套监听（观察器 + 事件），换容器与卸载时调用 */
+  const detachRef = useRef<(() => void) | null>(null);
+  const fontsWatchedRef = useRef(false);
 
   /** 预览容器是条件挂载的（收起时卸载），所以观察器在第一次用到时才挂，容器换了重挂 */
   const watch = useCallback((container: HTMLElement) => {
     if (observedRef.current === container) return;
-    observerRef.current?.disconnect();
-    const mo = new MutationObserver(() => {
+    detachRef.current?.();
+
+    const markDirty = () => {
       dirtyRef.current = true;
-    });
+    };
+
     // 正文重渲染、图片/公式替换、主题 style 变更都会改到子树，一律作废
+    const mo = new MutationObserver(markDirty);
     mo.observe(container, { childList: true, subtree: true, characterData: true });
-    observerRef.current = mo;
+
+    // 高度变了就作废：图片解码完、字号/行高改了、窗口缩放都走这条。
+    // 回调里只置标记不量布局——在 ResizeObserver 回调里读 offsetTop 会当场触发同步布局，
+    // 而真正要用锚点是下一次滚动的事，等到那时再量。
+    const ro = new ResizeObserver(markDirty);
+    ro.observe(container);
+    const root = container.querySelector<HTMLElement>("#nice");
+    if (root) ro.observe(root);
+
+    // 图片的 load 不冒泡，只能在容器上捕获阶段听；一张图读出来就把后面所有锚点顶下去了
+    container.addEventListener("load", markDirty, true);
+    container.addEventListener("error", markDirty, true);
+
+    // 字体落地会重排整篇；只标一次脏就够，之后的高度变化归 ResizeObserver 管
+    if (!fontsWatchedRef.current) {
+      fontsWatchedRef.current = true;
+      void document.fonts?.ready.then(markDirty).catch(() => {});
+    }
+
+    detachRef.current = () => {
+      mo.disconnect();
+      ro.disconnect();
+      container.removeEventListener("load", markDirty, true);
+      container.removeEventListener("error", markDirty, true);
+    };
     observedRef.current = container;
     dirtyRef.current = true;
   }, []);
@@ -111,25 +187,8 @@ export function useSyncScroll(
 
       const anchors = anchorsOf(container);
       if (anchors.length === 0) return;
-      const target = line + ratio;
-
-      let prev = anchors[0];
-      let next: Anchor | null = null;
-      for (const a of anchors) {
-        if (a.line <= target) prev = a;
-        else {
-          next = a;
-          break;
-        }
-      }
-      let top: number;
-      if (next && next.line !== prev.line) {
-        const frac = (target - prev.line) / (next.line - prev.line);
-        top = prev.top + (next.top - prev.top) * frac;
-      } else {
-        top = prev.top;
-      }
-      container.scrollTo({ top: Math.max(0, top - 24) });
+      const top = topForLine(anchors, line + ratio);
+      container.scrollTo({ top: Math.max(0, top - EDGE_GAP) });
     },
     [anchorsOf, previewRef]
   );
@@ -143,22 +202,7 @@ export function useSyncScroll(
     const anchors = anchorsOf(container);
     if (anchors.length === 0) return;
     // 循环外读一次：scrollTop 是布局属性，循环里读会反复触发同步布局
-    const scrollTop = container.scrollTop + 24;
-
-    let prev = anchors[0];
-    let next: Anchor | null = null;
-    for (const a of anchors) {
-      if (a.top <= scrollTop) prev = a;
-      else {
-        next = a;
-        break;
-      }
-    }
-    let targetLine = prev.line;
-    if (next && next.top !== prev.top) {
-      const frac = (scrollTop - prev.top) / (next.top - prev.top);
-      targetLine = prev.line + (next.line - prev.line) * frac;
-    }
+    const targetLine = lineForTop(anchors, container.scrollTop + EDGE_GAP);
 
     // 滚动容器可能是编辑器外层（标题区与正文同滚），统一交给编辑器句柄换算
     const doc = view.state.doc;
@@ -193,7 +237,9 @@ export function useSyncScroll(
   useEffect(
     () => () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      observerRef.current?.disconnect();
+      detachRef.current?.();
+      detachRef.current = null;
+      observedRef.current = null;
     },
     []
   );

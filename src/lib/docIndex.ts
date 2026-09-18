@@ -7,8 +7,10 @@
  * 缓存是必须的而不是优化：自动保存每隔几百毫秒就换一次 docs 引用，
  * 检索与改名重链都会跟着重跑一轮全库扫描，代价应该只落在真正动过的那一篇上。
  *
- * 失效键是 updatedAt + 正文长度两条一起看：云端镜像可能在 updatedAt 不变的情况下晚一步才拉到本地
- * （在此之前 getDocContent 返回空串），只认 updatedAt 会把「正文还没到」这个中间态一直缓存下去。
+ * 失效只看元信息里的 updatedAt + chars，不读正文：写盘的那几条路径
+ * （saveMirrorLocal / updateLocalDoc / vault 回扫）每次都连带刷新这两项，
+ * 正文变了元信息不可能不变。为了比长度而把整篇正文从 localStorage 捞出来，
+ * 等于缓存白做——几百篇文章每敲一键就是几百次 getItem。
  */
 
 import { getDocContent } from "@/lib/docContent";
@@ -40,21 +42,38 @@ export function flatten(md: string): string {
   );
 }
 
-const cache = new Map<string, { updatedAt: string; length: number; entry: DocIndexEntry }>();
+interface CacheRow {
+  updatedAt: string;
+  /** 元信息里的字数；老条目/老 meta 没有这一项时是 undefined，此时只认 updatedAt */
+  chars: number | undefined;
+  /** 建这条时正文是空的：云端镜像可能晚一步才落到本地，空结果不能长住 */
+  empty: boolean;
+  entry: DocIndexEntry;
+}
+
+const cache = new Map<string, CacheRow>();
 
 /**
- * 一篇文章的派生数据。正文每次都读（getItem 便宜），贵的解析只在版本变了时做。
+ * 一篇文章的派生数据。元信息没变就直接给缓存，连正文都不读；
+ * 只有缓存缺失、updatedAt/chars 变了，或上次建索引时正文还没到，才回头读一次正文重建。
  */
 export function indexOf(doc: DocMeta): DocIndexEntry {
-  const content = getDocContent(doc.id);
   const hit = cache.get(doc.id);
-  if (hit && hit.updatedAt === doc.updatedAt && hit.length === content.length) return hit.entry;
+  if (hit && hit.updatedAt === doc.updatedAt && hit.chars === doc.chars && !hit.empty) {
+    return hit.entry;
+  }
 
+  const content = getDocContent(doc.id);
   const entry: DocIndexEntry = {
     links: parseWikiLinks(content),
     text: flatten(content),
   };
-  cache.set(doc.id, { updatedAt: doc.updatedAt, length: content.length, entry });
+  cache.set(doc.id, {
+    updatedAt: doc.updatedAt,
+    chars: doc.chars,
+    empty: content.length === 0,
+    entry,
+  });
   return entry;
 }
 

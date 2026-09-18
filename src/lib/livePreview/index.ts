@@ -20,6 +20,7 @@ import {
   hasTextSelection,
   inCodeRanges,
   refreshLivePreview,
+  visibleLineRanges,
   type LpContext,
 } from "@/lib/livePreview/context";
 import { INLINE_NODE_NAMES, inlineDecorations, linkTargetAt } from "@/lib/livePreview/inline";
@@ -177,9 +178,12 @@ interface Built {
   atomics: DecorationSet;
 }
 
-function buildDecorations(view: EditorView, caret: number[]): Built {
+/** 只用到 view 的 state 与 visibleRanges；单测拿一个最小假 view 驱动（见 tests/livePreview） */
+export function buildDecorations(view: EditorView, caret: number[]): Built {
   const { state } = view;
-  const ctx = createLpContext(state, caret);
+  // 行级装饰只算可见区：引用/列表/围栏块动辄几千行，只要有一行落进视口，
+  // 以前就得把整块逐行铺一遍（3000 行代码块 = 3000 条行级装饰），光标每动一下重来
+  const ctx = createLpContext(state, caret, visibleLineRanges(state, view.visibleRanges));
 
   // 按原文逐行扫的两样东西先做：行内公式 `$…$`（lezer 不认 `$`）与脚注定义行。
   // 公式必须排在语法树那一趟之前——扫出来的区间要先登记到 ctx，
