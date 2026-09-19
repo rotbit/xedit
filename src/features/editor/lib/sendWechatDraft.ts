@@ -1,8 +1,9 @@
 import { useStore } from "@/store/useStore";
 import { buildWechatHtml } from "@/lib/copy/wechat";
-import { inlineAttachments } from "@/lib/localBackend/attachmentUrls";
+import { inlineAttachments, isAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
 import { toast } from "@/components/Toast";
 import { coverOf } from "../components/CoverPicker";
+import { DRAFT_SERVICE } from "./coverGenerate";
 import { buildRenderOptions } from "./renderOptions";
 
 /**
@@ -11,7 +12,6 @@ import { buildRenderOptions } from "./renderOptions";
  * 网页这边只交内容、轮询状态；不碰公众号登录态，也拿不到服务那边的 API Key。
  * 发表永远由用户自己在公众号后台点。
  */
-const SERVICE = "http://127.0.0.1:17831";
 const POLL_MS = 1000;
 const NOT_RUNNING = "没连上本机草稿服务。请先在 xedit-desktop 目录运行 npm run wechat-draft";
 
@@ -30,7 +30,7 @@ interface DraftReply extends Partial<JobView> {
 }
 
 async function post(body: unknown): Promise<{ status: number; data: DraftReply }> {
-  const res = await fetch(`${SERVICE}/draft`, {
+  const res = await fetch(`${DRAFT_SERVICE}/draft`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -63,6 +63,22 @@ async function coverIndexIn(html: string, cover: string): Promise<number | null>
   return at === -1 ? null : at;
 }
 
+/** 封面不在正文里（上传的 / AI 生成的）时连图一起发过去，服务那边走「上传封面」 */
+type CoverImage = { dataUrl: string } | { url: string };
+
+/**
+ * 本地附件走内联拿 base64（和正文图片同一套办法），网图只给地址、由服务自己下载——
+ * 浏览器这边 fetch 别人家的图会撞跨域。都拿不到就返回 null，让调用方提醒用户手动选。
+ */
+async function coverImageOf(cover: string): Promise<CoverImage | null> {
+  if (isAttachmentSrc(cover)) {
+    const src = (await inlineAttachments(`![](${cover})`)).slice(4, -1);
+    return src.startsWith("data:") ? { dataUrl: src } : null;
+  }
+  if (cover.startsWith("data:")) return { dataUrl: cover };
+  return /^https?:\/\//i.test(cover) ? { url: cover } : null;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** onStatus 收到的是进行中的一句话状态；结束（无论成败）时收到 null */
@@ -78,7 +94,15 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
     const html = await buildWechatHtml(s.content, await buildRenderOptions());
     const cover = coverOf(s.content);
     const coverIndex = cover ? await coverIndexIn(html, cover) : null;
-    const payload = { title, html, ...(coverIndex === null ? {} : { coverIndex }) };
+    // 正文里有这张图就只报序号（服务去「从正文选择」里点，最省事）；不在正文里才连图一起发
+    const coverImage = cover && coverIndex === null ? await coverImageOf(cover) : null;
+    const coverSent = coverIndex !== null || coverImage !== null;
+    const payload = {
+      title,
+      html,
+      ...(coverIndex === null ? {} : { coverIndex }),
+      ...(coverImage ? { coverImage } : {}),
+    };
 
     let reply: { status: number; data: DraftReply };
     try {
@@ -104,7 +128,7 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
       await sleep(POLL_MS);
       let job: JobView | null;
       try {
-        const res = await fetch(`${SERVICE}/status`);
+        const res = await fetch(`${DRAFT_SERVICE}/status`);
         job = ((await res.json()) as { job: JobView | null }).job;
         misses = 0;
       } catch {
@@ -127,9 +151,9 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
       }
       // toast 单行截断、几秒就收，装不下失败原因和图片警告——这些必须让人看完，用弹窗
       // 没选封面时服务照例会提醒一句「封面未设置」，那不算问题；选了却没设上才要说
-      const problems = job.warnings.filter((w) => w.includes("图片") || (coverIndex !== null && w.includes("封面")));
-      if (cover && coverIndex === null) problems.push("选好的封面在正文里找不到了，没有自动设置，请手动选择");
-      const coverDone = cover !== "" && !problems.some((w) => w.includes("封面"));
+      const problems = job.warnings.filter((w) => w.includes("图片") || (coverSent && w.includes("封面")));
+      if (cover && !coverSent) problems.push("封面图片读不出来，没有自动设置，请手动选择");
+      const coverDone = coverSent && !problems.some((w) => w.includes("封面"));
       const filled = job.step === "filled";
       const head = filled ? "已填进公众号后台，尚未保存" : "草稿已保存";
       const next = filled ? "请在公众号页检查后手动保存、发表" : "请到公众号后台检查后自行发表";
