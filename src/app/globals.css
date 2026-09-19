@@ -14,8 +14,9 @@
   --paper: #fafafa;
   --panel: #ffffff;
   --ink: #191919;
-  --brand-mark: #48478f;
-  /* 靛蓝品牌色：落地页的强调色与主行动按钮，与书页字标同源 */
+  --brand-mark: #3478f6;
+  --brand-mark-secondary: #20b8a6;
+  /* 落地页强调色与主行动按钮；书页图标由独立的双色变量控制 */
   --brand: #48478f;
   --brand-deep: #38377a;
   --brand-fg: #ffffff;
@@ -87,7 +88,8 @@
   --paper: #fafafa;
   --panel: #ffffff;
   --ink: #191919;
-  --brand-mark: #48478f;
+  --brand-mark: #3478f6;
+  --brand-mark-secondary: #20b8a6;
   --brand: #48478f;
   --brand-deep: #38377a;
   --brand-fg: #ffffff;
@@ -108,7 +110,8 @@
   --paper: #141415;
   --panel: #1b1b1c;
   --ink: #ededed;
-  --brand-mark: #ededed;
+  --brand-mark: #80adff;
+  --brand-mark-secondary: #58dac5;
   /* 夜间把靛蓝提亮成薰衣草，压在炭黑上仍读得出品牌色 */
   --brand: #a3a2e6;
   --brand-deep: #c0bff0;
