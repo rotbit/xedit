@@ -27,9 +27,30 @@ const STYLE_SUFFIX: Record<CoverStyle, string> = {
   tech: "futuristic technology aesthetic, dark background, geometric light effects",
 };
 
-// 约束用英文写：生图模型吃英文更稳。主体居中是因为公众号列表页会把封面裁成居中的方图
-const CONSTRAINTS =
-  "wide 21:9 banner composition, main subject centered, no text, no letters, no watermark, no logo, clean background";
+// 约束用英文写：生图模型吃英文更稳。比例跟着实际下发的 aspect_ratio 走（模型不认 21:9 时会换掉），
+// 免得提示词和入参各说一套。主体居中是因为公众号列表页会把封面裁成居中的方图
+const constraints = (aspect: string) =>
+  `wide ${aspect} banner composition, main subject centered, no text, no letters, no watermark, no logo, clean background`;
+
+/** 默认比例：flux-schnell 认，也够宽，像个 banner。别的模型不认时会被下面的自适应换掉 */
+const DEFAULT_ASPECT = "21:9";
+/** 模型不认就可以摘掉的可选入参：真正非有不可的只有 prompt */
+const OPTIONAL_INPUT = ["num_outputs", "output_format", "output_quality"] as const;
+/** 入参自适应最多重试几次：上游一次点一个字段的名，总得有个头，别在这儿转死循环 */
+const MAX_INPUT_RETRY = 3;
+
+/**
+ * 每个模型吃什么入参，撞一次 422 就记下来：aspect_ratio 该填哪个值、哪些可选字段不能发。
+ * Replicate 每个模型的 input schema 都不一样（21:9 是 flux-schnell 认，换个模型就 422），
+ * 与其写死另一个值，不如按模型记住上一次谈成的那版，之后的请求不用每次先撞一次。
+ * 只在进程内存里，重启即失效——丢了也不过是再撞一次 422。
+ */
+const MODEL_INPUT = new Map<string, { aspectRatio?: string; drop: Set<string> }>();
+
+/** 单测用：模块级缓存复位（测试之间不互相污染） */
+export function __resetCoverModelsForTests() {
+  MODEL_INPUT.clear();
+}
 
 /** 失败码：路由据此定 HTTP 状态，网页据此决定怎么提示 */
 export type CoverErrorCode =
@@ -79,12 +100,31 @@ const clip = (s: unknown, n: number): string => {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// 提示词由固定模板拼出来：调用方只能决定「画什么」和风格，改不掉后面那串约束
-export function buildPrompt(prompt: string, style?: string | null): string {
+// 提示词由固定模板拼出来：调用方只能决定「画什么」和风格，改不掉后面那串约束。
+// aspect 是这次真要下发的比例，默认还是 21:9
+export function buildPrompt(prompt: string, style?: string | null, aspect = DEFAULT_ASPECT): string {
   const parts = [`WeChat article cover banner about: ${String(prompt ?? "").slice(0, MAX_PROMPT)}`];
   if (isCoverStyle(style)) parts.push(STYLE_SUFFIX[style]);
-  parts.push(CONSTRAINTS);
+  parts.push(constraints(aspect));
   return parts.join(". ");
+}
+
+/**
+ * 从 422 的 detail 里挑一个模型认的比例：只认 "W:H" 写法（auto、1536x1024 这种像素值不算），
+ * 取其中最宽的那个横向比例——封面是横幅，换成方图或竖图还不如不换。
+ * 挑不出来（或者只剩已经试过的那个）就返回 null，由调用方按原样报错。
+ */
+function widestAspect(detail: string, tried: Set<string>): string | null {
+  let best: string | null = null;
+  let widest = 1; // 起点就是 1:1：比它还窄的一律不要
+  for (const [, w, h] of detail.matchAll(/(\d{1,4})\s*:\s*(\d{1,4})/g)) {
+    const ratio = Number(w) / Number(h);
+    const value = `${Number(w)}:${Number(h)}`;
+    if (!Number.isFinite(ratio) || ratio <= widest || tried.has(value)) continue;
+    best = value;
+    widest = ratio;
+  }
+  return best;
 }
 
 // HTTP 状态 → 统一的错误码与中文说法
@@ -136,6 +176,8 @@ export async function generateCovers(
   const configured = Number(process.env.COVER_GENERATE_TIMEOUT_SEC);
   const timeoutSec = configured > 0 ? configured : DEFAULT_TIMEOUT_SEC;
   const deadline = Date.now() + timeoutSec * 1000;
+  /** 最近一次 422 的原始 detail：只给下面的入参自适应认字段用，给用户看的那句早截断过了 */
+  let lastDetail = "";
 
   try {
     return await run();
@@ -147,24 +189,79 @@ export async function generateCovers(
     throw e;
   }
 
+  /**
+   * 撞一次改一次：上游 422 点了哪个入参的名，就改哪个再来，直到它收下为止。
+   * 谈成的那版记在模型名下，同一模型后面的请求（包括补第二张）直接照着发。
+   */
   async function run(): Promise<string[]> {
-    const input = {
-      prompt: buildPrompt(wanted, style),
-      aspect_ratio: "21:9",
+    const tuned = MODEL_INPUT.get(model);
+    const drop = new Set<string>(tuned?.drop ?? []);
+    // 缓存 > 环境变量 > 默认：env 里那个可能正是被模型拒掉的值，谈成过的才最靠谱
+    let aspect = tuned?.aspectRatio || process.env.REPLICATE_ASPECT_RATIO?.trim() || DEFAULT_ASPECT;
+    /** 自适应换到的比例，只有真换过才写进缓存 */
+    let picked = tuned?.aspectRatio;
+    let adapted = false;
+    // 试过的比例不再试第二遍：detail 里常把刚被拒的那个也一并回显出来
+    const tried = new Set<string>();
+
+    for (let retry = 0; ; retry++) {
+      tried.add(aspect);
+      let started: Prediction;
+      try {
+        started = await create(aspect, drop);
+      } catch (e) {
+        // 只有「创建 prediction 时入参被 422 挑了」才谈得上改参数重试，别的错该抛就抛
+        const detail = e instanceof CoverError && e.code === "bad_input" ? lastDetail : "";
+        if (!detail || retry >= MAX_INPUT_RETRY) throw e;
+        const next = detail.includes("aspect_ratio") ? widestAspect(detail, tried) : null;
+        const extra = OPTIONAL_INPUT.filter((k) => !drop.has(k) && detail.includes(k));
+        // 看不出它嫌的是哪个字段（或挑不出更合适的比例）就别瞎试，按原样报错
+        if (!next && extra.length === 0) throw e;
+        alive(); // 重试前先看一眼还剩不剩时间、用户还在不在
+        if (next) picked = aspect = next;
+        for (const key of extra) drop.add(key);
+        adapted = true;
+        continue;
+      }
+      // 上游收下了这版入参：改过才值得记，没改过的下次照默认发也一样能成
+      if (adapted) MODEL_INPUT.set(model, { aspectRatio: picked, drop });
+      const images = await finish(started, n);
+      // 张数不够（num_outputs 被摘掉了，或者模型压根只给一张）就再单独生一次补上；
+      // 补不上不算整件事失败——有一张也比什么都没有强
+      if (images.length < n && Date.now() < deadline && !signal?.aborted) {
+        try {
+          images.push(...(await finish(await create(aspect, drop), n - images.length)));
+        } catch {}
+      }
+      return images;
+    }
+  }
+
+  /** 发起一次生成：模型写成 owner/name:hash 时走带版本号的接口，否则用「模型最新版」那个接口 */
+  async function create(aspect: string, drop: Set<string>): Promise<Prediction> {
+    const input: Record<string, unknown> = {
+      prompt: buildPrompt(wanted, style, aspect),
+      aspect_ratio: aspect,
       num_outputs: n,
       output_format: "jpg",
       output_quality: 90,
     };
-    // 模型写成 owner/name:hash 时走带版本号的接口，否则用「模型最新版」那个接口
+    for (const key of drop) delete input[key];
     const at = model.indexOf(":");
     const url = at > 0 ? `${API_BASE}v1/predictions` : `${API_BASE}v1/models/${model}/predictions`;
     const body = at > 0 ? { version: model.slice(at + 1), input } : { input };
+    lastDetail = "";
     // Prefer: wait 让快模型（flux-schnell 几秒就好）在这一次请求里直接返回结果，省掉轮询
-    let pred = await callApi(url, {
+    return callApi(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Prefer: "wait=60" },
       body: JSON.stringify(body),
     });
+  }
+
+  /** 等一个 prediction 出结果，再把图片下载成 dataURL；最多取 max 张 */
+  async function finish(started: Prediction, max: number): Promise<string[]> {
+    let pred = started;
     while (RUNNING.includes(String(pred.status))) {
       if (Date.now() >= deadline) {
         // 超时了尽力打个取消，省点额度；取消失败无所谓，那边自己会结束
@@ -188,8 +285,15 @@ export async function generateCovers(
     );
     if (outputs.length === 0) throw new CoverError("failed", "生成完了却没拿到图片");
     const images: string[] = [];
-    for (const one of outputs.slice(0, n)) images.push(await download(one));
+    for (const one of outputs.slice(0, max)) images.push(await download(one));
     return images;
+  }
+
+  /** 重试前的一道闸：时间用完了、或者用户已经把面板关了，就别再往上游发请求 */
+  function alive(): void {
+    if (Date.now() >= deadline)
+      throw new CoverError("timeout", `生成超时了（超过 ${timeoutSec} 秒），稍后再试`);
+    if (signal?.aborted) throw new CoverError("aborted", "已取消");
   }
 
   // 带 Token 的请求只许发给 Replicate：轮询/取消地址是上游给的，先核对域名再决定要不要带 Token 过去
@@ -205,7 +309,11 @@ export async function generateCovers(
     try {
       body = (await res.json()) as Prediction;
     } catch {}
-    if (!res.ok) throw httpError(res.status, body);
+    // 422 的原始 detail 留一份给入参自适应认字段；它不进错误文案，也就不会外泄
+    if (!res.ok) {
+      lastDetail = res.status === 422 ? String(body?.detail ?? "") : "";
+      throw httpError(res.status, body);
+    }
     return body ?? {};
   }
 

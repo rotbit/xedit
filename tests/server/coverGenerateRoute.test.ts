@@ -141,7 +141,8 @@ describe("POST /api/cover/generate 的请求体", () => {
     vi.stubGlobal("fetch", fetchMock);
     const res = await post({ prompt: "猫", count: 9, style: "不存在的风格" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ images: [DATA_URL] });
+    // 这个假上游一发只给一张，要两张就会再补生一次，所以回来的是两张
+    expect(await res.json()).toEqual({ images: [DATA_URL, DATA_URL] });
 
     const sent = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
       input: { num_outputs: number; prompt: string };
