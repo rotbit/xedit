@@ -214,7 +214,7 @@ export const ReaderActions = memo(function ReaderActions({
                   void sendWechatDraft(setDraftStatus);
                 }}
               >
-                发送到公众号草稿
+                发送到公众号
               </button>
             </div>
           </>

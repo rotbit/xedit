@@ -34,6 +34,10 @@ async function post(body: unknown): Promise<{ status: number; data: DraftReply }
   return { status: res.status, data: (await res.json()) as DraftReply };
 }
 
+/** 桌面壳自己在顶栏里显示进度胶囊（xedit-desktop/tabs.js），这时网页就不再一条条弹提示 */
+const shellShowsProgress = (): boolean =>
+  (window as unknown as { xeditDesktop?: { draftProgress?: boolean } }).xeditDesktop?.draftProgress === true;
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** onStatus 收到的是进行中的一句话状态；结束（无论成败）时收到 null */
@@ -90,14 +94,14 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
         if (job.message !== shown) {
           shown = job.message;
           onStatus(shown);
-          toast(shown, "info");
+          if (!shellShowsProgress()) toast(shown, "info");
         }
         continue;
       }
       // toast 单行截断、几秒就收，装不下失败原因和图片警告——这些必须让人看完，用弹窗
       const imageWarnings = job.warnings.filter((w) => w.includes("图片"));
       if (job.state === "done" && imageWarnings.length === 0) {
-        toast("草稿已保存并核对通过，请到公众号后台设置封面后自行发表", "success");
+        if (!shellShowsProgress()) toast("草稿已保存并核对通过，请到公众号后台设置封面后自行发表", "success");
       } else if (job.state === "done") {
         window.alert(`草稿已保存，但图片有问题，请到公众号后台检查：\n\n${imageWarnings.join("\n")}\n\n封面也需要手动设置。`);
       } else if (job.state === "uncertain") {
