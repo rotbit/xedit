@@ -74,16 +74,27 @@ async function videoMarkdown(file: File, notify: Notify): Promise<string | null>
 const encodeMdPath = (rel: string): string =>
   rel.replace(/[ ()<>]/g, (c) => encodeURIComponent(c));
 
-/** 有磁盘文库时图片落 <vault>/attachments/，正文里只留相对路径：
- *  不传云端，同一个库用 Obsidian 打开也显示得出来 */
+/**
+ * 一张图 → 能写进文档的 src：有磁盘文库就落 <vault>/attachments/ 只留相对路径
+ * （不传云端，同一个库用 Obsidian 打开也显示得出来），没有文库才传云端。
+ * 正文插图与封面（CoverPicker 的上传 / AI 生成）走的是同一条规则，所以抽在这里共用。
+ * 失败抛出带原因的 Error，怎么提示由调用方定。
+ */
+export async function saveImageSrc(
+  file: File,
+  vault: VaultBackend | null = getActiveVault()
+): Promise<string> {
+  if (!vault) return await uploadMediaFile(file);
+  return encodeMdPath(await vault.saveAttachment(file, file.name || "image.png"));
+}
+
 async function vaultImageMarkdown(
   vault: VaultBackend,
   file: File,
   notify: Notify
 ): Promise<string | null> {
   try {
-    const rel = await vault.saveAttachment(file, file.name || "image.png");
-    return `\n![${stripExt(file.name)}](${encodeMdPath(rel)})\n`;
+    return `\n![${stripExt(file.name)}](${await saveImageSrc(file, vault)})\n`;
   } catch (e) {
     notify(`「${file.name}」${errText(e, "存入文库失败")}`, "error");
     return null;
