@@ -93,3 +93,27 @@ export function parseFrontmatter(md: string): Frontmatter | null {
 export function stripFrontmatter(md: string): string {
   return parseFrontmatter(md)?.body ?? md;
 }
+
+/**
+ * 写入 / 删除一个顶层标量键（value 传 null = 删除），其余行原样保留。
+ * 没有 frontmatter 时在文首新建；删完只剩空壳就把整块 frontmatter 一起拿掉。
+ */
+export function setFrontmatterValue(md: string, key: string, value: string | null): string {
+  const fm = parseFrontmatter(md);
+  if (!fm) return value === null ? md : `---\n${key}: ${value}\n---\n\n${md}`;
+
+  const lines = md.slice(0, fm.end).replace(/\n$/, "").split("\n");
+  const inner = lines.slice(1, -1);
+  const at = inner.findIndex((l) => !/^\s/.test(l) && l.slice(0, Math.max(0, l.indexOf(":"))).trim() === key);
+  if (at === -1) {
+    if (value === null) return md;
+    inner.push(`${key}: ${value}`);
+  } else {
+    // 这个键原来若是列表写法，连同它名下的 `- x` / 缩进行一起换掉
+    let span = 1;
+    while (at + span < inner.length && /^(\s|-(\s|$))/.test(inner[at + span])) span++;
+    inner.splice(at, span, ...(value === null ? [] : [`${key}: ${value}`]));
+  }
+  if (inner.every((l) => !l.trim())) return fm.body.replace(/^\n+/, "");
+  return `---\n${inner.join("\n")}\n---\n${fm.body}`;
+}
