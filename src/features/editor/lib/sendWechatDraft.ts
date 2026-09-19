@@ -7,7 +7,7 @@ import { buildRenderOptions } from "./renderOptions";
 
 /**
  * 「发送到公众号草稿」：把标题和按当前主题排好的 HTML 交给本机的草稿服务
- * （xedit-desktop/wechat-draft-service，只监听 127.0.0.1），由它驱动 Chrome 填进公众号后台并存成草稿。
+ * （xedit-desktop/wechat-draft-service，只监听 127.0.0.1），由它驱动 Chrome 填进公众号后台（默认只填好、不保存，保存由用户自己点）。
  * 网页这边只交内容、轮询状态；不碰公众号登录态，也拿不到服务那边的 API Key。
  * 发表永远由用户自己在公众号后台点。
  */
@@ -19,6 +19,8 @@ type JobState = "running" | "done" | "failed" | "uncertain";
 interface JobView {
   jobId: string;
   state: JobState;
+  /** "filled" = 只填好了标题/正文/封面，还没保存（服务默认如此，保存由用户自己点） */
+  step?: string;
   message: string;
   warnings: string[];
 }
@@ -128,11 +130,14 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
       const problems = job.warnings.filter((w) => w.includes("图片") || (coverIndex !== null && w.includes("封面")));
       if (cover && coverIndex === null) problems.push("选好的封面在正文里找不到了，没有自动设置，请手动选择");
       const coverDone = cover !== "" && !problems.some((w) => w.includes("封面"));
+      const filled = job.step === "filled";
+      const head = filled ? "已填进公众号后台，尚未保存" : "草稿已保存";
+      const next = filled ? "请在公众号页检查后手动保存、发表" : "请到公众号后台检查后自行发表";
       if (job.state === "done" && problems.length === 0) {
         if (!shellShowsProgress())
-          toast(coverDone ? "草稿已保存，封面已设好，请到公众号后台检查后自行发表" : "草稿已保存并核对通过，请到公众号后台设置封面后自行发表", "success");
+          toast(`${head}${coverDone ? "，封面已设好" : ""}，${coverDone ? next : next.replace("检查", "设置封面、检查")}`, "success");
       } else if (job.state === "done") {
-        window.alert(`草稿已保存，但有几处需要你到公众号后台检查：\n\n${problems.join("\n")}${coverDone ? "" : "\n\n封面需要手动设置。"}`);
+        window.alert(`${head}，但有几处需要你在公众号后台检查：\n\n${problems.join("\n")}${coverDone ? "" : "\n\n封面需要手动设置。"}`);
       } else if (job.state === "uncertain") {
         window.alert(`结果不确定：${job.message}\n\n公众号草稿箱里可能已经有这篇，请先去核对，不要直接重发。`);
       } else {

@@ -1,6 +1,7 @@
 import { EditorView, WidgetType } from "@codemirror/view";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import { editOnClick } from "@/lib/livePreview/widgetUtils";
+import { ATTACHMENTS_RESOLVED_EVENT, isAttachmentSrc, resolveAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
 
 /**
  * 文首 YAML frontmatter 的即时渲染部件：一张只读的元信息卡片。
@@ -16,8 +17,41 @@ import { editOnClick } from "@/lib/livePreview/widgetUtils";
 /** 卡片一行的高度：13px 字号 × 1.7 行高 ≈ 22px（见 live-frontmatter.css 的 .cm-lp-fm） */
 const FM_ROW_HEIGHT = 22;
 
+/** `cover:` 不显示地址，直接渲染成一张 2.35:1（公众号头条封面比例）的图；COVER_HEIGHT = 图高 + 上下留白，见 live-frontmatter.css */
+const COVER_KEY = "cover";
+const COVER_HEIGHT = 106;
+
 /** 点卡片后光标落到第二行（`---\n` 之后）：严格落在区间内部才会还原源码 */
 const FM_CARET_OFFSET = 4;
+
+/** 封面：左缘与正文文字对齐的一张 2.35:1 小图 + 右边两行说明，质感跟标题下的元信息行一致 */
+function coverBlock(src: string): HTMLElement {
+  const block = document.createElement("div");
+  block.className = "cm-lp-fm-cover";
+  const img = document.createElement("img");
+  img.alt = "";
+  // 磁盘文库里的图是异步读的：没读到先空着。源码没变部件不会重建（见 eq），所以自己等读到再补上
+  img.src = isAttachmentSrc(src) ? (resolveAttachmentSrc(src) ?? "") : src;
+  if (!img.getAttribute("src")) {
+    const onResolved = () => {
+      const url = resolveAttachmentSrc(src);
+      if (!url && img.isConnected) return;
+      window.removeEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
+      if (url) img.src = url;
+    };
+    window.addEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
+  }
+  const text = document.createElement("div");
+  text.className = "cm-lp-fm-cover-text";
+  const name = document.createElement("div");
+  name.className = "cm-lp-fm-cover-name";
+  name.textContent = "公众号封面";
+  const hint = document.createElement("div");
+  hint.textContent = "发送到公众号时自动设置 · 在标题下方的「封面」里更换";
+  text.append(name, hint);
+  block.append(img, text);
+  return block;
+}
 
 export class FrontmatterWidget extends WidgetType {
   /** 构造时解析一次：source 变了就是另一个部件（见 eq），toDOM 只负责拼 DOM */
@@ -38,22 +72,35 @@ export class FrontmatterWidget extends WidgetType {
   }
   get estimatedHeight() {
     // 按源码行数估：行数 = 字段数 + 两条 `---`，多算的两行正好抵掉卡片的内边距与外边距
-    return this.lineCount * FM_ROW_HEIGHT;
+    const cover = this.fields.some((f) => f.key === COVER_KEY && f.value);
+    if (!cover) return this.lineCount * FM_ROW_HEIGHT;
+    // 封面不占卡片的行；只有封面时连卡片都没有
+    return COVER_HEIGHT + (this.fields.length > 1 ? (this.lineCount - 1) * FM_ROW_HEIGHT : 0);
   }
   toDOM(view: EditorView) {
+    // 封面单独拎出来渲染成图（不进「键 值」表）；其余字段还是那张卡片，只有封面时就不要卡片了
     const wrap = document.createElement("div");
-    wrap.className = "cm-lp-fm";
-    for (const field of this.fields) {
-      const row = document.createElement("div");
-      row.className = "cm-lp-fm-row";
-      const name = document.createElement("span");
-      name.className = "cm-lp-fm-key";
-      name.textContent = field.key;
-      const cell = document.createElement("span");
-      cell.className = "cm-lp-fm-val";
-      cell.textContent = field.value;
-      row.append(name, cell);
-      wrap.appendChild(row);
+    wrap.className = "cm-lp-fm-wrap";
+    const cover = this.fields.find((f) => f.key === COVER_KEY && f.value);
+    if (cover) wrap.appendChild(coverBlock(cover.value));
+
+    const rest = this.fields.filter((f) => f !== cover);
+    if (rest.length > 0 || !cover) {
+      const card = document.createElement("div");
+      card.className = "cm-lp-fm";
+      for (const field of rest) {
+        const row = document.createElement("div");
+        row.className = "cm-lp-fm-row";
+        const name = document.createElement("span");
+        name.className = "cm-lp-fm-key";
+        name.textContent = field.key;
+        const cell = document.createElement("span");
+        cell.className = "cm-lp-fm-val";
+        cell.textContent = field.value;
+        row.append(name, cell);
+        card.appendChild(row);
+      }
+      wrap.appendChild(card);
     }
 
     editOnClick(wrap, view, FM_CARET_OFFSET);
