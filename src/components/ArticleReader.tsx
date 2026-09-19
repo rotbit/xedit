@@ -2,6 +2,8 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { CoverPicker, COVER_KEY } from "@/features/editor/components/CoverPicker";
+import { setFrontmatterValue } from "@/lib/frontmatter";
 import { AlignLeft, Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
 import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
 import { CHARS_PER_MINUTE, wordCount } from "@/lib/wordCount";
@@ -130,6 +132,21 @@ export function ArticleReader({
 
   // 编辑器重建的标识：docId 或装载批次一变就换了一篇内容（滚动记忆以它判断「切文档」）
   const docKey = `${docId}:${docVersion}`;
+
+  // 封面写进 frontmatter。编辑器不受控，得走它自己的事务改（顺带能撤销），
+  // 只替换首尾公共部分之外的那一小段，光标和滚动位置不动
+  const pickCover = (src: string | null) => {
+    const view = editorRef.current?.view();
+    const cur = view ? view.state.doc.toString() : useStore.getState().content;
+    const next = setFrontmatterValue(cur, COVER_KEY, src);
+    if (next === cur) return;
+    if (!view) return setContent(next);
+    let from = 0;
+    while (from < cur.length && from < next.length && cur[from] === next[from]) from++;
+    let tail = 0;
+    while (tail < cur.length - from && tail < next.length - from && cur[cur.length - 1 - tail] === next[next.length - 1 - tail]) tail++;
+    view.dispatch({ changes: { from, to: cur.length - tail, insert: next.slice(from, next.length - tail) } });
+  };
   // 记住每篇读到哪：切走再回来、刷新页面都回到原处
   const recordScroll = useScrollMemory(docId, docKey, editorRef, scrollEl);
   // 目录高亮走订阅：顶端行号每帧都在变，抬成 state 会连累整篇文章视图重渲染
@@ -350,6 +367,8 @@ export function ArticleReader({
                         <span>约 {Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE))} 分钟读完</span>
                       </>
                     ) : null}
+                    <span>·</span>
+                    <CoverPicker content={content} onPick={pickCover} />
                   </div>
                   <div className="mt-3 h-px w-10 bg-[var(--hairline-strong)]" />
                 </div>
