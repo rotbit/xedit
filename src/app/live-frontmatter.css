@@ -29,3 +29,36 @@
   color: var(--ink-soft);
   word-break: break-word;
 }
+/* cover: 不进卡片，单独渲染成图。左缘让出 28px 与正文文字对齐（= .cm-line 的行内缩），
+   2.35:1 = 公众号头条封面比例 */
+.cm-live-preview .cm-lp-fm-wrap {
+  cursor: text;
+}
+.cm-live-preview .cm-lp-fm-cover {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 28px 14px;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-faint);
+}
+.cm-live-preview .cm-lp-fm-cover img {
+  flex: none;
+  display: block;
+  width: 188px;
+  height: 80px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--accent-wash);
+  box-shadow: 0 0 0 1px var(--hairline-soft), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.cm-live-preview .cm-lp-fm-cover-text {
+  min-width: 0;
+}
+.cm-live-preview .cm-lp-fm-cover-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
