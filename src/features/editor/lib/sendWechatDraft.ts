@@ -1,6 +1,8 @@
 import { useStore } from "@/store/useStore";
 import { buildWechatHtml } from "@/lib/copy/wechat";
+import { inlineAttachments } from "@/lib/localBackend/attachmentUrls";
 import { toast } from "@/components/Toast";
+import { coverOf } from "../components/CoverPicker";
 import { buildRenderOptions } from "./renderOptions";
 
 /**
@@ -38,6 +40,27 @@ async function post(body: unknown): Promise<{ status: number; data: DraftReply }
 const shellShowsProgress = (): boolean =>
   (window as unknown as { xeditDesktop?: { draftProgress?: boolean } }).xeditDesktop?.draftProgress === true;
 
+const decoded = (s: string): string => {
+  try {
+    return decodeURI(s);
+  } catch {
+    return s;
+  }
+};
+
+/**
+ * 封面是排好版的 HTML 里的第几张 <img>（服务那边按序号去「从正文选择」里点）。
+ * 不能直接拿地址去比：本地图片在排版时被内联成了 base64，视频还会多出一张占位封面图，
+ * 所以让封面地址走一遍同样的内联，再到成品 HTML 里找。找不到返回 null。
+ */
+async function coverIndexIn(html: string, cover: string): Promise<number | null> {
+  const probe = await inlineAttachments(`![](${cover})`);
+  const want = decoded(probe.slice(4, -1));
+  const imgs = Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("img"));
+  const at = imgs.findIndex((img) => decoded(img.getAttribute("src") ?? "") === want);
+  return at === -1 ? null : at;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** onStatus 收到的是进行中的一句话状态；结束（无论成败）时收到 null */
@@ -51,7 +74,9 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
     }
     onStatus("正在生成公众号排版…");
     const html = await buildWechatHtml(s.content, await buildRenderOptions());
-    const payload = { title, html };
+    const cover = coverOf(s.content);
+    const coverIndex = cover ? await coverIndexIn(html, cover) : null;
+    const payload = { title, html, ...(coverIndex === null ? {} : { coverIndex }) };
 
     let reply: { status: number; data: DraftReply };
     try {
@@ -99,11 +124,15 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
         continue;
       }
       // toast 单行截断、几秒就收，装不下失败原因和图片警告——这些必须让人看完，用弹窗
-      const imageWarnings = job.warnings.filter((w) => w.includes("图片"));
-      if (job.state === "done" && imageWarnings.length === 0) {
-        if (!shellShowsProgress()) toast("草稿已保存并核对通过，请到公众号后台设置封面后自行发表", "success");
+      // 没选封面时服务照例会提醒一句「封面未设置」，那不算问题；选了却没设上才要说
+      const problems = job.warnings.filter((w) => w.includes("图片") || (coverIndex !== null && w.includes("封面")));
+      if (cover && coverIndex === null) problems.push("选好的封面在正文里找不到了，没有自动设置，请手动选择");
+      const coverDone = cover !== "" && !problems.some((w) => w.includes("封面"));
+      if (job.state === "done" && problems.length === 0) {
+        if (!shellShowsProgress())
+          toast(coverDone ? "草稿已保存，封面已设好，请到公众号后台检查后自行发表" : "草稿已保存并核对通过，请到公众号后台设置封面后自行发表", "success");
       } else if (job.state === "done") {
-        window.alert(`草稿已保存，但图片有问题，请到公众号后台检查：\n\n${imageWarnings.join("\n")}\n\n封面也需要手动设置。`);
+        window.alert(`草稿已保存，但有几处需要你到公众号后台检查：\n\n${problems.join("\n")}${coverDone ? "" : "\n\n封面需要手动设置。"}`);
       } else if (job.state === "uncertain") {
         window.alert(`结果不确定：${job.message}\n\n公众号草稿箱里可能已经有这篇，请先去核对，不要直接重发。`);
       } else {
