@@ -1,6 +1,7 @@
 import { useStore } from "@/store/useStore";
-import { buildWechatHtml } from "@/lib/copy/wechat";
+import { buildWechatHtml, countVideoPlaceholders } from "@/lib/copy/wechat";
 import { inlineAttachments, isAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
+import { desktopShell } from "@/lib/desktopShell";
 import { toast } from "@/components/Toast";
 import { coverOf } from "../components/CoverPicker";
 import { buildRenderOptions } from "./renderOptions";
@@ -10,11 +11,13 @@ import { buildRenderOptions } from "./renderOptions";
  * （xedit-desktop/wechat-draft-service，只监听 127.0.0.1），由它驱动 Chrome 填进公众号后台（默认只填好、不保存，保存由用户自己点）。
  * 网页这边只交内容、轮询状态；不碰公众号登录态，也拿不到服务那边的 API Key。
  * 发表永远由用户自己在公众号后台点。
+ * 入口只在桌面壳里露出（见 ReaderActions 的 isDesktopShell 判断）：服务由桌面 app 自己拉起，
+ * 纯浏览器里点了只会弹「没连上」，还会莫名其妙冒出一个 Chrome 窗口。
  */
 /** 本机草稿服务（只监听 127.0.0.1） */
 const DRAFT_SERVICE = "http://127.0.0.1:17831";
 const POLL_MS = 1000;
-const NOT_RUNNING = "没连上本机草稿服务。请先在 xedit-desktop 目录运行 npm run wechat-draft";
+const NOT_RUNNING = "没连上本机草稿服务，请重启 xEdit 再试";
 
 type JobState = "running" | "done" | "failed" | "uncertain";
 interface JobView {
@@ -40,8 +43,7 @@ async function post(body: unknown): Promise<{ status: number; data: DraftReply }
 }
 
 /** 桌面壳自己在顶栏里显示进度胶囊（xedit-desktop/tabs.js），这时网页就不再一条条弹提示 */
-const shellShowsProgress = (): boolean =>
-  (window as unknown as { xeditDesktop?: { draftProgress?: boolean } }).xeditDesktop?.draftProgress === true;
+const shellShowsProgress = (): boolean => desktopShell()?.draftProgress === true;
 
 const decoded = (s: string): string => {
   try {
@@ -98,6 +100,8 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
     // 正文里有这张图就只报序号（服务去「从正文选择」里点，最省事）；不在正文里才连图一起发
     const coverImage = cover && coverIndex === null ? await coverImageOf(cover) : null;
     const coverSent = coverIndex !== null || coverImage !== null;
+    // 视频粘不进公众号，排版时已降级成占位块；这里数一下，结束时提醒人去后台补
+    const videoCount = countVideoPlaceholders(html);
     const payload = {
       title,
       html,
@@ -155,6 +159,12 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
       const problems = job.warnings.filter((w) => w.includes("图片") || (coverSent && w.includes("封面")));
       if (cover && !coverSent) problems.push("封面图片读不出来，没有自动设置，请手动选择");
       const coverDone = coverSent && !problems.some((w) => w.includes("封面"));
+      // 视频跟封面没关系，coverDone 算完再加，这句也刻意不含「封面」二字，免得被上面那行误判
+      if (videoCount > 0) {
+        problems.push(
+          `文章里有 ${videoCount} 个视频没有带过去，占位块已标黄，请在公众号后台手动「插入视频」`
+        );
+      }
       const filled = job.step === "filled";
       const head = filled ? "已填进公众号后台，尚未保存" : "草稿已保存";
       const next = filled ? "请在公众号页检查后手动保存、发表" : "请到公众号后台检查后自行发表";
