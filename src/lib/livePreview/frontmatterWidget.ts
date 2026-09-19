@@ -8,7 +8,7 @@ import { ATTACHMENTS_RESOLVED_EVENT, isAttachmentSrc, resolveAttachmentSrc } fro
  *
  * 不隐藏、也不美化成正文的一部分——frontmatter 是给机器看的元数据，
  * 排成「键 值」两列的卡片正好把它和正文划清界限（Obsidian 的属性面板也是这个思路）。
- * 光标进入区间即还原源码（判定在 blocks.ts），所以卡片不必可编辑。
+ * 光标进入区间即还原源码（判定在 blocks.ts），所以卡片不必可编辑。只有封面一项时例外：一直渲染成图。
  *
  * DOM 全部用 textContent 拼，没有一处 innerHTML：frontmatter 里可能写着任何字符，
  * 这条路径上也就不需要再过一次 DOMPurify。
@@ -23,6 +23,21 @@ const COVER_HEIGHT = 335;
 
 /** 点卡片后光标落到第二行（`---\n` 之后）：严格落在区间内部才会还原源码 */
 const FM_CARET_OFFSET = 4;
+
+/**
+ * frontmatter 里是不是只有 `cover:` 这一项。这种 frontmatter 是「封面」选择器写进去的，
+ * 改也是回选择器里改，源码（一长串图片地址）没有可看可改的东西——所以光标碰到也不还原源码，
+ * 始终保持渲染成图（判定用在 blocks.ts）。还有别的字段时照旧点开编辑。
+ */
+let lastCoverOnly: { source: string; result: boolean } | null = null;
+export function isCoverOnlyFrontmatter(source: string): boolean {
+  if (lastCoverOnly?.source === source) return lastCoverOnly.result;
+  const data = parseFrontmatter(source)?.data ?? {};
+  const keys = Object.keys(data);
+  const result = keys.length === 1 && keys[0] === COVER_KEY && typeof data[COVER_KEY] === "string" && data[COVER_KEY] !== "";
+  lastCoverOnly = { source, result };
+  return result;
+}
 
 /** 封面：与正文同宽的一张 2.35:1 题图（公众号头条封面的比例），像文章的头图一样压在正文最上面 */
 function coverBlock(src: string): HTMLElement {
@@ -103,7 +118,11 @@ export class FrontmatterWidget extends WidgetType {
       wrap.appendChild(card);
     }
 
-    editOnClick(wrap, view, FM_CARET_OFFSET);
+    // 只有封面时不还原源码（见 isCoverOnlyFrontmatter），点图也就不该把光标送进去；吞掉 mousedown 保住编辑器焦点
+    if (cover && rest.length === 0) {
+      wrap.classList.add("cm-lp-fm-locked");
+      wrap.addEventListener("mousedown", (e) => e.preventDefault());
+    } else editOnClick(wrap, view, FM_CARET_OFFSET);
     return wrap;
   }
   ignoreEvent() {
