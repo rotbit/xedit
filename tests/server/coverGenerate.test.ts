@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CoverError, buildPrompt, generateCovers } from "@/lib/coverGenerate/replicate";
+import {
+  CoverError,
+  __resetCoverModelsForTests,
+  buildPrompt,
+  generateCovers,
+} from "@/lib/coverGenerate/replicate";
 
 /**
- * 服务端生图：提示词模板、Replicate 调用与轮询、错误码映射、Token 不外泄。
- * 全程假 fetch，绝不真的打 Replicate。
+ * 服务端生图：提示词模板、Replicate 调用与轮询、入参自适应（换模型后 422 的那些字段）、
+ * 错误码映射、Token 不外泄。全程假 fetch，绝不真的打 Replicate。
  */
 
 /** 一个显眼的假 Token：任何返回、任何错误文案里出现它都算泄漏 */
@@ -61,12 +66,19 @@ async function fails(promise: Promise<unknown>): Promise<CoverError> {
   return e as CoverError;
 }
 
+/** 某次调用第 i 发请求的 input（POST 出去的那份） */
+const inputOf = (calls: Call[], i: number) =>
+  JSON.parse(calls[i].init.body as string).input as Record<string, unknown>;
+
 beforeEach(() => {
   vi.stubEnv("REPLICATE_API_TOKEN", TOKEN);
+  // 入参适配是按模型记在模块级 Map 里的，不清掉会串到下一个用例
+  __resetCoverModelsForTests();
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  __resetCoverModelsForTests();
 });
 
 describe("buildPrompt", () => {
@@ -76,6 +88,8 @@ describe("buildPrompt", () => {
     expect(p).toContain("minimalist");
     expect(p).toContain("no text");
     expect(p).toContain("21:9");
+    // 比例是可选参数，默认 21:9，传了就跟着传进来的走
+    expect(buildPrompt("猫", null, "16:9")).toContain("wide 16:9 banner");
     // 未知/缺省风格不加后缀，但约束照旧
     const plain = buildPrompt("猫", "nope");
     expect(plain).not.toContain("minimalist");
@@ -270,5 +284,113 @@ describe("generateCovers", () => {
     expect(err.code).toBe("bad_input");
     expect(err.message).not.toContain(TOKEN);
     expect(err.message).toContain("***");
+  });
+});
+
+describe("入参自适应：换了模型，入参跟着模型的脾气走", () => {
+  /** 线上第一次真实调用时 Replicate 回的那段 detail，原样拿来测 */
+  const ASPECT_DETAIL =
+    '- input.aspect_ratio: aspect_ratio must be one of the following: "1:1", "3:2", "2:3", ' +
+    '"4:3", "3:4", "16:9", "9:16", "auto", "1024x1024", "1536x1024", "1024x1536", ' +
+    '"1536x1152", "1152x1536", "2048x2048"';
+
+  it("比例被拒：换成 detail 里最宽的横向比例重试，提示词里的比例跟着改", async () => {
+    const { impl, calls } = mockFetch(
+      jsonRes(422, { detail: ASPECT_DETAIL }),
+      jsonRes(200, { status: "succeeded", output: [IMG] }),
+      imgRes()
+    );
+    const images = await run({ prompt: "猫" }, impl);
+    expect(images).toHaveLength(1);
+    expect(inputOf(calls, 0).aspect_ratio).toBe("21:9");
+    // 1536x1024 这类像素写法和 auto 都不算比例；3:2、4:3 都比 16:9 窄
+    expect(inputOf(calls, 1).aspect_ratio).toBe("16:9");
+    expect(inputOf(calls, 1).prompt).toContain("wide 16:9 banner");
+    expect(inputOf(calls, 1).prompt).not.toContain("21:9");
+  });
+
+  it("detail 里一个横向比例都没有：不重试，按原样报 bad_input", async () => {
+    const detail = 'aspect_ratio must be one of the following: "1:1", "2:3", "9:16", "auto"';
+    const { impl, calls } = mockFetch(jsonRes(422, { detail }));
+    const err = await fails(run({ prompt: "猫" }, impl));
+    expect(err.code).toBe("bad_input");
+    expect(err.message).toContain("1:1"); // 给用户看的还是上游原话
+    expect(calls).toHaveLength(1);
+  });
+
+  it("num_outputs 被拒：摘掉它重试，少的那张再单独生一次补上", async () => {
+    const { impl, calls } = mockFetch(
+      jsonRes(422, { detail: "- input.num_outputs: Additional properties are not allowed" }),
+      jsonRes(200, { status: "succeeded", output: [IMG] }),
+      imgRes(),
+      jsonRes(200, { status: "succeeded", output: [IMG] }),
+      imgRes()
+    );
+    const images = await run({ prompt: "猫", count: 2 }, impl);
+    expect(images).toHaveLength(2);
+    expect(inputOf(calls, 0).num_outputs).toBe(2);
+    expect(inputOf(calls, 1)).not.toHaveProperty("num_outputs");
+    // 没被点名的字段一个都别动
+    expect(inputOf(calls, 1).aspect_ratio).toBe("21:9");
+    expect(inputOf(calls, 1).output_format).toBe("jpg");
+    // 第 4 发是补的那一张，用的还是谈成的那版入参
+    expect(inputOf(calls, 3)).not.toHaveProperty("num_outputs");
+  });
+
+  it("补那一张失败不算整件事失败：有几张交几张", async () => {
+    const { impl } = mockFetch(
+      jsonRes(200, { status: "succeeded", output: [IMG] }),
+      imgRes(),
+      jsonRes(500, { detail: "boom" })
+    );
+    const images = await run({ prompt: "猫", count: 2 }, impl);
+    expect(images).toHaveLength(1);
+  });
+
+  it("适配结果按模型记住：同一模型第二次调用第一发就用适配好的入参", async () => {
+    vi.stubEnv("REPLICATE_MODEL", "acme/picky");
+    const first = mockFetch(
+      jsonRes(422, { detail: ASPECT_DETAIL }),
+      jsonRes(200, { status: "succeeded", output: [IMG] }),
+      imgRes()
+    );
+    await run({ prompt: "猫" }, first.impl);
+
+    const again = mockFetch(jsonRes(200, { status: "succeeded", output: [IMG] }), imgRes());
+    await run({ prompt: "狗" }, again.impl);
+    expect(inputOf(again.calls, 0).aspect_ratio).toBe("16:9");
+    expect(again.calls).toHaveLength(2); // 没再白撞一次 422
+  });
+
+  it("重试有上限：上游一直挑刺也最多改 3 次就放弃", async () => {
+    const detail = 'aspect_ratio must be one of the following: "16:9", "3:2", "4:3", "5:4", "1:1"';
+    const rejected = jsonRes(422, { detail });
+    const { impl, calls } = mockFetch(rejected, rejected, rejected, rejected, rejected);
+    const err = await fails(run({ prompt: "猫" }, impl));
+    expect(err.code).toBe("bad_input");
+    expect(calls.map((_, i) => inputOf(calls, i).aspect_ratio)).toEqual([
+      "21:9",
+      "16:9",
+      "3:2",
+      "4:3",
+    ]);
+  });
+
+  it("REPLICATE_ASPECT_RATIO 覆盖默认比例；它自己被拒也照样自适应", async () => {
+    vi.stubEnv("REPLICATE_ASPECT_RATIO", "3:2");
+    const a = mockFetch(jsonRes(200, { status: "succeeded", output: [IMG] }), imgRes());
+    await run({ prompt: "猫" }, a.impl);
+    expect(inputOf(a.calls, 0).aspect_ratio).toBe("3:2");
+    expect(inputOf(a.calls, 0).prompt).toContain("wide 3:2 banner");
+
+    vi.stubEnv("REPLICATE_ASPECT_RATIO", "32:9");
+    const b = mockFetch(
+      jsonRes(422, { detail: ASPECT_DETAIL }),
+      jsonRes(200, { status: "succeeded", output: [IMG] }),
+      imgRes()
+    );
+    await run({ prompt: "猫" }, b.impl);
+    expect(inputOf(b.calls, 0).aspect_ratio).toBe("32:9");
+    expect(inputOf(b.calls, 1).aspect_ratio).toBe("16:9");
   });
 });
