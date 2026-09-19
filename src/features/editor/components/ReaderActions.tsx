@@ -34,6 +34,7 @@ import { resolveTheme } from "@/lib/themes";
 import { useStore } from "@/store/useStore";
 import { ToggleRow } from "./MenuControls";
 import { copyDoc, type CopyTarget } from "../lib/copyDoc";
+import { sendWechatDraft } from "../lib/sendWechatDraft";
 import { EXPORT_ITEMS, runExport } from "../lib/exportDoc";
 
 const iconBtn =
@@ -94,6 +95,8 @@ export const ReaderActions = memo(function ReaderActions({
 
   const [copying, setCopying] = useState<CopyTarget | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  /** 发送到公众号草稿的进行中状态（本机草稿服务回报的一句话）；null = 没在发 */
+  const [draftStatus, setDraftStatus] = useState<string | null>(null);
   /** 从复制菜单跳过来的主题面板：复制前顺手换主题，不必先切到预览 */
   const [themeOpen, setThemeOpen] = useState(false);
   // Esc 收起复制菜单 / 主题面板，与其他浮层一致
@@ -156,10 +159,10 @@ export const ReaderActions = memo(function ReaderActions({
         <button
           className="flex h-8 cursor-pointer items-center gap-0.5 rounded-lg pl-2 pr-1.5 text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-45"
           onClick={() => setCopyMenuOpen((v) => !v)}
-          disabled={empty || copying !== null}
-          title="一键复制"
+          disabled={empty || copying !== null || draftStatus !== null}
+          title={draftStatus ?? "一键复制"}
         >
-          {copying !== null ? (
+          {copying !== null || draftStatus !== null ? (
             <Loader2 size={15} className="animate-spin" />
           ) : (
             <Copy size={15} />
@@ -202,6 +205,16 @@ export const ReaderActions = memo(function ReaderActions({
                 }}
               >
                 复制到知乎
+              </button>
+              <div className={menuDivider} />
+              <button
+                className={menuItem}
+                onClick={() => {
+                  setCopyMenuOpen(false);
+                  void sendWechatDraft(setDraftStatus);
+                }}
+              >
+                发送到公众号草稿
               </button>
             </div>
           </>
