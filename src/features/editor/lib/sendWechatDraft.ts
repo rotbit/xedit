@@ -3,7 +3,6 @@ import { buildWechatHtml } from "@/lib/copy/wechat";
 import { inlineAttachments, isAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
 import { toast } from "@/components/Toast";
 import { coverOf } from "../components/CoverPicker";
-import { DRAFT_SERVICE } from "./coverGenerate";
 import { buildRenderOptions } from "./renderOptions";
 
 /**
@@ -12,6 +11,8 @@ import { buildRenderOptions } from "./renderOptions";
  * 网页这边只交内容、轮询状态；不碰公众号登录态，也拿不到服务那边的 API Key。
  * 发表永远由用户自己在公众号后台点。
  */
+/** 本机草稿服务（只监听 127.0.0.1） */
+const DRAFT_SERVICE = "http://127.0.0.1:17831";
 const POLL_MS = 1000;
 const NOT_RUNNING = "没连上本机草稿服务。请先在 xedit-desktop 目录运行 npm run wechat-draft";
 

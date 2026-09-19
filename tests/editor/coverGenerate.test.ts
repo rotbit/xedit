@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   COVER_COUNT,
-  DRAFT_SERVICE,
+  CoverGenerateError,
   coverPrompt,
   coverServiceState,
   dataUrlToFile,
@@ -27,25 +27,31 @@ afterEach(() => {
 });
 
 describe("coverServiceState", () => {
-  it("服务配了生图 Key 才算可用", async () => {
+  it("站点配了生图 Token，管理员才算可用", async () => {
+    const fetchMock = mockFetch(() => reply(200, { coverGenerate: true }));
+    await expect(coverServiceState(true)).resolves.toBe("ready");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/config");
+  });
+
+  it("配了但不是管理员：没资格，不是没配置", async () => {
     mockFetch(() => reply(200, { coverGenerate: true }));
-    await expect(coverServiceState()).resolves.toBe("ready");
+    await expect(coverServiceState(false)).resolves.toBe("forbidden");
   });
 
-  it("服务在跑但没配 Key", async () => {
+  it("站点没配就先说没配，管理员也一样——先提权限再说没配置是白折腾", async () => {
     mockFetch(() => reply(200, { coverGenerate: false }));
-    await expect(coverServiceState()).resolves.toBe("unconfigured");
+    await expect(coverServiceState(true)).resolves.toBe("unconfigured");
     mockFetch(() => reply(200, {}));
-    await expect(coverServiceState()).resolves.toBe("unconfigured");
+    await expect(coverServiceState(false)).resolves.toBe("unconfigured");
   });
 
-  it("连不上、或答的不是 JSON，都按没服务处理", async () => {
+  it("连不上、或答的不是 JSON，都按够不着服务器处理", async () => {
     mockFetch(() => Promise.reject(new TypeError("Failed to fetch")));
-    await expect(coverServiceState()).resolves.toBe("offline");
+    await expect(coverServiceState(true)).resolves.toBe("offline");
     mockFetch(() => ({ ok: true, status: 200, json: () => Promise.reject(new Error("not json")) }));
-    await expect(coverServiceState()).resolves.toBe("offline");
+    await expect(coverServiceState(true)).resolves.toBe("offline");
     mockFetch(() => reply(404, {}));
-    await expect(coverServiceState()).resolves.toBe("offline");
+    await expect(coverServiceState(true)).resolves.toBe("offline");
   });
 });
 
@@ -56,7 +62,8 @@ describe("generateCovers", () => {
       "data:image/png;base64,AA",
     ]);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`${DRAFT_SERVICE}/cover/generate`);
+    // 同源，浏览器自己带登录 cookie
+    expect(url).toBe("/api/cover/generate");
     expect(init.method).toBe("POST");
     expect(init.headers).toEqual({ "Content-Type": "application/json" });
     expect(JSON.parse(init.body as string)).toEqual({ prompt: "一张封面", count: COVER_COUNT });
@@ -69,9 +76,24 @@ describe("generateCovers", () => {
     expect(JSON.parse(init.body as string).style).toBe("tech");
   });
 
-  it("非 2xx：把服务给的 message 抛出来给界面显示", async () => {
+  it("非 2xx：把服务端给的 message 与 code 一起抛出来", async () => {
     mockFetch(() => reply(502, { error: "upstream", message: "生图服务暂时不可用" }));
-    await expect(generateCovers({ prompt: "p" })).rejects.toThrow("生图服务暂时不可用");
+    await expect(generateCovers({ prompt: "p" })).rejects.toMatchObject({
+      message: "生图服务暂时不可用",
+      code: "upstream",
+    });
+  });
+
+  it("403 / 429 都原样显示服务端的说法，code 留给界面分流", async () => {
+    mockFetch(() => reply(403, { error: "forbidden", message: "AI 生成封面目前只对管理员开放" }));
+    await expect(generateCovers({ prompt: "p" })).rejects.toMatchObject({
+      message: "AI 生成封面目前只对管理员开放",
+      code: "forbidden",
+    });
+    mockFetch(() =>
+      reply(429, { error: "rate_limited", message: "今天的 AI 生成封面次数用完了（每天 20 次），明天再来" })
+    );
+    await expect(generateCovers({ prompt: "p" })).rejects.toThrow("今天的 AI 生成封面次数用完了");
   });
 
   it("非 2xx 又没 message：退回带状态码的一句话", async () => {
@@ -86,9 +108,12 @@ describe("generateCovers", () => {
     await expect(generateCovers({ prompt: "p" })).rejects.toThrow("服务没有返回图片");
   });
 
-  it("连不上服务：报「服务没开」，不是光秃秃的 Failed to fetch", async () => {
+  it("连不上服务器：报「连不上」，不是光秃秃的 Failed to fetch", async () => {
     mockFetch(() => Promise.reject(new TypeError("Failed to fetch")));
-    await expect(generateCovers({ prompt: "p" })).rejects.toThrow("没连上本机草稿服务");
+    const err = await generateCovers({ prompt: "p" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CoverGenerateError);
+    expect((err as CoverGenerateError).code).toBe("offline");
+    expect((err as CoverGenerateError).message).toBe("现在连不上服务器，稍后再试");
   });
 
   it("abort 原样往上抛：界面据此区分「用户关了面板」和真出错", async () => {

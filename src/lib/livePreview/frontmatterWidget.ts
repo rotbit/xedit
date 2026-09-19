@@ -62,7 +62,7 @@ function coverBlock(src: string): HTMLElement {
   frame.title = "发送到公众号时自动设置；在标题下方的「封面」里更换";
   const badge = document.createElement("span");
   badge.className = "cm-lp-fm-cover-badge";
-  badge.textContent = "公众号封面";
+  badge.textContent = "封面";
   frame.append(img, badge);
   block.appendChild(frame);
   return block;

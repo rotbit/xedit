@@ -95,6 +95,9 @@ npm run dev
 | `OSS_REGION` / `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` / `OSS_BUCKET` | | 阿里云 OSS 图床，建议用仅授权该 Bucket 的 RAM 子账号 |
 | `OSS_CDN_DOMAIN` | | 绑定的 CDN/自定义域名 |
 | `AI_ENCRYPTION_KEY` | | AI 平台 Key 的加密主密钥，留空则从 `AUTH_SECRET` 派生 |
+| `REPLICATE_API_TOKEN` | | AI 生成封面的 Replicate Token，填了才有「AI 生成」页签；费用由站点账户承担，仅 `ADMIN_EMAILS` 里的账号可用 |
+| `REPLICATE_MODEL` | | 生图模型，默认 `black-forest-labs/flux-schnell`；锁版本写成 `owner/name:版本号` |
+| `COVER_GENERATE_TIMEOUT_SEC` / `COVER_GENERATE_DAILY_LIMIT` | | 单次生成超时（默认 90 秒）、每账号每日生成次数（默认 20） |
 | `ADMIN_EMAILS` | | 超级管理员邮箱白名单（逗号分隔），填了才开放 `/admin` 管理后台 |
 | `DEFAULT_STORAGE_QUOTA_MB` | | 每账号素材存储配额（MB），默认 10240（10GB）；后台可按账号单独调整 |
 

@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
 import {
   COVER_STYLES,
+  CoverGenerateError,
   coverPrompt,
   coverServiceState,
   dataUrlToFile,
@@ -15,8 +17,9 @@ import {
 import { COVER_RATIO, coverTileCls } from "./coverStyles";
 
 /**
- * 封面选择器的「AI 生成」页签：提示词 + 风格交给本机草稿服务生图，挑一张就走存图那条路。
- * 生图的 Key 在服务那边配（浏览器拿不到），所以这里先问一句服务在不在、配没配。
+ * 封面选择器的「AI 生成」页签：提示词 + 风格交给本站的 /api/cover/generate 生图，挑一张就走存图那条路。
+ * Replicate Token 在服务端（浏览器拿不到），生图又花的是站点的钱、只对管理员开放，
+ * 所以这里先问一句站点配没配、自己够不够格。
  */
 
 const tip = "px-3 pb-3 pt-2 text-[12px] leading-relaxed text-[var(--ink-soft,var(--ink-faint))]";
@@ -29,7 +32,10 @@ export function CoverAiTab({
   body: string;
   onUse: (file: File) => Promise<void>;
 }) {
+  const isAdmin = useSession().data?.user?.isAdmin === true;
   const [service, setService] = useState<CoverServiceState | "checking">("checking");
+  /** forbidden 那一屏上显示的话：接口回过就用服务端的说法，没有就用默认那句 */
+  const [denied, setDenied] = useState("");
   // 提示词只在打开页签时预填一次：之后用户改过的不能被正文的每次击键冲掉
   const [prompt, setPrompt] = useState(() => coverPrompt(useStore.getState().title, body));
   const [style, setStyle] = useState<CoverStyle | null>(null);
@@ -44,11 +50,11 @@ export function CoverAiTab({
 
   useEffect(() => {
     const ctrl = new AbortController();
-    void coverServiceState(ctrl.signal).then((s) => {
+    void coverServiceState(isAdmin, ctrl.signal).then((s) => {
       if (!ctrl.signal.aborted) setService(s);
     });
     return () => ctrl.abort();
-  }, []);
+  }, [isAdmin]);
 
   const run = async () => {
     running.current?.abort();
@@ -62,6 +68,12 @@ export function CoverAiTab({
     } catch (e) {
       // 自己被 abort 掉（关面板、点了「再来一次」）不是错，不用报
       if (ctrl.signal.aborted) return;
+      // 资格被收回（管理员名单改了、会话过期）：再点也没用，直接换成那一屏，别留个还能点的按钮
+      if (e instanceof CoverGenerateError && (e.code === "forbidden" || e.code === "unauthorized")) {
+        setDenied(e.message);
+        setService("forbidden");
+        return;
+      }
       setError(e instanceof Error ? e.message : "生成失败");
     } finally {
       if (!ctrl.signal.aborted) setBusy(false);
@@ -83,17 +95,13 @@ export function CoverAiTab({
     return (
       <p className={`${tip} flex items-center gap-1.5`}>
         <Loader2 size={13} className="animate-spin" />
-        正在检查本机服务…
+        正在检查…
       </p>
     );
-  if (service === "offline")
-    return <p className={tip}>AI 生成需要 xEdit 桌面端（或本机草稿服务）在运行。</p>;
-  if (service === "unconfigured")
-    return (
-      <p className={tip}>
-        还没配置生图 Key：在 ~/.xedit-wechat-draft/config.json 里加上 replicateApiToken。
-      </p>
-    );
+  if (service === "offline") return <p className={tip}>现在连不上服务器，稍后再试</p>;
+  if (service === "unconfigured") return <p className={tip}>服务端还没有配置 AI 生成封面</p>;
+  if (service === "forbidden")
+    return <p className={tip}>{denied || "AI 生成封面目前只对管理员开放"}</p>;
 
   return (
     <div className="flex flex-col gap-2 px-3 pb-2 pt-2">
