@@ -57,7 +57,6 @@ type Args = {
   highlights?: unknown;
   left?: unknown;
   right?: unknown;
-  count?: number;
 };
 
 /** 大多数用例不关心填了什么，用这份最省事的：一个标题 + 一个产品 */
@@ -190,12 +189,11 @@ describe("buildPrompt", () => {
 describe("generateCovers", () => {
   it("同步成功（Prefer: wait 直接出结果）→ dataURL；下载图片不带 Token", async () => {
     const { impl, calls } = mockFetch(
-      jsonRes(200, { status: "succeeded", output: [IMG, IMG] }),
-      imgRes(),
+      jsonRes(200, { status: "succeeded", output: [IMG] }),
       imgRes()
     );
-    const images = await run({ ...ONE, count: 2 }, impl);
-    expect(images).toHaveLength(2);
+    const images = await run(ONE, impl);
+    expect(images).toHaveLength(1);
     expect(images[0]).toBe(`data:image/jpeg;base64,${JPEG.toString("base64")}`);
 
     expect(calls[0].url).toBe(
@@ -210,23 +208,41 @@ describe("generateCovers", () => {
       n: input.num_outputs,
       f: input.output_format,
       q: input.output_quality,
-    }).toEqual({ a: "21:9", n: 2, f: "jpg", q: 90 });
+    }).toEqual({ a: "21:9", n: 1, f: "jpg", q: 90 });
     // 图片在 CDN 上，Token 不该跟过去
     expect(calls[1].url).toBe(IMG);
     expect(calls[1].headers.Authorization).toBeUndefined();
     expect(JSON.stringify(calls.slice(1))).not.toContain(TOKEN);
   });
 
-  it("output 是单个字符串也认；count 夹在 1..2", async () => {
-    const a = mockFetch(jsonRes(200, { status: "succeeded", output: IMG }), imgRes("image/png"));
-    const images = await run({ ...ONE, count: 9 }, a.impl);
+  it("output 是单个字符串也认", async () => {
+    const { impl, calls } = mockFetch(
+      jsonRes(200, { status: "succeeded", output: IMG }),
+      imgRes("image/png")
+    );
+    const images = await run(ONE, impl);
     expect(images).toHaveLength(1);
     expect(images[0].startsWith("data:image/png;base64,")).toBe(true);
-    expect(JSON.parse(a.calls[0].init.body as string).input.num_outputs).toBe(2);
+    expect(inputOf(calls, 0).num_outputs).toBe(1);
+  });
 
-    const b = mockFetch(jsonRes(200, { status: "succeeded", output: [IMG] }), imgRes());
-    await run({ ...ONE, count: 0 }, b.impl);
-    expect(JSON.parse(b.calls[0].init.body as string).input.num_outputs).toBe(1);
+  it("一次点击只生一张：模型只给一张也不会再补一发", async () => {
+    const { impl, calls } = mockFetch(jsonRes(200, { status: "succeeded", output: [IMG] }), imgRes());
+    expect(await run(ONE, impl)).toHaveLength(1);
+    // 一发创建 + 一次下载就完了：不够就补的那段已经去掉，不满意由用户自己再点一次
+    expect(calls).toHaveLength(2);
+    expect(calls.filter((c) => c.init.method === "POST")).toHaveLength(1);
+  });
+
+  it("模型一口气给了好几张：只要第一张，多的不下载", async () => {
+    const other = "https://replicate.delivery/pbxt/def.jpg";
+    const { impl, calls } = mockFetch(
+      jsonRes(200, { status: "succeeded", output: [IMG, other, other] }),
+      imgRes()
+    );
+    expect(await run(ONE, impl)).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+    expect(calls[1].url).toBe(IMG);
   });
 
   it("模型带版本号时走 /v1/predictions + version", async () => {
@@ -403,33 +419,20 @@ describe("入参自适应：换了模型，入参跟着模型的脾气走", () =
     expect(calls).toHaveLength(1);
   });
 
-  it("num_outputs 被拒：摘掉它重试，少的那张再单独生一次补上", async () => {
+  it("num_outputs 被拒：摘掉它重试，其余字段一个不动", async () => {
     const { impl, calls } = mockFetch(
       jsonRes(422, { detail: "- input.num_outputs: Additional properties are not allowed" }),
       jsonRes(200, { status: "succeeded", output: [IMG] }),
-      imgRes(),
-      jsonRes(200, { status: "succeeded", output: [IMG] }),
       imgRes()
     );
-    const images = await run({ ...ONE, count: 2 }, impl);
-    expect(images).toHaveLength(2);
-    expect(inputOf(calls, 0).num_outputs).toBe(2);
+    const images = await run(ONE, impl);
+    expect(images).toHaveLength(1);
+    expect(inputOf(calls, 0).num_outputs).toBe(1);
     expect(inputOf(calls, 1)).not.toHaveProperty("num_outputs");
     // 没被点名的字段一个都别动
     expect(inputOf(calls, 1).aspect_ratio).toBe("21:9");
     expect(inputOf(calls, 1).output_format).toBe("jpg");
-    // 第 4 发是补的那一张，用的还是谈成的那版入参
-    expect(inputOf(calls, 3)).not.toHaveProperty("num_outputs");
-  });
-
-  it("补那一张失败不算整件事失败：有几张交几张", async () => {
-    const { impl } = mockFetch(
-      jsonRes(200, { status: "succeeded", output: [IMG] }),
-      imgRes(),
-      jsonRes(500, { detail: "boom" })
-    );
-    const images = await run({ ...ONE, count: 2 }, impl);
-    expect(images).toHaveLength(1);
+    expect(calls).toHaveLength(3);
   });
 
   it("适配结果按模型记住：同一模型第二次调用第一发就用适配好的入参", async () => {

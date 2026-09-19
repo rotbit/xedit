@@ -1,5 +1,5 @@
 /**
- * AI 生封面：请求本站的 /api/cover/generate 用生图模型画两张候选。
+ * AI 生封面：请求本站的 /api/cover/generate 用生图模型画一张，不满意就再点一次。
  * 提示词是服务端写死的一份中文模板，网页这边只管把几个填空收齐发过去、把结果变成 File；
  * Replicate Token 在服务端，浏览器碰不到。
  * 纯函数，不认识 React，也不弹提示——错误一律抛出，由界面决定怎么显示。
@@ -77,11 +77,8 @@ export async function coverServiceState(
   return isAdmin ? "ready" : "forbidden";
 }
 
-/** 一次要几张：两张够挑，再多既慢又贵 */
-export const COVER_COUNT = 2;
-
 /**
- * 生成候选封面，返回 dataURL 数组。
+ * 生成封面，返回 dataURL 数组（服务端一次只生一张，所以里面就一个元素）。
  * 生图要几十秒，调用方务必传 signal，面板一关就 abort。
  * 失败抛出 Error，message 直接是能给用户看的一句话。
  */
@@ -91,7 +88,6 @@ export async function generateCovers(
     highlights?: string[];
     left: CoverProduct;
     right?: CoverProduct | null;
-    count?: number;
   },
   signal?: AbortSignal
 ): Promise<string[]> {
@@ -106,7 +102,6 @@ export async function generateCovers(
         ...(req.highlights?.length ? { highlights: req.highlights } : {}),
         left: req.left,
         ...(req.right ? { right: req.right } : {}),
-        count: req.count ?? COVER_COUNT,
       }),
       signal,
     });
