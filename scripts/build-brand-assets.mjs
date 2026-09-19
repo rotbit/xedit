@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const paper = "#fafaf7";
+const paper = "#f5faff";
 
 async function readOutline(file) {
   const svg = await readFile(path.join(root, file), "utf8");
@@ -23,14 +23,16 @@ function squareIcon(mark, desktop = false) {
   const radius = desktop ? 185 : 26;
   // 展页接近正方形，留出图标安全区，避免铺满圆角底板。
   const width = desktop ? 568 : 88;
-  const outline = mark.paths[0];
+  // 每片书页保留源图填色，确保网站和导出图标的双色一致。
+  const pages = mark.paths.map(({ outline, fill }) =>
+    `<path d="${outline}" fill="${fill}" fill-rule="evenodd"/>`).join("\n    ");
   const [, , sourceWidth, sourceHeight] = mark.viewBox.split(" ").map(Number);
   const height = width * sourceHeight / sourceWidth;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}">
   <rect x="${inset}" y="${inset}" width="${size - inset * 2}" height="${size - inset * 2}"
     rx="${radius}" fill="${paper}"/>
   <svg x="${(size - width) / 2}" y="${(size - height) / 2}" width="${width}" height="${height}"
-    viewBox="${mark.viewBox}" fill="${outline.fill}"><path d="${outline.outline}" fill-rule="evenodd"/></svg>
+    viewBox="${mark.viewBox}">${pages}</svg>
 </svg>\n`;
 }
 

@@ -3,7 +3,7 @@
 ## build-brand-assets.mjs — 品牌字标与应用图标
 
 `public/logo.svg` 是已确认的「展页」图标与 xEdit 字标，`public/logo-mark.svg` 是独立书页图标。
-两份源图保留相同的书页轮廓；`mark` 与 `wordmark` 路径分别使用靛蓝与墨色。
+两份源图保留相同的书页轮廓；`page_right` 使用明亮蓝，`page_left` 使用薄荷青，`wordmark` 保持墨色。
 修改源图后运行：
 
 ```bash
@@ -13,8 +13,9 @@ node scripts/build-brand-assets.mjs ../xedit-desktop
 ```
 
 脚本复用项目中的 sharp，生成 `src/lib/brand.ts`、网页图标，以及可选的桌面启动页资源、
-Dock PNG 和包含 16–1024 像素的 ICNS。网页图标颜色由 `globals.css` 的 `--brand-mark` 控制：
-浅色主题为靛蓝 `#48478f`，深色主题为浅色；文字通过 `currentColor` 跟随正文颜色。
+Dock PNG 和包含 16–1024 像素的 ICNS。页面内 logo 的颜色由 `globals.css` 的 `--brand-mark` 与 `--brand-mark-secondary` 控制：
+浅色主题为明亮蓝 `#3478f6` 与薄荷青 `#20b8a6`，深色主题为 `#80adff` 与 `#58dac5`；
+文字通过 `currentColor` 跟随正文颜色。导出图标读取 SVG 填色，底板为冰蓝白 `#f5faff`。
 
 ## og-source.html — 社交分享卡片（public/og.png）的源文件
 
