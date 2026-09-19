@@ -18,7 +18,8 @@ import { COVER_RATIO, coverTileCls } from "./coverStyles";
 
 /**
  * 封面选择器的「AI 生成」页签：填好标题、重点词和要对比的两个产品，交给本站的
- * /api/cover/generate 生图（提示词是服务端写死的模板，这里只提供填空），挑一张就走存图那条路。
+ * /api/cover/generate 生图（提示词是服务端写死的模板，这里只提供填空）。
+ * 一次只生一张，不行就再点一次「再来一次」；看中了就走存图那条路。
  * Replicate Token 在服务端（浏览器拿不到），生图又花的是站点的钱、只对管理员开放，
  * 所以这里先问一句站点配没配、自己够不够格。
  */
@@ -106,9 +107,10 @@ export function CoverAiTab({
   const [saved, setSaved] = useState<Saved>(readSaved);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [images, setImages] = useState<string[]>([]);
-  /** 正在存第几张（-1 = 没在存）：转圈要盖在被点的那张上 */
-  const [saving, setSaving] = useState(-1);
+  /** 这一轮生出来的那张（空串 = 还没生过）*/
+  const [image, setImage] = useState("");
+  /** 正在存这张：转圈要盖在图上 */
+  const [saving, setSaving] = useState(false);
   // 生图要几十秒，面板一关（组件卸载）就掐掉，别让请求在后台空跑
   const running = useRef<AbortController | null>(null);
   useEffect(() => () => running.current?.abort(), []);
@@ -127,22 +129,21 @@ export function CoverAiTab({
     running.current = ctrl;
     setBusy(true);
     setError("");
-    setImages([]);
+    setImage("");
     // 真按了生成才记：同一个人接着写下一篇，多半还是这两个产品、这两个颜色
     writeSaved(saved);
     const right = saved.rightName.trim();
     try {
-      setImages(
-        await generateCovers(
-          {
-            title: title.trim(),
-            highlights: highlights.map((h) => h.trim()).filter((h) => h !== ""),
-            left: { name: saved.leftName.trim(), color: saved.leftColor },
-            ...(right ? { right: { name: right, color: saved.rightColor } } : {}),
-          },
-          ctrl.signal
-        )
+      const [one] = await generateCovers(
+        {
+          title: title.trim(),
+          highlights: highlights.map((h) => h.trim()).filter((h) => h !== ""),
+          left: { name: saved.leftName.trim(), color: saved.leftColor },
+          ...(right ? { right: { name: right, color: saved.rightColor } } : {}),
+        },
+        ctrl.signal
       );
+      setImage(one);
     } catch (e) {
       // 自己被 abort 掉（关面板、点了「再来一次」）不是错，不用报
       if (ctrl.signal.aborted) return;
@@ -158,14 +159,14 @@ export function CoverAiTab({
     }
   };
 
-  const pick = async (i: number) => {
-    setSaving(i);
+  const pick = async () => {
+    setSaving(true);
     try {
-      await onUse(dataUrlToFile(images[i]));
+      await onUse(dataUrlToFile(image));
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");
     } finally {
-      setSaving(-1);
+      setSaving(false);
     }
   };
 
@@ -227,35 +228,27 @@ export function CoverAiTab({
 
       {busy ? (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="animate-pulse rounded-md bg-[var(--accent-wash)]" style={COVER_RATIO} />
-            <div className="animate-pulse rounded-md bg-[var(--accent-wash)]" style={COVER_RATIO} />
-          </div>
+          <div className="animate-pulse rounded-md bg-[var(--accent-wash)]" style={COVER_RATIO} />
           <p className="text-[12px] text-[var(--ink-faint)]">正在生成，大约需要十几秒…</p>
         </>
       ) : null}
 
-      {images.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2">
-          {images.map((src, i) => (
-            <button
-              key={i}
-              className={coverTileCls}
-              style={COVER_RATIO}
-              title="设为封面"
-              disabled={saving >= 0}
-              onClick={() => void pick(i)}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt="" className="h-full w-full object-cover" />
-              {saving === i ? (
-                <span className="absolute inset-0 flex items-center justify-center bg-black/35">
-                  <Loader2 size={16} className="animate-spin text-white" />
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
+      {image ? (
+        <button
+          className={coverTileCls}
+          style={COVER_RATIO}
+          title="设为封面"
+          disabled={saving}
+          onClick={() => void pick()}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image} alt="" className="h-full w-full object-cover" />
+          {saving ? (
+            <span className="absolute inset-0 flex items-center justify-center bg-black/35">
+              <Loader2 size={16} className="animate-spin text-white" />
+            </span>
+          ) : null}
+        </button>
       ) : null}
 
       {error ? (
@@ -264,11 +257,11 @@ export function CoverAiTab({
 
       <button
         className="flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[var(--accent)] text-[12px] text-[var(--accent-fg)] transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
-        disabled={busy || saving >= 0 || title.trim() === "" || saved.leftName.trim() === ""}
+        disabled={busy || saving || title.trim() === "" || saved.leftName.trim() === ""}
         onClick={() => void run()}
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-        {busy ? "正在生成…" : images.length > 0 ? "再来一次" : "生成"}
+        {busy ? "正在生成…" : image ? "再来一次" : "生成"}
       </button>
     </div>
   );

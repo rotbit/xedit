@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  COVER_COUNT,
   CoverGenerateError,
   coverServiceState,
   dataUrlToFile,
@@ -58,7 +57,7 @@ describe("coverServiceState", () => {
 });
 
 describe("generateCovers", () => {
-  it("按契约发 POST：默认两张，没填的重点词和产品 B 干脆不发", async () => {
+  it("按契约发 POST：一次只生一张，没填的重点词和产品 B 干脆不发", async () => {
     const fetchMock = mockFetch(() => reply(200, { images: ["data:image/png;base64,AA"] }));
     await expect(generateCovers({ ...ONE })).resolves.toEqual(["data:image/png;base64,AA"]);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -69,7 +68,6 @@ describe("generateCovers", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       title: "两家大模型谁更能写",
       left: { name: "Claude", color: "orange" },
-      count: COVER_COUNT,
     });
   });
 
@@ -79,7 +77,6 @@ describe("generateCovers", () => {
       ...ONE,
       highlights: ["更能写", "更便宜"],
       right: { name: "GPT", color: "green" },
-      count: 1,
     });
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(JSON.parse(init.body as string)).toEqual({
@@ -87,7 +84,6 @@ describe("generateCovers", () => {
       highlights: ["更能写", "更便宜"],
       left: { name: "Claude", color: "orange" },
       right: { name: "GPT", color: "green" },
-      count: 1,
     });
   });
 
