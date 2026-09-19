@@ -14,6 +14,8 @@ export interface AppConfig {
   google: boolean;
   wechat: boolean;
   oss: boolean;
+  /** 站点配了生图 Token（「AI 生成」封面是否可用还要看是不是管理员） */
+  coverGenerate: boolean;
 }
 
 /** 分类树节点：docs 为直属文章，count 含子孙分类 */
