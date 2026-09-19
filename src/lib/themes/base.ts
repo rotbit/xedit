@@ -64,24 +64,32 @@ export const BASE_CSS = `
 #nice figure {
   margin: 22px 0;
 }
-/* 复制到公众号时视频降级出的占位块（公众号粘贴不支持 video，需后台手动插入） */
+/* 复制到公众号时视频降级出的占位块（公众号粘贴不支持 video，需后台手动插入）。
+   刻意做成刺眼的琥珀色警告：漏补一个视频就发出去了没法补救，宁可丑也不能让人看漏。
+   只用能内联的属性（背景/边框/字色字号/内外边距/对齐/圆角），粘进公众号后一样保得住。
+   占位图与提示块同一套虚线边，连起来读是一整块「这里缺个视频」。 */
 #nice .video-placeholder {
   margin: 20px 0;
 }
 #nice .video-placeholder img {
+  border: 2px dashed #f0a020;
   border-radius: 6px;
 }
 #nice .video-placeholder .video-note {
-  display: block;
   text-align: center;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: bold;
   line-height: 1.6;
-  color: #999999;
-  background-color: #f8f8f8;
-  border: 1px dashed #dddddd;
+  color: #8a5300;
+  background-color: #fff3cd;
+  border: 2px dashed #f0a020;
   border-radius: 6px;
-  padding: 10px 14px;
-  margin-top: 8px;
+  padding: 14px 12px;
+  margin: 0;
+}
+#nice .video-placeholder .video-note .video-note-hint {
+  font-size: 13px;
+  font-weight: normal;
 }
 #nice figcaption {
   display: block;

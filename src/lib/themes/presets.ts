@@ -342,7 +342,7 @@ const nightIndigo: ThemePreset = {
 #nice .footnote-ref { color: #7aa2f7; }
 #nice .footnote-item { color: #565f89; }
 #nice .table-of-contents { background-color: #24283b; }
-#nice .video-placeholder .video-note { background-color: #24283b; border-color: #414868; color: #9aa5ce; }
+#nice .video-placeholder .video-note { background-color: #3a2e12; border-color: #f0a020; color: #ffd479; }
 #nice .math svg { color: #c6cade; }
 `,
 };
