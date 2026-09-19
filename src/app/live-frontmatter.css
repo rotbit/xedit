@@ -34,6 +34,10 @@
 .cm-live-preview .cm-lp-fm-wrap {
   cursor: text;
 }
+/* 只有封面：点了也不会展开源码，别用文字光标骗人 */
+.cm-live-preview .cm-lp-fm-wrap.cm-lp-fm-locked {
+  cursor: default;
+}
 .cm-live-preview .cm-lp-fm-cover {
   padding: 14px 28px 0;
 }

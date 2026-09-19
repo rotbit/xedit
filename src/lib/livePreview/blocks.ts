@@ -2,7 +2,7 @@ import { syntaxTree } from "@codemirror/language";
 import { RangeSet, StateField, type EditorState, type Extension, type Range } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { MathBlockWidget, TableWidget } from "@/lib/livePreview/blockWidgets";
-import { FrontmatterWidget } from "@/lib/livePreview/frontmatterWidget";
+import { FrontmatterWidget, isCoverOnlyFrontmatter } from "@/lib/livePreview/frontmatterWidget";
 import { rescanBlocks, scanAll, type BlockRange, type BlockScan } from "@/lib/livePreview/blockScan";
 import {
   caretPositions,
@@ -51,6 +51,8 @@ interface BlockState extends BlockDecorations, BlockScan {
  */
 function renderable(state: EditorState, r: BlockRange, caret: number[]): boolean {
   if (state.doc.lineAt(r.from).from !== r.from || state.doc.lineAt(r.to).to !== r.to) return false;
+  // 只装着封面的 frontmatter 永远渲染成图，不给源码让位（理由见 isCoverOnlyFrontmatter）
+  if (r.kind === "frontmatter" && isCoverOnlyFrontmatter(r.payload)) return true;
   return !caretTouches(caret, r.from, r.to) && !selectionInside(state, r.from, r.to);
 }
 
