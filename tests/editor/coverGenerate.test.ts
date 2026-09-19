@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   COVER_COUNT,
   CoverGenerateError,
-  coverPrompt,
   coverServiceState,
   dataUrlToFile,
   generateCovers,
-  stripMarkdown,
+  isCoverColor,
 } from "@/features/editor/lib/coverGenerate";
+
+/** 大多数用例不关心填了什么：一个标题 + 一个产品就够发请求了 */
+const ONE = { title: "两家大模型谁更能写", left: { name: "Claude", color: "orange" } } as const;
 
 /** 只桩 generateCovers / coverServiceState 用得到的那几个字段 */
 const reply = (status: number, body: unknown) => ({
@@ -56,29 +58,42 @@ describe("coverServiceState", () => {
 });
 
 describe("generateCovers", () => {
-  it("按契约发 POST：默认两张，没选风格就不带 style", async () => {
+  it("按契约发 POST：默认两张，没填的重点词和产品 B 干脆不发", async () => {
     const fetchMock = mockFetch(() => reply(200, { images: ["data:image/png;base64,AA"] }));
-    await expect(generateCovers({ prompt: "一张封面" })).resolves.toEqual([
-      "data:image/png;base64,AA",
-    ]);
+    await expect(generateCovers({ ...ONE })).resolves.toEqual(["data:image/png;base64,AA"]);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     // 同源，浏览器自己带登录 cookie
     expect(url).toBe("/api/cover/generate");
     expect(init.method).toBe("POST");
     expect(init.headers).toEqual({ "Content-Type": "application/json" });
-    expect(JSON.parse(init.body as string)).toEqual({ prompt: "一张封面", count: COVER_COUNT });
+    expect(JSON.parse(init.body as string)).toEqual({
+      title: "两家大模型谁更能写",
+      left: { name: "Claude", color: "orange" },
+      count: COVER_COUNT,
+    });
   });
 
-  it("选了风格才带上 style", async () => {
+  it("填了重点词和产品 B 就一起发过去", async () => {
     const fetchMock = mockFetch(() => reply(200, { images: ["data:image/png;base64,AA"] }));
-    await generateCovers({ prompt: "p", style: "tech", count: 2 });
+    await generateCovers({
+      ...ONE,
+      highlights: ["更能写", "更便宜"],
+      right: { name: "GPT", color: "green" },
+      count: 1,
+    });
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(JSON.parse(init.body as string).style).toBe("tech");
+    expect(JSON.parse(init.body as string)).toEqual({
+      title: "两家大模型谁更能写",
+      highlights: ["更能写", "更便宜"],
+      left: { name: "Claude", color: "orange" },
+      right: { name: "GPT", color: "green" },
+      count: 1,
+    });
   });
 
   it("非 2xx：把服务端给的 message 与 code 一起抛出来", async () => {
     mockFetch(() => reply(502, { error: "upstream", message: "生图服务暂时不可用" }));
-    await expect(generateCovers({ prompt: "p" })).rejects.toMatchObject({
+    await expect(generateCovers({ ...ONE })).rejects.toMatchObject({
       message: "生图服务暂时不可用",
       code: "upstream",
     });
@@ -86,31 +101,31 @@ describe("generateCovers", () => {
 
   it("403 / 429 都原样显示服务端的说法，code 留给界面分流", async () => {
     mockFetch(() => reply(403, { error: "forbidden", message: "AI 生成封面目前只对管理员开放" }));
-    await expect(generateCovers({ prompt: "p" })).rejects.toMatchObject({
+    await expect(generateCovers({ ...ONE })).rejects.toMatchObject({
       message: "AI 生成封面目前只对管理员开放",
       code: "forbidden",
     });
     mockFetch(() =>
       reply(429, { error: "rate_limited", message: "今天的 AI 生成封面次数用完了（每天 20 次），明天再来" })
     );
-    await expect(generateCovers({ prompt: "p" })).rejects.toThrow("今天的 AI 生成封面次数用完了");
+    await expect(generateCovers({ ...ONE })).rejects.toThrow("今天的 AI 生成封面次数用完了");
   });
 
   it("非 2xx 又没 message：退回带状态码的一句话", async () => {
     mockFetch(() => reply(500, { error: "boom" }));
-    await expect(generateCovers({ prompt: "p" })).rejects.toThrow("生成失败（500）");
+    await expect(generateCovers({ ...ONE })).rejects.toThrow("生成失败（500）");
   });
 
   it("答了 200 却没有图（或不是 dataURL）也算失败", async () => {
     mockFetch(() => reply(200, { images: [] }));
-    await expect(generateCovers({ prompt: "p" })).rejects.toThrow("服务没有返回图片");
+    await expect(generateCovers({ ...ONE })).rejects.toThrow("服务没有返回图片");
     mockFetch(() => reply(200, { images: ["https://a.com/x.png"] }));
-    await expect(generateCovers({ prompt: "p" })).rejects.toThrow("服务没有返回图片");
+    await expect(generateCovers({ ...ONE })).rejects.toThrow("服务没有返回图片");
   });
 
   it("连不上服务器：报「连不上」，不是光秃秃的 Failed to fetch", async () => {
     mockFetch(() => Promise.reject(new TypeError("Failed to fetch")));
-    const err = await generateCovers({ prompt: "p" }).catch((e: unknown) => e);
+    const err = await generateCovers({ ...ONE }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(CoverGenerateError);
     expect((err as CoverGenerateError).code).toBe("offline");
     expect((err as CoverGenerateError).message).toBe("现在连不上服务器，稍后再试");
@@ -118,41 +133,17 @@ describe("generateCovers", () => {
 
   it("abort 原样往上抛：界面据此区分「用户关了面板」和真出错", async () => {
     mockFetch(() => Promise.reject(new DOMException("aborted", "AbortError")));
-    await expect(generateCovers({ prompt: "p" })).rejects.toMatchObject({ name: "AbortError" });
+    await expect(generateCovers({ ...ONE })).rejects.toMatchObject({ name: "AbortError" });
   });
 });
 
-describe("提示词预填", () => {
-  it("削掉 markdown 语法，只留能读的字", () => {
-    const md = [
-      "# 标题",
-      "",
-      "> 引用一句",
-      "",
-      "![图](a.png) 看[这里](https://a.com)，**很重要**。",
-      "",
-      "```js",
-      "const a = 1;",
-      "```",
-      "",
-      "- 第一条",
-      "---",
-    ].join("\n");
-    expect(stripMarkdown(md)).toBe("标题 引用一句 看这里，很重要。 第一条");
-  });
-
-  it("拼成一句话，正文只取开头一段", () => {
-    const long = "甲".repeat(300);
-    const p = coverPrompt("我的文章", `# 我的文章\n\n${long}`);
-    expect(p.startsWith("为这篇文章配一张封面：《我的文章》。内容：")).toBe(true);
-    // 标题那行也算正文的一部分，这里只校验尾巴被截住了
-    expect(p.length).toBeLessThan(180);
-    expect(p.endsWith("甲")).toBe(true);
-  });
-
-  it("没标题就不硬凑书名号，没正文就只留头一句", () => {
-    expect(coverPrompt("  ", "正文")).toBe("为这篇文章配一张封面。内容：正文");
-    expect(coverPrompt("标题", "   ")).toBe("为这篇文章配一张封面：《标题》。");
+describe("isCoverColor", () => {
+  it("只认白名单里的色号：本地存的那份可能是旧版或被人改过", () => {
+    expect(isCoverColor("orange")).toBe(true);
+    expect(isCoverColor("gray")).toBe(true);
+    for (const bad of ["", "ORANGE", "#f00", null, undefined, 1, {}]) {
+      expect(isCoverColor(bad), JSON.stringify(bad)).toBe(false);
+    }
   });
 });
 

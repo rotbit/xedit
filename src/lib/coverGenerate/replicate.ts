@@ -4,8 +4,6 @@
  * 图片不落盘：封面最终跟着文章走（存进文库或传 OSS），服务端再留一份只会攒出没人清理的临时文件。
  */
 const API_BASE = "https://api.replicate.com/";
-/** 用户描述最多取这么多字：再长也只是把模型带偏 */
-const MAX_PROMPT = 600;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const POLL_MS = 1500;
 const RUNNING = ["starting", "processing"];
@@ -16,21 +14,27 @@ const DEFAULT_DAILY_LIMIT = 20;
 /** 一次最多几张：两张够挑，再多既慢又贵 */
 const MAX_COUNT = 2;
 
-export const COVER_STYLES = ["minimal", "illustration", "photo", "tech"] as const;
-export type CoverStyle = (typeof COVER_STYLES)[number];
+/** 配色白名单：网页上点一下色点就有，不用用户自己描述颜色 */
+export const COVER_COLORS = ["blue", "orange", "green", "purple", "red", "teal", "gray"] as const;
+export type CoverColor = (typeof COVER_COLORS)[number];
 
-/** 风格后缀：网页上点一下就有，不用用户自己写英文提示词 */
-const STYLE_SUFFIX: Record<CoverStyle, string> = {
-  minimal: "minimalist style, generous negative space, flat shapes, soft muted color palette",
-  illustration: "modern flat vector illustration, clean shapes",
-  photo: "realistic photography, natural light, shallow depth of field",
-  tech: "futuristic technology aesthetic, dark background, geometric light effects",
+/** 色号 → 提示词里写的那句话。网页那边另有一份 CSS 色值，只管色点长什么样 */
+const COLOR_PHRASE: Record<CoverColor, string> = {
+  blue: "蓝色",
+  orange: "暖橙 / 陶土色",
+  green: "绿色",
+  purple: "紫色",
+  red: "红色",
+  teal: "青色",
+  gray: "深灰",
 };
 
-// 约束用英文写：生图模型吃英文更稳。比例跟着实际下发的 aspect_ratio 走（模型不认 21:9 时会换掉），
-// 免得提示词和入参各说一套。主体居中是因为公众号列表页会把封面裁成居中的方图
-const constraints = (aspect: string) =>
-  `wide ${aspect} banner composition, main subject centered, no text, no letters, no watermark, no logo, clean background`;
+/** 各个填空的字数上限：再长也只是把模型带偏，还会把模板里别的话挤没 */
+const MAX_TITLE = 100;
+const MAX_NAME = 40;
+const MAX_HIGHLIGHT = 30;
+/** 最多几个重点词：模板里只留了两行，多了也突出不过来 */
+const MAX_HIGHLIGHTS = 2;
 
 /** 默认比例：flux-schnell 认，也够宽，像个 banner。别的模型不认时会被下面的自适应换掉 */
 const DEFAULT_ASPECT = "21:9";
@@ -73,10 +77,6 @@ export class CoverError extends Error {
   }
 }
 
-export function isCoverStyle(value: unknown): value is CoverStyle {
-  return typeof value === "string" && (COVER_STYLES as readonly string[]).includes(value);
-}
-
 /** 站点配没配 AI 生成封面（/api/config 据此告诉网页这个功能有没有） */
 export function coverGenerateConfigured(): boolean {
   return Boolean(process.env.REPLICATE_API_TOKEN?.trim());
@@ -100,13 +100,105 @@ const clip = (s: unknown, n: number): string => {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// 提示词由固定模板拼出来：调用方只能决定「画什么」和风格，改不掉后面那串约束。
-// aspect 是这次真要下发的比例，默认还是 21:9
-export function buildPrompt(prompt: string, style?: string | null, aspect = DEFAULT_ASPECT): string {
-  const parts = [`WeChat article cover banner about: ${String(prompt ?? "").slice(0, MAX_PROMPT)}`];
-  if (isCoverStyle(style)) parts.push(STYLE_SUFFIX[style]);
-  parts.push(constraints(aspect));
-  return parts.join(". ");
+/**
+ * 每个填空先洗一遍再进模板：控制字符和换行换成空格（模板本身是多行的，用户带进来的换行会把它搅乱），
+ * 「」要去掉（模板拿它当填空的边界），再合并空白、掐掉两头、截到上限。
+ */
+export function cleanSlot(value: unknown, max: number): string {
+  // 不是字符串就当没填：String({}) 会变成 "[object Object]" 混进提示词
+  return (typeof value === "string" ? value : "")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/[「」]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+/** 不认识的色号按深灰：配色是锦上添花，不值得为一个错字整单失败 */
+export function coverColor(value: unknown): CoverColor {
+  return (COVER_COLORS as readonly unknown[]).includes(value) ? (value as CoverColor) : "gray";
+}
+
+/** 名字空了就当没填这一方（网页上产品 B 本来就可以不填） */
+function cleanProduct(value: unknown): CoverProduct | null {
+  const raw = (value ?? {}) as { name?: unknown; color?: unknown };
+  const name = cleanSlot(raw.name, MAX_NAME);
+  return name ? { name, color: coverColor(raw.color) } : null;
+}
+
+/**
+ * 请求里的几个填空洗成模板能直接用的那份。标题和产品 A 是必填：
+ * 少了它们模板就只剩一堆约束，生出来的图跟这篇文章没关系。
+ */
+export function coverFields(req: CoverRequest): CoverFields {
+  const title = cleanSlot(req.title, MAX_TITLE);
+  if (!title) throw new CoverError("bad_input", "标题是空的，先给文章起个标题");
+  const left = cleanProduct(req.left);
+  if (!left) throw new CoverError("bad_input", "至少填一个产品 / 模型名称");
+  const highlights = (Array.isArray(req.highlights) ? req.highlights : [])
+    .map((one) => cleanSlot(one, MAX_HIGHLIGHT))
+    .filter((one) => one !== "")
+    .slice(0, MAX_HIGHLIGHTS);
+  const right = cleanProduct(req.right);
+  return { title, highlights, left, ...(right ? { right } : {}) };
+}
+
+/**
+ * 提示词是一份写死的中文模板，调用方只能往几个填空里塞字，改不掉版式和那一串「不要什么」。
+ * 有没有产品 B 决定右侧是对比还是单卡片，跟着变的几句都在下面就地判断。
+ * aspect 是这次真要下发的比例（模型不认 21:9 时会被换掉），免得提示词和入参各说一套。
+ */
+export function buildPrompt(fields: CoverFields, aspect = DEFAULT_ASPECT): string {
+  const { title, highlights, left, right } = fields;
+  const colorOf = (p: CoverProduct) => COLOR_PHRASE[p.color];
+  return [
+    `设计一张微信公众号文章封面，比例 ${aspect}，整体风格为：极简、干净、高级、科技感、产品评测感。`,
+    "背景以纯白 / 极浅灰白为主，带非常轻微的柔和渐变，不要深色背景，不要花哨，不要复杂插画。整体大量留白，画面清爽。",
+    "版式采用左右结构：",
+    `左侧约占 45%，放标题文字；右侧约占 45%，放产品 / 模型${right ? "对比视觉" : "视觉"}；中间保留适当呼吸空间。`,
+    "标题区域要有明显层次：",
+    "- 第一行放品牌或模型名称，字号中等偏大",
+    "- 第二、第三行放核心标题，字号更大、更粗",
+    "- 最重要的关键词用品牌主题色突出",
+    "- 其余文字使用接近黑色的深灰",
+    "- 行距宽松，不要把文字挤在一起",
+    "- 不要塞很多小字，不要参数列表，不要功能清单",
+    right
+      ? "右侧使用两个圆角卡片 / 产品卡片形成对比关系。"
+      : "右侧使用一张圆角产品卡片作为视觉主体。",
+    "卡片背景为白色，有非常轻微的阴影和淡淡的品牌色光晕。",
+    right ? "每张卡片只保留：" : "卡片只保留：",
+    "Logo + 品牌名 / 模型名。",
+    "不要加入功能列表、勾选项、参数、评分等信息。",
+    ...(right ? ["两张卡片中间可以放一个简洁的 VS，略带手写笔刷感，但不要太夸张。"] : []),
+    "色彩控制在 2～3 个主色以内。",
+    right
+      ? `${left.name} 使用${colorOf(left)}，${right.name} 使用${colorOf(right)}，其他文字使用深灰。`
+      : `${left.name} 使用${colorOf(left)}，其他文字使用深灰。`,
+    "不要高饱和霓虹色，不要五颜六色。",
+    "可以在背景角落加入非常淡的几何圆弧、圆形色块或浅色渐变作为层次，但透明度很低，不能抢主体。",
+    "整体参考：AI 产品发布页 + 科技媒体封面 + 极简 SaaS 官网视觉。",
+    "要有“专业评测”的感觉，而不是广告海报。",
+    "特别要求：",
+    "- 不要拥挤",
+    "- 不要大量小字",
+    "- 不要底部功能列表",
+    "- 不要复杂 UI",
+    "- 不要卡通插画",
+    "- 不要人物",
+    "- 不要过度装饰",
+    "- 保证公众号裁切后核心文字和 Logo 不被挡住",
+    "当前标题：",
+    `「${title}」`,
+    // 一个重点词都没填就把这件事交回给模型，别留一行空的「」
+    ...(highlights.length > 0
+      ? ["重点突出：", ...highlights.map((one) => `「${one}」`)]
+      : ["重点突出：从标题里挑 1～2 个最关键的词"]),
+    "右侧展示：",
+    right ? `${left.name} vs ${right.name}` : left.name,
+    "最终效果要像一张高级、简洁、有明确视觉重点的公众号科技评测封面。",
+    "字体不要太大，画面至少保留 30% 留白，标题最多 3 行，视觉重点只允许 1～2 个。",
+  ].join("\n");
 }
 
 /**
@@ -148,9 +240,26 @@ interface Prediction {
   detail?: unknown;
 }
 
+/** 要对比的一方：名字 + 它在图里用的主题色 */
+export interface CoverProduct {
+  name: string;
+  color: CoverColor;
+}
+
+/** 洗干净、可以直接往模板里填的那份 */
+export interface CoverFields {
+  title: string;
+  highlights: string[];
+  left: CoverProduct;
+  right?: CoverProduct;
+}
+
+/** 请求里的原样字段，还没洗过，所以一律 unknown */
 export interface CoverRequest {
-  prompt: string;
-  style?: string | null;
+  title?: unknown;
+  highlights?: unknown;
+  left?: unknown;
+  right?: unknown;
   count?: number;
 }
 
@@ -162,16 +271,16 @@ export interface CoverDeps {
   pollMs?: number;
 }
 
-/** { prompt, style, count } → dataURL 数组。失败一律抛 CoverError */
+/** { title, highlights, left, right, count } → dataURL 数组。失败一律抛 CoverError */
 export async function generateCovers(
-  { prompt, style, count }: CoverRequest,
+  req: CoverRequest,
   { fetchImpl = fetch, signal = null, pollMs = POLL_MS }: CoverDeps = {}
 ): Promise<string[]> {
   const token = process.env.REPLICATE_API_TOKEN?.trim() ?? "";
   if (!token) throw new CoverError("no_token", "服务端还没有配置 AI 生成封面");
-  const wanted = String(prompt ?? "").trim();
-  if (!wanted) throw new CoverError("bad_input", "封面描述是空的，写一句想画什么");
-  const n = clampCoverCount(count);
+  // 路由那边已经洗过一遍了，这里再洗一遍：洗过的再洗结果不变，而这条路不该信任何调用方
+  const fields = coverFields(req);
+  const n = clampCoverCount(req.count);
   const model = process.env.REPLICATE_MODEL?.trim() || DEFAULT_MODEL;
   const configured = Number(process.env.COVER_GENERATE_TIMEOUT_SEC);
   const timeoutSec = configured > 0 ? configured : DEFAULT_TIMEOUT_SEC;
@@ -240,7 +349,7 @@ export async function generateCovers(
   /** 发起一次生成：模型写成 owner/name:hash 时走带版本号的接口，否则用「模型最新版」那个接口 */
   async function create(aspect: string, drop: Set<string>): Promise<Prediction> {
     const input: Record<string, unknown> = {
-      prompt: buildPrompt(wanted, style, aspect),
+      prompt: buildPrompt(fields, aspect),
       aspect_ratio: aspect,
       num_outputs: n,
       output_format: "jpg",

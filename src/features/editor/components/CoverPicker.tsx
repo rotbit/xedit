@@ -148,7 +148,7 @@ function CoverPanel({
   };
 
   return (
-    // Dropdown 默认点内部就收起，而这个面板要留着切页签、填提示词，关闭时机由各处自己定
+    // Dropdown 默认点内部就收起，而这个面板要留着切页签、填表单，关闭时机由各处自己定
     <div onClick={(e) => e.stopPropagation()}>
       <div className="mx-3 mt-1 flex items-center gap-0.5 rounded-md border border-[var(--hairline)] p-0.5">
         {tabs.map(([id, label]) => (
@@ -192,7 +192,7 @@ function CoverPanel({
         />
       ) : null}
       {tab === "upload" ? <UploadTab onFile={setCoverFile} /> : null}
-      {tab === "ai" ? <CoverAiTab body={body} onUse={setCoverFile} /> : null}
+      {tab === "ai" ? <CoverAiTab onUse={setCoverFile} /> : null}
 
       {cover ? (
         <button

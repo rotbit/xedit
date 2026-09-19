@@ -6,9 +6,11 @@ import {
   CoverError,
   clampCoverCount,
   coverDailyLimit,
+  coverFields,
   coverGenerateConfigured,
   generateCovers,
-  isCoverStyle,
+  type CoverFields,
+  type CoverRequest,
 } from "@/lib/coverGenerate/replicate";
 
 /**
@@ -17,7 +19,7 @@ import {
  * 并按账号限量（同时只能生一张、每天 COVER_GENERATE_DAILY_LIMIT 张，见 lib/coverGenerate/limit）。
  */
 
-/** 请求体上限：里面只有一句描述加一个风格，16KB 绰绰有余 */
+/** 请求体上限：里面只有标题、两个重点词和两个产品名，16KB 绰绰有余 */
 const MAX_BODY_BYTES = 16 * 1024;
 
 /** 错误码 → HTTP 状态；没列的（上游的各种毛病）一律 502，别让浏览器以为是自己发错了 */
@@ -55,19 +57,20 @@ export async function POST(req: Request) {
   const raw = await req.text();
   if (Buffer.byteLength(raw) > MAX_BODY_BYTES) return tooLarge();
 
-  // 解析不出来就当空对象：下面每个字段自带类型判断，效果就是「描述是空的」
-  let body: { prompt?: unknown; style?: unknown; count?: unknown } = {};
+  // 解析不出来（或答的不是对象）就当空对象：下面每个填空自带清洗，效果就是「标题是空的」
+  let body: CoverRequest = {};
   try {
-    body = JSON.parse(raw) as typeof body;
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") body = parsed as CoverRequest;
   } catch {}
-  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
-  if (!prompt) {
-    return NextResponse.json(
-      { error: "bad_input", message: "封面描述是空的，写一句想画什么" },
-      { status: 400 }
-    );
+  // 填空先洗一遍：必填的缺了就 400，这一步要赶在限流之前，别让一个填错的请求白占掉今天的额度
+  let fields: CoverFields;
+  try {
+    fields = coverFields(body);
+  } catch (e) {
+    const message = e instanceof CoverError ? e.message : "封面信息不完整";
+    return NextResponse.json({ error: "bad_input", message }, { status: 400 });
   }
-  const style = isCoverStyle(body.style) ? body.style : null;
   const count = clampCoverCount(body.count);
 
   const limit = coverDailyLimit();
@@ -85,7 +88,7 @@ export async function POST(req: Request) {
   }
   try {
     // 网页关掉面板就断连接，signal 一路传给上游，别让没人要的图接着烧额度
-    const images = await generateCovers({ prompt, style, count }, { signal: req.signal });
+    const images = await generateCovers({ ...fields, count }, { signal: req.signal });
     return NextResponse.json({ images });
   } catch (e) {
     // 原始错误只进服务端日志：上游报文常带请求 id 之类的内部细节（口径同 lib/routeAuth 的 serverError）
@@ -99,4 +102,4 @@ export async function POST(req: Request) {
 }
 
 const tooLarge = () =>
-  NextResponse.json({ error: "too_large", message: "封面描述太长了" }, { status: 413 });
+  NextResponse.json({ error: "too_large", message: "封面信息太长了" }, { status: 413 });
