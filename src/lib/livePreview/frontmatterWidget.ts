@@ -17,14 +17,14 @@ import { ATTACHMENTS_RESOLVED_EVENT, isAttachmentSrc, resolveAttachmentSrc } fro
 /** 卡片一行的高度：13px 字号 × 1.7 行高 ≈ 22px（见 live-frontmatter.css 的 .cm-lp-fm） */
 const FM_ROW_HEIGHT = 22;
 
-/** `cover:` 不显示地址，直接渲染成一张 2.35:1（公众号头条封面比例）的图；COVER_HEIGHT = 图高 + 上下留白，见 live-frontmatter.css */
+/** `cover:` 不显示地址，直接渲染成一张 2.35:1（公众号头条封面比例）的图；COVER_HEIGHT 按单栏正文宽（约 704px）估的图高 + 上下留白，见 live-frontmatter.css */
 const COVER_KEY = "cover";
-const COVER_HEIGHT = 106;
+const COVER_HEIGHT = 335;
 
 /** 点卡片后光标落到第二行（`---\n` 之后）：严格落在区间内部才会还原源码 */
 const FM_CARET_OFFSET = 4;
 
-/** 封面：左缘与正文文字对齐的一张 2.35:1 小图 + 右边两行说明，质感跟标题下的元信息行一致 */
+/** 封面：与正文同宽的一张 2.35:1 题图（公众号头条封面的比例），像文章的头图一样压在正文最上面 */
 function coverBlock(src: string): HTMLElement {
   const block = document.createElement("div");
   block.className = "cm-lp-fm-cover";
@@ -41,15 +41,15 @@ function coverBlock(src: string): HTMLElement {
     };
     window.addEventListener(ATTACHMENTS_RESOLVED_EVENT, onResolved);
   }
-  const text = document.createElement("div");
-  text.className = "cm-lp-fm-cover-text";
-  const name = document.createElement("div");
-  name.className = "cm-lp-fm-cover-name";
-  name.textContent = "公众号封面";
-  const hint = document.createElement("div");
-  hint.textContent = "发送到公众号时自动设置 · 在标题下方的「封面」里更换";
-  text.append(name, hint);
-  block.append(img, text);
+  // 图上只压一枚小标签说明这是什么；怎么换放在悬停提示里，不占版面
+  const frame = document.createElement("div");
+  frame.className = "cm-lp-fm-cover-frame";
+  frame.title = "发送到公众号时自动设置；在标题下方的「封面」里更换";
+  const badge = document.createElement("span");
+  badge.className = "cm-lp-fm-cover-badge";
+  badge.textContent = "公众号封面";
+  frame.append(img, badge);
+  block.appendChild(frame);
   return block;
 }
 

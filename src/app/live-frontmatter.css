@@ -29,36 +29,45 @@
   color: var(--ink-soft);
   word-break: break-word;
 }
-/* cover: 不进卡片，单独渲染成图。左缘让出 28px 与正文文字对齐（= .cm-line 的行内缩），
+/* cover: 不进卡片，渲染成与正文同宽的题图。左右各让出 28px 与正文文字对齐（= .cm-line 的行内缩），
    2.35:1 = 公众号头条封面比例 */
 .cm-live-preview .cm-lp-fm-wrap {
   cursor: text;
 }
 .cm-live-preview .cm-lp-fm-cover {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 28px 14px;
-  font-family: var(--sans);
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--ink-faint);
+  padding: 14px 28px 0;
 }
-.cm-live-preview .cm-lp-fm-cover img {
-  flex: none;
+/* 封面和正文之间一条细线隔开：封面是"给公众号的"，线以下才是文章 */
+.cm-live-preview .cm-lp-fm-cover::after {
+  content: "";
   display: block;
-  width: 188px;
-  height: 80px;
+  height: 1px;
+  margin: 20px 0 0;
+  background: var(--hairline-soft);
+}
+.cm-live-preview .cm-lp-fm-cover-frame {
+  position: relative;
+  overflow: hidden;
   border-radius: 8px;
-  object-fit: cover;
   background: var(--accent-wash);
-  box-shadow: 0 0 0 1px var(--hairline-soft), 0 2px 8px rgba(0, 0, 0, 0.06);
 }
-.cm-live-preview .cm-lp-fm-cover-text {
-  min-width: 0;
+.cm-live-preview .cm-lp-fm-cover-frame img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2.35 / 1;
+  object-fit: cover;
 }
-.cm-live-preview .cm-lp-fm-cover-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-soft);
+.cm-live-preview .cm-lp-fm-cover-badge {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.55);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
 }
