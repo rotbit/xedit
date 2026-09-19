@@ -11,8 +11,6 @@ const RUNNING = ["starting", "processing"];
 const DEFAULT_MODEL = "black-forest-labs/flux-schnell";
 const DEFAULT_TIMEOUT_SEC = 90;
 const DEFAULT_DAILY_LIMIT = 20;
-/** 一次最多几张：两张够挑，再多既慢又贵 */
-const MAX_COUNT = 2;
 
 /** 配色白名单：网页上点一下色点就有，不用用户自己描述颜色 */
 export const COVER_COLORS = ["blue", "orange", "green", "purple", "red", "teal", "gray"] as const;
@@ -86,11 +84,6 @@ export function coverGenerateConfigured(): boolean {
 export function coverDailyLimit(): number {
   const n = Number(process.env.COVER_GENERATE_DAILY_LIMIT);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_DAILY_LIMIT;
-}
-
-/** 一次生几张：非法值按 1 张，上限 2 张（路由与这里各夹一道，两边都不信调用方） */
-export function clampCoverCount(count: unknown): number {
-  return Math.min(MAX_COUNT, Math.max(1, Math.round(Number(count)) || 1));
 }
 
 const clip = (s: unknown, n: number): string => {
@@ -260,7 +253,6 @@ export interface CoverRequest {
   highlights?: unknown;
   left?: unknown;
   right?: unknown;
-  count?: number;
 }
 
 export interface CoverDeps {
@@ -271,7 +263,10 @@ export interface CoverDeps {
   pollMs?: number;
 }
 
-/** { title, highlights, left, right, count } → dataURL 数组。失败一律抛 CoverError */
+/**
+ * { title, highlights, left, right } → 一张图的 dataURL（放在数组里，接口形状不变）。
+ * 一次点击只生一张：不满意就再点一次，比一次生两张又慢又贵划算。失败一律抛 CoverError。
+ */
 export async function generateCovers(
   req: CoverRequest,
   { fetchImpl = fetch, signal = null, pollMs = POLL_MS }: CoverDeps = {}
@@ -280,7 +275,6 @@ export async function generateCovers(
   if (!token) throw new CoverError("no_token", "服务端还没有配置 AI 生成封面");
   // 路由那边已经洗过一遍了，这里再洗一遍：洗过的再洗结果不变，而这条路不该信任何调用方
   const fields = coverFields(req);
-  const n = clampCoverCount(req.count);
   const model = process.env.REPLICATE_MODEL?.trim() || DEFAULT_MODEL;
   const configured = Number(process.env.COVER_GENERATE_TIMEOUT_SEC);
   const timeoutSec = configured > 0 ? configured : DEFAULT_TIMEOUT_SEC;
@@ -300,7 +294,7 @@ export async function generateCovers(
 
   /**
    * 撞一次改一次：上游 422 点了哪个入参的名，就改哪个再来，直到它收下为止。
-   * 谈成的那版记在模型名下，同一模型后面的请求（包括补第二张）直接照着发。
+   * 谈成的那版记在模型名下，同一模型后面的请求直接照着发。
    */
   async function run(): Promise<string[]> {
     const tuned = MODEL_INPUT.get(model);
@@ -334,15 +328,7 @@ export async function generateCovers(
       }
       // 上游收下了这版入参：改过才值得记，没改过的下次照默认发也一样能成
       if (adapted) MODEL_INPUT.set(model, { aspectRatio: picked, drop });
-      const images = await finish(started, n);
-      // 张数不够（num_outputs 被摘掉了，或者模型压根只给一张）就再单独生一次补上；
-      // 补不上不算整件事失败——有一张也比什么都没有强
-      if (images.length < n && Date.now() < deadline && !signal?.aborted) {
-        try {
-          images.push(...(await finish(await create(aspect, drop), n - images.length)));
-        } catch {}
-      }
-      return images;
+      return [await finish(started)];
     }
   }
 
@@ -351,7 +337,8 @@ export async function generateCovers(
     const input: Record<string, unknown> = {
       prompt: buildPrompt(fields, aspect),
       aspect_ratio: aspect,
-      num_outputs: n,
+      // 一次只要一张；模型不认这个字段的话，上面的入参自适应会把它摘掉
+      num_outputs: 1,
       output_format: "jpg",
       output_quality: 90,
     };
@@ -368,8 +355,8 @@ export async function generateCovers(
     });
   }
 
-  /** 等一个 prediction 出结果，再把图片下载成 dataURL；最多取 max 张 */
-  async function finish(started: Prediction, max: number): Promise<string[]> {
+  /** 等一个 prediction 出结果，再把图片下载成 dataURL；模型多给了也只取第一张 */
+  async function finish(started: Prediction): Promise<string> {
     let pred = started;
     while (RUNNING.includes(String(pred.status))) {
       if (Date.now() >= deadline) {
@@ -393,9 +380,7 @@ export async function generateCovers(
       (u): u is string => typeof u === "string" && u !== ""
     );
     if (outputs.length === 0) throw new CoverError("failed", "生成完了却没拿到图片");
-    const images: string[] = [];
-    for (const one of outputs.slice(0, max)) images.push(await download(one));
-    return images;
+    return download(outputs[0]);
   }
 
   /** 重试前的一道闸：时间用完了、或者用户已经把面板关了，就别再往上游发请求 */

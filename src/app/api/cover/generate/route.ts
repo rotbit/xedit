@@ -4,7 +4,6 @@ import { adminSessionUserId } from "@/lib/admin";
 import { coverLimiter } from "@/lib/coverGenerate/limit";
 import {
   CoverError,
-  clampCoverCount,
   coverDailyLimit,
   coverFields,
   coverGenerateConfigured,
@@ -71,7 +70,6 @@ export async function POST(req: Request) {
     const message = e instanceof CoverError ? e.message : "封面信息不完整";
     return NextResponse.json({ error: "bad_input", message }, { status: 400 });
   }
-  const count = clampCoverCount(body.count);
 
   const limit = coverDailyLimit();
   const slot = coverLimiter.take(userId, limit);
@@ -88,7 +86,7 @@ export async function POST(req: Request) {
   }
   try {
     // 网页关掉面板就断连接，signal 一路传给上游，别让没人要的图接着烧额度
-    const images = await generateCovers({ ...fields, count }, { signal: req.signal });
+    const images = await generateCovers(fields, { signal: req.signal });
     return NextResponse.json({ images });
   } catch (e) {
     // 原始错误只进服务端日志：上游报文常带请求 id 之类的内部细节（口径同 lib/routeAuth 的 serverError）

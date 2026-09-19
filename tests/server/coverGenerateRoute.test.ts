@@ -160,7 +160,7 @@ describe("POST /api/cover/generate 的请求体", () => {
     expect((await post(ONE)).status).toBe(200);
   });
 
-  it("成功 → 200 带 images；count 夹到 2，填空进了提示词", async () => {
+  it("成功 → 200 带一张图；只创建一发 prediction，填空进了提示词", async () => {
     const fetchMock = okFetch();
     vi.stubGlobal("fetch", fetchMock);
     const res = await post({
@@ -168,16 +168,19 @@ describe("POST /api/cover/generate 的请求体", () => {
       highlights: ["更能写", "更便宜", "多余的第三个"],
       left: { name: "Claude", color: "orange" },
       right: { name: "GPT", color: "green" },
-      count: 9,
     });
     expect(res.status).toBe(200);
-    // 这个假上游一发只给一张，要两张就会再补生一次，所以回来的是两张
-    expect(await res.json()).toEqual({ images: [DATA_URL, DATA_URL] });
+    expect(await res.json()).toEqual({ images: [DATA_URL] });
 
+    // 一次点击只烧一次额度：打给 Replicate 的就这一发
+    const created = fetchMock.mock.calls.filter(([url]) =>
+      url.startsWith("https://api.replicate.com/")
+    );
+    expect(created).toHaveLength(1);
     const sent = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
       input: { num_outputs: number; prompt: string };
     };
-    expect(sent.input.num_outputs).toBe(2);
+    expect(sent.input.num_outputs).toBe(1);
     expect(sent.input.prompt).toContain("「两家大模型谁更能写」");
     expect(sent.input.prompt).toContain("Claude 使用暖橙 / 陶土色，GPT 使用绿色");
     expect(sent.input.prompt).toContain("「更便宜」");
