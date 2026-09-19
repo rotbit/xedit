@@ -1,6 +1,7 @@
 /**
  * AI 生封面：请求本站的 /api/cover/generate 用生图模型画两张候选。
- * 网页这边只管拼提示词、发请求、把结果变成 File；Replicate Token 在服务端，浏览器碰不到。
+ * 提示词是服务端写死的一份中文模板，网页这边只管把几个填空收齐发过去、把结果变成 File；
+ * Replicate Token 在服务端，浏览器碰不到。
  * 纯函数，不认识 React，也不弹提示——错误一律抛出，由界面决定怎么显示。
  */
 
@@ -12,7 +13,14 @@ const GENERATE_API = "/api/cover/generate";
 /** 连不上服务器时的说法：和「站点没配置」是两回事，界面上给的下一步动作也不同 */
 const OFFLINE = "现在连不上服务器，稍后再试";
 
-export type CoverStyle = "minimal" | "illustration" | "photo" | "tech";
+/** 与服务端 lib/coverGenerate/replicate 那份白名单一一对应，改了要两边一起改 */
+export type CoverColor = "blue" | "orange" | "green" | "purple" | "red" | "teal" | "gray";
+
+/** 要对比的一方：名字 + 它在图里用的主题色 */
+export interface CoverProduct {
+  name: string;
+  color: CoverColor;
+}
 
 /** 带服务端错误码的失败，界面据此分流（如 403 要改口说「只对管理员开放」）；连不上时是 offline */
 export class CoverGenerateError extends Error {
@@ -23,13 +31,24 @@ export class CoverGenerateError extends Error {
   }
 }
 
-/** 风格选项：id 是与服务约定的值，label 给界面用 */
-export const COVER_STYLES: { id: CoverStyle; label: string }[] = [
-  { id: "minimal", label: "极简" },
-  { id: "illustration", label: "插画" },
-  { id: "photo", label: "摄影" },
-  { id: "tech", label: "科技感" },
+/**
+ * 配色选项：id 是与服务约定的值，label 给界面用，css 只是色点画出来的样子——
+ * 真正进提示词的是服务端那份中文说法（「暖橙 / 陶土色」之类），这里的色值不下发。
+ */
+export const COVER_COLORS: { id: CoverColor; label: string; css: string }[] = [
+  { id: "blue", label: "蓝色", css: "#2f6fed" },
+  { id: "orange", label: "暖橙", css: "#d9783f" },
+  { id: "green", label: "绿色", css: "#2f9e5e" },
+  { id: "purple", label: "紫色", css: "#7c53e0" },
+  { id: "red", label: "红色", css: "#d94b4b" },
+  { id: "teal", label: "青色", css: "#1d9a94" },
+  { id: "gray", label: "深灰", css: "#5a6270" },
 ];
+
+/** 从 localStorage 之类读回来的色号得先验一遍，不认识的按调用方的默认值走 */
+export function isCoverColor(value: unknown): value is CoverColor {
+  return COVER_COLORS.some((c) => c.id === value);
+}
 
 /**
  * 生封面能不能用：
@@ -67,7 +86,13 @@ export const COVER_COUNT = 2;
  * 失败抛出 Error，message 直接是能给用户看的一句话。
  */
 export async function generateCovers(
-  req: { prompt: string; style?: CoverStyle | null; count?: number },
+  req: {
+    title: string;
+    highlights?: string[];
+    left: CoverProduct;
+    right?: CoverProduct | null;
+    count?: number;
+  },
   signal?: AbortSignal
 ): Promise<string[]> {
   let res: Response;
@@ -76,8 +101,11 @@ export async function generateCovers(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt: req.prompt,
-        ...(req.style ? { style: req.style } : {}),
+        title: req.title,
+        // 没填的字段干脆不发：服务端那边缺了就是「让模型自己从标题里挑」
+        ...(req.highlights?.length ? { highlights: req.highlights } : {}),
+        left: req.left,
+        ...(req.right ? { right: req.right } : {}),
         count: req.count ?? COVER_COUNT,
       }),
       signal,
@@ -101,32 +129,6 @@ export async function generateCovers(
     : [];
   if (images.length === 0) throw new CoverGenerateError("服务没有返回图片，请再试一次", "failed");
   return images;
-}
-
-/** 提示词里塞正文的前多少个字：够模型知道写的是什么，又不至于把它带偏 */
-export const PROMPT_BODY_CHARS = 120;
-
-/** markdown 语法 → 人话：提示词只要能读的字，符号留着只会干扰生图 */
-export function stripMarkdown(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]*)`/g, "$1")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // 图片整块丢掉，它的说明文字不是正文
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // 链接只留文字
-    .replace(/<[^>]*>/g, " ")
-    .replace(/^\s{0,3}(?:#{1,6}|>+|[-*+]|\d+\.)\s+/gm, "") // 标题/引用/列表的行首记号
-    .replace(/^\s*(?:[-*_]\s*){3,}$/gm, " ") // 分隔线
-    .replace(/[*_~]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** 预填的提示词：标题 + 正文开头，用户可以改 */
-export function coverPrompt(title: string, body: string): string {
-  const name = title.trim();
-  const head = name ? `为这篇文章配一张封面：《${name}》。` : "为这篇文章配一张封面。";
-  const gist = stripMarkdown(body).slice(0, PROMPT_BODY_CHARS);
-  return gist ? `${head}内容：${gist}` : head;
 }
 
 function base64ToBytes(base64: string): Uint8Array {
