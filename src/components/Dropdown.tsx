@@ -9,19 +9,23 @@ export function Dropdown({
   children,
   width = 220,
   align = "right",
+  closeOnBlur = true,
 }: {
   trigger: React.ReactNode;
-  children: React.ReactNode;
+  /** 传函数就能拿到「关面板」：要等异步做完（上传、生成）才收起面板的内容用得上 */
+  children: React.ReactNode | ((close: () => void) => React.ReactNode);
   width?: number;
   /** 菜单与触发器的对齐边：靠视口左缘的触发器用 left，避免菜单伸出屏幕 */
   align?: "left" | "right";
+  /** 窗口失焦是否关闭：面板里要唤起系统文件选择框的传 false，否则一选文件面板就没了 */
+  closeOnBlur?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // 触发器也在 ref 里：按在它上面不由这里关，交给下面的 toggle（否则「先关再开」点了像没反应）
   const close = () => setOpen(false);
-  useDismissMenu(ref, close, open);
+  useDismissMenu(ref, close, open, closeOnBlur);
   useEscape(close, open);
 
   return (
@@ -37,7 +41,7 @@ export function Dropdown({
           }}
           onClick={() => setOpen(false)}
         >
-          {children}
+          {typeof children === "function" ? children(close) : children}
         </div>
       ) : null}
     </div>
