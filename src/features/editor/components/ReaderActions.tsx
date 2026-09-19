@@ -31,6 +31,7 @@ import {
 import type { FormatCommand } from "@/lib/editor/commands";
 import { ThemePickerPanel } from "@/components/ThemePicker";
 import { resolveTheme } from "@/lib/themes";
+import { isDesktopShell } from "@/lib/desktopShell";
 import { useStore } from "@/store/useStore";
 import { ToggleRow } from "./MenuControls";
 import { copyDoc, type CopyTarget } from "../lib/copyDoc";
@@ -206,16 +207,24 @@ export const ReaderActions = memo(function ReaderActions({
               >
                 复制到知乎
               </button>
-              <div className={menuDivider} />
-              <button
-                className={menuItem}
-                onClick={() => {
-                  setCopyMenuOpen(false);
-                  void sendWechatDraft(setDraftStatus);
-                }}
-              >
-                发送到公众号
-              </button>
+              {/* 「发送到公众号」要驱动本机的草稿服务开一个 Chrome 填后台，只有桌面壳里
+                  服务才是自己起来的；纯浏览器里冒出个 Chrome 窗口很莫名，索性不露出。
+                  菜单点开后才渲染（copyMenuOpen 初值 false，只有点击能翻开），
+                  所以这里读 window 不会造成水合不一致。 */}
+              {isDesktopShell() ? (
+                <>
+                  <div className={menuDivider} />
+                  <button
+                    className={menuItem}
+                    onClick={() => {
+                      setCopyMenuOpen(false);
+                      void sendWechatDraft(setDraftStatus);
+                    }}
+                  >
+                    发送到公众号
+                  </button>
+                </>
+              ) : null}
             </div>
           </>
         ) : null}

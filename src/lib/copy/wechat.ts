@@ -97,8 +97,26 @@ function transformCodeBlocks(root: HTMLElement): void {
 }
 
 /**
+ * 视频占位块提示语的第一行。
+ * 「发送到公众号草稿」那边靠数它在成品 HTML 里出现几次，来统计有几个视频没带过去，
+ * 两处共用这一份字面量，改文案不会走偏。
+ * 注意：里面不能出现「封面」二字——那边把含「封面」的提示当成封面没设好的问题。
+ */
+export const VIDEO_PLACEHOLDER_MARK = "⚠️ 此处有视频，还没有插入";
+
+/** 提示语第二行：告诉人这一整块该怎么换掉 */
+const VIDEO_PLACEHOLDER_HINT = "发表前请在公众号后台点「插入视频」，替换掉这一整块";
+
+/** 排好版的 HTML 里有几个视频占位块 */
+export function countVideoPlaceholders(html: string): number {
+  return html.split(VIDEO_PLACEHOLDER_MARK).length - 1;
+}
+
+/**
  * 视频降级：公众号编辑器粘贴时会整个剥掉 <video>（视频只能在后台用「插入视频」添加），
- * 换成封面占位图 + 提示行，粘贴后版面不塌、作者一眼知道哪里要补。
+ * 换成封面占位图 + 醒目的黄色警告块，粘贴后版面不塌、作者一眼看见哪里还欠一个视频。
+ * 两行文案拆成「文本 + <br> + span」而不是两个 <p>：span 只需要内联 font-size/font-weight，
+ * 公众号那边不会动它；<p> 还得跟基础样式的 margin/text-align 打架。
  */
 function transformVideos(root: HTMLElement): void {
   for (const video of Array.from(root.querySelectorAll("video"))) {
@@ -113,7 +131,12 @@ function transformVideos(root: HTMLElement): void {
     }
     const note = document.createElement("p");
     note.className = "video-note";
-    note.textContent = "📹 此处有视频 — 请在公众号后台点「插入视频」替换本占位";
+    note.appendChild(document.createTextNode(VIDEO_PLACEHOLDER_MARK));
+    note.appendChild(document.createElement("br"));
+    const hint = document.createElement("span");
+    hint.className = "video-note-hint";
+    hint.textContent = VIDEO_PLACEHOLDER_HINT;
+    note.appendChild(hint);
     section.appendChild(note);
     video.replaceWith(section);
   }
@@ -152,6 +175,10 @@ export async function buildWechatHtml(
   const html = sanitizeHtml(renderMarkdown(source, { macCode: opts.macCode }));
   const root = document.createElement("section");
   root.id = "nice";
+  // 挂进一个游离的 DocumentFragment 再填内容：主题选择器一律以 #nice 开头，
+  // 而完全孤立的节点在有些 DOM 实现里按 id 查不到（单测用的 jsdom 就是这样），
+  // querySelectorAll 会整体落空、一条样式都内联不上。放进 fragment 即可，浏览器里行为不变。
+  document.createDocumentFragment().appendChild(root);
   root.innerHTML = html;
 
   if (opts.linkFootnote) transformLinks(root);
