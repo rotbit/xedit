@@ -49,6 +49,9 @@ function okFetch(gate?: Promise<void>) {
   });
 }
 
+/** 一份填得齐的请求体：门禁和限流的用例不关心填了什么 */
+const ONE = { title: "两家大模型谁更能写", left: { name: "Claude", color: "orange" } };
+
 const post = (body: unknown, headers: Record<string, string> = {}) =>
   POST(
     new Request("http://localhost/api/cover/generate", {
@@ -78,7 +81,7 @@ describe("POST /api/cover/generate 的门禁", () => {
     vi.stubGlobal("fetch", fetchMock);
     authMock.mockResolvedValue(null);
 
-    const res = await post({ prompt: "猫" });
+    const res = await post(ONE);
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "unauthorized", message: "请先登录再使用 AI 生成封面" });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -89,7 +92,7 @@ describe("POST /api/cover/generate 的门禁", () => {
     vi.stubGlobal("fetch", fetchMock);
     signedInAs("u-normal", "someone@example.com");
 
-    const res = await post({ prompt: "猫" });
+    const res = await post(ONE);
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({
       error: "forbidden",
@@ -102,7 +105,7 @@ describe("POST /api/cover/generate 的门禁", () => {
     vi.stubEnv("ADMIN_EMAILS", ` other@example.com , ${ADMIN.toUpperCase()} `);
     vi.stubGlobal("fetch", okFetch());
     signedInAs("u-admin", ADMIN);
-    expect((await post({ prompt: "猫" })).status).toBe(200);
+    expect((await post(ONE)).status).toBe(200);
   });
 
   it("管理员但站点没配 Token → 503", async () => {
@@ -111,7 +114,7 @@ describe("POST /api/cover/generate 的门禁", () => {
     vi.stubEnv("REPLICATE_API_TOKEN", "");
     signedInAs("u-admin", ADMIN);
 
-    const res = await post({ prompt: "猫" });
+    const res = await post(ONE);
     expect(res.status).toBe(503);
     expect((await res.json()).error).toBe("no_token");
     expect(fetchMock).not.toHaveBeenCalled();
@@ -123,23 +126,50 @@ describe("POST /api/cover/generate 的请求体", () => {
 
   it("超过 16KB → 413（自报的和实际的都算）", async () => {
     vi.stubGlobal("fetch", okFetch());
-    expect((await post({ prompt: "x".repeat(40 * 1024) })).status).toBe(413);
-    expect((await post({ prompt: "猫" }, { "content-length": String(64 * 1024) })).status).toBe(413);
+    expect((await post({ title: "x".repeat(40 * 1024) })).status).toBe(413);
+    expect((await post(ONE, { "content-length": String(64 * 1024) })).status).toBe(413);
   });
 
-  it("描述为空、或根本不是 JSON → 400", async () => {
-    vi.stubGlobal("fetch", okFetch());
-    expect((await post({ prompt: "   " })).status).toBe(400);
-    expect((await post({})).status).toBe(400);
-    const res = await post("{ 不是 JSON");
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("bad_input");
-  });
-
-  it("成功 → 200 带 images；count 夹到 2，风格只认白名单里的", async () => {
+  it("标题或产品 A 为空、或根本不是 JSON → 400，上游一次没碰", async () => {
     const fetchMock = okFetch();
     vi.stubGlobal("fetch", fetchMock);
-    const res = await post({ prompt: "猫", count: 9, style: "不存在的风格" });
+    signedInAs("u-bad-input", ADMIN);
+
+    const empty = await post({ title: "   ", left: { name: "Claude", color: "blue" } });
+    expect(empty.status).toBe(400);
+    expect((await empty.json()).message).toMatch(/标题是空的/);
+
+    const noLeft = await post({ title: "标题", left: { name: " " } });
+    expect(noLeft.status).toBe(400);
+    expect((await noLeft.json()).message).toMatch(/至少填一个产品/);
+
+    expect((await post({})).status).toBe(400);
+    const broken = await post("{ 不是 JSON");
+    expect(broken.status).toBe(400);
+    expect((await broken.json()).error).toBe("bad_input");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("填错的请求不占额度：挡在限流之前", async () => {
+    vi.stubEnv("COVER_GENERATE_DAILY_LIMIT", "1");
+    vi.stubGlobal("fetch", okFetch());
+    signedInAs("u-no-slot", ADMIN);
+
+    expect((await post({ title: "", left: { name: "Claude", color: "blue" } })).status).toBe(400);
+    // 今天只有一次额度，刚才那次要是算进去了，这一次就该 429 了
+    expect((await post(ONE)).status).toBe(200);
+  });
+
+  it("成功 → 200 带 images；count 夹到 2，填空进了提示词", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await post({
+      title: "两家大模型谁更能写",
+      highlights: ["更能写", "更便宜", "多余的第三个"],
+      left: { name: "Claude", color: "orange" },
+      right: { name: "GPT", color: "green" },
+      count: 9,
+    });
     expect(res.status).toBe(200);
     // 这个假上游一发只给一张，要两张就会再补生一次，所以回来的是两张
     expect(await res.json()).toEqual({ images: [DATA_URL, DATA_URL] });
@@ -148,8 +178,10 @@ describe("POST /api/cover/generate 的请求体", () => {
       input: { num_outputs: number; prompt: string };
     };
     expect(sent.input.num_outputs).toBe(2);
-    expect(sent.input.prompt).toContain("猫");
-    expect(sent.input.prompt).not.toContain("不存在的风格");
+    expect(sent.input.prompt).toContain("「两家大模型谁更能写」");
+    expect(sent.input.prompt).toContain("Claude 使用暖橙 / 陶土色，GPT 使用绿色");
+    expect(sent.input.prompt).toContain("「更便宜」");
+    expect(sent.input.prompt).not.toContain("多余的第三个");
   });
 
   it("上游出错 → 502，且错误文案里没有 Token", async () => {
@@ -162,7 +194,7 @@ describe("POST /api/cover/generate 的请求体", () => {
         json: async () => ({ detail: `Bearer ${TOKEN} is invalid` }),
       }))
     );
-    const res = await post({ prompt: "猫" });
+    const res = await post(ONE);
     expect(res.status).toBe(502);
     const body = await res.json();
     expect(body.error).toBe("bad_token");
@@ -177,17 +209,17 @@ describe("POST /api/cover/generate 的限流", () => {
     vi.stubGlobal("fetch", okFetch(gate));
     signedInAs("u-busy", ADMIN);
 
-    const first = post({ prompt: "猫" });
+    const first = post(ONE);
     // 让第一单先卡在上游那一步
     await Promise.resolve();
-    const second = await post({ prompt: "狗" });
+    const second = await post({ ...ONE, title: "狗" });
     expect(second.status).toBe(409);
     expect((await second.json()).error).toBe("busy");
 
     release();
     expect((await first).status).toBe(200);
     // 跑完之后又能生成了
-    expect((await post({ prompt: "猫" })).status).toBe(200);
+    expect((await post(ONE)).status).toBe(200);
   });
 
   it("每天的次数用完 → 429，说的是今天用完了", async () => {
@@ -195,8 +227,8 @@ describe("POST /api/cover/generate 的限流", () => {
     vi.stubGlobal("fetch", okFetch());
     signedInAs("u-quota", ADMIN);
 
-    expect((await post({ prompt: "猫" })).status).toBe(200);
-    const res = await post({ prompt: "猫" });
+    expect((await post(ONE)).status).toBe(200);
+    const res = await post(ONE);
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.error).toBe("rate_limited");
