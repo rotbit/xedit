@@ -12,7 +12,7 @@
  * 各自有自己的「审核要求」（后台可改）与分类清单——「啰嗦」和「诱导关注」不该混在同一排筛选筹码里。
  */
 import type { ReviewCategory, ReviewItem, ReviewResult } from "@/features/review/types";
-import { DEFAULT_REVIEW_KIND, type ReviewKind } from "./reviewKinds";
+import { DEFAULT_REVIEW_KIND, reviewKindLabel, type ReviewKind } from "./reviewKinds";
 
 /** 表述审核认这几类。模型只许在这几个 id 里选，颜色由前端按 id 取 */
 const EXPRESSION_CATEGORIES: ReviewCategory[] = [
@@ -294,4 +294,36 @@ export function parseReviewResult(
     categories: spec.categories.filter((c) => used.has(c.id)),
     items,
   };
+}
+
+/** 几类一起审时，其中一类的下场：要么有结果，要么有一句为什么没跑成 */
+export type ReviewPart =
+  | { kind: ReviewKind; result: ReviewResult }
+  | { kind: ReviewKind; error: string };
+
+/**
+ * 几类审核各跑各的（各有各的提示词与分类），最后合成一份给界面。
+ *
+ * - 只审一类时原样返回，跟单选时代一模一样；
+ * - 意见按在正文里出现的先后排：作者是顺着文章往下改的，不该先看完一类再回头看另一类；
+ * - id 前面带上类型，两类各自的 ai1 不会撞；
+ * - 总评按类型分段，各说各的；
+ * - 有一类没跑成不连累另一类：成了的照样给，总评里明说哪一类没跑成、为什么。
+ *   全都没跑成由调用方处理（这里不会收到那种情况）。
+ */
+export function mergeReviewResults(parts: ReviewPart[]): ReviewResult {
+  const done = parts.filter((p): p is { kind: ReviewKind; result: ReviewResult } => "result" in p);
+  if (parts.length === 1 && done.length === 1) return done[0].result;
+
+  const items = done
+    .flatMap((p) => p.result.items.map((it) => ({ ...it, id: `${p.kind}-${it.id}` })))
+    .sort((a, b) => a.line - b.line);
+  const summary = parts
+    .map((p) =>
+      "result" in p
+        ? `【${reviewKindLabel(p.kind)}】${p.result.summary}`
+        : `【${reviewKindLabel(p.kind)}】这一类没跑成：${p.error}`
+    )
+    .join("\n\n");
+  return { summary, categories: done.flatMap((p) => p.result.categories), items };
 }

@@ -52,28 +52,28 @@ afterEach(() => {
 describe("发出去的那一次请求", () => {
   it("打本站的接口，把正文、审核类型、哪家哪个模型都带上", async () => {
     const calls = fakeFetch(ok());
-    writeAiConfig({ kind: "wechat_rules" });
+    writeAiConfig({ kinds: ["expression", "wechat_rules"] });
     await requestAiReview(CONTENT, readAiConfig());
     expect(calls[0].url).toBe("/api/ai/review");
     expect(calls[0].body.content).toBe(CONTENT);
-    expect(calls[0].body.kind).toBe("wechat_rules");
+    expect(calls[0].body.kinds).toEqual(["expression", "wechat_rules"]);
   });
 
   it("请求体里只有正文和审核类型：模型和 key 都由后台定，前端不报", async () => {
     const calls = fakeFetch(ok());
     await requestAiReview(CONTENT, readAiConfig());
-    expect(Object.keys(calls[0].body).sort()).toEqual(["content", "kind"]);
+    expect(Object.keys(calls[0].body).sort()).toEqual(["content", "kinds"]);
   });
 
   it("runReview 现读本机设置：在面板里改完再点「重新审核」，用的是新设置", async () => {
     const calls = fakeFetch(ok(), ok());
-    writeAiConfig({ kind: "expression" });
+    writeAiConfig({ kinds: ["expression"] });
     await runReview(CONTENT);
-    expect(calls[0].body.kind).toBe("expression");
+    expect(calls[0].body.kinds).toEqual(["expression"]);
 
-    writeAiConfig({ kind: "wechat_rules" });
+    writeAiConfig({ kinds: ["wechat_rules"] });
     await runReview(CONTENT);
-    expect(calls[1].body.kind).toBe("wechat_rules");
+    expect(calls[1].body.kinds).toEqual(["wechat_rules"]);
   });
 
 });

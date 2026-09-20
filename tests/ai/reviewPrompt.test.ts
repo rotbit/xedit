@@ -13,6 +13,7 @@ import {
   MAX_AI_ITEMS,
   parseReviewResult,
   reviewCategories,
+  mergeReviewResults,
   reviewSystemPrompt,
 } from "@/lib/ai/reviewPrompt";
 
@@ -348,5 +349,38 @@ describe("parseReviewResult：分类按这一趟审的是哪一类来认", () =>
       "wechat_rules"
     );
     expect(out.items[0].suggestion).toBeUndefined();
+  });
+});
+
+describe("几类一起审：合成一份结果", () => {
+  const part = (kind: "expression" | "wechat_rules", line: number, category: string) => ({
+    kind,
+    result: {
+      summary: `${kind} 的总评`,
+      categories: [{ id: category, label: category, color: "#000" }],
+      items: [{ id: "ai1", category, quote: "随便一句话", line, problem: "有问题" }],
+    },
+  });
+
+  it("只审一类时原样返回，跟单选时一模一样", () => {
+    const one = part("expression", 3, "verbose");
+    expect(mergeReviewResults([one])).toBe(one.result);
+  });
+
+  it("意见按在正文里的先后排，id 带上类型不会撞，分类两边都留", () => {
+    const merged = mergeReviewResults([part("expression", 9, "verbose"), part("wechat_rules", 2, "absolute")]);
+    expect(merged.items.map((it) => it.id)).toEqual(["wechat_rules-ai1", "expression-ai1"]);
+    expect(merged.categories.map((c) => c.id)).toEqual(["verbose", "absolute"]);
+    expect(merged.summary).toContain("【表述审核】expression 的总评");
+    expect(merged.summary).toContain("【公众号合规审核】wechat_rules 的总评");
+  });
+
+  it("一类没跑成不连累另一类，总评里明说是哪一类、为什么", () => {
+    const merged = mergeReviewResults([
+      part("expression", 1, "verbose"),
+      { kind: "wechat_rules", error: "模型没有按格式回答" },
+    ]);
+    expect(merged.items).toHaveLength(1);
+    expect(merged.summary).toContain("【公众号合规审核】这一类没跑成：模型没有按格式回答");
   });
 });
