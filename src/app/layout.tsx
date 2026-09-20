@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   // 有了 metadataBase，各页的相对 canonical / OG 图路径才会补成绝对地址
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} · ${SITE_TAGLINE}｜Markdown 一键排版微信公众号`,
+    default: `${SITE_NAME} · ${SITE_TAGLINE}｜Markdown 公众号编辑器，AI 审核，一键发布`,
     template: `%s｜${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,

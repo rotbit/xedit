@@ -55,7 +55,10 @@ export const CHANGELOG: ChangelogEntry[] = [
         beta: true,
         text: "「总评」改成宽幅阅读面板；AI 审稿过程中有明确的进度与耗时提示。",
       },
-      { kind: "improved", text: "官网落地页改版：新的配色与版式，文案重写，先给能力全景再看细节。" },
+      {
+        kind: "improved",
+        text: "官网落地页改版：新的配色与版式，内容围绕干净的编辑器、13 套排版主题、AI 内容审核、一键发布公众号重写。",
+      },
       { kind: "new", text: "官网新增「更新日志」页，以后每次更新都会记在这里。" },
       { kind: "new", text: "官网页脚加上了联系邮箱，问题与建议可以直接写信。" },
     ],
