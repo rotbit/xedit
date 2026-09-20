@@ -38,7 +38,7 @@ export function useReviewKeyReady(): { ready: boolean; hint: string } {
   const siteHasKey = config?.aiProviders?.includes(cfg.provider) ?? false;
   return {
     ready: siteHasKey,
-    hint: `站点还没有配置 ${spec.label} 的 Key，换一家试试`,
+    hint: `暂未支持 ${spec.label}，换一家试试`,
   };
 }
 
@@ -90,7 +90,7 @@ function ModelRows() {
   const spec = aiProvider(cfg.provider)!;
   const [customOn, setCustomOn] = useState(false);
   const custom = customOn || !spec.models.includes(cfg.model);
-  // 服务端没配 key 的那几家留着但写明「未配置」，省得选了才发现用不了
+  // 服务端没配 key 的那几家留着但写明「未支持」，省得选了才发现用不了
   const ready = useAppConfig()?.aiProviders ?? [];
 
   return (
@@ -108,7 +108,7 @@ function ModelRows() {
           {AI_PROVIDERS.map((p) => (
             <option key={p.id} value={p.id}>
               {p.label}
-              {ready.includes(p.id) ? "" : "（未配置）"}
+              {ready.includes(p.id) ? "" : "（未支持）"}
             </option>
           ))}
         </select>
