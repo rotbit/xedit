@@ -30,7 +30,7 @@ import {
   StartWritingButton,
   StartWritingLink,
 } from "./components/LandingChrome";
-import { Showcase } from "./components/Showcase";
+import { EditorShowcase, Showcase } from "./components/Showcase";
 
 // 各栏目的栏宽/内边距统一走这个常量，否则相邻栏目的左右边界会差几像素，改宽度只改这里
 const SHELL = "mx-auto w-full max-w-[1180px] px-5 sm:px-8";
@@ -102,8 +102,8 @@ function ThemeCard({ id, name, color, tag }: (typeof THEME_METAS)[number]) {
   );
 }
 
-/** 首页全文。栏目顺序按读者的顾虑排：先看到成品、知道怎么用，再看能力全貌与三处深挖，
- *  然后是主题、客户端、疑问，最后收束到行动。 */
+/** 首页全文。栏目顺序：先看到成品、知道怎么用，再依次讲四个主打卖点（编辑器、排版主题、
+ *  AI 内容审核、一键发布），然后是能力全貌、客户端、疑问，最后收束到行动。 */
 export function Landing() {
   return (
     // landing-scroll 表示落地页有自己的滚动容器（不是整页滚动），globals.css 里给它配了平滑滚动，
@@ -131,22 +131,22 @@ export function Landing() {
                   <span className="rounded-full bg-[var(--brand-wash)] px-2 py-0.5 text-[11px] font-medium text-[var(--brand)]">
                     免费
                   </span>
-                  为中文写作者做的公众号排版工具
+                  Markdown 微信公众号编辑器与排版工具
                 </span>
               </div>
               <h1
                 className="rise mt-7 text-[clamp(36px,5.8vw,64px)] font-semibold leading-[1.12] tracking-[-0.045em]"
                 style={{ animationDelay: "0.05s" }}
               >
-                <span className="font-[family-name:var(--serif)]">Markdown 写完，</span>
+                <span className="font-[family-name:var(--serif)]">Markdown 公众号编辑器，</span>
                 <br />
-                公众号里<span className="lp-mark">就是这个样子</span>
+                排版、审稿、发布<span className="lp-mark">一处写完</span>
               </h1>
               <p
-                className="rise mx-auto mt-7 max-w-[600px] text-[15.5px] leading-[1.95] text-[var(--ink-soft)]"
+                className="rise mx-auto mt-7 max-w-[640px] text-[15.5px] leading-[1.95] text-[var(--ink-soft)]"
                 style={{ animationDelay: "0.1s" }}
               >
-                左边写，右边就是成稿。挑一套主题，点一下复制，粘进公众号后台，标题、引用、代码和公式的样式一条都不会掉。
+                干净的即时渲染编辑器，13 套公众号排版主题；发布前让 AI 审一遍表述与合规，写完一键复制，或直接发送到公众号草稿箱，样式一条都不会掉。
               </p>
               <div
                 className="rise mt-9 flex flex-wrap items-center justify-center gap-3"
@@ -202,11 +202,11 @@ export function Landing() {
           </div>
         </section>
 
-        {/* ———— 三步 ———— */}
+        {/* ———— 四步：写、排、审、发 ———— */}
         <section className={`${SHELL} pb-24`}>
-          {/* 三步是并排的卡片，视觉上不需要栏目标题，但缺个 h2 会让屏幕阅读器读出的层级断档 */}
-          <h2 className="sr-only">三步把 Markdown 发成公众号文章</h2>
-          <ol className="grid gap-3.5 sm:grid-cols-3">
+          {/* 四步是并排的卡片，视觉上不需要栏目标题，但缺个 h2 会让屏幕阅读器读出的层级断档 */}
+          <h2 className="sr-only">四步把 Markdown 写成公众号文章：写作、排版、AI 审核、一键发布</h2>
+          <ol className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s) => (
               <li key={s.num} className="lp-card relative overflow-hidden p-6">
                 {/* 序号压在卡片右上角，做底纹而不是读物 */}
@@ -228,14 +228,54 @@ export function Landing() {
           </ol>
         </section>
 
+        {/* ———— 主打一：编辑器 ———— */}
+        <section className={`${SHELL} pb-24`}>
+          <EditorShowcase />
+        </section>
+
+        {/* ———— 主打二：主题墙 ———— */}
+        <section className="border-y border-[var(--hairline)] bg-[var(--sidebar)]/45 py-22">
+          <div className={SHELL}>
+            <SectionHead
+              id="themes"
+              eyebrow="排版主题"
+              title="13 套公众号排版主题，同一篇稿子十三种面貌"
+              note="每套都标注了适用的内容类型，下面的缩略图就是真实渲染结果。不够贴合还能叠一层自定义 CSS，复制时一并内联。"
+            />
+            <ul className="mt-10 grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-4">
+              {THEME_METAS.map((t) => (
+                <ThemeCard key={t.id} {...t} />
+              ))}
+              {/* 13 张卡在 4 列下会留一个孤儿，第 14 格改成去主题总览的入口，正好补齐 */}
+              <li>
+                <Link
+                  href="/themes"
+                  className="group flex h-full min-h-[178px] flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-[var(--hairline-strong)] text-[13.5px] text-[var(--ink-soft)] transition-colors hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                >
+                  看每套主题的完整样张
+                  <ArrowRight
+                    size={15}
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        {/* ———— 主打三、四：AI 内容审核、一键发布，外加「样式为什么不丢」 ———— */}
+        <section className={`${SHELL} py-24`}>
+          <Showcase />
+        </section>
+
         {/* ———— 能力全景 ———— */}
         <section className="border-y border-[var(--hairline)] bg-[var(--sidebar)]/45 py-22">
           <div className={SHELL}>
             <SectionHead
               id="features"
-              eyebrow="能力全景"
+              eyebrow="全部功能"
               title="写公众号真正会用到的环节，都做完了"
-              note="不只是「一个 Markdown 预览器」——排版、素材、版本、同步、给 AI 的接口，一个编辑器里全都齐。"
+              note="不只是「一个 Markdown 预览器」——排版、发布、AI 审核、素材、版本、同步、给 AI 的接口，一个编辑器里全都齐。"
             />
             <div className="mt-14 space-y-12">
               {FEATURE_GROUPS.map((group) => (
@@ -260,41 +300,6 @@ export function Landing() {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* ———— 深度展示：把最容易被质疑的三件事各讲一屏 ———— */}
-        <section className={`${SHELL} py-24`}>
-          <Showcase />
-        </section>
-
-        {/* ———— 主题墙 ———— */}
-        <section className="border-y border-[var(--hairline)] bg-[var(--sidebar)]/45 py-22">
-          <div className={SHELL}>
-            <SectionHead
-              id="themes"
-              eyebrow="排版主题"
-              title="13 套主题，同一篇稿子十三种面貌"
-              note="每套都标注了适用的内容类型，下面的缩略图就是真实渲染结果。不够贴合还能叠一层自定义 CSS，复制时一并内联。"
-            />
-            <ul className="mt-10 grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-4">
-              {THEME_METAS.map((t) => (
-                <ThemeCard key={t.id} {...t} />
-              ))}
-              {/* 13 张卡在 4 列下会留一个孤儿，第 14 格改成去主题总览的入口，正好补齐 */}
-              <li>
-                <Link
-                  href="/themes"
-                  className="group flex h-full min-h-[178px] flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-[var(--hairline-strong)] text-[13.5px] text-[var(--ink-soft)] transition-colors hover:border-[var(--brand)] hover:text-[var(--brand)]"
-                >
-                  看每套主题的完整样张
-                  <ArrowRight
-                    size={15}
-                    className="transition-transform group-hover:translate-x-0.5"
-                  />
-                </Link>
-              </li>
-            </ul>
           </div>
         </section>
 
@@ -443,7 +448,7 @@ export function Landing() {
               <div>
                 <p className="text-[13.5px] font-semibold">{SITE_TAGLINE}</p>
                 <p className="mt-1 text-[11.5px] text-[var(--ink-faint)]">
-                  本地优先 · 登录后云端同步 · 排版样式不丢
+                  干净的编辑器 · 13 套主题 · AI 内容审核 · 一键发布公众号
                 </p>
               </div>
             </div>
@@ -454,8 +459,17 @@ export function Landing() {
               <Link href="/themes" className="transition-colors hover:text-[var(--ink)]">
                 排版主题
               </Link>
+              <Link href="#editor" className="transition-colors hover:text-[var(--ink)]">
+                Markdown 编辑器
+              </Link>
+              <Link href="#ai-review" className="transition-colors hover:text-[var(--ink)]">
+                AI 内容审核
+              </Link>
+              <Link href="#publish" className="transition-colors hover:text-[var(--ink)]">
+                一键发布公众号
+              </Link>
               <Link href="#features" className="transition-colors hover:text-[var(--ink)]">
-                功能
+                全部功能
               </Link>
               <Link href="#desktop" className="transition-colors hover:text-[var(--ink)]">
                 Mac 客户端
@@ -486,7 +500,7 @@ export function Landing() {
             </nav>
           </div>
           <p className="mt-9 border-t border-[var(--hairline)] pt-6 text-[11.5px] text-[var(--ink-faint)]">
-            免费的 Markdown 公众号排版工具 · 联系我们：
+            免费的 Markdown 微信公众号编辑器与排版工具 · 联系我们：
             <a href={`mailto:${CONTACT_EMAIL}`} className="transition-colors hover:text-[var(--ink)]">
               {CONTACT_EMAIL}
             </a>
