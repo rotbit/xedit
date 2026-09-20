@@ -1,22 +1,27 @@
 "use client";
 
 /**
- * 「上次审的是哪一类」这点偏好，存在本机 localStorage 里。
+ * 「上次审的是哪几类」这点偏好，存在本机 localStorage 里。
  *
  * 这里没有模型也没有 API Key：用哪家的哪个模型、key 是什么，都由管理员在后台定
  * （见 lib/ai/siteSettings），前端不选、不存、不传。
  */
 import { useCallback, useSyncExternalStore } from "react";
-import { DEFAULT_REVIEW_KIND, isReviewKind, type ReviewKind } from "@/lib/ai/reviewKinds";
+import {
+  DEFAULT_REVIEW_KIND,
+  cleanReviewKinds,
+  isReviewKind,
+  type ReviewKind,
+} from "@/lib/ai/reviewKinds";
 
 const STORE_KEY = "xedit.ai.config";
 
 export interface AiConfig {
-  /** 上次审的是哪一类（表述 / 公众号规则）：下次点「审核」仍停在这儿 */
-  kind: ReviewKind;
+  /** 上次勾的是哪几类（表述 / 公众号规则，可多选，至少一类）：下次点「审核」仍停在这儿 */
+  kinds: ReviewKind[];
 }
 
-const FALLBACK: AiConfig = { kind: DEFAULT_REVIEW_KIND };
+const FALLBACK: AiConfig = { kinds: [DEFAULT_REVIEW_KIND] };
 
 /** 快照要稳定：useSyncExternalStore 每次渲染都会比对，现 parse 一份会导致无限重渲 */
 let cache: AiConfig = FALLBACK;
@@ -26,9 +31,11 @@ const listeners = new Set<() => void>();
 function parse(raw: string | null): AiConfig {
   if (!raw) return FALLBACK;
   try {
-    const data = JSON.parse(raw) as Partial<AiConfig>;
-    // 存里那份可能是旧版本写的，也可能被人改花了，一律过一遍校验
-    return { kind: isReviewKind(data.kind) ? data.kind : FALLBACK.kind };
+    const data = JSON.parse(raw) as { kinds?: unknown; kind?: unknown };
+    // 存里那份可能是旧版本写的，也可能被人改花了，一律过一遍校验。
+    // 单选时代存的是 kind，认一下，别让人升级后选择被重置
+    const legacy = isReviewKind(data.kind) ? [data.kind] : [];
+    return { kinds: cleanReviewKinds(Array.isArray(data.kinds) ? data.kinds : legacy) };
   } catch {
     // 存坏了就当没存过：这点设置重选一遍就好，不值得为它弹个错
     return FALLBACK;
@@ -55,7 +62,7 @@ export function readAiConfig(): AiConfig {
 /** 改设置 */
 export function writeAiConfig(patch: Partial<AiConfig>): AiConfig {
   const base = readAiConfig();
-  cache = { kind: isReviewKind(patch.kind) ? patch.kind : base.kind };
+  cache = { kinds: patch.kinds ? cleanReviewKinds(patch.kinds) : base.kinds };
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(cache));
   } catch {}

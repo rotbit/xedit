@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 审核设置那张表：只选审核类型。
+ * 审核设置那张表：只选审核类型（可多选，勾了几类就一起审）。
  *
  * 只有这一份。顶栏「审核」按钮弹出的启动面板（ReviewLaunchPopover）和审核条上
  * 那颗胶囊点开的面板（ReviewAiSettings）都嵌它——两处各写一遍的话，
@@ -10,7 +10,6 @@
  * 用哪家的哪个模型、key 是什么，都由管理员在后台的「AI 设置」里定，这里不给选也看不到。
  * 表单只管收设置，收完存进本机（见 aiConfig.ts），什么时候真去跑由外面的按钮说了算。
  */
-import { useId } from "react";
 import { REVIEW_KINDS } from "@/lib/ai/reviewKinds";
 import { useAppConfig } from "@/features/workspace/hooks/useAppConfig";
 import { useAiConfig } from "./aiConfig";
@@ -35,14 +34,16 @@ export function useReviewKeyReady(): { ready: boolean; hint: string } {
   };
 }
 
-/** 审核类型：一类一行，名字底下一句话说清楚它看的是什么 */
-function KindRows({ name }: { name: string }) {
+/** 审核类型：一类一行，可多选；名字底下一句话说清楚它看的是什么 */
+function KindRows() {
   const [cfg, set] = useAiConfig();
   return (
     <div className="mb-2.5 flex flex-col gap-1">
-      <span className={label}>审核类型</span>
+      <span className={label}>审核类型（可多选，一起审）</span>
       {REVIEW_KINDS.map((k) => {
-        const on = cfg.kind === k.id;
+        const on = cfg.kinds.includes(k.id);
+        // 至少留一类：最后那一个勾不掉
+        const last = on && cfg.kinds.length === 1;
         return (
           <label
             key={k.id}
@@ -52,13 +53,16 @@ function KindRows({ name }: { name: string }) {
                 : "border-[var(--hairline)] hover:bg-[var(--paper)]"
             }`}
           >
-            {/* 用原生 radio：单选语义、上下键切换、读屏都是白给的 */}
+            {/* 用原生 checkbox：多选语义、空格切换、读屏都是白给的 */}
             <input
-              type="radio"
-              name={name}
+              type="checkbox"
               className="mt-[3px] shrink-0 accent-[var(--accent)]"
               checked={on}
-              onChange={() => set({ kind: k.id })}
+              disabled={last}
+              title={last ? "至少要审一类" : undefined}
+              onChange={() =>
+                set({ kinds: on ? cfg.kinds.filter((id) => id !== k.id) : [...cfg.kinds, k.id] })
+              }
             />
             <span className="min-w-0">
               <span
@@ -79,11 +83,5 @@ function KindRows({ name }: { name: string }) {
 
 /** 整张表：现在只有审核类型一项 */
 export function ReviewSettingsFields() {
-  // 同一页上可能同时存在两份表单（极端情况下），radio 的 name 不能撞
-  const name = useId();
-  return (
-    <>
-      <KindRows name={name} />
-    </>
-  );
+  return <KindRows />;
 }

@@ -6,7 +6,7 @@
 
 import { memo, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
-import { reviewKindLabel } from "@/lib/ai/reviewKinds";
+import { reviewKindsLabel } from "@/lib/ai/reviewKinds";
 import { reviewMarkCss } from "./editorMarks";
 import { tint } from "./colors";
 import { useAiConfig } from "./aiConfig";
@@ -94,7 +94,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   };
   const [cfg] = useAiConfig();
   // 这一趟审的是哪一类，始终摆在明面上（用哪个模型由后台定，这里不显示）
-  const kind = reviewKindLabel(cfg.kind);
+  const kind = reviewKindsLabel(cfg.kinds);
 
   return (
     <div className="relative flex h-9 shrink-0 items-center gap-2 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4 text-[12px] text-[var(--ink-soft)]">
@@ -181,7 +181,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         {/* 审的哪一类：点开换审核类型 */}
         <button
           data-menu-trigger
-          className={`mr-1 flex max-w-[220px] shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
+          className={`mr-1 flex max-w-[260px] shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
             settingsOpen ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"
           }`}
           title="审核类型"
