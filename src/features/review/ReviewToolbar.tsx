@@ -64,8 +64,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   const loading = phase === "loading";
   const [sumOpen, setSumOpen] = useState(false);
   const [cfg] = useAiConfig();
-  // 这一趟审的是哪一类、谁给的意见，始终摆在明面上
-  const model = cfg.model.split("/").pop()!;
+  // 这一趟审的是哪一类，始终摆在明面上（用哪个模型由后台定，这里不显示）
   const kind = reviewKindLabel(cfg.kind);
 
   return (
@@ -77,7 +76,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         <span className="flex min-w-0 items-center gap-1.5 text-[var(--ink-faint)]">
           <Loader2 size={12} className="shrink-0 animate-spin" />
           <span className="truncate">
-            正在用 {model} 做{kind}…
+            正在做{kind}…
           </span>
         </span>
       ) : phase === "error" ? (
@@ -88,7 +87,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
             className="shrink-0 cursor-pointer whitespace-nowrap text-[var(--accent)] hover:underline"
             onClick={() => onSettingsOpen(true)}
           >
-            去设置
+            换审核类型
           </button>
         </span>
       ) : (
@@ -149,19 +148,17 @@ export const ReviewToolbar = memo(function ReviewToolbar({
       )}
 
       <div className="flex shrink-0 items-center gap-0.5">
-        {/* 审的哪一类、用的哪个模型：点开换审核类型 / 换模型 */}
+        {/* 审的哪一类：点开换审核类型 */}
         <button
           data-menu-trigger
           className={`mr-1 flex max-w-[220px] shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
             settingsOpen ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"
           }`}
-          title="审核类型与模型"
+          title="审核类型"
           onClick={() => onSettingsOpen(!settingsOpen)}
         >
           <Settings2 size={11} className="shrink-0" />
-          <span className="truncate">
-            {kind} · {model}
-          </span>
+          <span className="truncate">{kind}</span>
         </button>
         <button className={navBtn} title="上一条（⌥↑）" onClick={onPrev} disabled={!canPrev}>
           <ChevronUp size={14} />

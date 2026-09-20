@@ -93,7 +93,7 @@ export function ReviewCards({
 }: {
   api: ReviewApi;
   width?: number;
-  /** 出错时那句「去设置模型」：打开的是审核条上那张设置面板 */
+  /** 出错时那句「换个审核类型」：打开的是审核条上那张设置面板 */
   onOpenSettings: () => void;
 }) {
   const { phase, cards, activeId, spanOf, editorView, tick } = api;
@@ -173,7 +173,7 @@ export function ReviewCards({
               onClick={onOpenSettings}
             >
               <Settings2 size={11} />
-              去设置模型
+              换个审核类型
             </button>
             <button
               className="flex cursor-pointer items-center gap-1 text-[var(--ink-soft)] hover:underline"

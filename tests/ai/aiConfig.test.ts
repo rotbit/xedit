@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { AI_PROVIDERS, aiProvider, cleanModel, isAiProviderId } from "@/lib/ai/providers";
+import {
+  AI_PROVIDERS,
+  DEFAULT_AI_PROVIDER,
+  aiProvider,
+  cleanModel,
+  isAiProviderId,
+} from "@/lib/ai/providers";
 import { DEFAULT_REVIEW_KIND } from "@/lib/ai/reviewKinds";
 import {
   __resetAiConfigForTests,
@@ -10,8 +16,8 @@ import {
 
 /**
  * 供应商目录本身要自洽（下拉框和服务端拼地址都靠它），
- * 本机那份设置要守住两件事：换家时模型跟着换（上一家的模型名在这一家不存在），
- * 以及各家的 key 各存各的——换回上一家不该还要再粘一遍。
+ * 本机那份设置现在只记「审哪一类」：模型和 key 都归后台管，
+ * 旧版本留在浏览器里的模型选择和 key 读到就得擦掉。
  */
 
 describe("供应商目录", () => {
@@ -19,14 +25,28 @@ describe("供应商目录", () => {
     expect(new Set(AI_PROVIDERS.map((p) => p.id)).size).toBe(AI_PROVIDERS.length);
   });
 
-  it("用户点名要的五家都在：Replicate 上的 Claude、DeepSeek、GPT、Kimi、GLM", () => {
+  it("用户点名要的都在：DeepSeek、Replicate 上的 Claude 和 GPT、OpenAI 官网、Kimi、GLM", () => {
     expect(AI_PROVIDERS.map((p) => p.id).sort()).toEqual([
       "deepseek",
       "glm",
       "kimi",
       "openai",
       "replicate",
+      "replicate-gpt",
     ]);
+  });
+
+  it("默认那家是 DeepSeek，排在下拉框第一个", () => {
+    expect(DEFAULT_AI_PROVIDER).toBe("deepseek");
+    expect(AI_PROVIDERS[0].id).toBe("deepseek");
+  });
+
+  it("Replicate 上的 GPT 与 Claude 共用一把 token，但输出上限的字段名不一样", () => {
+    const gpt = aiProvider("replicate-gpt")!;
+    expect(gpt.transport).toBe("replicate");
+    expect(gpt.envKey).toBe(aiProvider("replicate")!.envKey);
+    expect(gpt.tokensField).toBe("max_completion_tokens");
+    for (const m of gpt.models) expect(m.startsWith("openai/gpt")).toBe(true);
   });
 
   it("每家都得有地址、模型和环境变量名", () => {
@@ -80,47 +100,20 @@ describe("本机的 AI 设置", () => {
     localStorage.clear();
   });
 
-  it("没存过时给一份能用的默认值", () => {
-    const cfg = readAiConfig();
-    expect(isAiProviderId(cfg.provider)).toBe(true);
-    expect(aiProvider(cfg.provider)!.models).toContain(cfg.model);
-  });
-
-  it("改完就落盘，下次（清掉内存缓存后）还读得回来", () => {
-    writeAiConfig({ provider: "kimi" });
-    __resetAiConfigForTests();
-    const cfg = readAiConfig();
-    expect(cfg.provider).toBe("kimi");
-  });
-
-  it("换供应商时模型跟着换：上一家的模型名在这一家不存在", () => {
-    writeAiConfig({ provider: "deepseek", model: "deepseek-reasoner" });
-    const next = writeAiConfig({ provider: "glm" });
-    expect(next.model).toBe(aiProvider("glm")!.models[0]);
-  });
-
-  it("旧版本存在浏览器里的 key 读到就擦掉：key 只许待在服务端", () => {
+  it("旧版本存在浏览器里的 key 和模型选择读到就擦掉：这些只许待在服务端", () => {
     localStorage.setItem(
       "xedit.ai.config",
-      JSON.stringify({ provider: "kimi", model: "x", kind: "expression", keys: { kimi: "sk-旧的" } })
+      JSON.stringify({ provider: "kimi", model: "x", kind: "wechat_rules", keys: { kimi: "sk-旧的" } })
     );
     __resetAiConfigForTests();
-    const cfg = readAiConfig();
-    expect(cfg.provider).toBe("kimi");
-    expect("keys" in cfg).toBe(false);
-    expect(localStorage.getItem("xedit.ai.config")).not.toContain("sk-旧的");
+    expect(readAiConfig()).toEqual({ kind: "wechat_rules" });
+    expect(localStorage.getItem("xedit.ai.config")).toBe(JSON.stringify({ kind: "wechat_rules" }));
   });
 
   it("存坏了当没存过，不为这点设置弹错", () => {
     localStorage.setItem("xedit.ai.config", "{不是 JSON");
     __resetAiConfigForTests();
-    expect(isAiProviderId(readAiConfig().provider)).toBe(true);
-  });
-
-  it("存里混进不认识的供应商也不会带坏（落回默认那家）", () => {
-    localStorage.setItem("xedit.ai.config", JSON.stringify({ provider: "胡编的", model: "x" }));
-    __resetAiConfigForTests();
-    expect(isAiProviderId(readAiConfig().provider)).toBe(true);
+    expect(readAiConfig().kind).toBe(DEFAULT_REVIEW_KIND);
   });
 
   it("没选过审核类型就给默认那一类", () => {
@@ -131,12 +124,6 @@ describe("本机的 AI 设置", () => {
     writeAiConfig({ kind: "wechat_rules" });
     __resetAiConfigForTests();
     expect(readAiConfig().kind).toBe("wechat_rules");
-  });
-
-  it("换模型不碰审核类型，换类型也不碰模型（面板里这两截各管各的）", () => {
-    writeAiConfig({ kind: "wechat_rules", provider: "deepseek" });
-    expect(writeAiConfig({ provider: "glm" }).kind).toBe("wechat_rules");
-    expect(writeAiConfig({ kind: "expression" }).model).toBe(aiProvider("glm")!.models[0]);
   });
 
   it("旧版本存的那份没有 kind，读出来也得是个能用的类型", () => {

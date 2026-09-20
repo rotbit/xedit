@@ -193,6 +193,15 @@ model AiProvider {
   @@id([userId, scope, provider])
 }
 
+/// 全站级的键值设置，只有管理后台能写。现存两类键：
+/// ai.review → JSON {provider, model}（全站 AI 审核用哪个模型）；
+/// ai.key.<槽位> → AES-256-GCM 加密后的上游 token（槽位即 providers.ts 里的 envKey）。
+model SiteSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
 /// 每日活跃打点（date 为东八区 YYYY-MM-DD）：后台 DAU 曲线的数据源，
 /// 网页与 MCP 的关键接口都会打点，历史由 WritingActivity 回填
 model DailyActive {
