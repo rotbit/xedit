@@ -401,3 +401,94 @@ html.desktop-mac .sidebar-logo {
     visibility: visible;
   }
 }
+
+/* ---- AI 审核 ---- */
+/* 总评面板入场：从审核条底下轻轻落下来 */
+@keyframes review-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.review-pop {
+  animation: review-pop 140ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+/* 审核进行中：审核条底边一道来回流动的细光，告诉人「AI 还在干活」。
+   不知道总时长，所以是不定进度——一段光从左滑到右，而不是一根假装在涨的进度条 */
+@keyframes review-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(350%);
+  }
+}
+.review-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.review-progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: review-progress 1.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+/* 骨架卡上扫过去的一道微光，比整块一明一暗的 pulse 安静 */
+@keyframes review-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.review-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--hairline) 25%,
+    var(--hairline-soft) 50%,
+    var(--hairline) 75%
+  );
+  background-size: 200% 100%;
+  animation: review-shimmer 1.8s linear infinite;
+}
+/* 「正在审」那颗星：慢慢地呼吸 */
+@keyframes review-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+.review-breathe {
+  animation: review-breathe 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .review-pop,
+  .review-breathe,
+  .review-shimmer {
+    animation: none;
+  }
+  /* 不滑了，但留一道静止的色条：状态还得看得出来 */
+  .review-progress::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
+}

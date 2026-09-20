@@ -7,11 +7,12 @@
 // 不用 coordsAtPos —— 它只对渲染出来的那一屏有效，而意见摊在全篇，屏外的卡片同样要就位。
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, RefreshCw, Settings2, Sparkles } from "lucide-react";
+import { RefreshCw, Settings2, Sparkles } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 import { ReviewCard } from "./ReviewCard";
 import { layoutCards } from "./locate";
 import { CARD_COL_WIDTH, CARD_GAP } from "./useReviewLayout";
+import { useElapsedSeconds } from "./ReviewToolbar";
 import type { ReviewApi } from "./useReview";
 import type { ReviewItemView } from "./types";
 
@@ -35,48 +36,56 @@ function anchorY(view: EditorView, item: ReviewItemView, from: number | null): n
   return view.lineBlockAt(pos).top + view.documentTop;
 }
 
-/** 总评：一段话说全篇，默认展开，嫌占地方可以收起来（开合状态在外面存，收起后高度变了要重排） */
-function SummaryCard({
-  text,
-  open,
-  onToggle,
-}: {
-  text: string;
-  open: boolean;
-  onToggle: () => void;
-}) {
+/**
+ * 总评：栏里只露个开头（三行），点一下在审核条底下展开成一张正经的阅读面板。
+ * 260px 宽的小卡里读一两百字太憋屈；高度固定下来，下面的卡片也不用跟着它一收一放地挪。
+ */
+function SummaryCard({ text, onOpen }: { text: string; onOpen: () => void }) {
   if (!text) return null;
   return (
-    <div className="rounded-lg border border-[var(--hairline)] bg-[var(--panel)] px-2.5 py-2">
-      <button
-        className="flex w-full cursor-pointer items-center gap-1.5 text-left text-[11px] tracking-[0.1em] text-[var(--ink-faint)]"
-        onClick={onToggle}
-      >
+    <button
+      data-menu-trigger
+      className="group block w-full cursor-pointer rounded-lg border border-[var(--hairline)] bg-[var(--panel)] px-2.5 py-2 text-left transition-colors hover:border-[var(--ink-faint)]"
+      onClick={onOpen}
+    >
+      <span className="flex items-center gap-1.5 text-[11px] tracking-[0.1em] text-[var(--ink-faint)]">
         <Sparkles size={11} className="shrink-0 text-[var(--accent)]" />
         总评
-        <span className="ml-auto">
-          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        <span className="ml-auto tracking-normal transition-colors group-hover:text-[var(--ink)]">
+          展开阅读
         </span>
-      </button>
-      {open ? (
-        <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--ink-soft)]">{text}</p>
-      ) : null}
-    </div>
+      </span>
+      <span className="mt-1.5 line-clamp-3 block text-[12px] leading-relaxed text-[var(--ink-soft)]">
+        {text}
+      </span>
+    </button>
   );
 }
 
-/** 加载态：三张骨架卡，让人知道位置会摆在这儿 */
+/** 加载态：一张说明「AI 正在干活」的状态卡，底下三张骨架卡让人知道意见会摆在这儿 */
 function Skeletons() {
+  const elapsed = useElapsedSeconds(true);
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" role="status">
+      <div className="rounded-lg border border-[var(--hairline)] bg-[var(--panel)] px-2.5 py-2.5">
+        <div className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--ink)]">
+          <Sparkles size={12} className="review-breathe shrink-0 text-[var(--accent)]" />
+          AI 正在审稿
+          <span className="ml-auto font-normal tabular-nums text-[var(--ink-faint)]">{elapsed} 秒</span>
+        </div>
+        <p className="mt-1 text-[11px] leading-relaxed text-[var(--ink-faint)]">
+          通读全文、逐句挑问题，一般要半分钟到一分钟。意见出来后会贴着对应的句子摆在这一栏。
+        </p>
+      </div>
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="animate-pulse rounded-lg border border-[var(--hairline-soft)] px-2.5 py-2"
+          className="rounded-lg border border-[var(--hairline-soft)] px-2.5 py-2"
+          style={{ opacity: 1 - i * 0.25 }}
         >
-          <div className="h-2 w-10 rounded bg-[var(--hairline)]" />
-          <div className="mt-2 h-2 w-full rounded bg-[var(--hairline)]" />
-          <div className="mt-1.5 h-2 w-2/3 rounded bg-[var(--hairline)]" />
+          <div className="review-shimmer h-2 w-10 rounded" />
+          <div className="review-shimmer mt-2 h-2 w-full rounded" />
+          <div className="review-shimmer mt-1.5 h-2 w-2/3 rounded" />
         </div>
       ))}
     </div>
@@ -90,11 +99,14 @@ export function ReviewCards({
   api,
   width = CARD_COL_WIDTH,
   onOpenSettings,
+  onOpenSummary,
 }: {
   api: ReviewApi;
   width?: number;
   /** 出错时那句「换个审核类型」：打开的是审核条上那张设置面板 */
   onOpenSettings: () => void;
+  /** 点总评小卡：打开的是审核条底下那张阅读面板 */
+  onOpenSummary: () => void;
 }) {
   const { phase, cards, activeId, spanOf, editorView, tick } = api;
   const catOf = useMemo(() => new Map(api.categories.map((c) => [c.id, c])), [api.categories]);
@@ -106,7 +118,6 @@ export function ReviewCards({
   const laid = tops.length > 0;
   /** 允不允许 top 走过渡：第一次落位是「瞬间就位」，之后的挪动才滑 */
   const [flow, setFlow] = useState(false);
-  const [sumOpen, setSumOpen] = useState(true);
 
   /**
    * 量高度 → 算避让 → 落位。必须在绘制前做完（useLayoutEffect），
@@ -138,8 +149,7 @@ export function ReviewCards({
     const at = activeId ? cards.findIndex((c) => c.id === activeId) : -1;
     const next = layoutCards(anchors, heights, at === -1 ? -1 : at + 1, CARD_GAP);
     setTops((prev) => (same(prev, next) ? prev : next));
-    // sumOpen 在列表里：总评一收一放，下面所有卡片都得跟着挪
-  }, [cards, activeId, tick, sumOpen, spanOf, editorView, phase]);
+  }, [cards, activeId, tick, spanOf, editorView, phase]);
 
   /**
    * 落位落定、这一帧画完了，才把过渡打开。
@@ -199,7 +209,7 @@ export function ReviewCards({
         className={`absolute left-0 w-full ${flow ? "transition-[top] duration-150 ease-out" : ""}`}
         style={{ top: tops[0] ?? 0, visibility: laid ? undefined : "hidden" }}
       >
-        <SummaryCard text={api.summary} open={sumOpen} onToggle={() => setSumOpen((v) => !v)} />
+        <SummaryCard text={api.summary} onOpen={onOpenSummary} />
         {api.total === 0 ? (
           <p className={`mt-2 ${emptyBox}`}>没发现需要改的地方，这篇可以直接发。</p>
         ) : cards.length === 0 ? (
