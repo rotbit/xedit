@@ -1,17 +1,18 @@
 "use client";
 
-// 文章视图顶栏右侧的操作簇：插入 / 版本 / 一键复制 / 双屏 / 阅读 / 更多。
+// 文章视图顶栏右侧的操作簇：插入 / 一键复制 / 审核 / 阅读 / 更多。
+// 双屏也是「换个视图看」的开关，和源码模式同类，于是跟它并排收进 ⋯ 菜单，顶栏不再单占一个图标。
 // 排版主题只影响渲染后的预览，切换入口放在预览顶栏（见 ThemeTrigger），编辑态不再露出。
 // 由 ArticleReader portal 到面包屑顶栏，与面包屑共用一行（从 ArticleReader 搬出）。
 // 常驻工具栏改成浮动工具条后，插入类操作没了去处，一并收进这里。
 // 低频项（分享 / 导出 / 三个开关 / 删除）统一收进 ⋯ 菜单，顶栏只留常用动作。
 
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useEscape } from "@/hooks/useEscape";
+import { ReviewLaunchPopover } from "@/features/review/ReviewLaunchPopover";
 import {
   BookOpen,
   ChevronDown,
-  Columns2,
   Copy,
   Film,
   History,
@@ -68,7 +69,8 @@ export const ReaderActions = memo(function ReaderActions({
   split,
   onToggleSplit,
   review,
-  onToggleReview,
+  onStartReview,
+  onExitReview,
   reading,
   onToggleReading,
   onInsert,
@@ -82,7 +84,9 @@ export const ReaderActions = memo(function ReaderActions({
   onToggleSplit: () => void;
   /** AI 审核模式开着没有（标注直接画在编辑器里，开启会先从双屏 / 阅读退回普通编辑视图） */
   review: boolean;
-  onToggleReview: () => void;
+  /** 按启动面板里选好的类型与模型开跑 */
+  onStartReview: () => void;
+  onExitReview: () => void;
   reading: boolean;
   onToggleReading: () => void;
   /** 插入类命令直通编辑器的 applyFormat */
@@ -113,6 +117,14 @@ export const ReaderActions = memo(function ReaderActions({
   }, copyMenuOpen || themeOpen);
   const [insertOpen, setInsertOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  /** 「审核」的启动面板：先选审核类型与模型，再开跑（Esc / 点外面收起由面板自己管） */
+  const [launchOpen, setLaunchOpen] = useState(false);
+  const reviewBtnRef = useRef<HTMLButtonElement>(null);
+  const closeLaunch = useCallback(() => {
+    setLaunchOpen(false);
+    // 焦点还回按钮：键盘用户收起面板后不该被扔回页面开头
+    reviewBtnRef.current?.focus();
+  }, []);
 
   // 只为菜单里那行说明取主题名：resolveTheme 遇到自定义主题会全量重建 CSS，别每次渲染都跑
   const themeName = useMemo(() => resolveTheme(themeId, customThemes).name, [themeId, customThemes]);
@@ -248,22 +260,30 @@ export const ReaderActions = memo(function ReaderActions({
           </>
         ) : null}
       </div>
-      <button
-        className={split ? iconBtnOn : iconBtnIdle}
-        title="双屏：左源码、右公众号真实效果（⌘E）"
-        onClick={onToggleSplit}
-      >
-        <Columns2 size={15} />
-      </button>
-      {/* AI 审核：直接在编辑区的正文上标出可以再改的地方，右侧逐条给意见 */}
-      <button
-        className={`${review ? iconBtnOn : iconBtnIdle} disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent`}
-        title={review ? "退出审核" : "AI 审核：逐句挑毛病，给得出改法的可以一键采纳"}
-        onClick={onToggleReview}
-        disabled={empty}
-      >
-        <SpellCheck size={15} />
-      </button>
+      {/* AI 审核：直接在编辑区的正文上标出可以再改的地方，右侧逐条给意见。
+          点它不立刻开跑——先弹面板问清楚审哪一类、用谁审（审核开着时它就是退出键） */}
+      <div className="relative">
+        <button
+          ref={reviewBtnRef}
+          data-menu-trigger
+          className={`${review || launchOpen ? iconBtnOn : iconBtnIdle} disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent`}
+          title={review ? "退出审核" : "AI 审核：选好类型与模型再开始"}
+          onClick={() => {
+            if (review) {
+              setLaunchOpen(false);
+              onExitReview();
+              return;
+            }
+            setLaunchOpen((v) => !v);
+          }}
+          disabled={empty}
+        >
+          <SpellCheck size={15} />
+        </button>
+        {launchOpen && !review ? (
+          <ReviewLaunchPopover onClose={closeLaunch} onStart={onStartReview} />
+        ) : null}
+      </div>
       {/* 阅读模式：整块编辑区换成渲染后的成品，宽栏通读。
           进出同一个按钮，图标自己说明当前该往哪走，不再另加高亮态 */}
       <button
@@ -326,6 +346,9 @@ export const ReaderActions = memo(function ReaderActions({
               <ToggleRow label="外链转文末引用" value={linkFootnote} onChange={setLinkFootnote} />
               <ToggleRow label="同步滚动" value={syncScroll} onChange={setSyncScroll} />
               <ToggleRow label="源码模式（⌘/）" value={sourceMode} onChange={setSourceMode} />
+              {/* 双屏的开合逻辑（含「开着审核时切过去要先退出审核」）都在父级的 onToggleSplit 里，
+                  这里只是换了个入口，开关状态仍由父级的 split 说了算 */}
+              <ToggleRow label="双屏预览（⌘E）" value={split} onChange={onToggleSplit} />
               {onDelete ? (
                 <>
                   <div className={menuDivider} />

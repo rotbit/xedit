@@ -7,7 +7,7 @@
 // 不用 coordsAtPos —— 它只对渲染出来的那一屏有效，而意见摊在全篇，屏外的卡片同样要就位。
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, RefreshCw, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, Settings2, Sparkles } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 import { ReviewCard } from "./ReviewCard";
 import { layoutCards } from "./locate";
@@ -86,13 +86,26 @@ function Skeletons() {
 const emptyBox =
   "rounded-lg border border-dashed border-[var(--hairline)] px-3 py-4 text-[12px] leading-relaxed text-[var(--ink-faint)]";
 
-export function ReviewCards({ api, width = CARD_COL_WIDTH }: { api: ReviewApi; width?: number }) {
+export function ReviewCards({
+  api,
+  width = CARD_COL_WIDTH,
+  onOpenSettings,
+}: {
+  api: ReviewApi;
+  width?: number;
+  /** 出错时那句「去设置模型」：打开的是审核条上那张设置面板 */
+  onOpenSettings: () => void;
+}) {
   const { phase, cards, activeId, spanOf, editorView, tick } = api;
   const catOf = useMemo(() => new Map(api.categories.map((c) => [c.id, c])), [api.categories]);
 
   const colRef = useRef<HTMLElement>(null);
   const elsRef = useRef(new Map<string, HTMLElement>());
   const [tops, setTops] = useState<number[]>([]);
+  /** 落过位没有：没落位的卡片不画（都堆在 top:0，画出来就是一摞） */
+  const laid = tops.length > 0;
+  /** 允不允许 top 走过渡：第一次落位是「瞬间就位」，之后的挪动才滑 */
+  const [flow, setFlow] = useState(false);
   const [sumOpen, setSumOpen] = useState(true);
 
   /**
@@ -102,7 +115,13 @@ export function ReviewCards({ api, width = CARD_COL_WIDTH }: { api: ReviewApi; w
   useLayoutEffect(() => {
     const col = colRef.current;
     const view = editorView();
-    if (!col || !view || phase !== "done") return;
+    if (!col || !view || phase !== "done") {
+      // 换一趟（重跑 / 出错 / 还在加载）就把落位作废：新一批卡片不该接着上一批的位置站，
+      // 否则第一帧先画在旧位置上，再当着用户的面滑过去
+      setTops((prev) => (prev.length === 0 ? prev : []));
+      setFlow(false);
+      return;
+    }
     const base = col.getBoundingClientRect().top;
 
     const anchors = [0]; // 总评贴着栏顶
@@ -122,6 +141,17 @@ export function ReviewCards({ api, width = CARD_COL_WIDTH }: { api: ReviewApi; w
     // sumOpen 在列表里：总评一收一放，下面所有卡片都得跟着挪
   }, [cards, activeId, tick, sumOpen, spanOf, editorView, phase]);
 
+  /**
+   * 落位落定、这一帧画完了，才把过渡打开。
+   * 不能在给 top 的同一帧里开：浏览器比对的是改完之后的样式，
+   * 那样照样会从 0 滑下来——进入审核头一秒「一摞卡片散开」就是这么来的。
+   */
+  useEffect(() => {
+    if (!laid || flow) return;
+    const id = requestAnimationFrame(() => setFlow(true));
+    return () => cancelAnimationFrame(id);
+  }, [laid, flow]);
+
   if (phase === "loading") {
     return (
       <aside className="absolute right-0 top-0" style={{ width }}>
@@ -132,15 +162,27 @@ export function ReviewCards({ api, width = CARD_COL_WIDTH }: { api: ReviewApi; w
   if (phase === "error") {
     return (
       <aside className="absolute right-0 top-0" style={{ width }}>
+        {/* 出错不能是条死路：服务端那句话照原样摆出来（没登录、站点没配这家、额度用完各有各的说法），
+            再给一条去改设置的路和一颗重试 */}
         <div className={emptyBox}>
           {api.error ?? "审核失败"}
-          <button
-            className="mt-2 flex cursor-pointer items-center gap-1 text-[var(--accent)] hover:underline"
-            onClick={api.rerun}
-          >
-            <RefreshCw size={11} />
-            重试
-          </button>
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              data-menu-trigger
+              className="flex cursor-pointer items-center gap-1 text-[var(--accent)] hover:underline"
+              onClick={onOpenSettings}
+            >
+              <Settings2 size={11} />
+              去设置模型
+            </button>
+            <button
+              className="flex cursor-pointer items-center gap-1 text-[var(--ink-soft)] hover:underline"
+              onClick={api.rerun}
+            >
+              <RefreshCw size={11} />
+              重试
+            </button>
+          </div>
         </div>
       </aside>
     );
@@ -154,8 +196,8 @@ export function ReviewCards({ api, width = CARD_COL_WIDTH }: { api: ReviewApi; w
           if (el) elsRef.current.set(SUMMARY_ID, el);
           else elsRef.current.delete(SUMMARY_ID);
         }}
-        className="absolute left-0 w-full transition-[top] duration-150 ease-out"
-        style={{ top: tops[0] ?? 0 }}
+        className={`absolute left-0 w-full ${flow ? "transition-[top] duration-150 ease-out" : ""}`}
+        style={{ top: tops[0] ?? 0, visibility: laid ? undefined : "hidden" }}
       >
         <SummaryCard text={api.summary} open={sumOpen} onToggle={() => setSumOpen((v) => !v)} />
         {api.total === 0 ? (
@@ -172,8 +214,8 @@ export function ReviewCards({ api, width = CARD_COL_WIDTH }: { api: ReviewApi; w
             if (el) elsRef.current.set(item.id, el);
             else elsRef.current.delete(item.id);
           }}
-          className="absolute left-0 w-full transition-[top] duration-150 ease-out"
-          style={{ top: tops[i + 1] ?? 0 }}
+          className={`absolute left-0 w-full ${flow ? "transition-[top] duration-150 ease-out" : ""}`}
+          style={{ top: tops[i + 1] ?? 0, visibility: laid ? undefined : "hidden" }}
         >
           <ReviewCard
             item={item}

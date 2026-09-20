@@ -7,11 +7,15 @@
  *
  * 模型还爱干三件事，这里一并挡掉：把 frontmatter 和代码块当正文挑毛病、
  * 把同一句翻来覆去说好几遍、一口气给你四十条。
+ *
+ * 审核分两类（见 reviewKinds.ts）：看表述的和看公众号规则的。两类共用上面这套规矩，
+ * 各自有自己的系统提示与分类清单——「啰嗦」和「诱导关注」不该混在同一排筛选筹码里。
  */
 import type { ReviewCategory, ReviewItem, ReviewResult } from "@/features/review/types";
+import { DEFAULT_REVIEW_KIND, type ReviewKind } from "./reviewKinds";
 
-/** 认这几类。模型只许在这几个 id 里选，颜色由前端按 id 取（与 mockReview 同一套配色） */
-export const AI_CATEGORIES: ReviewCategory[] = [
+/** 表述审核认这几类。模型只许在这几个 id 里选，颜色由前端按 id 取 */
+const EXPRESSION_CATEGORIES: ReviewCategory[] = [
   { id: "grammar", label: "语病", color: "#d93025" },
   { id: "verbose", label: "啰嗦", color: "#c2820a" },
   { id: "vague", label: "表述不清", color: "#1a6fd4" },
@@ -20,11 +24,16 @@ export const AI_CATEGORIES: ReviewCategory[] = [
   { id: "fact", label: "事实存疑", color: "#0f766e" },
 ];
 
-const BY_ID = new Map(AI_CATEGORIES.map((c) => [c.id, c]));
-/** 模型偶尔会拿中文标签当 id 回来，认一下省得整条丢掉 */
-const BY_LABEL = new Map(AI_CATEGORIES.map((c) => [c.label, c]));
+/** 公众号合规审核认这几类：踩的是平台规则，不是文笔 */
+const WECHAT_RULES_CATEGORIES: ReviewCategory[] = [
+  { id: "clickbait", label: "标题党/夸大", color: "#c2410c" },
+  { id: "inducement", label: "诱导行为", color: "#8e44ad" },
+  { id: "absolute", label: "绝对化用语", color: "#c2820a" },
+  { id: "sensitive", label: "敏感风险", color: "#d93025" },
+  { id: "copyright", label: "版权与引用", color: "#0f766e" },
+];
 
-/** 一篇最多给几条：再多作者也看不过来，和 mockReview 的上限保持一致 */
+/** 一篇最多给几条：再多作者也看不过来 */
 export const MAX_AI_ITEMS = 12;
 /** 引文太短会在正文里到处撞上（「的」能匹配几十处），太长又几乎必然对不上 */
 const MIN_QUOTE = 4;
@@ -32,22 +41,98 @@ const MAX_QUOTE = 120;
 /** 超过这个长度的正文先截断再送模型：够审一篇公众号长文，也不至于一次烧掉太多 token */
 export const MAX_REVIEW_CHARS = 24000;
 
-export const REVIEW_SYSTEM_PROMPT = [
+/** 两类共用的硬规矩：JSON 形状、引文逐字、别碰代码块、最多 12 条 */
+function commonRules(cats: ReviewCategory[], suggestion: string, summary: string): string[] {
+  return [
+    "必须遵守：",
+    "1. 只输出一个 JSON 对象，不要写任何解释、前言或 Markdown 代码块。",
+    '2. JSON 形状：{"summary": "一段总评", "items": [{"category": "...", "quote": "...", "problem": "...", "suggestion": "..."}]}',
+    `3. category 只能是这几个之一：${cats.map((c) => `${c.id}（${c.label}）`).join("、")}。`,
+    "4. quote 必须是原文里一字不差、连续存在的一小段（含标点），长度控制在 4～40 个字，",
+    "   不要跨行，不要自己改写，不要加省略号，不要带 Markdown 语法记号。",
+    `5. ${suggestion}`,
+    "6. 不要点评 frontmatter（--- 之间的元数据）、代码块、图片和链接地址。",
+    "7. 同一句话只说一次，最多给 12 条，按重要程度从高到低排。",
+    `8. ${summary}`,
+  ];
+}
+
+/**
+ * 表述审核的系统提示。
+ * ⚠️ 暂定文案：作者之后会给最终版的提示词，到时候整段换掉，别在这儿一条条打补丁。
+ */
+const EXPRESSION_PROMPT = [
   "你是一位严格但克制的中文编辑，正在帮作者审一篇要发到微信公众号的文章。",
   "你的任务是挑出文章里真正值得改的地方，并给出可直接替换的改法。",
   "",
-  "必须遵守：",
-  "1. 只输出一个 JSON 对象，不要写任何解释、前言或 Markdown 代码块。",
-  '2. JSON 形状：{"summary": "一段总评", "items": [{"category": "...", "quote": "...", "problem": "...", "suggestion": "..."}]}',
-  `3. category 只能是这几个之一：${AI_CATEGORIES.map((c) => `${c.id}（${c.label}）`).join("、")}。`,
-  "4. quote 必须是原文里一字不差、连续存在的一小段（含标点），长度控制在 4～40 个字，",
-  "   不要跨行，不要自己改写，不要加省略号，不要带 Markdown 语法记号。",
-  "5. problem 用一句话说清楚问题出在哪，像编辑在旁边说话，不要空话套话。",
-  "6. suggestion 是把 quote 整段替换掉之后的文字；如果这条只是提醒、没有明确改法，就不要这个字段。",
-  "7. 不要点评 frontmatter（--- 之间的元数据）、代码块、图片和链接地址。",
-  "8. 同一句话只说一次，最多给 12 条，按重要程度从高到低排。",
-  "9. summary 用两三句话说全文的整体问题和优点，不要罗列上面每一条。",
+  ...commonRules(
+    EXPRESSION_CATEGORIES,
+    [
+      "problem 用一句话说清楚问题出在哪，像编辑在旁边说话，不要空话套话；",
+      "   suggestion 是把 quote 整段替换掉之后的文字；如果这条只是提醒、没有明确改法，就不要这个字段。",
+    ].join("\n"),
+    "summary 用两三句话说全文的整体问题和优点，不要罗列上面每一条。"
+  ),
 ].join("\n");
+
+/**
+ * 公众号合规审核的系统提示。
+ * ⚠️ 暂定文案：照着公众号后台常见的驳回理由与《广告法》忌讳写的一版，
+ * 作者之后会给最终版的规则清单，到时候整段换掉。
+ */
+const WECHAT_RULES_PROMPT = [
+  "你是微信公众号的内容合规审核员，正在帮作者检查一篇马上要群发的文章。",
+  "你的任务是找出可能违反公众号平台规则、会被限流、删文或驳回的地方，只说风险，不评文笔。",
+  "",
+  ...commonRules(
+    WECHAT_RULES_CATEGORIES,
+    [
+      "problem 用一句话说清楚这句踩了哪条规则、可能的后果（限流 / 删文 / 不给推荐）；",
+      "   只有改法明摆着（比如把绝对化用语换成有限定的说法）时才给 suggestion，",
+      "   拿不准怎么改就不要这个字段，让作者自己拿主意。",
+    ].join("\n"),
+    "summary 用两三句话说这篇整体的合规风险，有没有必须改掉的硬伤。"
+  ),
+  "",
+  "重点看这几类：",
+  "- 标题党 / 夸大：标题或开头与正文不符、卖悬念骗点击、震惊体、对效果打包票；",
+  "- 诱导行为：诱导分享 / 转发 / 关注 / 点赞 / 在看 / 打赏 / 加群，「转发可得」「不转不是……」这类；",
+  "- 绝对化用语：最、第一、顶级、国家级、100%、永久、绝无仅有等《广告法》忌讳的说法；",
+  "- 敏感风险：医疗保健的疗效承诺、投资理财的收益承诺、未经证实的传言、涉政涉黄涉赌、",
+  "  人身攻击与地域歧视、暴露他人隐私；",
+  "- 版权与引用：整段搬运他人文章、引用不注明出处、用来路不明的图片或音乐。",
+].join("\n");
+
+interface KindPrompt {
+  categories: ReviewCategory[];
+  system: string;
+  /** 分类认不出来时归到哪一类：整条丢掉太可惜，落进一个说得过去的筐里 */
+  fallbackCategory: string;
+}
+
+const PROMPTS: Record<ReviewKind, KindPrompt> = {
+  expression: {
+    categories: EXPRESSION_CATEGORIES,
+    system: EXPRESSION_PROMPT,
+    fallbackCategory: "wording",
+  },
+  wechat_rules: {
+    categories: WECHAT_RULES_CATEGORIES,
+    system: WECHAT_RULES_PROMPT,
+    // 合规这边说不清归哪类的，多半是「这么写有风险」，放进敏感风险里最不容易误导
+    fallbackCategory: "sensitive",
+  },
+};
+
+/** 这一类审核有哪些问题分类（结果里的 categories 从这里挑） */
+export function reviewCategories(kind: ReviewKind): ReviewCategory[] {
+  return PROMPTS[kind].categories;
+}
+
+/** 这一类审核的系统提示 */
+export function reviewSystemPrompt(kind: ReviewKind): string {
+  return PROMPTS[kind].system;
+}
 
 /** 正文太长就掐掉尾巴：截断点落在换行处，别把一句话劈成两半 */
 export function clipForReview(content: string, max = MAX_REVIEW_CHARS): string {
@@ -140,12 +225,21 @@ const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
  *
  * 解析不出 JSON 会抛错（调用方据此提示「模型没按格式回答」）；
  * 单条不合格只丢这一条——十条里有一条跑偏，不该让另外九条一起白跑。
+ * 分类按这一类审核自己的清单认，串类的（拿表述那套 id 回答合规审核）一律落到兜底分类。
  */
-export function parseReviewResult(text: string, content: string): ReviewResult {
+export function parseReviewResult(
+  text: string,
+  content: string,
+  kind: ReviewKind = DEFAULT_REVIEW_KIND
+): ReviewResult {
   const parsed = extractJson(text);
   if (!parsed || typeof parsed !== "object") {
     throw new Error("模型没有按格式回答，换个模型或重试一次");
   }
+  const spec = PROMPTS[kind] ?? PROMPTS[DEFAULT_REVIEW_KIND];
+  const byId = new Map(spec.categories.map((c) => [c.id, c]));
+  /** 模型偶尔会拿中文标签当 id 回来，认一下省得整条丢掉 */
+  const byLabel = new Map(spec.categories.map((c) => [c.label, c]));
   const raw = parsed as { summary?: unknown; items?: unknown };
   const lines = content.split("\n");
   const skip = skipLines(lines);
@@ -169,7 +263,7 @@ export function parseReviewResult(text: string, content: string): ReviewResult {
     seen.add(quote);
 
     const category =
-      BY_ID.get(str(it.category))?.id ?? BY_LABEL.get(str(it.category))?.id ?? "wording";
+      byId.get(str(it.category))?.id ?? byLabel.get(str(it.category))?.id ?? spec.fallbackCategory;
     const suggestion = str(it.suggestion);
     items.push({
       id: `ai${items.length + 1}`,
@@ -185,11 +279,11 @@ export function parseReviewResult(text: string, content: string): ReviewResult {
   const used = new Set(items.map((it) => it.category));
   const summary =
     str(raw.summary) ||
-    (items.length > 0 ? `挑出 ${items.length} 处可以再打磨的地方。` : "这篇没扫到明显要改的地方。");
+    (items.length > 0 ? `挑出 ${items.length} 处值得看一眼的地方。` : "这篇没扫到明显要改的地方。");
   return {
     summary,
     // 只留真正用上的分类：工具条上的筛选筹码不该出现「0 条」的那种
-    categories: AI_CATEGORIES.filter((c) => used.has(c.id)),
+    categories: spec.categories.filter((c) => used.has(c.id)),
     items,
   };
 }

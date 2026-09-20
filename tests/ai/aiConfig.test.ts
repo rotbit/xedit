@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { AI_PROVIDERS, aiProvider, cleanModel, isAiProviderId } from "@/lib/ai/providers";
+import { DEFAULT_REVIEW_KIND } from "@/lib/ai/reviewKinds";
 import {
   __resetAiConfigForTests,
-  aiKeyOf,
   readAiConfig,
   writeAiConfig,
 } from "@/features/review/aiConfig";
@@ -29,12 +29,11 @@ describe("供应商目录", () => {
     ]);
   });
 
-  it("每家都得有地址、模型和取 key 的去处", () => {
+  it("每家都得有地址、模型和环境变量名", () => {
     for (const p of AI_PROVIDERS) {
       expect(p.baseUrl.startsWith("https://"), p.id).toBe(true);
       expect(p.baseUrl.endsWith("/"), p.id).toBe(false); // 拼地址时自己加斜杠
       expect(p.models.length, p.id).toBeGreaterThan(0);
-      expect(p.keyUrl.startsWith("https://"), p.id).toBe(true);
       expect(p.envKey, p.id).toMatch(/^[A-Z0-9_]+$/);
     }
   });
@@ -85,15 +84,13 @@ describe("本机的 AI 设置", () => {
     const cfg = readAiConfig();
     expect(isAiProviderId(cfg.provider)).toBe(true);
     expect(aiProvider(cfg.provider)!.models).toContain(cfg.model);
-    expect(aiKeyOf(cfg)).toBe("");
   });
 
   it("改完就落盘，下次（清掉内存缓存后）还读得回来", () => {
-    writeAiConfig({ provider: "kimi", keys: { kimi: "sk-kimi" } });
+    writeAiConfig({ provider: "kimi" });
     __resetAiConfigForTests();
     const cfg = readAiConfig();
     expect(cfg.provider).toBe("kimi");
-    expect(aiKeyOf(cfg)).toBe("sk-kimi");
   });
 
   it("换供应商时模型跟着换：上一家的模型名在这一家不存在", () => {
@@ -102,11 +99,16 @@ describe("本机的 AI 设置", () => {
     expect(next.model).toBe(aiProvider("glm")!.models[0]);
   });
 
-  it("各家的 key 各存各的，换回去不用重粘", () => {
-    writeAiConfig({ provider: "deepseek", keys: { deepseek: "sk-ds" } });
-    writeAiConfig({ provider: "openai", keys: { openai: "sk-oa" } });
-    expect(aiKeyOf(readAiConfig())).toBe("sk-oa");
-    expect(aiKeyOf(writeAiConfig({ provider: "deepseek" }))).toBe("sk-ds");
+  it("旧版本存在浏览器里的 key 读到就擦掉：key 只许待在服务端", () => {
+    localStorage.setItem(
+      "xedit.ai.config",
+      JSON.stringify({ provider: "kimi", model: "x", kind: "expression", keys: { kimi: "sk-旧的" } })
+    );
+    __resetAiConfigForTests();
+    const cfg = readAiConfig();
+    expect(cfg.provider).toBe("kimi");
+    expect("keys" in cfg).toBe(false);
+    expect(localStorage.getItem("xedit.ai.config")).not.toContain("sk-旧的");
   });
 
   it("存坏了当没存过，不为这点设置弹错", () => {
@@ -119,5 +121,34 @@ describe("本机的 AI 设置", () => {
     localStorage.setItem("xedit.ai.config", JSON.stringify({ provider: "胡编的", model: "x" }));
     __resetAiConfigForTests();
     expect(isAiProviderId(readAiConfig().provider)).toBe(true);
+  });
+
+  it("没选过审核类型就给默认那一类", () => {
+    expect(readAiConfig().kind).toBe(DEFAULT_REVIEW_KIND);
+  });
+
+  it("选过的类型也落盘：下次点「审核」仍停在上回那一类", () => {
+    writeAiConfig({ kind: "wechat_rules" });
+    __resetAiConfigForTests();
+    expect(readAiConfig().kind).toBe("wechat_rules");
+  });
+
+  it("换模型不碰审核类型，换类型也不碰模型（面板里这两截各管各的）", () => {
+    writeAiConfig({ kind: "wechat_rules", provider: "deepseek" });
+    expect(writeAiConfig({ provider: "glm" }).kind).toBe("wechat_rules");
+    expect(writeAiConfig({ kind: "expression" }).model).toBe(aiProvider("glm")!.models[0]);
+  });
+
+  it("旧版本存的那份没有 kind，读出来也得是个能用的类型", () => {
+    localStorage.setItem("xedit.ai.config", JSON.stringify({ provider: "deepseek" }));
+    __resetAiConfigForTests();
+    expect(readAiConfig().kind).toBe(DEFAULT_REVIEW_KIND);
+  });
+
+  it("存里的类型被人改花了就落回默认，不把它原样发给接口（发过去只会换来 400）", () => {
+    localStorage.setItem("xedit.ai.config", JSON.stringify({ kind: "胡编的" }));
+    __resetAiConfigForTests();
+    expect(readAiConfig().kind).toBe(DEFAULT_REVIEW_KIND);
+    expect(writeAiConfig({ kind: "也是胡编的" as never }).kind).toBe(DEFAULT_REVIEW_KIND);
   });
 });
