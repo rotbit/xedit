@@ -31,6 +31,10 @@ import type { DocMeta } from "@/features/workspace/types";
 import { OutlinePanel } from "./OutlinePanel";
 import { Preview } from "./Preview";
 import { VersionsPanel } from "./VersionsPanel";
+import { useReview } from "@/features/review/useReview";
+import { REVIEW_MIN_WIDTH, useReviewLayout } from "@/features/review/useReviewLayout";
+import { ReviewToolbar } from "@/features/review/ReviewToolbar";
+import { ReviewCards, ReviewPopover } from "@/features/review/ReviewCards";
 
 const SAVE_LABEL: Record<string, string> = {
   local: "已存本地",
@@ -94,7 +98,15 @@ export function ArticleReader({
   const splitAreaRef = useRef<HTMLDivElement>(null);
   // 标题 + 正文的共同滚动容器：用 state 而非 ref，挂载后要重新渲染把它传给编辑器
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
-  const { mode, previewMounted, toggleSplit, toggleReading } = useEditorViewMode(editorRef, scrollEl);
+  /** AI 审核模式：意见直接标在编辑器的正文上，所以只在普通编辑视图里成立，
+      进双屏 / 进阅读就跟着退出 */
+  const [reviewOn, setReviewOn] = useState(false);
+  const exitReview = useCallback(() => setReviewOn(false), []);
+  const { mode, previewMounted, toggleSplit, openEdit, toggleReading } = useEditorViewMode(
+    editorRef,
+    scrollEl,
+    exitReview
+  );
   const split = mode === "split";
   const reading = mode === "read";
   // 选区上报走订阅而不是 state：光标每动一下都 setState 会白白重渲染整个文章视图，
@@ -132,6 +144,27 @@ export function ArticleReader({
 
   // 编辑器重建的标识：docId 或装载批次一变就换了一篇内容（滚动记忆以它判断「切文档」）
   const docKey = `${docId}:${docVersion}`;
+
+  // AI 审核：状态、对位、采纳都在这个 hook 里，换文档会自己作废重来
+  const reviewApi = useReview({
+    active: reviewOn,
+    content,
+    docKey,
+    editorRef,
+    scrollEl,
+  });
+  /** 正文列宽一步不让：摆得下就在右边加一栏意见，摆不下就改成浮层 */
+  const { showColumn } = useReviewLayout({ active: reviewOn, scrollEl });
+
+  /** 开审核先退回普通编辑视图（标注长在编辑器上）；关掉不动视图 */
+  const toggleReview = useCallback(() => {
+    if (reviewOn) {
+      setReviewOn(false);
+      return;
+    }
+    openEdit();
+    setReviewOn(true);
+  }, [reviewOn, openEdit]);
 
   // 封面写进 frontmatter。编辑器不受控，得走它自己的事务改（顺带能撤销），
   // 只替换首尾公共部分之外的那一小段，光标和滚动位置不动
@@ -178,6 +211,14 @@ export function ArticleReader({
   });
   // 拖动中用实时值，松手后回到 store 那份
   const shownRatio = splitDrag.value ?? splitRatio;
+
+  /** 正文与意见栏并排的那一版（摆不下时只剩浮层，版式跟平时一模一样） */
+  const pairColumn = reviewOn && showColumn;
+  const titleCls = split
+    ? "px-7"
+    : pairColumn
+      ? "max-w-[760px] px-7"
+      : "mx-auto max-w-[760px] px-7";
 
   /** 移动分类：改 store 即可，持久化走自动保存管线（本地/云端/离线一致） */
   const moveToCategory = (c: string) => {
@@ -256,6 +297,8 @@ export function ArticleReader({
               empty={chars === 0}
               split={split}
               onToggleSplit={toggleSplit}
+              review={reviewOn}
+              onToggleReview={toggleReview}
               reading={reading}
               onToggleReading={toggleReading}
               onInsert={applyFormat}
@@ -298,14 +341,36 @@ export function ArticleReader({
               />
             </div>
             <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-              {/* 飞书式目录入口，贴在正文列左上角的留白里，展开后由面板顶部的收起按钮接管 */}
+              {/* AI 审核的横杠：摆在滚动区外面，正文只被它顶下去一条的高度，不会跟着卡片乱跳 */}
+              {reviewOn ? (
+                <ReviewToolbar
+                  phase={reviewApi.phase}
+                  total={reviewApi.total}
+                  handled={reviewApi.handled}
+                  categories={reviewApi.categories}
+                  counts={reviewApi.counts}
+                  filter={reviewApi.filter}
+                  onFilter={reviewApi.setFilter}
+                  onPrev={reviewApi.goPrev}
+                  onNext={reviewApi.goNext}
+                  canPrev={reviewApi.canPrev}
+                  canNext={reviewApi.canNext}
+                  onRerun={reviewApi.rerun}
+                  onExit={exitReview}
+                  summary={showColumn ? undefined : reviewApi.summary}
+                />
+              ) : null}
+              {/* 飞书式目录入口，贴在正文列左上角的留白里，展开后由面板顶部的收起按钮接管。
+                  审核时上面多了条横杠，它得跟着往下让 */}
               {!outlineOpen ? (
                 <button
                   type="button"
                   title="目录"
                   aria-label="展开目录"
                   onClick={openOutline}
-                  className="absolute left-1.5 top-[38px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+                  className={`absolute left-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${
+                    reviewOn ? "top-[74px]" : "top-[38px]"
+                  }`}
                 >
                   <AlignLeft size={15} strokeWidth={1.75} />
                 </button>
@@ -314,82 +379,99 @@ export function ArticleReader({
                   正文不再从固定标题下方被硬切。编辑器自身改为高度自适应（.reader-live），
                   滚动读写由 MarkdownEditor 的 scrollParent 接管 */}
               <div ref={setScrollEl} className="min-h-0 flex-1 overflow-y-auto">
-                {/* 标题 + 元信息：左缘与正文文字对齐（28px = .cm-doc/.cm-split 的行内缩） */}
-                {/* pt 比原来多 12px：常驻工具栏撤掉后，标题不能直接顶在面包屑下沿 */}
-                <div className={`w-full pt-8 ${split ? "px-7" : "mx-auto max-w-[760px] px-7"}`}>
-                  <input
-                    className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
-                    value={title}
-                    placeholder={UNTITLED_DOC}
-                    onChange={(e) => setTitle(e.target.value)}
-                    onFocus={() => {
-                      // 先记原样再清占位：清空后的 "" 不该被当成「改名前叫这个」
-                      onTitleFocus();
-                      if (title === UNTITLED_DOC) setTitle("");
-                    }}
-                    onBlur={() => {
-                      onTitleBlur();
-                      if (!title.trim()) setTitle(UNTITLED_DOC);
-                    }}
-                  />
-                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
-                    {/* 深层级路径太长压垮元信息行：只显末级名，全路径挂在悬停提示里；
-                        点击弹带搜索的分类选择器（与文章列表右键菜单同款）。
-                        平时不带底色，和同行的保存状态、字数一种质感，悬停才浮出浅底提示可点 */}
-                    <button
-                      className="-ml-1 flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-                      title={`${category || UNCATEGORIZED}\n点击移动到分类`}
-                      onClick={() => void pickCategory()}
-                    >
-                      <Folder size={12} className="shrink-0" />
-                      <span className="truncate">
-                        {(category || UNCATEGORIZED).includes("/")
-                          ? `…/${(category || UNCATEGORIZED).split("/").pop()}`
-                          : category || UNCATEGORIZED}
-                      </span>
-                      <ChevronDown size={11} className="shrink-0 opacity-60" />
-                    </button>
-                    <span>·</span>
-                    {/* MCP / 其他设备改过、页面自动校新后，在这一格轻提示几秒再回落，不弹 toast */}
-                    {refreshedHint ? (
-                      <span className="sync-hint flex items-center gap-1 text-[var(--accent)]">
-                        <RefreshCw size={11} />
-                        已更新到最新版本
-                      </span>
-                    ) : (
-                      <span>{SAVE_LABEL[saveState] ?? saveState}</span>
-                    )}
-                    <span>·</span>
-                    <span>{chars} 字</span>
-                    {chars > 0 ? (
-                      <>
-                        <span>·</span>
-                        <span>约 {Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE))} 分钟读完</span>
-                      </>
-                    ) : null}
-                    <span>·</span>
-                    <CoverPicker content={content} onPick={pickCover} />
-                  </div>
-                  <div className="mt-3 h-px w-10 bg-[var(--hairline-strong)]" />
-                </div>
-                {/* Markdown 编辑器：默认即时渲染（设置里可切回源码模式）。
-                    单屏时加 .cm-doc → 正文居中在可读宽度；双屏时加 .cm-split → 填满左栏但加大行内缩。
-                    .reader-live 让编辑器高度自适应，滚动交给上面的外层容器 */}
+                {/* 审核时把「标题 + 正文 + 意见栏」当成一对居中：正文列还是 760，
+                    只是整体往左挪了半个意见栏。不审核时这层是 display:contents，等于不存在 */}
                 <div
-                  className={`w-full cm-reader reader-live ${split ? "cm-split" : "cm-doc"}`}
+                  className={reviewOn ? "relative mx-auto w-full" : "contents"}
+                  style={pairColumn ? { maxWidth: REVIEW_MIN_WIDTH } : undefined}
                 >
-                  <MarkdownEditor
-                    key={docKey}
-                    ref={editorRef}
-                    docKey={docKey}
-                    initialContent={useStore.getState().content}
-                    live={!sourceMode}
-                    docs={docs}
-                    onChange={setContent}
-                    onScrollLine={onScrollLine}
-                    onSelectionChange={emitSelection}
-                    scrollParent={scrollEl}
-                  />
+                  {/* 标题 + 元信息：左缘与正文文字对齐（28px = .cm-doc/.cm-split 的行内缩） */}
+                  {/* pt 比原来多 12px：常驻工具栏撤掉后，标题不能直接顶在面包屑下沿 */}
+                  <div className={`w-full pt-8 ${titleCls}`}>
+                    <input
+                      className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
+                      value={title}
+                      placeholder={UNTITLED_DOC}
+                      onChange={(e) => setTitle(e.target.value)}
+                      onFocus={() => {
+                        // 先记原样再清占位：清空后的 "" 不该被当成「改名前叫这个」
+                        onTitleFocus();
+                        if (title === UNTITLED_DOC) setTitle("");
+                      }}
+                      onBlur={() => {
+                        onTitleBlur();
+                        if (!title.trim()) setTitle(UNTITLED_DOC);
+                      }}
+                    />
+                    <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
+                      {/* 深层级路径太长压垮元信息行：只显末级名，全路径挂在悬停提示里；
+                          点击弹带搜索的分类选择器（与文章列表右键菜单同款）。
+                          平时不带底色，和同行的保存状态、字数一种质感，悬停才浮出浅底提示可点 */}
+                      <button
+                        className="-ml-1 flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+                        title={`${category || UNCATEGORIZED}\n点击移动到分类`}
+                        onClick={() => void pickCategory()}
+                      >
+                        <Folder size={12} className="shrink-0" />
+                        <span className="truncate">
+                          {(category || UNCATEGORIZED).includes("/")
+                            ? `…/${(category || UNCATEGORIZED).split("/").pop()}`
+                            : category || UNCATEGORIZED}
+                        </span>
+                        <ChevronDown size={11} className="shrink-0 opacity-60" />
+                      </button>
+                      <span>·</span>
+                      {/* MCP / 其他设备改过、页面自动校新后，在这一格轻提示几秒再回落，不弹 toast */}
+                      {refreshedHint ? (
+                        <span className="sync-hint flex items-center gap-1 text-[var(--accent)]">
+                          <RefreshCw size={11} />
+                          已更新到最新版本
+                        </span>
+                      ) : (
+                        <span>{SAVE_LABEL[saveState] ?? saveState}</span>
+                      )}
+                      <span>·</span>
+                      <span>{chars} 字</span>
+                      {chars > 0 ? (
+                        <>
+                          <span>·</span>
+                          <span>约 {Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE))} 分钟读完</span>
+                        </>
+                      ) : null}
+                      <span>·</span>
+                      <CoverPicker content={content} onPick={pickCover} />
+                    </div>
+                    <div className="mt-3 h-px w-10 bg-[var(--hairline-strong)]" />
+                  </div>
+                  {/* Markdown 编辑器：默认即时渲染（设置里可切回源码模式）。
+                      单屏时加 .cm-doc → 正文居中在可读宽度；双屏时加 .cm-split → 填满左栏但加大行内缩。
+                      .reader-live 让编辑器高度自适应，滚动交给上面的外层容器 */}
+                  <div
+                    className={`w-full cm-reader reader-live ${split ? "cm-split" : "cm-doc"} ${
+                      pairColumn ? "max-w-[760px]" : ""
+                    }`}
+                  >
+                    <MarkdownEditor
+                      key={docKey}
+                      ref={editorRef}
+                      docKey={docKey}
+                      initialContent={useStore.getState().content}
+                      live={!sourceMode}
+                      docs={docs}
+                      onChange={setContent}
+                      onScrollLine={onScrollLine}
+                      onSelectionChange={emitSelection}
+                      scrollParent={scrollEl}
+                    />
+                  </div>
+                  {/* 意见：摆得下就在右边站一栏，摆不下就只给选中的那条浮一张 */}
+                  {reviewOn ? (
+                    showColumn ? (
+                      <ReviewCards api={reviewApi} />
+                    ) : (
+                      <ReviewPopover api={reviewApi} />
+                    )
+                  ) : null}
                 </div>
               </div>
             </div>
