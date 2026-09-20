@@ -80,7 +80,7 @@ export async function POST(req: Request) {
   const key = siteAiKey(provider);
   if (!key) {
     return NextResponse.json(
-      { error: "no_key", message: `站点还没有配置 ${provider.label} 的 Key，换一家模型试试` },
+      { error: "no_key", message: `暂未支持 ${provider.label}，换一家模型试试` },
       { status: 503 }
     );
   }
