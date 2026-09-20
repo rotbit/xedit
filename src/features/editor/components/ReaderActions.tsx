@@ -10,6 +10,7 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useEscape } from "@/hooks/useEscape";
+import { AiIcon } from "@/components/AiIcon";
 import { ReviewLaunchPopover } from "@/features/review/ReviewLaunchPopover";
 import {
   BookOpen,
@@ -22,7 +23,6 @@ import {
   Loader2,
   Minus,
   MoreHorizontal,
-  SpellCheck,
   Palette,
   PenLine,
   Plus,
@@ -189,11 +189,11 @@ export const ReaderActions = memo(function ReaderActions({
           title={draftStatus ?? "一键复制"}
         >
           {copying !== null || draftStatus !== null ? (
-            <Loader2 size={15} className="animate-spin" />
+            <Loader2 size={16} className="animate-spin" />
           ) : (
-            <Copy size={15} />
+            <Copy size={16} />
           )}
-          <ChevronDown size={13} className="opacity-70" />
+          <ChevronDown size={14} className="opacity-70" />
         </button>
         {copyMenuOpen ? (
           <>
@@ -201,7 +201,7 @@ export const ReaderActions = memo(function ReaderActions({
             <div className={`${menuCard} w-48`}>
               {/* 复制出去的排版由主题决定，编辑态看不到；在这里点一下就能换，不必先切到预览 */}
               <div className="flex items-center gap-1 px-3.5 pb-1.5 pt-0.5 text-[11px] text-[var(--ink-faint)]">
-                <Palette size={11} strokeWidth={1.75} className="shrink-0" />
+                <Palette size={12} className="shrink-0" />
                 <span className="min-w-0 truncate">排版主题：{themeName}</span>
                 <button
                   className="ml-auto shrink-0 cursor-pointer text-[var(--ink-soft)] underline decoration-[var(--hairline-strong)] underline-offset-2 hover:text-[var(--ink)]"
@@ -276,7 +276,11 @@ export const ReaderActions = memo(function ReaderActions({
           ref={reviewBtnRef}
           data-menu-trigger
           className={`${review || launchOpen ? iconBtnOn : iconBtnIdle} disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent`}
-          title={review ? "退出审核" : "AI 审核：选好类型与模型再开始"}
+          title={review ? "退出 AI 审核" : "AI 审核：检查表述与公众号合规"}
+          aria-label={review ? "退出 AI 审核" : "AI 审核"}
+          aria-expanded={launchOpen && !review}
+          aria-haspopup="dialog"
+          aria-pressed={review}
           onClick={() => {
             if (review) {
               setLaunchOpen(false);
@@ -287,7 +291,7 @@ export const ReaderActions = memo(function ReaderActions({
           }}
           disabled={empty}
         >
-          <SpellCheck size={15} />
+          <AiIcon size={16} />
         </button>
         {launchOpen && !review ? (
           <ReviewLaunchPopover
@@ -305,7 +309,7 @@ export const ReaderActions = memo(function ReaderActions({
         title={reading ? "返回编辑（⌘⇧E）" : "阅读模式：全屏只看渲染后的成品（⌘⇧E）"}
         onClick={onToggleReading}
       >
-        {reading ? <PenLine size={15} /> : <BookOpen size={15} />}
+        {reading ? <PenLine size={16} /> : <BookOpen size={16} />}
       </button>
       <div className="relative">
         <button
@@ -327,7 +331,7 @@ export const ReaderActions = memo(function ReaderActions({
                   onOpenShare();
                 }}
               >
-                <Share2 size={13} />
+                <Share2 size={14} />
                 分享给他人查看与批注…
               </button>
               {/* 版本历史低频，收进菜单；顶栏只留复制这个核心动作 */}
@@ -338,7 +342,7 @@ export const ReaderActions = memo(function ReaderActions({
                   onOpenVersions();
                 }}
               >
-                <History size={13} />
+                <History size={14} />
                 版本历史…
               </button>
               <div className={menuDivider} />
@@ -373,7 +377,7 @@ export const ReaderActions = memo(function ReaderActions({
                       onDelete();
                     }}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={14} />
                     删除文章
                   </button>
                 </>

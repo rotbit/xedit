@@ -95,12 +95,12 @@ export function WikiLinkMenu({
           >
             {create ? (
               <>
-                <Plus size={15} strokeWidth={1.75} className="shrink-0 text-[var(--accent)]" />
+                <Plus size={16} className="shrink-0 text-[var(--accent)]" />
                 <span className="min-w-0 flex-1 truncate">新建「{item.title}」</span>
               </>
             ) : (
               <>
-                <FileText size={15} strokeWidth={1.75} className="shrink-0 text-[var(--ink-soft)]" />
+                <FileText size={16} className="shrink-0 text-[var(--ink-soft)]" />
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 <span className="max-w-[7rem] shrink-0 truncate text-[11px] text-[var(--ink-faint)]">
                   {item.doc.category || UNCATEGORIZED}

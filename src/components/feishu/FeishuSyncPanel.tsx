@@ -22,7 +22,7 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
     <section className="rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-4 py-3 text-[12px] leading-5 text-[var(--ink-soft)]">
       {sync.scanning ? (
         <p className="flex items-center gap-2">
-          <Loader2 size={13} className="shrink-0 animate-spin text-[var(--accent)]" />
+          <Loader2 size={14} className="shrink-0 animate-spin text-[var(--accent)]" />
           正在扫描知识库目录、同步第一批文档…
         </p>
       ) : progress ? (

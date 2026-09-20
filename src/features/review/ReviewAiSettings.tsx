@@ -28,7 +28,7 @@ export function ReviewAiSettings({ onClose, onRerun }: { onClose: () => void; on
           title="收起"
           onClick={onClose}
         >
-          <X size={13} />
+          <X size={14} />
         </button>
       </div>
 

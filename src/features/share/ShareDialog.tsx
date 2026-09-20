@@ -122,7 +122,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
         <div className="p-4">
           {state === null ? (
             <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-[var(--ink-faint)]">
-              <Loader2 size={15} className="animate-spin" /> 加载中…
+              <Loader2 size={16} className="animate-spin" /> 加载中…
             </div>
           ) : !state.enabled ? (
             <>
@@ -172,7 +172,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
                   className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 text-[12px] font-medium text-white hover:opacity-90"
                   onClick={() => void copyUrl()}
                 >
-                  <Copy size={13} />
+                  <Copy size={14} />
                   复制
                 </button>
               </div>

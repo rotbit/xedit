@@ -29,9 +29,9 @@ export function toast(message: string, type: ToastType = "info"): void {
 }
 
 const ICONS: Record<ToastType, React.ReactNode> = {
-  success: <CheckCircle2 size={15} className="shrink-0 text-emerald-400" />,
-  error: <AlertCircle size={15} className="shrink-0 text-[#ff8a7a]" />,
-  info: <Info size={15} className="shrink-0 text-[#d8b98a]" />,
+  success: <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />,
+  error: <AlertCircle size={16} className="shrink-0 text-[#ff8a7a]" />,
+  info: <Info size={16} className="shrink-0 text-[#d8b98a]" />,
 };
 
 /** 错误多停留一会儿，成功/提示快进快出 */
@@ -80,7 +80,7 @@ export function Toaster() {
             {t.message}
           </span>
           <X
-            size={13}
+            size={14}
             className="shrink-0 text-white/30 transition-colors group-hover:text-white/70"
           />
         </div>

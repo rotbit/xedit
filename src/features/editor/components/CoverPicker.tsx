@@ -98,7 +98,7 @@ export function CoverPicker({
             <ImageIcon size={12} className="shrink-0" />
           )}
           <span>{broken ? "封面已失效" : cover ? "封面" : "设置封面"}</span>
-          <ChevronDown size={11} className="shrink-0 opacity-60" />
+          <ChevronDown size={12} className="shrink-0 opacity-60" />
         </button>
       }
     >
@@ -242,7 +242,7 @@ function BodyTab({
             <img src={display(src)} alt="" loading="lazy" className="h-full w-full object-cover" />
             {on ? (
               <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--accent)] text-white">
-                <Check size={11} strokeWidth={3} />
+                <Check size={12} strokeWidth={3} />
               </span>
             ) : null}
           </button>
@@ -293,12 +293,12 @@ function UploadTab({ onFile }: { onFile: (file: File) => Promise<void> }) {
       >
         {busy ? (
           <>
-            <Loader2 size={17} className="animate-spin" />
+            <Loader2 size={18} className="animate-spin" />
             <span className="text-[12px]">正在上传…</span>
           </>
         ) : (
           <>
-            <ImagePlus size={17} />
+            <ImagePlus size={18} />
             <span className="text-[12px]">点击选择，或把图片拖到这里</span>
             <span className="text-[11px] text-[var(--ink-faint)]">
               建议 900×383 以上，10MB 以内

@@ -30,8 +30,8 @@ export function DarkToggle() {
       onClick={toggleDark}
       title="切换日间 / 夜间模式"
     >
-      <Moon size={15} className="dark:hidden" />
-      <Sun size={15} className="hidden dark:block" />
+      <Moon size={16} className="dark:hidden" />
+      <Sun size={16} className="hidden dark:block" />
     </button>
   );
 }

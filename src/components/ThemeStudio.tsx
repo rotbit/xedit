@@ -348,7 +348,7 @@ function ThemeStudioInner() {
               className="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] text-red-500 hover:bg-red-500/10"
               onClick={() => void remove()}
             >
-              <Trash2 size={13} />
+              <Trash2 size={14} />
               删除主题
             </button>
           ) : (

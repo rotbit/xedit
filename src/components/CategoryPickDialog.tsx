@@ -60,7 +60,7 @@ export function CategoryPickHost() {
         </h3>
         <div className="relative mt-3">
           <Search
-            size={13}
+            size={14}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
           />
           <input
@@ -82,7 +82,7 @@ export function CategoryPickHost() {
             className="flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pl-3 pr-3 text-left text-[13px] text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
             onClick={() => close("")}
           >
-            <FolderUp size={13} className="shrink-0 text-[var(--ink-faint)]" />
+            <FolderUp size={14} className="shrink-0 text-[var(--ink-faint)]" />
             {state.topOption}
           </button>
         ) : null}
@@ -108,7 +108,7 @@ export function CategoryPickHost() {
                 disabled={isCurrent}
                 onClick={() => close(c)}
               >
-                <Folder size={13} className="shrink-0 text-[var(--ink-faint)]" />
+                <Folder size={14} className="shrink-0 text-[var(--ink-faint)]" />
                 {q ? (
                   // 搜索态平铺：显示完整路径便于区分同名分类
                   <span className="truncate">{c}</span>
@@ -129,7 +129,7 @@ export function CategoryPickHost() {
             className="flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pl-3 pr-3 text-left text-[13px] text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
             onClick={() => close(CREATE_CATEGORY)}
           >
-            <FolderPlus size={13} className="shrink-0 text-[var(--ink-faint)]" />
+            <FolderPlus size={14} className="shrink-0 text-[var(--ink-faint)]" />
             {state.createOption}
           </button>
         ) : null}

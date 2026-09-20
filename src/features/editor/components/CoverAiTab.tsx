@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { AiIcon } from "@/components/AiIcon";
 import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
 import {
@@ -173,7 +174,7 @@ export function CoverAiTab({
   if (service === "checking")
     return (
       <p className={`${tip} flex items-center gap-1.5`}>
-        <Loader2 size={13} className="animate-spin" />
+        <Loader2 size={14} className="animate-spin" />
         正在检查…
       </p>
     );
@@ -260,7 +261,7 @@ export function CoverAiTab({
         disabled={busy || saving || title.trim() === "" || saved.leftName.trim() === ""}
         onClick={() => void run()}
       >
-        {busy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <AiIcon size={14} />}
         {busy ? "正在生成…" : image ? "再来一次" : "生成"}
       </button>
     </div>

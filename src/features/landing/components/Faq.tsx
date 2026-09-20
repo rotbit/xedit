@@ -13,7 +13,7 @@ export function Faq() {
           <summary className="flex cursor-pointer list-none items-start gap-4 py-4.5 text-[14.5px] font-medium leading-[1.65] transition-colors hover:text-[var(--brand)]">
             <span className="flex-1">{item.q}</span>
             <ChevronDown
-              size={17}
+              size={18}
               className="mt-0.5 shrink-0 text-[var(--ink-faint)] transition-transform group-open:rotate-180"
             />
           </summary>

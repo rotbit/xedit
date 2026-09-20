@@ -59,19 +59,19 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
       onClick={(e) => e.stopPropagation()}
     >
       <button className={menuItemCls} onClick={run(() => nav.openDoc(doc.id))}>
-        <PenLine size={13} className="text-[var(--ink-faint)]" />
+        <PenLine size={14} className="text-[var(--ink-faint)]" />
         编辑
       </button>
       <button className={menuItemCls} onClick={run(() => void docActions.renameDoc(doc))}>
-        <TextCursorInput size={13} className="text-[var(--ink-faint)]" />
+        <TextCursorInput size={14} className="text-[var(--ink-faint)]" />
         重命名
       </button>
       <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
-        <FolderInput size={13} className="text-[var(--ink-faint)]" />
+        <FolderInput size={14} className="text-[var(--ink-faint)]" />
         移动到分类
       </button>
       <button className={menuItemCls} onClick={run(() => void docActions.moveToNewCategory(doc))}>
-        <FolderPlus size={13} className="text-[var(--ink-faint)]" />
+        <FolderPlus size={14} className="text-[var(--ink-faint)]" />
         新建文件夹
       </button>
       {!auth.localMode ? (
@@ -82,14 +82,14 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
             onClick={run(() => void docActions.pushToFeishu(doc))}
             disabled={docActions.pushingFeishu}
           >
-            <BookUp size={13} className="text-[var(--ink-faint)]" />
+            <BookUp size={14} className="text-[var(--ink-faint)]" />
             推送到飞书
           </button>
         </>
       ) : null}
       <div className="my-1 border-t border-[var(--hairline)]" />
       <button className={menuDangerCls} onClick={run(() => void docActions.removeDoc(doc))}>
-        <Trash2 size={13} />
+        <Trash2 size={14} />
         删除文章
       </button>
     </div>,

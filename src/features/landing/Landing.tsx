@@ -254,7 +254,7 @@ export function Landing() {
                 >
                   看每套主题的完整样张
                   <ArrowRight
-                    size={15}
+                    size={16}
                     className="transition-transform group-hover:translate-x-0.5"
                   />
                 </Link>
@@ -288,7 +288,7 @@ export function Landing() {
                     {group.items.map(({ icon: Icon, title, desc }) => (
                       <li key={title} className="lp-card p-5">
                         <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--brand-wash)] text-[var(--brand)]">
-                          <Icon size={17} />
+                          <Icon size={18} />
                         </span>
                         <h4 className="mt-3.5 text-[14.5px] font-semibold">{title}</h4>
                         <p className="mt-2 text-[13px] leading-[1.8] text-[var(--ink-soft)]">
@@ -319,7 +319,7 @@ export function Landing() {
                     key={f}
                     className="flex gap-2.5 text-[13.5px] leading-6 text-[var(--ink-soft)]"
                   >
-                    <Check size={15} className="mt-0.5 shrink-0 text-[var(--brand)]" />
+                    <Check size={16} className="mt-0.5 shrink-0 text-[var(--brand)]" />
                     <span>{f}</span>
                   </li>
                 ))}

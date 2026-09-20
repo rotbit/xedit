@@ -55,7 +55,7 @@ export function ReviewCard({
       <div className="flex items-center gap-1.5 rounded-lg border border-[var(--hairline-soft)] px-2.5 py-1.5 text-[11px] text-[var(--ink-faint)] opacity-70">
         {item.status === "accepted" ? (
           <>
-            <Check size={11} className="shrink-0 text-emerald-600" />
+            <Check size={12} className="shrink-0 text-emerald-600" />
             <span className="shrink-0">已采纳</span>
           </>
         ) : (
@@ -122,7 +122,7 @@ export function ReviewCard({
 
       {stale ? (
         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[var(--ink-faint)]">
-          <Undo2 size={11} className="shrink-0" />
+          <Undo2 size={12} className="shrink-0" />
           这句已经不在正文里了，撤销回去它会自己回来
         </p>
       ) : (

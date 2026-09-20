@@ -120,7 +120,7 @@ export function AssetsGrid({
           ref={sentinelRef}
           className="flex items-center justify-center gap-2 py-8 text-[12px] text-[var(--ink-faint)]"
         >
-          <Loader2 size={13} className="animate-spin" /> 加载更多…
+          <Loader2 size={14} className="animate-spin" /> 加载更多…
         </div>
       ) : null}
     </>

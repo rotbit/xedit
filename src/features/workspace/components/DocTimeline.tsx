@@ -105,7 +105,7 @@ function TimelineRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
             data-menu-trigger
             onClick={(e) => menus.toggleDocMenuAt(e, doc.id)}
           >
-            <MoreHorizontal size={15} />
+            <MoreHorizontal size={16} />
           </button>
         </>
       )}

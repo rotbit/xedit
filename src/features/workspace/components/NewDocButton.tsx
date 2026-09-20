@@ -58,9 +58,9 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
           disabled={docActions.creating}
         >
           {docActions.creating ? (
-            <Loader2 size={13} className="animate-spin" />
+            <Loader2 size={14} className="animate-spin" />
           ) : (
-            <FilePlus2 size={13} />
+            <FilePlus2 size={14} />
           )}
           新建文章
         </button>
@@ -72,7 +72,7 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
           title="导入"
           onClick={toggle}
         >
-          <ChevronDown size={13} />
+          <ChevronDown size={14} />
         </button>
       </div>
 
@@ -84,11 +84,11 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
               style={{ top: anchor.top, right: anchor.right, width: MENU_WIDTH }}
             >
               <button className={menuItemCls} onClick={openImport("file")}>
-                <FileInput size={13} className="text-[var(--ink-faint)]" />
+                <FileInput size={14} className="text-[var(--ink-faint)]" />
                 导入文件
               </button>
               <button className={menuItemCls} onClick={openImport("folder")}>
-                <FolderInput size={13} className="text-[var(--ink-faint)]" />
+                <FolderInput size={14} className="text-[var(--ink-faint)]" />
                 导入文件夹
               </button>
               {/* 飞书导入走服务端，未登录（本地模式）时没有这条路 */}
@@ -96,7 +96,7 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
                 <>
                   <div className="my-1 border-t border-[var(--hairline)]" />
                   <button className={menuItemCls} onClick={run(dialogs.openFeishu)}>
-                    <BookDown size={13} className="text-[var(--ink-faint)]" />
+                    <BookDown size={14} className="text-[var(--ink-faint)]" />
                     飞书知识库导入
                   </button>
                 </>

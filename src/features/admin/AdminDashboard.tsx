@@ -155,25 +155,25 @@ export function AdminDashboard() {
       {/* 全站概览 */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
-          icon={<Users size={15} />}
+          icon={<Users size={16} />}
           label="用户"
           value={overview ? String(overview.users.total) : "—"}
           hint={overview ? `本周新增 ${overview.users.newThisWeek}` : ""}
         />
         <StatCard
-          icon={<Ban size={15} />}
+          icon={<Ban size={16} />}
           label="封禁中"
           value={overview ? String(overview.users.banned) : "—"}
           hint={overview && overview.users.banned > 0 ? "只读，不能写入上传" : ""}
         />
         <StatCard
-          icon={<FileText size={15} />}
+          icon={<FileText size={16} />}
           label="文章"
           value={overview ? String(overview.docs.total) : "—"}
           hint="不含回收站"
         />
         <StatCard
-          icon={<HardDrive size={15} />}
+          icon={<HardDrive size={16} />}
           label="素材存储"
           value={overview ? formatBytes(overview.assets.bytes) : "—"}
           hint={overview ? `${overview.assets.count} 个文件` : ""}
@@ -254,7 +254,7 @@ export function AdminDashboard() {
                         {u.name ?? "（未设昵称）"}
                         {u.admin ? (
                           <span title="ADMIN_EMAILS 白名单管理员">
-                            <ShieldCheck size={13} className="shrink-0 text-[var(--accent)]" />
+                            <ShieldCheck size={14} className="shrink-0 text-[var(--accent)]" />
                           </span>
                         ) : null}
                       </p>
@@ -296,26 +296,26 @@ export function AdminDashboard() {
                     width={168}
                     trigger={
                       <button className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]">
-                        <MoreHorizontal size={15} />
+                        <MoreHorizontal size={16} />
                       </button>
                     }
                   >
                     <button className={menuItemCls} onClick={() => setDetailId(u.id)}>
-                      <UserRound size={13} />
+                      <UserRound size={14} />
                       查看明细
                     </button>
                     <button className={menuItemCls} onClick={() => setQuotaTarget(u)}>
-                      <Gauge size={13} />
+                      <Gauge size={14} />
                       调整配额…
                     </button>
                     {u.bannedAt ? (
                       <button className={menuItemCls} onClick={() => void unban(u)}>
-                        <Ban size={13} />
+                        <Ban size={14} />
                         解除封禁
                       </button>
                     ) : u.admin ? null : (
                       <button className={menuDangerCls} onClick={() => setBanTarget(u)}>
-                        <Ban size={13} />
+                        <Ban size={14} />
                         只读封禁…
                       </button>
                     )}
@@ -324,7 +324,7 @@ export function AdminDashboard() {
                       <>
                         <div className="my-1 border-t border-[var(--hairline)]" />
                         <button className={menuDangerCls} onClick={() => void removeUser(u)}>
-                          <Trash2 size={13} />
+                          <Trash2 size={14} />
                           删除账号…
                         </button>
                       </>
@@ -338,7 +338,7 @@ export function AdminDashboard() {
               <tr>
                 <td colSpan={8} className="px-4 py-14">
                   <span className="flex items-center justify-center gap-2 text-[var(--ink-faint)]">
-                    <Loader2 size={15} className="animate-spin" /> 加载中…
+                    <Loader2 size={16} className="animate-spin" /> 加载中…
                   </span>
                 </td>
               </tr>
@@ -361,7 +361,7 @@ export function AdminDashboard() {
             disabled={page <= 1}
             onClick={() => setPage((p) => p - 1)}
           >
-            <ChevronLeft size={15} />
+            <ChevronLeft size={16} />
           </button>
           <span>
             第 {page} / {totalPages} 页
@@ -371,7 +371,7 @@ export function AdminDashboard() {
             disabled={page >= totalPages}
             onClick={() => setPage((p) => p + 1)}
           >
-            <ChevronRight size={15} />
+            <ChevronRight size={16} />
           </button>
         </div>
       ) : null}

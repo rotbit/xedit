@@ -32,7 +32,7 @@ export function OutlineNav({
               onClick={onClose}
               className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
             >
-              <ChevronsLeft size={15} strokeWidth={1.75} />
+              <ChevronsLeft size={16} />
             </button>
           </div>
         ) : (

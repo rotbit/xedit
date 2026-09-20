@@ -151,7 +151,7 @@ export function AssetsLightbox({
                     className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/50"
                     title="在回收站中"
                   >
-                    <FileText size={11} className="shrink-0" />
+                    <FileText size={12} className="shrink-0" />
                     <span className="truncate">{d.title}</span>
                     <span className="shrink-0 text-white/40">回收站</span>
                   </span>
@@ -166,7 +166,7 @@ export function AssetsLightbox({
                       onOpenDoc(d.id);
                     }}
                   >
-                    <FileText size={11} className="shrink-0" />
+                    <FileText size={12} className="shrink-0" />
                     <span className="truncate">{d.title}</span>
                   </button>
                 ) : (
@@ -176,7 +176,7 @@ export function AssetsLightbox({
                     className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/85 transition-colors hover:bg-white/25 hover:text-white"
                     title={`打开「${d.title}」`}
                   >
-                    <FileText size={11} className="shrink-0" />
+                    <FileText size={12} className="shrink-0" />
                     <span className="truncate">{d.title}</span>
                   </a>
                 )

@@ -265,11 +265,11 @@ export function ThemePickerPanel() {
 
       <div className="sticky bottom-0 flex gap-2 border-t border-[var(--hairline-soft)] bg-[var(--panel)] px-3 py-2.5">
         <button className={footBtn} onClick={() => setThemeStudio("new")}>
-          <Plus size={13} />
+          <Plus size={14} />
           新建主题
         </button>
         <button className={footBtn} onClick={() => setCssDialogOpen(true)}>
-          <Code2 size={13} />
+          <Code2 size={14} />
           自定义 CSS
         </button>
       </div>

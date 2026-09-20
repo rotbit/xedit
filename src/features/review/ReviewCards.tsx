@@ -7,7 +7,8 @@
 // 不用 coordsAtPos —— 它只对渲染出来的那一屏有效，而意见摊在全篇，屏外的卡片同样要就位。
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Settings2, Sparkles } from "lucide-react";
+import { RefreshCw, Settings2 } from "lucide-react";
+import { AiIcon } from "@/components/AiIcon";
 import type { EditorView } from "@codemirror/view";
 import { ReviewCard } from "./ReviewCard";
 import { layoutCards } from "./locate";
@@ -49,7 +50,7 @@ function SummaryCard({ text, onOpen }: { text: string; onOpen: () => void }) {
       onClick={onOpen}
     >
       <span className="flex items-center gap-1.5 text-[11px] tracking-[0.1em] text-[var(--ink-faint)]">
-        <Sparkles size={11} className="shrink-0 text-[var(--accent)]" />
+        <AiIcon size={14} className="shrink-0 text-[var(--accent)]" />
         总评
         <span className="ml-auto tracking-normal transition-colors group-hover:text-[var(--ink)]">
           展开阅读
@@ -69,7 +70,7 @@ function Skeletons() {
     <div className="flex flex-col gap-2" role="status">
       <div className="rounded-lg border border-[var(--hairline)] bg-[var(--panel)] px-2.5 py-2.5">
         <div className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--ink)]">
-          <Sparkles size={12} className="review-breathe shrink-0 text-[var(--accent)]" />
+          <AiIcon size={14} className="review-breathe shrink-0 text-[var(--accent)]" />
           AI 正在审稿
           <span className="ml-auto font-normal tabular-nums text-[var(--ink-faint)]">{elapsed} 秒</span>
         </div>
@@ -182,14 +183,14 @@ export function ReviewCards({
               className="flex cursor-pointer items-center gap-1 text-[var(--accent)] hover:underline"
               onClick={onOpenSettings}
             >
-              <Settings2 size={11} />
+              <Settings2 size={12} />
               换个审核类型
             </button>
             <button
               className="flex cursor-pointer items-center gap-1 text-[var(--ink-soft)] hover:underline"
               onClick={api.rerun}
             >
-              <RefreshCw size={11} />
+              <RefreshCw size={12} />
               重试
             </button>
           </div>

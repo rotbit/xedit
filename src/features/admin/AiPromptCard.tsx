@@ -149,7 +149,7 @@ export function AiPromptCard() {
           disabled={!dirty || saving || tooLong || draft.trim() === ""}
           onClick={() => void save()}
         >
-          {saving ? <Loader2 size={13} className="animate-spin" /> : null}
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
           保存
         </button>
       </div>

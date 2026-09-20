@@ -121,14 +121,14 @@ export function ContentHeader({
             title="打开侧栏"
             onClick={() => prefs.setSidebarOpen(true)}
           >
-            <PanelLeftOpen size={15} />
+            <PanelLeftOpen size={16} />
           </button>
           <button
             className="mr-1 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] md:flex"
             title="展开侧栏"
             onClick={prefs.toggleSidebar}
           >
-            <PanelLeftOpen size={15} />
+            <PanelLeftOpen size={16} />
           </button>
         </>
       ) : null}
@@ -150,7 +150,7 @@ export function ContentHeader({
                 title={label}
                 onClick={() => prefs.switchDocView(mode)}
               >
-                <Icon size={13} />
+                <Icon size={14} />
               </button>
             ))}
           </div>
@@ -165,7 +165,7 @@ export function ContentHeader({
           // 回收站空着就禁用：点了什么都不会发生的按钮不如直接灰掉
           disabled={!library.trashDocs?.length}
         >
-          <Trash2 size={13} />
+          <Trash2 size={14} />
           清空回收站
         </button>
       ) : null}

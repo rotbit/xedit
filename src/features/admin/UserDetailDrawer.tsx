@@ -51,7 +51,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
             className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
             onClick={onClose}
           >
-            <X size={15} />
+            <X size={16} />
           </button>
         </div>
 
@@ -61,7 +61,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
             <p className="py-16 text-center text-[13px] text-red-600 dark:text-red-400">{error}</p>
           ) : !detail || !u || !t ? (
             <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-[var(--ink-faint)]">
-              <Loader2 size={15} className="animate-spin" /> 加载中…
+              <Loader2 size={16} className="animate-spin" /> 加载中…
             </div>
           ) : (
             <>
@@ -84,7 +84,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 truncate text-[14px] font-medium">
                     {u.name ?? "（未设昵称）"}
-                    {u.admin ? <ShieldCheck size={13} className="shrink-0 text-[var(--accent)]" /> : null}
+                    {u.admin ? <ShieldCheck size={14} className="shrink-0 text-[var(--accent)]" /> : null}
                     {u.bannedAt ? (
                       <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[11px] text-red-600 dark:bg-red-950/40 dark:text-red-400">
                         只读封禁
@@ -142,7 +142,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
                 ) : (
                   detail.docs.map((d) => (
                     <div key={d.id} className="flex items-center gap-2 py-1.5">
-                      <FileText size={13} className="shrink-0 text-[var(--ink-faint)]" />
+                      <FileText size={14} className="shrink-0 text-[var(--ink-faint)]" />
                       <p className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--ink)]">
                         {d.title}
                         {d.deletedAt ? (
@@ -171,9 +171,9 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
                       className="group flex items-center gap-2 py-1.5"
                     >
                       {a.mime.startsWith("video/") ? (
-                        <Film size={13} className="shrink-0 text-[var(--ink-faint)]" />
+                        <Film size={14} className="shrink-0 text-[var(--ink-faint)]" />
                       ) : (
-                        <ImageIcon size={13} className="shrink-0 text-[var(--ink-faint)]" />
+                        <ImageIcon size={14} className="shrink-0 text-[var(--ink-faint)]" />
                       )}
                       <p className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--ink)] group-hover:text-[var(--accent-deep)]">
                         {/* 素材表只存了 url，没留原始文件名，取路径末段当名字显示 */}
@@ -183,7 +183,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
                         {formatBytes(a.size)}
                       </span>
                       <ExternalLink
-                        size={11}
+                        size={12}
                         className="shrink-0 text-transparent group-hover:text-[var(--ink-faint)]"
                       />
                     </a>

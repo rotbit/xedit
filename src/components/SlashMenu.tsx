@@ -87,7 +87,7 @@ export function SlashMenu({
                 if (v) runSlashItem(v, item, st.from, to, toast);
               }}
             >
-              <Icon size={16} strokeWidth={1.75} className="shrink-0 text-[var(--ink-soft)]" />
+              <Icon size={16} className="shrink-0 text-[var(--ink-soft)]" />
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
               <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">{item.hint}</span>
             </button>
