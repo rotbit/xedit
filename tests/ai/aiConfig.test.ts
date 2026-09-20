@@ -106,36 +106,47 @@ describe("本机的 AI 设置", () => {
       JSON.stringify({ provider: "kimi", model: "x", kind: "wechat_rules", keys: { kimi: "sk-旧的" } })
     );
     __resetAiConfigForTests();
-    expect(readAiConfig()).toEqual({ kind: "wechat_rules" });
-    expect(localStorage.getItem("xedit.ai.config")).toBe(JSON.stringify({ kind: "wechat_rules" }));
+    // 单选时代存的 kind 也认，升级后选择不被重置
+    expect(readAiConfig()).toEqual({ kinds: ["wechat_rules"] });
+    expect(localStorage.getItem("xedit.ai.config")).toBe(
+      JSON.stringify({ kinds: ["wechat_rules"] })
+    );
   });
 
   it("存坏了当没存过，不为这点设置弹错", () => {
     localStorage.setItem("xedit.ai.config", "{不是 JSON");
     __resetAiConfigForTests();
-    expect(readAiConfig().kind).toBe(DEFAULT_REVIEW_KIND);
+    expect(readAiConfig().kinds).toEqual([DEFAULT_REVIEW_KIND]);
   });
 
   it("没选过审核类型就给默认那一类", () => {
-    expect(readAiConfig().kind).toBe(DEFAULT_REVIEW_KIND);
+    expect(readAiConfig().kinds).toEqual([DEFAULT_REVIEW_KIND]);
   });
 
   it("选过的类型也落盘：下次点「审核」仍停在上回那一类", () => {
-    writeAiConfig({ kind: "wechat_rules" });
+    writeAiConfig({ kinds: ["wechat_rules"] });
     __resetAiConfigForTests();
-    expect(readAiConfig().kind).toBe("wechat_rules");
+    expect(readAiConfig().kinds).toEqual(["wechat_rules"]);
+  });
+
+  it("可以多选；顺序按目录排、重复的去掉，一类都不剩时落回默认（永远不会是空的）", () => {
+    expect(writeAiConfig({ kinds: ["wechat_rules", "expression", "wechat_rules"] }).kinds).toEqual([
+      "expression",
+      "wechat_rules",
+    ]);
+    expect(writeAiConfig({ kinds: [] }).kinds).toEqual([DEFAULT_REVIEW_KIND]);
   });
 
   it("旧版本存的那份没有 kind，读出来也得是个能用的类型", () => {
     localStorage.setItem("xedit.ai.config", JSON.stringify({ provider: "deepseek" }));
     __resetAiConfigForTests();
-    expect(readAiConfig().kind).toBe(DEFAULT_REVIEW_KIND);
+    expect(readAiConfig().kinds).toEqual([DEFAULT_REVIEW_KIND]);
   });
 
   it("存里的类型被人改花了就落回默认，不把它原样发给接口（发过去只会换来 400）", () => {
     localStorage.setItem("xedit.ai.config", JSON.stringify({ kind: "胡编的" }));
     __resetAiConfigForTests();
-    expect(readAiConfig().kind).toBe(DEFAULT_REVIEW_KIND);
-    expect(writeAiConfig({ kind: "也是胡编的" as never }).kind).toBe(DEFAULT_REVIEW_KIND);
+    expect(readAiConfig().kinds).toEqual([DEFAULT_REVIEW_KIND]);
+    expect(writeAiConfig({ kinds: ["也是胡编的" as never] }).kinds).toEqual([DEFAULT_REVIEW_KIND]);
   });
 });

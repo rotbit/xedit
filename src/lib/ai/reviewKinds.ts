@@ -44,6 +44,21 @@ export function reviewKind(value: unknown): ReviewKindSpec | null {
   return isReviewKind(value) ? (BY_ID.get(value) ?? null) : null;
 }
 
+/**
+ * 一趟可以同时审几类（多选）。把随便什么输入洗成一份干净的清单：
+ * 只留认识的、去重、按目录顺序排；一个都不剩就落回默认那一类——永远不会是空的。
+ */
+export function cleanReviewKinds(value: unknown): ReviewKind[] {
+  const picked = new Set(Array.isArray(value) ? value.filter(isReviewKind) : []);
+  const kinds = REVIEW_KINDS.map((k) => k.id).filter((id) => picked.has(id));
+  return kinds.length > 0 ? kinds : [DEFAULT_REVIEW_KIND];
+}
+
+/** 几类一起审时的名字：「表述审核 + 公众号合规审核」 */
+export function reviewKindsLabel(kinds: readonly ReviewKind[]): string {
+  return kinds.map((k) => reviewKindLabel(k)).join(" + ");
+}
+
 /** 界面上那几处文案（胶囊、加载态）要的名字 */
 export function reviewKindLabel(value: unknown): string {
   return reviewKind(value)?.label ?? reviewKind(DEFAULT_REVIEW_KIND)!.label;

@@ -2,7 +2,7 @@
  * 真审核：把正文发给本站的 /api/ai/review，拿回一份 ReviewResult。
  *
  * 只有这一条路——早先那份本地造的假数据已经删掉了：给用户看一堆本地正则编出来的
- * 「意见」，不如明说「还没配模型」。用哪个模型、key 是什么全由后台定，这里只报「审哪一类」；
+ * 「意见」，不如明说「还没配模型」。用哪个模型、key 是什么全由后台定，这里只报「审哪几类」；
  * 后台还没配好时界面上「开始审核」是灰的，万一还是打过来了，服务端会明确回 no_key / 401 / 403。
  *
  * 纯函数，不认识 React，也不弹提示：错误一律抛出，message 就是能给用户看的一句话。
@@ -35,7 +35,7 @@ export async function requestAiReview(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         content,
-        kind: cfg.kind,
+        kinds: cfg.kinds,
       }),
       signal,
     });
@@ -63,7 +63,7 @@ export async function requestAiReview(
 }
 
 /**
- * 界面真正调的那个：按本机此刻选的审核类型跑一趟。
+ * 界面真正调的那个：按本机此刻勾的审核类型跑一趟（勾了几类，服务端就一起审、合成一份结果）。
  * 设置是在发起这一刻读的，所以在面板里改完再点「重新审核」，用的就是新设置。
  */
 export function runReview(content: string, signal?: AbortSignal): Promise<ReviewResult> {
