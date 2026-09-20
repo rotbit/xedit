@@ -16,11 +16,11 @@ import {
   Palette,
   Plug,
   Send,
-  ShieldCheck,
   Sigma,
   WifiOff,
   type LucideIcon,
 } from "lucide-react";
+import { AiIcon } from "@/components/AiIcon";
 
 /** 一条能力项：图标 + 标题 + 一句讲做法的描述。 */
 export interface Feature {
@@ -109,7 +109,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     note: "文章在哪都在，也能交给 AI 打理",
     items: [
       {
-        icon: ShieldCheck,
+        icon: AiIcon,
         title: "AI 内容审核",
         desc: "发布前让 AI 通读全文：表述审核挑出病句、啰嗦和逻辑跳跃，公众号合规审核标出可能违规或被限流的说法；意见直接标在原文句子上，一键采纳或忽略，每次审核都有记录可回看。",
       },

@@ -101,7 +101,7 @@ function OAuthButton({
       onClick={() => onPick(provider)}
       disabled={busy !== null}
     >
-      {busy === provider ? <Loader2 size={15} className="animate-spin" /> : icon}
+      {busy === provider ? <Loader2 size={16} className="animate-spin" /> : icon}
       {label}
     </button>
   );
@@ -264,7 +264,7 @@ export function AuthHost() {
       {/* 邮箱 + 密码表单 */}
       <div className="px-6 pt-4">
         <label className="mb-2 flex items-center gap-2 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 transition-colors focus-within:border-[var(--accent)]">
-          <Mail size={15} className="shrink-0 text-[var(--ink-faint)]" />
+          <Mail size={16} className="shrink-0 text-[var(--ink-faint)]" />
           <input
             ref={emailRef}
             type="email"
@@ -277,7 +277,7 @@ export function AuthHost() {
           />
         </label>
         <label className="flex items-center gap-2 rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 transition-colors focus-within:border-[var(--accent)]">
-          <Lock size={15} className="shrink-0 text-[var(--ink-faint)]" />
+          <Lock size={16} className="shrink-0 text-[var(--ink-faint)]" />
           <input
             type="password"
             autoComplete={isLogin ? "current-password" : "new-password"}
@@ -298,7 +298,7 @@ export function AuthHost() {
           onClick={() => void submit()}
           disabled={busy !== null}
         >
-          {busy === "form" ? <Loader2 size={15} className="animate-spin" /> : null}
+          {busy === "form" ? <Loader2 size={16} className="animate-spin" /> : null}
           {isLogin ? "登录" : "注册并登录"}
         </button>
 

@@ -223,7 +223,7 @@ export function AssetsGallery({
             </div>
           ) : assets.length === 0 ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--hairline-strong)] py-20">
-              <Images size={26} className="text-[var(--ink-faint)]" />
+              <Images size={24} className="text-[var(--ink-faint)]" />
               <p className="text-center text-[13px] leading-6 text-[var(--ink-faint)]">
                 {feed.isDefaultView ? (
                   <>

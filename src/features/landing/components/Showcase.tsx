@@ -50,7 +50,7 @@ function Row({
         <ul className="mt-6 space-y-2.5">
           {points.map((p) => (
             <li key={p} className="flex gap-2.5 text-[13.5px] leading-6 text-[var(--ink-soft)]">
-              <Check size={15} className="mt-0.5 shrink-0 text-[var(--brand)]" />
+              <Check size={16} className="mt-0.5 shrink-0 text-[var(--brand)]" />
               <span>{p}</span>
             </li>
           ))}

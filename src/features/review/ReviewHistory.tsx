@@ -66,7 +66,7 @@ export function ReviewHistoryList({
   return (
     <div>
       <div className="mb-1 flex items-center gap-1 text-[11px] text-[var(--ink-faint)]">
-        <History size={11} />
+        <History size={12} />
         历史记录（点开回看，不重新审）
       </div>
       <ul className="-mx-1 max-h-[216px] overflow-y-auto">

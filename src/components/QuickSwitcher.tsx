@@ -62,7 +62,7 @@ export function QuickSwitcher({
   return (
     <PaletteShell
       open={open}
-      icon={<Search size={15} className="shrink-0 text-[var(--ink-faint)]" />}
+      icon={<Search size={16} className="shrink-0 text-[var(--ink-faint)]" />}
       placeholder="搜索文章标题或正文…"
       hint="↑↓ 选择 · ↵ 打开 · esc 关闭"
       query={query}
@@ -84,7 +84,7 @@ export function QuickSwitcher({
         const title = doc.title || UNTITLED_DOC;
         return (
           <>
-            <FileText size={13} className="mt-[3px] shrink-0 text-[var(--ink-faint)]" />
+            <FileText size={14} className="mt-[3px] shrink-0 text-[var(--ink-faint)]" />
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline gap-2">
                 <span className="min-w-0 flex-1 truncate text-[13.5px] text-[var(--ink)]">

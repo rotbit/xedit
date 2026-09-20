@@ -402,7 +402,7 @@ export function ArticleReader({
                     reviewOn ? "top-[74px]" : "top-[38px]"
                   }`}
                 >
-                  <AlignLeft size={15} strokeWidth={1.75} />
+                  <AlignLeft size={16} />
                 </button>
               ) : null}
               {/* 标题区与正文共用一个滚动容器：标题随正文一起滚出视野，
@@ -448,13 +448,13 @@ export function ArticleReader({
                             ? `…/${(category || UNCATEGORIZED).split("/").pop()}`
                             : category || UNCATEGORIZED}
                         </span>
-                        <ChevronDown size={11} className="shrink-0 opacity-60" />
+                        <ChevronDown size={12} className="shrink-0 opacity-60" />
                       </button>
                       <span>·</span>
                       {/* MCP / 其他设备改过、页面自动校新后，在这一格轻提示几秒再回落，不弹 toast */}
                       {refreshedHint ? (
                         <span className="sync-hint flex items-center gap-1 text-[var(--accent)]">
-                          <RefreshCw size={11} />
+                          <RefreshCw size={12} />
                           已更新到最新版本
                         </span>
                       ) : (

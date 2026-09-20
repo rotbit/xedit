@@ -129,7 +129,7 @@ export function DauChart() {
 
       {!points ? (
         <div className="flex h-[180px] items-center justify-center gap-2 text-[13px] text-[var(--ink-faint)]">
-          <Loader2 size={15} className="animate-spin" /> 加载中…
+          <Loader2 size={16} className="animate-spin" /> 加载中…
         </div>
       ) : (
         <div className="relative mt-2">

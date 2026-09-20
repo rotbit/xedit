@@ -85,7 +85,7 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
           onClick={() => setOutlineVisible(true)}
           className="absolute left-1.5 top-[48px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
         >
-          <AlignLeft size={15} strokeWidth={1.75} />
+          <AlignLeft size={16} />
         </button>
       ) : null}
       <div

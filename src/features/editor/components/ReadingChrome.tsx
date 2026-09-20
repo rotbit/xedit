@@ -21,7 +21,7 @@ export function ThemeTrigger({ themeName }: { themeName: string }) {
           className="flex h-7 max-w-[200px] cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
           title="切换排版主题"
         >
-          <Palette size={13} strokeWidth={1.75} className="shrink-0" />
+          <Palette size={14} className="shrink-0" />
           <span className="truncate">{themeName}</span>
         </button>
       }

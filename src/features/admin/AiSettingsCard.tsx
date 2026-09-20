@@ -7,7 +7,8 @@
  * token 只进不出：这里只看得到「来源 + 末四位」，输入框永远是空的，填了才覆盖。
  */
 import { useEffect, useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { AiIcon } from "@/components/AiIcon";
 import { toast } from "@/components/Toast";
 
 interface ProviderInfo {
@@ -113,7 +114,7 @@ export function AiSettingsCard() {
   return (
     <div className="mt-8 rounded-xl border border-[var(--hairline)] bg-[var(--panel)] px-5 py-4">
       <div className="flex items-center gap-2 text-[13.5px] font-medium text-[var(--ink)]">
-        <Sparkles size={14} className="text-[var(--accent)]" />
+        <AiIcon size={14} className="text-[var(--accent)]" />
         AI 设置
       </div>
       <p className="mt-1 text-[12px] text-[var(--ink-faint)]">
@@ -228,7 +229,7 @@ export function AiSettingsCard() {
           disabled={!dirty || saving || model.trim() === ""}
           onClick={() => void save({ provider, model, keys: drafts }, "AI 设置已保存")}
         >
-          {saving ? <Loader2 size={13} className="animate-spin" /> : null}
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
           保存
         </button>
       </div>

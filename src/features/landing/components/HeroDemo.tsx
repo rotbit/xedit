@@ -87,7 +87,7 @@ export function HeroDemo({ themes, children }: Props) {
           onClick={onCopy}
           className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 text-[11.5px] font-medium text-[var(--brand-fg)] transition-colors hover:bg-[var(--brand-deep)]"
         >
-          {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+          {copied ? <Check size={14} /> : <ClipboardCopy size={14} />}
           {copied ? "已复制" : "复制到公众号"}
         </button>
       </div>

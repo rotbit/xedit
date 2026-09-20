@@ -51,14 +51,14 @@ export function Sidebar({ ws }: { ws: Workspace }) {
           title="收起侧栏"
           onClick={prefs.toggleSidebar}
         >
-          <PanelLeftClose size={15} />
+          <PanelLeftClose size={16} />
         </button>
       </div>
 
       <div className="shrink-0 px-3 pb-2 pt-0.5">
         <div className="relative">
           <Search
-            size={13}
+            size={14}
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
           />
           <input

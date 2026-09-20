@@ -10,7 +10,7 @@
  * 那比不给更糟。现在明说缺什么（Key 全在服务端配，这里只能换一家选）。
  */
 import { useRef } from "react";
-import { FileCheck } from "lucide-react";
+import { AiIcon } from "@/components/AiIcon";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
 import { ReviewHistoryList } from "./ReviewHistory";
@@ -41,7 +41,7 @@ export function ReviewLaunchPopover({
       className={`${reviewPanel} absolute right-0 top-[calc(100%+6px)] z-20 text-left`}
     >
       <div className="mb-2 flex items-center gap-1.5">
-        <FileCheck size={14} className="shrink-0 text-[var(--accent)]" />
+        <AiIcon size={14} className="shrink-0 text-[var(--accent)]" />
         <span className="text-[12px] font-medium text-[var(--ink)]">AI 审核</span>
       </div>
 

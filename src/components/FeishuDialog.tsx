@@ -59,7 +59,7 @@ export function FeishuDialog({
   return (
     <Modal
       title="飞书知识库导入"
-      icon={<BookDown size={15} className="text-[var(--accent)]" />}
+      icon={<BookDown size={16} className="text-[var(--accent)]" />}
       width={520}
       onClose={onClose}
     >
@@ -127,7 +127,7 @@ export function FeishuDialog({
                 onClick={() => void saveApp()}
                 disabled={savingApp || !appDirty}
               >
-                {savingApp ? <Loader2 size={13} className="animate-spin" /> : null}
+                {savingApp ? <Loader2 size={14} className="animate-spin" /> : null}
                 {savingApp ? "保存中…" : "保存凭证"}
               </button>
             </div>
@@ -171,9 +171,9 @@ export function FeishuDialog({
               disabled={disconnecting || syncing}
             >
               {disconnecting ? (
-                <Loader2 size={13} className="animate-spin" />
+                <Loader2 size={14} className="animate-spin" />
               ) : (
-                <Unlink size={13} />
+                <Unlink size={14} />
               )}
               断开
             </button>
@@ -183,7 +183,7 @@ export function FeishuDialog({
             <p className="mb-1.5 text-[12px] text-[var(--ink-soft)]">选择知识库</p>
             {spaces === null ? (
               <div className="flex h-9 items-center gap-2 text-[12px] text-[var(--ink-faint)]">
-                <Loader2 size={13} className="animate-spin" /> 加载知识空间…
+                <Loader2 size={14} className="animate-spin" /> 加载知识空间…
               </div>
             ) : spaces.length === 0 ? (
               <p className="rounded-md border border-dashed border-[var(--hairline-strong)] px-3 py-4 text-center text-[12px] text-[var(--ink-faint)]">
@@ -219,7 +219,7 @@ export function FeishuDialog({
               </button>
             ) : null}
             <button className={btnPrimary} onClick={runSync} disabled={syncing}>
-              {syncing ? <Loader2 size={13} className="animate-spin" /> : null}
+              {syncing ? <Loader2 size={14} className="animate-spin" /> : null}
               {/* 上次中断过（有错且留着进度）就改叫「继续同步」：同步是幂等的，接着跑不会重复导入 */}
               {syncing ? "同步中…" : sync.error && progress ? "继续同步" : "开始同步"}
             </button>

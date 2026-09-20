@@ -91,7 +91,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
   if (vault.status === "open") {
     return (
       <div className="flex min-w-0 items-center gap-1 text-[11px] text-[var(--ink-faint)]">
-        <FolderOpen size={13} className="shrink-0" />
+        <FolderOpen size={14} className="shrink-0" />
         <span className="min-w-0 flex-1 truncate" title={vault.name ?? ""}>
           {vault.name}
         </span>
@@ -111,7 +111,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
   if (vault.status === "opening") {
     return (
       <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--ink-faint)]">
-        <Loader2 size={13} className="shrink-0 animate-spin" />
+        <Loader2 size={14} className="shrink-0 animate-spin" />
         <span className="min-w-0 truncate">正在打开…</span>
       </div>
     );
@@ -121,7 +121,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
   if (vault.status === "pending") {
     return (
       <button className={vaultBtnCls} onClick={() => void resumeVault()}>
-        <FolderOpen size={13} className="shrink-0" />
+        <FolderOpen size={14} className="shrink-0" />
         <span className="min-w-0 truncate">恢复访问「{vault.name}」</span>
       </button>
     );
@@ -141,7 +141,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
 
   return (
     <button className={vaultBtnCls} onClick={onOpen}>
-      <FolderOpen size={13} className="shrink-0" />
+      <FolderOpen size={14} className="shrink-0" />
       <span className="min-w-0 truncate">打开文件夹作为文库</span>
     </button>
   );
@@ -204,7 +204,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
               <span className="min-w-0 flex-1 truncate text-left text-[12px] text-[var(--ink-soft)]">
                 {auth.session?.user?.name ?? auth.session?.user?.email}
               </span>
-              <ChevronsUpDown size={13} className="shrink-0 text-[var(--ink-faint)]" />
+              <ChevronsUpDown size={14} className="shrink-0 text-[var(--ink-faint)]" />
             </button>
             {menus.accountMenu ? (
               <AccountMenu
@@ -243,7 +243,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
             className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-[12.5px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
             onClick={() => openAuth("login")}
           >
-            <LogIn size={13} />
+            <LogIn size={14} />
             登录同步到云端
           </button>
           <div className="mt-2 flex items-center gap-2 border-t border-[var(--hairline)] px-1.5 pt-2">

@@ -11,7 +11,6 @@ import type { EditorHandle, SelectionInfo } from "@/lib/editor/types";
 import type { FormatCommand } from "@/lib/editor/commands";
 
 const ICON = 16;
-const STROKE = 1.75;
 
 /** 胶囊高度（与 CSS 的 h-9 一致），量不到元素时兜底用 */
 const BAR_H = 36;
@@ -38,9 +37,9 @@ type Btn = { cmd: FormatCommand; icon: React.ReactNode; label: string };
 
 /** 顺序：加粗 · 斜体 · 删除线 · 字体颜色 ｜ H1 · H2 · H3 ｜ 引用 · 行内代码 · 链接 */
 const GROUP_A: Btn[] = [
-  { cmd: "bold", icon: <Bold size={ICON} strokeWidth={STROKE} />, label: "加粗（⌘B）" },
-  { cmd: "italic", icon: <Italic size={ICON} strokeWidth={STROKE} />, label: "斜体（⌘I）" },
-  { cmd: "strike", icon: <Strikethrough size={ICON} strokeWidth={STROKE} />, label: "删除线" },
+  { cmd: "bold", icon: <Bold size={ICON} />, label: "加粗（⌘B）" },
+  { cmd: "italic", icon: <Italic size={ICON} />, label: "斜体（⌘I）" },
+  { cmd: "strike", icon: <Strikethrough size={ICON} />, label: "删除线" },
 ];
 const GROUP_B: Btn[] = [
   { cmd: "h1", icon: <HeadingGlyph level={1} />, label: "一级标题" },
@@ -48,9 +47,9 @@ const GROUP_B: Btn[] = [
   { cmd: "h3", icon: <HeadingGlyph level={3} />, label: "三级标题" },
 ];
 const GROUP_C: Btn[] = [
-  { cmd: "quote", icon: <Quote size={ICON} strokeWidth={STROKE} />, label: "引用" },
-  { cmd: "code", icon: <Code size={ICON} strokeWidth={STROKE} />, label: "行内代码" },
-  { cmd: "link", icon: <Link2 size={ICON} strokeWidth={STROKE} />, label: "链接（⌘K）" },
+  { cmd: "quote", icon: <Quote size={ICON} />, label: "引用" },
+  { cmd: "code", icon: <Code size={ICON} />, label: "行内代码" },
+  { cmd: "link", icon: <Link2 size={ICON} />, label: "链接（⌘K）" },
 ];
 
 const btnCls =

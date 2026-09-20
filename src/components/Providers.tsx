@@ -2,6 +2,7 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
+import { LucideProvider } from "lucide-react";
 import { PromptHost, ConfirmHost } from "./PromptDialog";
 import { CategoryPickHost } from "./CategoryPickDialog";
 import { AuthHost } from "./AuthDialog";
@@ -23,15 +24,18 @@ export function Providers({
   // 误判由 useAuthMode 的服务器探测兜住
   return (
     <SessionProvider session={session} refetchWhenOffline={false}>
-      <SwRegister />
-      <ScrollbarReveal />
-      {children}
-      <PromptHost />
-      <ConfirmHost />
-      <CategoryPickHost />
-      <AuthHost />
-      <CssDialog />
-      <ThemeStudio />
+      {/* 全站功能图标共用圆润细线；Logo 与第三方品牌标记不走这套配置。 */}
+      <LucideProvider size={16} strokeWidth={1.8}>
+        <SwRegister />
+        <ScrollbarReveal />
+        {children}
+        <PromptHost />
+        <ConfirmHost />
+        <CategoryPickHost />
+        <AuthHost />
+        <CssDialog />
+        <ThemeStudio />
+      </LucideProvider>
     </SessionProvider>
   );
 }

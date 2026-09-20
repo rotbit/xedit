@@ -47,14 +47,14 @@ export function AccountMenu({
           {user?.email ?? user?.name}
         </p>
         <button className={menuItemCls} onClick={run(toggleDark)}>
-          <Moon size={13} className="text-[var(--ink-faint)] dark:hidden" />
-          <Sun size={13} className="hidden text-[var(--ink-faint)] dark:block" />
+          <Moon size={14} className="text-[var(--ink-faint)] dark:hidden" />
+          <Sun size={14} className="hidden text-[var(--ink-faint)] dark:block" />
           <span className="dark:hidden">夜间模式</span>
           <span className="hidden dark:block">日间模式</span>
         </button>
         {user?.isAdmin ? (
           <a className={menuItemCls} href="/admin">
-            <ShieldCheck size={13} className="text-[var(--ink-faint)]" />
+            <ShieldCheck size={14} className="text-[var(--ink-faint)]" />
             管理后台
           </a>
         ) : null}
@@ -72,7 +72,7 @@ export function AccountMenu({
             void signOut();
           })}
         >
-          <LogOut size={13} className="text-[var(--ink-faint)]" />
+          <LogOut size={14} className="text-[var(--ink-faint)]" />
           退出登录
         </button>
       </div>

@@ -221,7 +221,7 @@ export function Home({ landing }: HomeProps) {
         >
           {feishuSync.syncing ? (
             <>
-              <Loader2 size={13} className="animate-spin text-[var(--accent)]" />
+              <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
               {feishuSync.retry ? "飞书同步重试中" : "飞书同步中"}
               {feishuSync.progress
                 ? ` ${feishuSync.progress.total - feishuSync.progress.pending}/${feishuSync.progress.total}`
@@ -229,7 +229,7 @@ export function Home({ landing }: HomeProps) {
             </>
           ) : (
             <>
-              <AlertCircle size={13} className="text-red-500" />
+              <AlertCircle size={14} className="text-red-500" />
               飞书同步已中断，点击查看
             </>
           )}
