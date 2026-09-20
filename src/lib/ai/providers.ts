@@ -3,10 +3,15 @@
  *
  * 这份是纯数据，服务端与网页共用——设置面板要拿它列下拉框，服务端要拿它拼请求地址。
  * 所以这里不许出现 process.env（网页侧打包后读不到，只会得到 undefined）：
- * 站点自带的 key 由 serverKeys.ts 单独负责，那份只在服务端加载。
+ * key 由 siteSettings.ts 单独负责（后台填的 + 环境变量兜底），那份只在服务端加载。
  *
- * 除 Replicate 外都是 OpenAI 兼容的 /chat/completions，所以传输层只写了两种（见 chat.ts）：
+ * 传输层只有两种（见 chat.ts）：OpenAI 兼容的 /chat/completions，和 Replicate 的 predictions。
  * 国内这几家（DeepSeek / Kimi / 智谱）都照着 OpenAI 的报文抄，连字段名都一样。
+ *
+ * 模型清单 2026-09 按各家官网核对过。这一代旗舰几乎都强制开着「思考」，带来三条共性：
+ * - temperature 要么被忽略要么直接报错（Kimi K3、GPT-5 以后），所以一律不传；
+ * - 输出上限把思考的 token 也算在内，给少了正文会是空的（见 chat.ts 的 DEFAULT_MAX_TOKENS）；
+ * - 思考强度能调的都调到 low：审稿要的是快和稳，不是解奥数题。
  */
 
 /** 传输方式：决定 chat.ts 走哪条代码路径 */
@@ -14,36 +19,68 @@ export type AiTransport = "openai" | "replicate";
 
 export interface AiProvider {
   id: AiProviderId;
-  /** 设置面板上显示的名字 */
+  /** 后台设置面板上显示的名字 */
   label: string;
   transport: AiTransport;
   /** 接口根地址，末尾不带斜杠；openai 传输会在后面接 /chat/completions */
   baseUrl: string;
-  /** 站点自带 key 的环境变量名（服务端用，网页只拿它做提示文案） */
+  /**
+   * 这家的 key 占哪个槽位，同时也是兜底的环境变量名。
+   * Replicate 上的 Claude 和 GPT 是两个供应商、同一个槽位：一把 token 两边通用。
+   */
   envKey: string;
   /** 下拉框里的常用模型，第一个是默认 */
   models: string[];
   /** 认不认 response_format: json_object（认的话少一半解析失事） */
   jsonMode: boolean;
+  /** 输出上限那个字段叫什么：老牌叫 max_tokens，新一代（OpenAI / Kimi）只认 max_completion_tokens */
+  tokensField: "max_tokens" | "max_completion_tokens";
+  /** 这家特有的固定入参（多半是把思考强度压到 low），原样并进请求体 */
+  extra?: Record<string, unknown>;
 }
 
-export type AiProviderId = "replicate" | "deepseek" | "openai" | "kimi" | "glm";
+export type AiProviderId =
+  | "deepseek"
+  | "replicate"
+  | "replicate-gpt"
+  | "openai"
+  | "kimi"
+  | "glm";
 
 /**
- * Replicate 上 Anthropic 官方账号下的 Claude 全系。
- * Replicate 随时会上新（比如再出一版 opus），所以设置面板允许自己填模型名，
+ * Replicate 上两个官方账号下的模型。Replicate 随时会上新，所以后台允许自己填模型名，
  * 这里列的只是「点一下就能用」的那几个，不是白名单——真正放行与否由 Replicate 说了算。
  */
 const CLAUDE_ON_REPLICATE = [
+  "anthropic/claude-sonnet-5",
+  "anthropic/claude-fable-5",
+  "anthropic/claude-opus-4.7",
+  "anthropic/claude-opus-4.6",
+  "anthropic/claude-sonnet-4.6",
   "anthropic/claude-4.5-sonnet",
   "anthropic/claude-4.5-haiku",
-  "anthropic/claude-4.1-opus",
-  "anthropic/claude-4-sonnet",
-  "anthropic/claude-3.7-sonnet",
-  "anthropic/claude-3.5-haiku",
+];
+const GPT_ON_REPLICATE = [
+  "openai/gpt-5.6-sol",
+  "openai/gpt-5.6-terra",
+  "openai/gpt-5.6-luna",
+  "openai/gpt-5.4",
+  "openai/gpt-5.2",
+  "openai/gpt-5-mini",
 ];
 
 export const AI_PROVIDERS: AiProvider[] = [
+  {
+    id: "deepseek",
+    label: "DeepSeek（官网）",
+    transport: "openai",
+    baseUrl: "https://api.deepseek.com/v1",
+    envKey: "DEEPSEEK_API_KEY",
+    // V4 这一代改了名字：flash 是便宜快的那档，v4-pro 是旗舰
+    models: ["deepseek-flash", "deepseek-v4-pro"],
+    jsonMode: true,
+    tokensField: "max_tokens",
+  },
   {
     id: "replicate",
     label: "Claude（Replicate）",
@@ -51,26 +88,31 @@ export const AI_PROVIDERS: AiProvider[] = [
     baseUrl: "https://api.replicate.com",
     envKey: "REPLICATE_API_TOKEN",
     models: CLAUDE_ON_REPLICATE,
-    // Replicate 转的是 Anthropic 的原生接口，没有 response_format 这一说
+    // Replicate 转的是各家的原生接口，没有 response_format 这一说
     jsonMode: false,
+    tokensField: "max_tokens",
   },
   {
-    id: "deepseek",
-    label: "DeepSeek（官网）",
-    transport: "openai",
-    baseUrl: "https://api.deepseek.com/v1",
-    envKey: "DEEPSEEK_API_KEY",
-    models: ["deepseek-chat", "deepseek-reasoner"],
-    jsonMode: true,
+    id: "replicate-gpt",
+    label: "GPT（Replicate）",
+    transport: "replicate",
+    baseUrl: "https://api.replicate.com",
+    envKey: "REPLICATE_API_TOKEN",
+    models: GPT_ON_REPLICATE,
+    jsonMode: false,
+    tokensField: "max_completion_tokens",
+    extra: { reasoning_effort: "low" },
   },
   {
     id: "openai",
-    label: "OpenAI",
+    label: "GPT（OpenAI 官网）",
     transport: "openai",
     baseUrl: "https://api.openai.com/v1",
     envKey: "OPENAI_API_KEY",
-    models: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"],
+    models: ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-6-astra"],
     jsonMode: true,
+    tokensField: "max_completion_tokens",
+    extra: { reasoning_effort: "low" },
   },
   {
     id: "kimi",
@@ -78,8 +120,11 @@ export const AI_PROVIDERS: AiProvider[] = [
     transport: "openai",
     baseUrl: "https://api.moonshot.cn/v1",
     envKey: "MOONSHOT_API_KEY",
-    models: ["kimi-latest", "kimi-k2-turbo-preview", "moonshot-v1-32k", "moonshot-v1-128k"],
-    jsonMode: true,
+    models: ["kimi-k3", "kimi-k2.6"],
+    // K3 的文档只写了 json_schema，没提 json_object；不赌，靠提示词和解析端兜着
+    jsonMode: false,
+    tokensField: "max_completion_tokens",
+    extra: { reasoning_effort: "low" },
   },
   {
     id: "glm",
@@ -87,8 +132,10 @@ export const AI_PROVIDERS: AiProvider[] = [
     transport: "openai",
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     envKey: "ZHIPU_API_KEY",
-    models: ["glm-4.6", "glm-4.5", "glm-4.5-air", "glm-4-flash"],
+    models: ["glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-4.7", "glm-4.7-flash"],
     jsonMode: true,
+    tokensField: "max_tokens",
+    extra: { reasoning_effort: "low" },
   },
 ];
 
@@ -104,7 +151,7 @@ export function aiProvider(id: unknown): AiProvider | null {
   return isAiProviderId(id) ? (BY_ID.get(id) ?? null) : null;
 }
 
-/** 默认那家：没配过的账号打开设置面板时停在这儿 */
+/** 默认那家：后台没改过的话，全站的 AI 审核就用它（用户点名要 DeepSeek） */
 export const DEFAULT_AI_PROVIDER: AiProviderId = "deepseek";
 
 /**

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { githubConfigured, googleConfigured, wechatConfigured } from "@/auth";
-import { siteAiProviders } from "@/lib/ai/serverKeys";
+import { aiReviewReady } from "@/lib/ai/siteSettings";
 import { coverGenerateConfigured } from "@/lib/coverGenerate/replicate";
 import { ossConfigured } from "@/lib/oss";
 
-/** 前端据此提示哪些能力尚未配置。全是模块级常量，没有 await，不必是 async */
-export function GET() {
+/** 前端据此提示哪些能力尚未配置。除 aiReview 要问一下库（有内存缓存）外全是模块级常量 */
+export async function GET() {
+  // 库挂了不该连累整个配置接口：当作「审核还没配好」处理
+  const aiReview = await aiReviewReady().catch(() => false);
   return NextResponse.json({
     github: githubConfigured,
     google: googleConfigured,
@@ -14,7 +16,7 @@ export function GET() {
     oss: ossConfigured(),
     // 站点配没配生图 Token；能不能用还要看是不是管理员，那一层由接口自己拦
     coverGenerate: coverGenerateConfigured(),
-    // 服务端配了 key 的 AI 供应商（只报 id；同样只对管理员开放）
-    aiProviders: siteAiProviders(),
+    // AI 审核此刻能不能跑（后台选定的那家有没有 token）；只报一个布尔，用哪家、key 是什么都不下发
+    aiReview,
   });
 }

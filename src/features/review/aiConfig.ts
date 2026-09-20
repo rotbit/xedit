@@ -1,36 +1,22 @@
 "use client";
 
 /**
- * 「审哪一类、用哪家的哪个模型」这点偏好，存在本机 localStorage 里。
+ * 「上次审的是哪一类」这点偏好，存在本机 localStorage 里。
  *
- * 这里没有 API Key：各家的 key 全部配在服务端环境变量里（见 lib/ai/serverKeys），
- * 前端只管选模型，凭证不进浏览器、不进请求体。
+ * 这里没有模型也没有 API Key：用哪家的哪个模型、key 是什么，都由管理员在后台定
+ * （见 lib/ai/siteSettings），前端不选、不存、不传。
  */
 import { useCallback, useSyncExternalStore } from "react";
-import {
-  DEFAULT_AI_PROVIDER,
-  aiProvider,
-  cleanModel,
-  isAiProviderId,
-  type AiProviderId,
-} from "@/lib/ai/providers";
 import { DEFAULT_REVIEW_KIND, isReviewKind, type ReviewKind } from "@/lib/ai/reviewKinds";
 
 const STORE_KEY = "xedit.ai.config";
 
 export interface AiConfig {
-  provider: AiProviderId;
-  /** 当前供应商用哪个模型（可以是下拉里没有的自定义名） */
-  model: string;
   /** 上次审的是哪一类（表述 / 公众号规则）：下次点「审核」仍停在这儿 */
   kind: ReviewKind;
 }
 
-const FALLBACK: AiConfig = {
-  provider: DEFAULT_AI_PROVIDER,
-  model: aiProvider(DEFAULT_AI_PROVIDER)?.models[0] ?? "",
-  kind: DEFAULT_REVIEW_KIND,
-};
+const FALLBACK: AiConfig = { kind: DEFAULT_REVIEW_KIND };
 
 /** 快照要稳定：useSyncExternalStore 每次渲染都会比对，现 parse 一份会导致无限重渲 */
 let cache: AiConfig = FALLBACK;
@@ -41,15 +27,10 @@ function parse(raw: string | null): AiConfig {
   if (!raw) return FALLBACK;
   try {
     const data = JSON.parse(raw) as Partial<AiConfig>;
-    const provider = isAiProviderId(data.provider) ? data.provider : FALLBACK.provider;
-    return {
-      provider,
-      model: cleanModel(data.model, aiProvider(provider)!),
-      // 存里那份可能是旧版本写的（没有 kind），也可能被人改花了，一律过一遍校验
-      kind: isReviewKind(data.kind) ? data.kind : FALLBACK.kind,
-    };
+    // 存里那份可能是旧版本写的，也可能被人改花了，一律过一遍校验
+    return { kind: isReviewKind(data.kind) ? data.kind : FALLBACK.kind };
   } catch {
-    // 存坏了就当没存过：这点设置重填一遍就好，不值得为它弹个错
+    // 存坏了就当没存过：这点设置重选一遍就好，不值得为它弹个错
     return FALLBACK;
   }
 }
@@ -61,9 +42,9 @@ export function readAiConfig(): AiConfig {
     try {
       const raw = typeof window === "undefined" ? null : localStorage.getItem(STORE_KEY);
       cache = parse(raw);
-      // 早先的版本允许用户在这里存自己的 key；现在 key 只在服务端，
-      // 旧数据里要是还躺着一份，读到就顺手擦掉，别让凭证继续留在浏览器里
-      if (raw && raw.includes('"keys"')) localStorage.setItem(STORE_KEY, JSON.stringify(cache));
+      // 早先的版本在这里存过用户自己的 key 和模型选择；现在都归后台管，
+      // 旧数据读到就按新形状重写一遍——尤其别让凭证继续留在浏览器里
+      if (raw && raw !== JSON.stringify(cache)) localStorage.setItem(STORE_KEY, JSON.stringify(cache));
     } catch {
       cache = FALLBACK; // 隐私模式下 localStorage 会直接抛
     }
@@ -71,23 +52,10 @@ export function readAiConfig(): AiConfig {
   return cache;
 }
 
-/** 改设置：只带要改的字段，其余保持原样 */
+/** 改设置 */
 export function writeAiConfig(patch: Partial<AiConfig>): AiConfig {
   const base = readAiConfig();
-  const provider = patch.provider ?? base.provider;
-  const spec = aiProvider(provider)!;
-  // 换供应商时模型要跟着换：上一家的模型名在这一家多半不存在
-  const model =
-    patch.model !== undefined
-      ? cleanModel(patch.model, spec)
-      : provider === base.provider
-        ? base.model
-        : spec.models[0];
-  cache = {
-    provider,
-    model,
-    kind: isReviewKind(patch.kind) ? patch.kind : base.kind,
-  };
+  cache = { kind: isReviewKind(patch.kind) ? patch.kind : base.kind };
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(cache));
   } catch {}
