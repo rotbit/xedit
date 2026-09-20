@@ -192,11 +192,14 @@ export function AiSettingsCard() {
               <div className="truncate text-[11px] text-[var(--ink-faint)]">{sourceText(k)}</div>
             </div>
             <input
-              className={field}
+              className={
+                k.source === "none" ? field : `${field} placeholder:tracking-[0.15em] placeholder:text-[var(--ink-soft)]`
+              }
               type="password"
               autoComplete="new-password"
               spellCheck={false}
-              placeholder={k.source === "none" ? "粘贴 Token" : "留空不改；粘贴新的即覆盖"}
+              title={k.source === "none" ? undefined : "留空不改；粘贴新的即覆盖"}
+              placeholder={k.source === "none" ? "粘贴 Token" : "••••••••••••••••"}
               value={drafts[k.slot] ?? ""}
               onChange={(e) => {
                 const value = e.target.value;
