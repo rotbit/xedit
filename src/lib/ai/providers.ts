@@ -25,10 +25,6 @@ export interface AiProvider {
   models: string[];
   /** 认不认 response_format: json_object（认的话少一半解析失事） */
   jsonMode: boolean;
-  /** 去哪申请 key，设置面板上给个链接省得用户自己找 */
-  keyUrl: string;
-  /** key 长什么样，填错了好一眼看出来 */
-  keyHint: string;
 }
 
 export type AiProviderId = "replicate" | "deepseek" | "openai" | "kimi" | "glm";
@@ -57,8 +53,6 @@ export const AI_PROVIDERS: AiProvider[] = [
     models: CLAUDE_ON_REPLICATE,
     // Replicate 转的是 Anthropic 的原生接口，没有 response_format 这一说
     jsonMode: false,
-    keyUrl: "https://replicate.com/account/api-tokens",
-    keyHint: "r8_ 开头",
   },
   {
     id: "deepseek",
@@ -68,8 +62,6 @@ export const AI_PROVIDERS: AiProvider[] = [
     envKey: "DEEPSEEK_API_KEY",
     models: ["deepseek-chat", "deepseek-reasoner"],
     jsonMode: true,
-    keyUrl: "https://platform.deepseek.com/api_keys",
-    keyHint: "sk- 开头",
   },
   {
     id: "openai",
@@ -79,8 +71,6 @@ export const AI_PROVIDERS: AiProvider[] = [
     envKey: "OPENAI_API_KEY",
     models: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"],
     jsonMode: true,
-    keyUrl: "https://platform.openai.com/api-keys",
-    keyHint: "sk- 开头",
   },
   {
     id: "kimi",
@@ -90,8 +80,6 @@ export const AI_PROVIDERS: AiProvider[] = [
     envKey: "MOONSHOT_API_KEY",
     models: ["kimi-latest", "kimi-k2-turbo-preview", "moonshot-v1-32k", "moonshot-v1-128k"],
     jsonMode: true,
-    keyUrl: "https://platform.moonshot.cn/console/api-keys",
-    keyHint: "sk- 开头",
   },
   {
     id: "glm",
@@ -101,8 +89,6 @@ export const AI_PROVIDERS: AiProvider[] = [
     envKey: "ZHIPU_API_KEY",
     models: ["glm-4.6", "glm-4.5", "glm-4.5-air", "glm-4-flash"],
     jsonMode: true,
-    keyUrl: "https://open.bigmodel.cn/usercenter/apikeys",
-    keyHint: "一串带点号的 id.secret",
   },
 ];
 

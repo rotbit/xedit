@@ -101,7 +101,12 @@ export function ArticleReader({
   /** AI 审核模式：意见直接标在编辑器的正文上，所以只在普通编辑视图里成立，
       进双屏 / 进阅读就跟着退出 */
   const [reviewOn, setReviewOn] = useState(false);
-  const exitReview = useCallback(() => setReviewOn(false), []);
+  /** 审核设置面板开着没有：审核条上的胶囊和意见栏里的「去设置模型」都能把它掀开 */
+  const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
+  const exitReview = useCallback(() => {
+    setReviewOn(false);
+    setReviewSettingsOpen(false);
+  }, []);
   const { mode, previewMounted, toggleSplit, openEdit, toggleReading } = useEditorViewMode(
     editorRef,
     scrollEl,
@@ -156,15 +161,13 @@ export function ArticleReader({
   /** 正文列宽一步不让：摆得下就在右边加一栏意见，摆不下就改成浮层 */
   const { showColumn } = useReviewLayout({ active: reviewOn, scrollEl });
 
-  /** 开审核先退回普通编辑视图（标注长在编辑器上）；关掉不动视图 */
-  const toggleReview = useCallback(() => {
-    if (reviewOn) {
-      setReviewOn(false);
-      return;
-    }
+  /** 开审核先退回普通编辑视图（标注长在编辑器上）。审哪一类、用谁审，
+      在顶栏那颗按钮弹出的启动面板里已经选好了，这里只管开跑 */
+  const startReview = useCallback(() => {
     openEdit();
     setReviewOn(true);
-  }, [reviewOn, openEdit]);
+  }, [openEdit]);
+  const openReviewSettings = useCallback(() => setReviewSettingsOpen(true), []);
 
   // 封面写进 frontmatter。编辑器不受控，得走它自己的事务改（顺带能撤销），
   // 只替换首尾公共部分之外的那一小段，光标和滚动位置不动
@@ -298,7 +301,8 @@ export function ArticleReader({
               split={split}
               onToggleSplit={toggleSplit}
               review={reviewOn}
-              onToggleReview={toggleReview}
+              onStartReview={startReview}
+              onExitReview={exitReview}
               reading={reading}
               onToggleReading={toggleReading}
               onInsert={applyFormat}
@@ -345,6 +349,7 @@ export function ArticleReader({
               {reviewOn ? (
                 <ReviewToolbar
                   phase={reviewApi.phase}
+                  error={reviewApi.error}
                   total={reviewApi.total}
                   handled={reviewApi.handled}
                   categories={reviewApi.categories}
@@ -358,6 +363,8 @@ export function ArticleReader({
                   onRerun={reviewApi.rerun}
                   onExit={exitReview}
                   summary={showColumn ? undefined : reviewApi.summary}
+                  settingsOpen={reviewSettingsOpen}
+                  onSettingsOpen={setReviewSettingsOpen}
                 />
               ) : null}
               {/* 飞书式目录入口，贴在正文列左上角的留白里，展开后由面板顶部的收起按钮接管。
@@ -467,7 +474,7 @@ export function ArticleReader({
                   {/* 意见：摆得下就在右边站一栏，摆不下就只给选中的那条浮一张 */}
                   {reviewOn ? (
                     showColumn ? (
-                      <ReviewCards api={reviewApi} />
+                      <ReviewCards api={reviewApi} onOpenSettings={openReviewSettings} />
                     ) : (
                       <ReviewPopover api={reviewApi} />
                     )

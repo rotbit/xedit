@@ -1,9 +1,9 @@
 /**
  * 「AI 文章审核」的数据契约。
  *
- * 界面只认这三个结构：眼下由 mockReview 在本地造出来（原型），将来换成一次服务端调用，
- * 形状不变，UI 一行都不用改。有哪些问题类型也由结果自己带（categories），
- * 前端不写死「语病/啰嗦/…」这几种，服务端想加一类直接加就行。
+ * 界面只认这三个结构，由 /api/ai/review 给（见 lib/ai/reviewPrompt.ts 的 parseReviewResult）。
+ * 有哪些问题类型由结果自己带（categories），前端不写死「语病/啰嗦/…」这几种——
+ * 审核类型不同，整套分类都不一样（表述审核看语病，合规审核看诱导关注）。
  */
 
 export interface ReviewCategory {
