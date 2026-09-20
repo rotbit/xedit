@@ -8,6 +8,7 @@
 // 低频项（分享 / 导出 / 三个开关 / 删除）统一收进 ⋯ 菜单，顶栏只留常用动作。
 
 import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useEscape } from "@/hooks/useEscape";
 import { ReviewLaunchPopover } from "@/features/review/ReviewLaunchPopover";
 import {
@@ -120,6 +121,7 @@ export const ReaderActions = memo(function ReaderActions({
   /** 「审核」的启动面板：先选审核类型与模型，再开跑（Esc / 点外面收起由面板自己管） */
   const [launchOpen, setLaunchOpen] = useState(false);
   const reviewBtnRef = useRef<HTMLButtonElement>(null);
+  const isAdmin = useSession().data?.user?.isAdmin === true;
   const closeLaunch = useCallback(() => {
     setLaunchOpen(false);
     // 焦点还回按钮：键盘用户收起面板后不该被扔回页面开头
@@ -261,8 +263,10 @@ export const ReaderActions = memo(function ReaderActions({
         ) : null}
       </div>
       {/* AI 审核：直接在编辑区的正文上标出可以再改的地方，右侧逐条给意见。
-          点它不立刻开跑——先弹面板问清楚审哪一类、用谁审（审核开着时它就是退出键） */}
-      <div className="relative">
+          点它不立刻开跑——先弹面板问清楚审哪一类、用谁审（审核开着时它就是退出键）。
+          只给管理员看（口径同封面的「AI 生成」页签）：花的是站点的 key，真正的闸在服务端，
+          这里只是不让用不了的人看见一颗点了就 403 的按钮 */}
+      <div className={isAdmin ? "relative" : "hidden"}>
         <button
           ref={reviewBtnRef}
           data-menu-trigger
