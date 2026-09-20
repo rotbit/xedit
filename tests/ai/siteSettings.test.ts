@@ -22,11 +22,15 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { aiProvider } from "@/lib/ai/providers";
+import { MAX_GUIDE_CHARS, defaultReviewGuide, reviewSystemPrompt } from "@/lib/ai/reviewPrompt";
 import {
   AI_KEY_SLOTS,
   aiKeyStatuses,
   aiReviewReady,
+  getReviewGuide,
   getReviewModel,
+  reviewGuideStatuses,
+  setReviewGuide,
   parseReviewModel,
   setAiKey,
   setReviewModel,
@@ -108,5 +112,43 @@ describe("各家的 token", () => {
     // 换到一家没 token 的，又不行了
     await setReviewModel(aiProvider("kimi")!, "");
     expect(await aiReviewReady()).toBe(false);
+  });
+});
+
+describe("审核提示词", () => {
+  it("后台没改过就是代码里的默认文案", async () => {
+    expect(await getReviewGuide("expression")).toBe(defaultReviewGuide("expression"));
+    const statuses = await reviewGuideStatuses();
+    expect(statuses.map((s) => s.kind)).toEqual(["expression", "wechat_rules"]);
+    expect(statuses.every((s) => !s.custom && s.text === s.defaultText)).toBe(true);
+  });
+
+  it("改了就生效，而且只动这一类", async () => {
+    await setReviewGuide("expression", "  你是毒舌主编，只挑最要命的三处。 ");
+    expect(await getReviewGuide("expression")).toBe("你是毒舌主编，只挑最要命的三处。");
+    expect(await getReviewGuide("wechat_rules")).toBe(defaultReviewGuide("wechat_rules"));
+    expect((await reviewGuideStatuses())[0].custom).toBe(true);
+  });
+
+  it("传空串、或原样交回默认文案 = 恢复默认，库里不留行", async () => {
+    await setReviewGuide("expression", "自己写的");
+    await setReviewGuide("expression", "");
+    expect(table.has("ai.prompt.expression")).toBe(false);
+    await setReviewGuide("expression", defaultReviewGuide("expression"));
+    expect(table.has("ai.prompt.expression")).toBe(false);
+  });
+
+  it("认不出的审核类型、超长的提示词都拒收", async () => {
+    await expect(setReviewGuide("没这类", "x")).rejects.toThrow();
+    await expect(setReviewGuide("expression", "字".repeat(MAX_GUIDE_CHARS + 1))).rejects.toThrow();
+  });
+
+  it("管理员怎么改，输出格式那段都接在最后：JSON 形状和分类 id 改不坏", () => {
+    const prompt = reviewSystemPrompt("expression", "随便写点什么");
+    expect(prompt.startsWith("随便写点什么")).toBe(true);
+    expect(prompt).toContain('"quote"');
+    expect(prompt).toContain("grammar（语病）");
+    // 空的当没给，回到默认
+    expect(reviewSystemPrompt("expression", "  ")).toBe(reviewSystemPrompt("expression"));
   });
 });
