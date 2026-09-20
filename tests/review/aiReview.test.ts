@@ -6,6 +6,7 @@ import {
   writeAiConfig,
 } from "@/features/review/aiConfig";
 import { AiReviewError, requestAiReview, runReview } from "@/features/review/aiReview";
+import { formatRecordTime } from "@/features/review/history";
 
 /**
  * 网页这头发出去的那一次请求：发对了什么、没发什么、服务端回的错怎么传到界面上。
@@ -47,6 +48,27 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("审核历史：回包里的 record、回看时的时间", () => {
+  it("带了 docId 才报上去；服务端替这一趟存的那条记录原样带回来", async () => {
+    const record = { id: "r1", createdAt: "2026-09-20T02:00:00.000Z", kinds: ["expression"], model: "m", total: 0 };
+    const calls = fakeFetch(ok({ record }), ok());
+    const run = await requestAiReview(CONTENT, readAiConfig(), undefined, "doc-1");
+    expect(calls[0].body.docId).toBe("doc-1");
+    expect(run.record).toEqual(record);
+    expect(run.result.summary).toBe("还行");
+    // 没存成（或老服务端）：意见照给，record 是 null
+    expect((await requestAiReview(CONTENT, readAiConfig())).record).toBeNull();
+  });
+
+  it("时间说人话：今天的只说几点，今年的不带年份", () => {
+    const now = new Date(2026, 8, 20, 18, 0);
+    expect(formatRecordTime(new Date(2026, 8, 20, 9, 5).toISOString(), now)).toBe("今天 09:05");
+    expect(formatRecordTime(new Date(2026, 7, 3, 14, 30).toISOString(), now)).toBe("8月3日 14:30");
+    expect(formatRecordTime(new Date(2025, 11, 31, 8, 0).toISOString(), now)).toBe("2025年12月31日");
+    expect(formatRecordTime("不是时间", now)).toBe("");
+  });
 });
 
 describe("发出去的那一次请求", () => {

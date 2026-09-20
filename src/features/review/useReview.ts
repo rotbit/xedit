@@ -21,16 +21,20 @@ import {
   type ReviewMark,
 } from "./editorMarks";
 import { locateInSource, type SourceSpan } from "./locate";
-import { runReview } from "./aiReview";
+import { runReview, type ReviewRun } from "./aiReview";
+import { loadReviewRecord, saveReviewActions } from "./history";
 import { deriveStatus, isHandled } from "./status";
 import type {
   ReviewAction,
   ReviewCategory,
   ReviewItemView,
   ReviewPhase,
+  ReviewRecordMeta,
   ReviewResult,
 } from "./types";
 
+/** 「忽略 / 知道了」攒这么久再往历史里记一笔：连着点几条只发一次 */
+const SAVE_ACTIONS_DELAY = 600;
 /** 选中一条之后，把引文滚到可视区的这个位置（0 = 顶端） */
 const SCROLL_BIAS = 0.3;
 /** 引文落在这个纵向区间里就算「已经看得见」，不再滚动打扰作者 */
@@ -60,6 +64,12 @@ export interface ReviewApi {
   canPrev: boolean;
   canNext: boolean;
   rerun: () => void;
+  /** 翻出历史里的某一趟来看：不调模型、不花额度 */
+  openRecord: (id: string) => void;
+  /** 眼前这份结果在历史里的那条记录（没存成就是 null） */
+  record: ReviewRecordMeta | null;
+  /** 眼前这份是从历史里翻出来的，不是刚跑的 */
+  fromHistory: boolean;
   accept: (id: string) => void;
   ignore: (id: string) => void;
   ack: (id: string) => void;
@@ -75,6 +85,7 @@ export function useReview({
   active,
   content,
   docKey,
+  docId,
   editorRef,
   scrollEl,
 }: {
@@ -84,6 +95,8 @@ export function useReview({
   content: string;
   /** 换文档就把结果作废重跑 */
   docKey: string;
+  /** 文章 id：审核历史按它归档 */
+  docId: string;
   editorRef: RefObject<EditorHandle | null>;
   /** 标题 + 正文的共同滚动容器：选中一条时滚的是它 */
   scrollEl: HTMLElement | null;
@@ -95,7 +108,16 @@ export function useReview({
   const [actions, setActions] = useState<Record<string, ReviewAction>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
-  const [runToken, setRunToken] = useState(0);
+  /** 这一趟要干什么：recordId 为空 = 真跑一趟；有值 = 把历史里那条翻出来（只对 docId 这篇有效） */
+  const [run, setRun] = useState<{ token: number; recordId: string | null; docId: string }>({
+    token: 0,
+    recordId: null,
+    docId,
+  });
+  const [record, setRecord] = useState<ReviewRecordMeta | null>(null);
+  const [fromHistory, setFromHistory] = useState(false);
+  /** 已经记进历史的那份动作（JSON）：和它一样就不用再发 */
+  const savedActionsRef = useRef("{}");
   const [tick, setTick] = useState(0);
 
   // 取最新值而不进依赖：正文每敲一下都变，不能让它把审核重跑一遍
@@ -107,7 +129,7 @@ export function useReview({
     activeRef.current = active;
   }, [content, active]);
 
-  /** 跑一趟审核。进入审核模式、换文档、点「重新审核」各触发一次 */
+  /** 跑一趟审核（或翻一条历史）。进入审核模式、换文档、点「重新审核」、点历史里的某一趟各触发一次 */
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
@@ -115,7 +137,8 @@ export function useReview({
     // 否则旧结果会盖在新文档上，用户也白等一次额度
     const abort = new AbortController();
     // effect 里不能同步 setState（react-hooks/set-state-in-effect），推到微任务
-    const started = Promise.resolve().then(() => {
+    type Loaded = ReviewRun & { actions: Record<string, ReviewAction> | null };
+    const started = Promise.resolve().then((): Promise<Loaded> | null => {
       if (cancelled) return null;
       setPhase("loading");
       setError(null);
@@ -123,13 +146,26 @@ export function useReview({
       setActions({});
       setActiveId(null);
       setFilter(null);
-      return runReview(contentRef.current, abort.signal);
+      setRecord(null);
+      savedActionsRef.current = "{}";
+      // 审核途中切了文章：手里那个 recordId 是上一篇的，不能翻到这一篇上来
+      const recordId = run.docId === docId ? run.recordId : null;
+      setFromHistory(recordId !== null);
+      return recordId
+        ? loadReviewRecord(recordId, abort.signal)
+        : runReview(contentRef.current, abort.signal, docId).then((r) => ({ ...r, actions: null }));
     });
     started
       .then((r) => {
         if (!r) return;
         if (cancelled) return;
-        setResult(r);
+        // 翻出来的历史带着当时按过的「忽略 / 知道了」；新跑的一趟没有
+        if (r.actions) {
+          savedActionsRef.current = JSON.stringify(r.actions);
+          setActions(r.actions);
+        }
+        setRecord(r.record);
+        setResult(r.result);
         setPhase("done");
       })
       .catch((e: unknown) => {
@@ -141,9 +177,32 @@ export function useReview({
       cancelled = true;
       abort.abort();
     };
-  }, [active, docKey, runToken]);
+  }, [active, docKey, docId, run]);
 
-  const rerun = useCallback(() => setRunToken((t) => t + 1), []);
+  const rerun = useCallback(
+    () => setRun((r) => ({ token: r.token + 1, recordId: null, docId })),
+    [docId]
+  );
+  const openRecord = useCallback(
+    (id: string) => setRun((r) => ({ token: r.token + 1, recordId: id, docId })),
+    [docId]
+  );
+
+  /**
+   * 「忽略 / 知道了」记进这一趟的历史，下次翻出来还是处理过的样子。
+   * 记不上就算了：这只是几个按钮的记忆，不值得为它打断作者。
+   */
+  const recordId = record?.id ?? null;
+  useEffect(() => {
+    if (!recordId) return;
+    const json = JSON.stringify(actions);
+    if (json === savedActionsRef.current) return;
+    const timer = setTimeout(() => {
+      savedActionsRef.current = json;
+      saveReviewActions(recordId, actions).catch(() => {});
+    }, SAVE_ACTIONS_DELAY);
+    return () => clearTimeout(timer);
+  }, [actions, recordId]);
 
   // —— 每条意见此刻算什么状态：从正文现推 ——
   const items = useMemo<ReviewItemView[]>(() => {
@@ -385,6 +444,9 @@ export function useReview({
     canPrev,
     canNext,
     rerun,
+    openRecord,
+    record,
+    fromHistory,
     accept,
     ignore,
     ack,

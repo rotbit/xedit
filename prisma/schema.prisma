@@ -37,6 +37,7 @@ model User {
   dailyActives  DailyActive[]
   feishuConnection FeishuConnection?
   feishuDocLinks   FeishuDocLink[]
+  reviewRecords    ReviewRecord[]
 }
 
 model Account {
@@ -200,6 +201,27 @@ model SiteSetting {
   key       String   @id
   value     String   @db.Text
   updatedAt DateTime @updatedAt
+}
+
+/// AI 审核的历史记录：每跑成一趟存一条，关掉审核、换台设备都还能翻回来看。
+/// docId 只是个字符串（不连外键）：文章进了回收站、甚至删了，当时的意见也还留着。
+/// 这里只有审核结果和「忽略 / 知道了」这两种按钮动作——没有 token，也不存正文。
+model ReviewRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  docId     String
+  /// 审了哪几类，逗号分隔（lib/ai/reviewKinds 里的 id）
+  kinds     String
+  /// 当时用的模型，形如 deepseek/deepseek-chat，只为回看时心里有数
+  model     String   @default("")
+  /// ReviewResult：summary / categories / items
+  result    Json
+  /// 意见 id → ignored / acked
+  actions   Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([userId, docId, createdAt(sort: Desc)])
 }
 
 /// 每日活跃打点（date 为东八区 YYYY-MM-DD）：后台 DAU 曲线的数据源，
