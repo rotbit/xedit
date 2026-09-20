@@ -37,6 +37,9 @@ export const SITE_KEYWORDS = [
 
 export const GITHUB_URL = "https://github.com/rotbit/xedit";
 
+/** 对外联系邮箱：落地页页脚、FAQ 与反馈入口共用这一处，换邮箱只改这里 */
+export const CONTACT_EMAIL = "zebinpan08@gmail.com";
+
 /**
  * Mac 客户端入口。安装包尚未对外发版，先指向仓库；
  * 等 Releases 上传好 DMG 后改成
