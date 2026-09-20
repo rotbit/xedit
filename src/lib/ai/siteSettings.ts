@@ -1,5 +1,5 @@
 /**
- * 全站的 AI 设置（服务端专用）：AI 审核用哪个模型、各家上游的 token。
+ * 全站的 AI 设置（服务端专用）：AI 审核用哪个模型、各家上游的 token、各类审核的提示词。
  *
  * 都由管理后台写进 SiteSetting 表。token 入库前用 lib/ai/crypto 加密，
  * 明文只在这个模块里短暂出现，绝不出现在任何接口的返回里——后台回显只给「来源 + 末四位」。
@@ -18,9 +18,12 @@ import {
   type AiProvider,
   type AiProviderId,
 } from "./providers";
+import { MAX_GUIDE_CHARS, defaultReviewGuide } from "./reviewPrompt";
+import { REVIEW_KINDS, isReviewKind, type ReviewKind } from "./reviewKinds";
 
 const REVIEW_KEY = "ai.review";
 const KEY_PREFIX = "ai.key.";
+const PROMPT_PREFIX = "ai.prompt.";
 const TTL_MS = 60_000;
 /** token 再长也不至于过这个数；超了多半是粘错了东西 */
 const MAX_TOKEN_CHARS = 400;
@@ -114,4 +117,43 @@ export async function aiKeyStatuses(): Promise<AiKeyStatus[]> {
 export async function aiReviewReady(): Promise<boolean> {
   const { provider } = await getReviewModel();
   return (await siteAiKey(aiProvider(provider)!)) !== "";
+}
+
+/** 这一类审核现在用的「审核要求」：后台改过用后台的，没改过用代码里的默认文案 */
+export async function getReviewGuide(kind: ReviewKind): Promise<string> {
+  return (await rows()).get(PROMPT_PREFIX + kind)?.trim() || defaultReviewGuide(kind);
+}
+
+/**
+ * 改一类审核的「审核要求」。传空串、或者与默认文案一字不差 = 恢复默认（库里不留行）：
+ * 这样以后默认文案改进了，没自己改过的站点自动跟上，不会被一份一模一样的旧拷贝钉住。
+ */
+export async function setReviewGuide(kind: unknown, text: string): Promise<void> {
+  if (!isReviewKind(kind)) throw new AiSettingError("认不出这个审核类型");
+  const value = text.trim();
+  if (value.length > MAX_GUIDE_CHARS) {
+    throw new AiSettingError(`提示词太长了，最多 ${MAX_GUIDE_CHARS} 字`);
+  }
+  const same = value === "" || value === defaultReviewGuide(kind).trim();
+  await put(PROMPT_PREFIX + kind, same ? null : value);
+}
+
+export interface ReviewGuideStatus {
+  kind: ReviewKind;
+  label: string;
+  /** 现在生效的那份 */
+  text: string;
+  /** 代码里的默认文案，「恢复默认」用 */
+  defaultText: string;
+  custom: boolean;
+}
+
+/** 后台回显用：每类审核现在的提示词与默认文案 */
+export async function reviewGuideStatuses(): Promise<ReviewGuideStatus[]> {
+  const all = await rows();
+  return REVIEW_KINDS.map((k) => {
+    const stored = all.get(PROMPT_PREFIX + k.id)?.trim() ?? "";
+    const defaultText = defaultReviewGuide(k.id);
+    return { kind: k.id, label: k.label, text: stored || defaultText, defaultText, custom: stored !== "" };
+  });
 }

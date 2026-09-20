@@ -10,13 +10,13 @@ import {
   parseReviewResult,
   reviewSystemPrompt,
 } from "@/lib/ai/reviewPrompt";
-import { getReviewModel, siteAiKey } from "@/lib/ai/siteSettings";
+import { getReviewGuide, getReviewModel, siteAiKey } from "@/lib/ai/siteSettings";
 import { aiLimiter, aiDailyLimit } from "@/lib/ai/limit";
 
 /**
  * AI 文章审核：正文进去，一份 ReviewResult 出来（形状见 features/review/types）。
  *
- * 用哪家的哪个模型、key 是什么，全由管理后台定（见 lib/ai/siteSettings，环境变量兜底）。
+ * 用哪家的哪个模型、key 是什么、提示词怎么写，全由管理后台定（见 lib/ai/siteSettings，环境变量兜底）。
  * 请求体里只收正文和审核类型——provider / model / key 带了也不看。
  * 花的是站点的钱，口径与 AI 生成封面一致：必须登录，且只对 ADMIN_EMAILS 白名单开放，
  * 另按账号限量。
@@ -101,7 +101,8 @@ export async function POST(req: Request) {
         provider,
         model,
         apiKey: key,
-        system: reviewSystemPrompt(kind),
+        // 「审核要求」管理员可以在后台改；输出格式那段是固定接在后面的
+        system: reviewSystemPrompt(kind, await getReviewGuide(kind)),
         user: buildReviewUserPrompt(clipped),
         json: true,
       },
