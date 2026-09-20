@@ -9,7 +9,12 @@ type EditorViewMode = "edit" | "split" | "read";
 const PREVIEW_CLOSE_MS = 300;
 
 /** 管理互斥的显示模式；预览卸载单独延迟，以保留收起动画。编辑器实例始终由组件保留。 */
-export function useEditorViewMode(editorRef: RefObject<EditorHandle | null>, scrollEl: HTMLElement | null) {
+export function useEditorViewMode(
+  editorRef: RefObject<EditorHandle | null>,
+  scrollEl: HTMLElement | null,
+  /** 离开普通编辑视图的那一下（进双屏 / 进阅读）：只在编辑视图里成立的东西（AI 审核）借它一起收 */
+  onLeaveEdit?: () => void
+) {
   const [mode, setMode] = useState<EditorViewMode>("edit");
   const [previewMounted, setPreviewMounted] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,6 +41,7 @@ export function useEditorViewMode(editorRef: RefObject<EditorHandle | null>, scr
 
   const changeMode = useCallback((next: EditorViewMode) => {
     cancelPreviewClose();
+    if (mode === "edit" && next !== "edit") onLeaveEdit?.();
     if (next === "read") {
       editorRef.current?.flush();
       readingScroll.current = scrollEl?.scrollTop ?? 0;
@@ -50,9 +56,13 @@ export function useEditorViewMode(editorRef: RefObject<EditorHandle | null>, scr
       }, PREVIEW_CLOSE_MS);
     }
     setMode(next);
-  }, [mode, editorRef, scrollEl, cancelPreviewClose]);
+  }, [mode, editorRef, scrollEl, cancelPreviewClose, onLeaveEdit]);
 
   const toggleSplit = useCallback(() => changeMode(mode === "split" ? "edit" : "split"), [mode, changeMode]);
+  /** 只回不切：AI 审核只在普通编辑视图里成立，开它之前先从双屏 / 阅读退回来 */
+  const openEdit = useCallback(() => {
+    if (mode !== "edit") changeMode("edit");
+  }, [mode, changeMode]);
   const toggleReading = useCallback(() => changeMode(mode === "read" ? "edit" : "read"), [mode, changeMode]);
 
   // capture 阶段处理视图快捷键，优先于页面内其他监听。
@@ -73,5 +83,5 @@ export function useEditorViewMode(editorRef: RefObject<EditorHandle | null>, scr
     return () => window.removeEventListener("keydown", onKey, true);
   }, [toggleSplit, toggleReading]);
 
-  return { mode, previewMounted, toggleSplit, toggleReading };
+  return { mode, previewMounted, toggleSplit, openEdit, toggleReading };
 }
