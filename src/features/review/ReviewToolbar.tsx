@@ -5,7 +5,8 @@
 // 挂在它身上，那几条 CSS 的生命周期就跟审核模式严丝合缝。
 
 import { memo, useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, History, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronUp, History, RefreshCw, Settings2, X } from "lucide-react";
+import { AiIcon } from "@/components/AiIcon";
 import { reviewKindsLabel } from "@/lib/ai/reviewKinds";
 import { reviewMarkCss } from "./editorMarks";
 import { tint } from "./colors";
@@ -118,7 +119,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
 
       {loading ? (
         <span className="flex min-w-0 items-center gap-1.5 text-[var(--ink)]" role="status">
-          <Sparkles size={13} className="review-breathe shrink-0 text-[var(--accent)]" />
+          <AiIcon size={14} className="review-breathe shrink-0 text-[var(--accent)]" />
           <span className="truncate font-medium">
             {fromHistory ? "正在翻出这条审核记录…" : `AI 正在通读全文，做${kind}…`}
           </span>
@@ -157,7 +158,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
           }`}
           onClick={() => onSummaryOpen(!summaryOpen)}
         >
-          <Sparkles size={11} />
+          <AiIcon size={14} />
           总评
         </button>
       ) : null}
@@ -209,7 +210,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
           title="审核类型"
           onClick={() => onSettingsOpen(!settingsOpen)}
         >
-          <Settings2 size={11} className="shrink-0" />
+          <Settings2 size={12} className="shrink-0" />
           <span className="truncate">{kind}</span>
         </button>
         <button className={navBtn} title="上一条（⌥↑）" onClick={onPrev} disabled={!canPrev}>
@@ -224,10 +225,10 @@ export const ReviewToolbar = memo(function ReviewToolbar({
           title="审核历史"
           onClick={() => setHistoryOpen((v) => !v)}
         >
-          <History size={13} />
+          <History size={14} />
         </button>
         <button className={navBtn} title="重新审核" onClick={rerun} disabled={loading}>
-          <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </button>
         <button className={navBtn} title="退出审核" onClick={onExit}>
           <X size={14} />

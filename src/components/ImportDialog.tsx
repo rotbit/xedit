@@ -63,7 +63,7 @@ export function ImportDialog({
     <Modal
       // 标题跟菜单条目同名，点哪条进来就看到哪条
       title={mode === "folder" ? "导入文件夹" : "导入文件"}
-      icon={<FileInput size={15} className="text-[var(--accent)]" />}
+      icon={<FileInput size={16} className="text-[var(--accent)]" />}
       width={520}
       locked={running}
       onClose={onClose}
@@ -135,7 +135,7 @@ function Pick({
 function Running({ done, total }: { done: number; total: number }) {
   return (
     <div className="flex h-56 flex-col items-center justify-center gap-3">
-      <Loader2 size={22} className="animate-spin text-[var(--accent)]" />
+      <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
       <p className="text-[13px] text-[var(--ink-soft)]">
         正在导入 {done} / {total}
       </p>

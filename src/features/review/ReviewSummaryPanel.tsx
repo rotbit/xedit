@@ -8,7 +8,8 @@
  * 两种版式（有意见栏 / 没意见栏）点「总评」开的都是这一张。
  */
 import { useRef } from "react";
-import { Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
+import { AiIcon } from "@/components/AiIcon";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
 
@@ -25,7 +26,7 @@ export function ReviewSummaryPanel({ text, onClose }: { text: string; onClose: (
       className="review-pop absolute inset-x-0 top-[42px] z-30 mx-auto w-[min(600px,calc(100%-32px))] rounded-xl border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_12px_40px_rgba(0,0,0,0.14)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
     >
       <div className="flex items-center gap-1.5 border-b border-[var(--hairline-soft)] px-4 py-2.5">
-        <Sparkles size={13} className="shrink-0 text-[var(--accent)]" />
+        <AiIcon size={14} className="shrink-0 text-[var(--accent)]" />
         <span className="text-[13px] font-medium text-[var(--ink)]">总评</span>
         <button
           className="ml-auto cursor-pointer rounded p-0.5 text-[var(--ink-faint)] transition-colors hover:text-[var(--ink)]"

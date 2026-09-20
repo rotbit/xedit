@@ -101,7 +101,7 @@ export function AnnotationOverlay({
             handlers.setPanelPos(null);
           }}
         >
-          <MessageSquarePlus size={13} />
+          <MessageSquarePlus size={14} />
           批注
         </button>
       ) : null}
@@ -127,7 +127,7 @@ export function AnnotationOverlay({
             handlers.setMediaBtn(null);
           }}
         >
-          <MessageSquarePlus size={13} />
+          <MessageSquarePlus size={14} />
           批注{mediaBtn.video ? "视频" : "图片"}
         </button>
       ) : null}
@@ -271,7 +271,7 @@ function ThreadPanel({
               title="标记已解决"
               onClick={() => void handlers.resolveThread(thread.root.id, true)}
             >
-              <Check size={13} />
+              <Check size={14} />
               解决
             </button>
           ) : null}

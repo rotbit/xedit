@@ -81,7 +81,7 @@ function PanelHeader({ onClose, extra }: { onClose: () => void; extra?: React.Re
   return (
     <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--hairline)] pl-4 pr-2">
       <span className="flex items-center gap-2 text-[13px] font-medium">
-        <History size={15} className="text-[var(--ink-soft)]" />
+        <History size={16} className="text-[var(--ink-soft)]" />
         版本历史
       </span>
       <div className="flex items-center gap-1">
@@ -90,7 +90,7 @@ function PanelHeader({ onClose, extra }: { onClose: () => void; extra?: React.Re
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)]"
           onClick={onClose}
         >
-          <X size={15} />
+          <X size={16} />
         </button>
       </div>
     </div>
@@ -202,7 +202,7 @@ function VersionPreview({
           title="关闭预览"
           onClick={onClose}
         >
-          <X size={15} />
+          <X size={16} />
         </button>
       </div>
       {failed ? (

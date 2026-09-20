@@ -45,7 +45,7 @@ export function DocListView({ ws }: { ws: Workspace }) {
               data-menu-trigger
               onClick={(e) => menus.toggleDocMenuAt(e, doc.id)}
             >
-              <MoreHorizontal size={15} />
+              <MoreHorizontal size={16} />
             </button>
           </div>
         );

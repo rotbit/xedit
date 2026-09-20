@@ -54,7 +54,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   return (
     <PaletteShell
       open={open}
-      icon={<CommandIcon size={15} className="shrink-0 text-[var(--ink-faint)]" />}
+      icon={<CommandIcon size={16} className="shrink-0 text-[var(--ink-faint)]" />}
       placeholder="搜索命令…"
       hint="↑↓ 选择 · ↵ 执行 · esc 关闭"
       query={query}

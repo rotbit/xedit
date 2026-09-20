@@ -101,7 +101,7 @@ export function CommentSidebar({
                         className="flex cursor-pointer items-center gap-1 text-[11px] text-[var(--ink-faint)] hover:text-[var(--ink)]"
                         onClick={() => void resolveThread(t.root.id, false)}
                       >
-                        <RotateCcw size={11} />
+                        <RotateCcw size={12} />
                         恢复
                       </button>
                     ) : null}

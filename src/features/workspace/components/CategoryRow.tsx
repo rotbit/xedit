@@ -114,7 +114,7 @@ export function CategoryRow({
               title="管理文件夹"
               onClick={(e) => menus.toggleCatMenuAt(e, node.path)}
             >
-              <MoreHorizontal size={13} />
+              <MoreHorizontal size={14} />
             </button>
           </span>
         ) : null}

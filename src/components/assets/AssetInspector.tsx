@@ -53,7 +53,7 @@ function UsageList({
         {docs.map((d) => {
           const inner = (
             <>
-              <FileText size={11} className="shrink-0 text-[var(--ink-faint)]" />
+              <FileText size={12} className="shrink-0 text-[var(--ink-faint)]" />
               <span className="truncate">{d.title || UNTITLED_DOC}</span>
             </>
           );
@@ -125,7 +125,7 @@ export function AssetInspector({
           title="关闭详情"
           onClick={onClose}
         >
-          <X size={15} />
+          <X size={16} />
         </button>
       </div>
 
