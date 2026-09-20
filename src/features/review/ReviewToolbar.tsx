@@ -6,9 +6,10 @@
 
 import { memo, useState } from "react";
 import { ChevronDown, ChevronUp, Loader2, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
+import { reviewKindLabel } from "@/lib/ai/reviewKinds";
 import { reviewMarkCss } from "./editorMarks";
 import { tint } from "./colors";
-import { aiKeyOf, useAiConfig } from "./aiConfig";
+import { useAiConfig } from "./aiConfig";
 import { ReviewAiSettings } from "./ReviewAiSettings";
 import type { ReviewCategory, ReviewPhase } from "./types";
 
@@ -19,6 +20,7 @@ const chip =
 
 export const ReviewToolbar = memo(function ReviewToolbar({
   phase,
+  error,
   total,
   handled,
   categories,
@@ -32,8 +34,12 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   onRerun,
   onExit,
   summary,
+  settingsOpen,
+  onSettingsOpen,
 }: {
   phase: ReviewPhase;
+  /** 出错时服务端那句话：摆在横杠上，别让用户只看见「没能完成」 */
+  error: string | null;
   /** 这一趟一共给了几条 */
   total: number;
   /** 其中已处理（采纳 / 忽略 / 知道了）几条 */
@@ -51,14 +57,16 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   onExit: () => void;
   /** 只有摆不下意见栏时才传：总评没地方站，收进这条横杠里 */
   summary?: string;
+  /** 设置面板的开合提到外面：意见栏出错时那句「去设置」也要能把它打开 */
+  settingsOpen: boolean;
+  onSettingsOpen: (open: boolean) => void;
 }) {
   const loading = phase === "loading";
   const [sumOpen, setSumOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
   const [cfg] = useAiConfig();
-  // 这一趟是谁给的意见，始终摆在明面上：没填 key 时说清楚是演示数据，
-  // 否则用户会把一堆假意见当成模型的判断
-  const model = aiKeyOf(cfg) ? cfg.model.split("/").pop()! : "演示数据";
+  // 这一趟审的是哪一类、谁给的意见，始终摆在明面上
+  const model = cfg.model.split("/").pop()!;
+  const kind = reviewKindLabel(cfg.kind);
 
   return (
     <div className="relative flex h-9 shrink-0 items-center gap-2 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4 text-[12px] text-[var(--ink-soft)]">
@@ -66,12 +74,23 @@ export const ReviewToolbar = memo(function ReviewToolbar({
       <style>{reviewMarkCss(categories)}</style>
 
       {loading ? (
-        <span className="flex items-center gap-1.5 text-[var(--ink-faint)]">
-          <Loader2 size={12} className="animate-spin" />
-          正在审核…
+        <span className="flex min-w-0 items-center gap-1.5 text-[var(--ink-faint)]">
+          <Loader2 size={12} className="shrink-0 animate-spin" />
+          <span className="truncate">
+            正在用 {model} 做{kind}…
+          </span>
         </span>
       ) : phase === "error" ? (
-        <span className="text-[var(--ink-faint)]">审核没能完成</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-[var(--ink-faint)]">{error ?? "审核没能完成"}</span>
+          <button
+            data-menu-trigger
+            className="shrink-0 cursor-pointer whitespace-nowrap text-[var(--accent)] hover:underline"
+            onClick={() => onSettingsOpen(true)}
+          >
+            去设置
+          </button>
+        </span>
       ) : (
         <span className="shrink-0 whitespace-nowrap">
           {total} 条建议
@@ -130,17 +149,19 @@ export const ReviewToolbar = memo(function ReviewToolbar({
       )}
 
       <div className="flex shrink-0 items-center gap-0.5">
-        {/* 用的哪个模型：点开换供应商 / 换模型 / 填 key */}
+        {/* 审的哪一类、用的哪个模型：点开换审核类型 / 换模型 */}
         <button
           data-menu-trigger
-          className={`mr-1 flex max-w-[160px] shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
-            aiOpen ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"
+          className={`mr-1 flex max-w-[220px] shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
+            settingsOpen ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"
           }`}
-          title="选择审核用的模型"
-          onClick={() => setAiOpen((v) => !v)}
+          title="审核类型与模型"
+          onClick={() => onSettingsOpen(!settingsOpen)}
         >
           <Settings2 size={11} className="shrink-0" />
-          <span className="truncate">{model}</span>
+          <span className="truncate">
+            {kind} · {model}
+          </span>
         </button>
         <button className={navBtn} title="上一条（⌥↑）" onClick={onPrev} disabled={!canPrev}>
           <ChevronUp size={14} />
@@ -156,8 +177,8 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         </button>
       </div>
 
-      {aiOpen ? (
-        <ReviewAiSettings onClose={() => setAiOpen(false)} onChanged={onRerun} />
+      {settingsOpen ? (
+        <ReviewAiSettings onClose={() => onSettingsOpen(false)} onRerun={onRerun} />
       ) : null}
 
       {summary && sumOpen ? (

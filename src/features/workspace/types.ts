@@ -1,3 +1,5 @@
+import type { AiProviderId } from "@/lib/ai/providers";
+
 /** 文章列表项：本地库与云端镜像共用的元信息 */
 export interface DocMeta {
   id: string;
@@ -16,6 +18,12 @@ export interface AppConfig {
   oss: boolean;
   /** 站点配了生图 Token（「AI 生成」封面是否可用还要看是不是管理员） */
   coverGenerate: boolean;
+  /**
+   * 服务端配了 key 的 AI 供应商（同样只对管理员开放）。
+   * 审核面板据此决定「开始审核」是不是灰的：没配的那几家选了也跑不了，
+   * 配了的能不能用由服务端的 401 / 403 说。旧版本的回答里没有这个字段，所以是可选的。
+   */
+  aiProviders?: AiProviderId[];
 }
 
 /** 分类树节点：docs 为直属文章，count 含子孙分类 */

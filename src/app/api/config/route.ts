@@ -14,7 +14,7 @@ export function GET() {
     oss: ossConfigured(),
     // 站点配没配生图 Token；能不能用还要看是不是管理员，那一层由接口自己拦
     coverGenerate: coverGenerateConfigured(),
-    // 站点自带 key 的 AI 供应商（同样只对管理员开放）；用户自己填 key 的那条路不看这个
+    // 服务端配了 key 的 AI 供应商（只报 id；同样只对管理员开放）
     aiProviders: siteAiProviders(),
   });
 }
