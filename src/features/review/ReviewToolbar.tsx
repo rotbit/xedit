@@ -4,19 +4,38 @@
 // 正文里的标注配色也挂在这里：这条横杠在审核模式下一直在，
 // 挂在它身上，那几条 CSS 的生命周期就跟审核模式严丝合缝。
 
-import { memo, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
+import { memo, useEffect, useState } from "react";
+import { ChevronDown, ChevronUp, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
 import { reviewKindLabel } from "@/lib/ai/reviewKinds";
 import { reviewMarkCss } from "./editorMarks";
 import { tint } from "./colors";
 import { useAiConfig } from "./aiConfig";
 import { ReviewAiSettings } from "./ReviewAiSettings";
+import { ReviewSummaryPanel } from "./ReviewSummaryPanel";
 import type { ReviewCategory, ReviewPhase } from "./types";
 
 const navBtn =
   "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent";
 const chip =
   "shrink-0 cursor-pointer rounded-full border px-2 py-[1px] text-[11px] transition-colors";
+
+/**
+ * 这一趟已经跑了几秒。带思考的模型一审就是半分钟起步，光有个转圈看不出是在干活还是卡死了，
+ * 秒数在走才让人放心。
+ */
+export function useElapsedSeconds(running: boolean): number {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const start = Date.now();
+    const id = setInterval(() => setSec(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => {
+      clearInterval(id);
+      setSec(0);
+    };
+  }, [running]);
+  return sec;
+}
 
 export const ReviewToolbar = memo(function ReviewToolbar({
   phase,
@@ -34,6 +53,8 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   onRerun,
   onExit,
   summary,
+  summaryOpen,
+  onSummaryOpen,
   settingsOpen,
   onSettingsOpen,
 }: {
@@ -55,14 +76,22 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   canNext: boolean;
   onRerun: () => void;
   onExit: () => void;
-  /** 只有摆不下意见栏时才传：总评没地方站，收进这条横杠里 */
+  /** 总评全文：点「总评」在这条横杠底下垂一张阅读面板 */
   summary?: string;
+  /** 面板的开合提到外面：意见栏里那张总评小卡也要能把它打开 */
+  summaryOpen: boolean;
+  onSummaryOpen: (open: boolean) => void;
   /** 设置面板的开合提到外面：意见栏出错时那句「去设置」也要能把它打开 */
   settingsOpen: boolean;
   onSettingsOpen: (open: boolean) => void;
 }) {
   const loading = phase === "loading";
-  const [sumOpen, setSumOpen] = useState(false);
+  const elapsed = useElapsedSeconds(loading);
+  // 重跑时把总评面板收掉：那是上一趟的总评，新结果出来时不该自己又弹开
+  const rerun = () => {
+    onSummaryOpen(false);
+    onRerun();
+  };
   const [cfg] = useAiConfig();
   // 这一趟审的是哪一类，始终摆在明面上（用哪个模型由后台定，这里不显示）
   const kind = reviewKindLabel(cfg.kind);
@@ -73,10 +102,11 @@ export const ReviewToolbar = memo(function ReviewToolbar({
       <style>{reviewMarkCss(categories)}</style>
 
       {loading ? (
-        <span className="flex min-w-0 items-center gap-1.5 text-[var(--ink-faint)]">
-          <Loader2 size={12} className="shrink-0 animate-spin" />
-          <span className="truncate">
-            正在做{kind}…
+        <span className="flex min-w-0 items-center gap-1.5 text-[var(--ink)]" role="status">
+          <Sparkles size={13} className="review-breathe shrink-0 text-[var(--accent)]" />
+          <span className="truncate font-medium">AI 正在通读全文，做{kind}…</span>
+          <span className="shrink-0 tabular-nums text-[var(--ink-faint)]">
+            {elapsed} 秒{elapsed >= 8 ? " · 一般要半分钟到一分钟" : ""}
           </span>
         </span>
       ) : phase === "error" ? (
@@ -97,13 +127,13 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         </span>
       )}
 
-      {/* 摆不下意见栏时总评无处安放，在这儿给它一个可展开的入口 */}
       {summary && phase === "done" ? (
         <button
+          data-menu-trigger
           className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
-            sumOpen ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"
+            summaryOpen ? "bg-[var(--accent-wash)] text-[var(--accent)]" : "text-[var(--ink-soft)]"
           }`}
-          onClick={() => setSumOpen((v) => !v)}
+          onClick={() => onSummaryOpen(!summaryOpen)}
         >
           <Sparkles size={11} />
           总评
@@ -166,7 +196,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         <button className={navBtn} title="下一条（⌥↓）" onClick={onNext} disabled={!canNext}>
           <ChevronDown size={14} />
         </button>
-        <button className={navBtn} title="重新审核" onClick={onRerun} disabled={loading}>
+        <button className={navBtn} title="重新审核" onClick={rerun} disabled={loading}>
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
         </button>
         <button className={navBtn} title="退出审核" onClick={onExit}>
@@ -175,14 +205,15 @@ export const ReviewToolbar = memo(function ReviewToolbar({
       </div>
 
       {settingsOpen ? (
-        <ReviewAiSettings onClose={() => onSettingsOpen(false)} onRerun={onRerun} />
+        <ReviewAiSettings onClose={() => onSettingsOpen(false)} onRerun={rerun} />
       ) : null}
 
-      {summary && sumOpen ? (
-        <p className="absolute left-4 right-4 top-9 z-20 rounded-b-lg border border-t-0 border-[var(--hairline)] bg-[var(--panel)] px-3 py-2 text-[12px] leading-relaxed text-[var(--ink-soft)] shadow-[0_6px_18px_rgba(0,0,0,0.08)]">
-          {summary}
-        </p>
+      {summary && summaryOpen && phase === "done" ? (
+        <ReviewSummaryPanel text={summary} onClose={() => onSummaryOpen(false)} />
       ) : null}
+
+      {/* 审核进行中：底边一道流动的细光 */}
+      {loading ? <span className="review-progress" aria-hidden /> : null}
     </div>
   );
 });

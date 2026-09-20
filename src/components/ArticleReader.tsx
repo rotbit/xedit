@@ -103,9 +103,11 @@ export function ArticleReader({
   const [reviewOn, setReviewOn] = useState(false);
   /** 审核设置面板开着没有：审核条上的胶囊和意见栏里的「去设置模型」都能把它掀开 */
   const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
+  const [reviewSummaryOpen, setReviewSummaryOpen] = useState(false);
   const exitReview = useCallback(() => {
     setReviewOn(false);
     setReviewSettingsOpen(false);
+    setReviewSummaryOpen(false);
   }, []);
   const { mode, previewMounted, toggleSplit, openEdit, toggleReading } = useEditorViewMode(
     editorRef,
@@ -168,6 +170,7 @@ export function ArticleReader({
     setReviewOn(true);
   }, [openEdit]);
   const openReviewSettings = useCallback(() => setReviewSettingsOpen(true), []);
+  const openReviewSummary = useCallback(() => setReviewSummaryOpen(true), []);
 
   // 封面写进 frontmatter。编辑器不受控，得走它自己的事务改（顺带能撤销），
   // 只替换首尾公共部分之外的那一小段，光标和滚动位置不动
@@ -362,7 +365,9 @@ export function ArticleReader({
                   canNext={reviewApi.canNext}
                   onRerun={reviewApi.rerun}
                   onExit={exitReview}
-                  summary={showColumn ? undefined : reviewApi.summary}
+                  summary={reviewApi.summary}
+                  summaryOpen={reviewSummaryOpen}
+                  onSummaryOpen={setReviewSummaryOpen}
                   settingsOpen={reviewSettingsOpen}
                   onSettingsOpen={setReviewSettingsOpen}
                 />
@@ -474,7 +479,11 @@ export function ArticleReader({
                   {/* 意见：摆得下就在右边站一栏，摆不下就只给选中的那条浮一张 */}
                   {reviewOn ? (
                     showColumn ? (
-                      <ReviewCards api={reviewApi} onOpenSettings={openReviewSettings} />
+                      <ReviewCards
+                        api={reviewApi}
+                        onOpenSettings={openReviewSettings}
+                        onOpenSummary={openReviewSummary}
+                      />
                     ) : (
                       <ReviewPopover api={reviewApi} />
                     )
