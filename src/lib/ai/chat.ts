@@ -11,11 +11,14 @@
  */
 import { type AiProvider } from "./providers";
 
-const DEFAULT_TIMEOUT_SEC = 120;
+const DEFAULT_TIMEOUT_SEC = 180;
 const POLL_MS = 1200;
 const RUNNING = ["starting", "processing"];
-/** 审核一篇长文的输出也就几千 token，给足但别无限：省钱也防止模型自说自话停不下来 */
-const DEFAULT_MAX_TOKENS = 4000;
+/**
+ * 审核一篇长文的正文输出也就几千 token，但这一代模型的「思考」也算在输出上限里，
+ * 给少了思考就把额度吃光、正文是空的。给足但别无限：省钱也防止模型停不下来。
+ */
+const DEFAULT_MAX_TOKENS = 16000;
 /** 回复再长也不至于到 1MB；超了多半是上游出了怪事，早点截断别撑爆内存 */
 const MAX_REPLY_CHARS = 1_000_000;
 
@@ -134,10 +137,10 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
         { role: "system", content: req.system },
         { role: "user", content: req.user },
       ],
-      // 审核要的是稳定复现，不是花样：温度压到很低
-      temperature: 0.2,
-      max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
+      // 不传 temperature：这一代强制思考的模型要么不理它，要么直接报错（见 providers.ts）
+      [provider.tokensField]: req.maxTokens ?? DEFAULT_MAX_TOKENS,
       stream: false,
+      ...provider.extra,
     };
     // 认 JSON 模式的就顺手开上；不认的那几家靠提示词和解析端兜着
     if (req.json && provider.jsonMode) body.response_format = { type: "json_object" };
@@ -168,7 +171,8 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
 
   /**
    * Replicate：模型名带 ":版本号" 时走 /v1/predictions，否则走「模型最新版」那个接口。
-   * Claude 在 Replicate 上的入参是 prompt + system_prompt，输出是一串分片，拼起来才是全文。
+   * Claude 和 GPT 在 Replicate 上的入参都是 prompt + system_prompt（只有输出上限的字段名不同），
+   * 输出是一串分片，拼起来才是全文。入参表里没有 temperature，所以不传。
    */
   async function viaReplicate(): Promise<string> {
     const at = model.indexOf(":");
@@ -179,8 +183,8 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     const input: Record<string, unknown> = {
       prompt: req.user,
       system_prompt: req.system,
-      max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-      temperature: 0.2,
+      [provider.tokensField]: req.maxTokens ?? DEFAULT_MAX_TOKENS,
+      ...provider.extra,
     };
     const started = await callReplicate(url, {
       method: "POST",

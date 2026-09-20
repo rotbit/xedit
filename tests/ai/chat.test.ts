@@ -34,7 +34,7 @@ const chatOk = (content: string) => json({ choices: [{ message: { content } }] }
 
 const ask = (over: Record<string, unknown> = {}) => ({
   provider: deepseek,
-  model: "deepseek-chat",
+  model: "deepseek-flash",
   apiKey: KEY,
   system: "你是编辑",
   user: "审一下",
@@ -50,7 +50,7 @@ describe("chatComplete：OpenAI 兼容的那几家", () => {
     const headers = calls[0].init.headers as Record<string, string>;
     expect(headers.Authorization).toBe(`Bearer ${KEY}`);
     const body = JSON.parse(String(calls[0].init.body));
-    expect(body.model).toBe("deepseek-chat");
+    expect(body.model).toBe("deepseek-flash");
     expect(body.messages).toEqual([
       { role: "system", content: "你是编辑" },
       { role: "user", content: "审一下" },
@@ -64,10 +64,36 @@ describe("chatComplete：OpenAI 兼容的那几家", () => {
     expect(JSON.parse(String(calls[0].init.body)).response_format).toEqual({ type: "json_object" });
   });
 
-  it("温度压得很低：审核要的是稳定复现", async () => {
+  it("不发 temperature：新一代模型默认带思考，温度要么被忽略要么直接报错", async () => {
     const { impl, calls } = fakeFetch(chatOk("x"));
     await chatComplete(ask(), { fetchImpl: impl });
-    expect(JSON.parse(String(calls[0].init.body)).temperature).toBeLessThanOrEqual(0.3);
+    expect(JSON.parse(String(calls[0].init.body)).temperature).toBeUndefined();
+  });
+
+  it("输出上限的字段名各家不同：DeepSeek 用 max_tokens，OpenAI / Kimi 用 max_completion_tokens", async () => {
+    const a = fakeFetch(chatOk("x"));
+    await chatComplete(ask(), { fetchImpl: a.impl });
+    const ds = JSON.parse(String(a.calls[0].init.body));
+    expect(ds.max_tokens).toBeGreaterThan(0);
+    expect(ds.max_completion_tokens).toBeUndefined();
+
+    for (const id of ["openai", "kimi"] as const) {
+      const p = aiProvider(id)!;
+      const b = fakeFetch(chatOk("x"));
+      await chatComplete(ask({ provider: p, model: p.models[0] }), { fetchImpl: b.impl });
+      const body = JSON.parse(String(b.calls[0].init.body));
+      expect(body.max_completion_tokens).toBeGreaterThan(0);
+      expect(body.max_tokens).toBeUndefined();
+    }
+  });
+
+  it("能调思考力度的家一律压到 low：审稿用不着长考，省钱也省时间", async () => {
+    for (const id of ["openai", "kimi", "glm"] as const) {
+      const p = aiProvider(id)!;
+      const { impl, calls } = fakeFetch(chatOk("x"));
+      await chatComplete(ask({ provider: p, model: p.models[0] }), { fetchImpl: impl });
+      expect(JSON.parse(String(calls[0].init.body)).reasoning_effort).toBe("low");
+    }
   });
 
   it("分段数组形式的回复也能拼起来", async () => {
@@ -124,13 +150,13 @@ describe("chatComplete：报错的翻译", () => {
 });
 
 describe("chatComplete：Replicate 上的 Claude", () => {
-  const claude = () => ask({ provider: replicate, model: "anthropic/claude-4.5-sonnet" });
+  const claude = () => ask({ provider: replicate, model: "anthropic/claude-sonnet-5" });
 
   it("发到「模型最新版」那个接口，入参是 prompt + system_prompt", async () => {
     const { impl, calls } = fakeFetch(json({ status: "succeeded", output: ["一段", "话"] }));
     expect(await chatComplete(claude(), { fetchImpl: impl })).toBe("一段话");
     expect(calls[0].url).toBe(
-      "https://api.replicate.com/v1/models/anthropic/claude-4.5-sonnet/predictions"
+      "https://api.replicate.com/v1/models/anthropic/claude-sonnet-5/predictions"
     );
     const body = JSON.parse(String(calls[0].init.body));
     expect(body.input.prompt).toBe("审一下");
@@ -140,7 +166,7 @@ describe("chatComplete：Replicate 上的 Claude", () => {
 
   it("模型名带版本号时改走 /v1/predictions", async () => {
     const { impl, calls } = fakeFetch(json({ status: "succeeded", output: "好" }));
-    await chatComplete(ask({ provider: replicate, model: "anthropic/claude-4.5-sonnet:abc123" }), {
+    await chatComplete(ask({ provider: replicate, model: "anthropic/claude-sonnet-5:abc123" }), {
       fetchImpl: impl,
     });
     expect(calls[0].url).toBe("https://api.replicate.com/v1/predictions");

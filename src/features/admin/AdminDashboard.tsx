@@ -32,6 +32,7 @@ import { formatBytes, formatDate, quotaLabel, usagePercent } from "./format";
 import type { AdminUser, Overview, UserListResp } from "./types";
 import { BanDialog, QuotaDialog } from "./dialogs";
 import { DauChart } from "./DauChart";
+import { AiSettingsCard } from "./AiSettingsCard";
 import { UserDetailDrawer } from "./UserDetailDrawer";
 
 /** 超级管理员后台：全站概览 + 账号列表（封禁 / 配额 / 删号 / 明细） */
@@ -180,6 +181,9 @@ export function AdminDashboard() {
 
       {/* 活跃用户曲线 */}
       <DauChart />
+
+      {/* AI 设置：全站审核用哪个模型、各家 token */}
+      <AiSettingsCard />
 
       {/* 搜索 */}
       <div className="mt-8 flex items-center gap-3">
