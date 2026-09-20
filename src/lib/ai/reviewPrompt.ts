@@ -9,7 +9,7 @@
  * 把同一句翻来覆去说好几遍、一口气给你四十条。
  *
  * 审核分两类（见 reviewKinds.ts）：看表述的和看公众号规则的。两类共用上面这套规矩，
- * 各自有自己的系统提示与分类清单——「啰嗦」和「诱导关注」不该混在同一排筛选筹码里。
+ * 各自有自己的「审核要求」（后台可改）与分类清单——「啰嗦」和「诱导关注」不该混在同一排筛选筹码里。
  */
 import type { ReviewCategory, ReviewItem, ReviewResult } from "@/features/review/types";
 import { DEFAULT_REVIEW_KIND, type ReviewKind } from "./reviewKinds";
@@ -41,58 +41,45 @@ const MAX_QUOTE = 120;
 /** 超过这个长度的正文先截断再送模型：够审一篇公众号长文，也不至于一次烧掉太多 token */
 export const MAX_REVIEW_CHARS = 24000;
 
-/** 两类共用的硬规矩：JSON 形状、引文逐字、别碰代码块、最多 12 条 */
-function commonRules(cats: ReviewCategory[], suggestion: string, summary: string): string[] {
+/** 后台能改的那段提示词最长多少字：够写一份很细的规则清单，也不至于每次审核白烧一大截 token */
+export const MAX_GUIDE_CHARS = 6000;
+
+/**
+ * 提示词分两段：
+ * - 「审核要求」（guide）：你是谁、重点看什么、话怎么说。管理员可以在后台随便改（见 lib/ai/siteSettings），
+ *   下面两份 DEFAULT 就是后台里的默认文案，点「恢复默认」回到的也是它们。
+ * - 「输出格式」（formatRules）：JSON 形状、分类 id、引文逐字……这些是解析与界面定位的命根子，
+ *   改坏一个字整趟审核就解析不出来，所以不开放编辑，由服务端永远接在后面。
+ */
+function formatRules(cats: ReviewCategory[]): string {
   return [
-    "必须遵守：",
+    "输出格式（必须遵守，与上文冲突时以这里为准）：",
     "1. 只输出一个 JSON 对象，不要写任何解释、前言或 Markdown 代码块。",
     '2. JSON 形状：{"summary": "一段总评", "items": [{"category": "...", "quote": "...", "problem": "...", "suggestion": "..."}]}',
     `3. category 只能是这几个之一：${cats.map((c) => `${c.id}（${c.label}）`).join("、")}。`,
     "4. quote 必须是原文里一字不差、连续存在的一小段（含标点），长度控制在 4～40 个字，",
     "   不要跨行，不要自己改写，不要加省略号，不要带 Markdown 语法记号。",
-    `5. ${suggestion}`,
+    "5. suggestion 是把 quote 整段替换掉之后的文字；这条只是提醒、没有明确改法时，就不要这个字段。",
     "6. 不要点评 frontmatter（--- 之间的元数据）、代码块、图片和链接地址。",
-    "7. 同一句话只说一次，最多给 12 条，按重要程度从高到低排。",
-    `8. ${summary}`,
-  ];
+    `7. 同一句话只说一次，最多给 ${MAX_AI_ITEMS} 条，按重要程度从高到低排。`,
+  ].join("\n");
 }
 
-/**
- * 表述审核的系统提示。
- * ⚠️ 暂定文案：作者之后会给最终版的提示词，到时候整段换掉，别在这儿一条条打补丁。
- */
-const EXPRESSION_PROMPT = [
+/** 表述审核的默认「审核要求」 */
+const EXPRESSION_GUIDE = [
   "你是一位严格但克制的中文编辑，正在帮作者审一篇要发到微信公众号的文章。",
   "你的任务是挑出文章里真正值得改的地方，并给出可直接替换的改法。",
   "",
-  ...commonRules(
-    EXPRESSION_CATEGORIES,
-    [
-      "problem 用一句话说清楚问题出在哪，像编辑在旁边说话，不要空话套话；",
-      "   suggestion 是把 quote 整段替换掉之后的文字；如果这条只是提醒、没有明确改法，就不要这个字段。",
-    ].join("\n"),
-    "summary 用两三句话说全文的整体问题和优点，不要罗列上面每一条。"
-  ),
+  "写法要求：",
+  "- problem 用一句话说清楚问题出在哪，像编辑在旁边说话，不要空话套话；",
+  "- 能给出明确改法的就给 suggestion，拿不准的只提醒、不硬改；",
+  "- summary 用两三句话说全文的整体问题和优点，不要罗列上面每一条。",
 ].join("\n");
 
-/**
- * 公众号合规审核的系统提示。
- * ⚠️ 暂定文案：照着公众号后台常见的驳回理由与《广告法》忌讳写的一版，
- * 作者之后会给最终版的规则清单，到时候整段换掉。
- */
-const WECHAT_RULES_PROMPT = [
+/** 公众号合规审核的默认「审核要求」：照着公众号后台常见的驳回理由与《广告法》忌讳写的 */
+const WECHAT_RULES_GUIDE = [
   "你是微信公众号的内容合规审核员，正在帮作者检查一篇马上要群发的文章。",
   "你的任务是找出可能违反公众号平台规则、会被限流、删文或驳回的地方，只说风险，不评文笔。",
-  "",
-  ...commonRules(
-    WECHAT_RULES_CATEGORIES,
-    [
-      "problem 用一句话说清楚这句踩了哪条规则、可能的后果（限流 / 删文 / 不给推荐）；",
-      "   只有改法明摆着（比如把绝对化用语换成有限定的说法）时才给 suggestion，",
-      "   拿不准怎么改就不要这个字段，让作者自己拿主意。",
-    ].join("\n"),
-    "summary 用两三句话说这篇整体的合规风险，有没有必须改掉的硬伤。"
-  ),
   "",
   "重点看这几类：",
   "- 标题党 / 夸大：标题或开头与正文不符、卖悬念骗点击、震惊体、对效果打包票；",
@@ -101,11 +88,18 @@ const WECHAT_RULES_PROMPT = [
   "- 敏感风险：医疗保健的疗效承诺、投资理财的收益承诺、未经证实的传言、涉政涉黄涉赌、",
   "  人身攻击与地域歧视、暴露他人隐私；",
   "- 版权与引用：整段搬运他人文章、引用不注明出处、用来路不明的图片或音乐。",
+  "",
+  "写法要求：",
+  "- problem 用一句话说清楚这句踩了哪条规则、可能的后果（限流 / 删文 / 不给推荐）；",
+  "- 只有改法明摆着（比如把绝对化用语换成有限定的说法）时才给 suggestion，",
+  "  拿不准怎么改就不给，让作者自己拿主意；",
+  "- summary 用两三句话说这篇整体的合规风险，有没有必须改掉的硬伤。",
 ].join("\n");
 
 interface KindPrompt {
   categories: ReviewCategory[];
-  system: string;
+  /** 默认的「审核要求」；后台改过就用后台那份 */
+  guide: string;
   /** 分类认不出来时归到哪一类：整条丢掉太可惜，落进一个说得过去的筐里 */
   fallbackCategory: string;
 }
@@ -113,12 +107,12 @@ interface KindPrompt {
 const PROMPTS: Record<ReviewKind, KindPrompt> = {
   expression: {
     categories: EXPRESSION_CATEGORIES,
-    system: EXPRESSION_PROMPT,
+    guide: EXPRESSION_GUIDE,
     fallbackCategory: "wording",
   },
   wechat_rules: {
     categories: WECHAT_RULES_CATEGORIES,
-    system: WECHAT_RULES_PROMPT,
+    guide: WECHAT_RULES_GUIDE,
     // 合规这边说不清归哪类的，多半是「这么写有风险」，放进敏感风险里最不容易误导
     fallbackCategory: "sensitive",
   },
@@ -129,9 +123,23 @@ export function reviewCategories(kind: ReviewKind): ReviewCategory[] {
   return PROMPTS[kind].categories;
 }
 
-/** 这一类审核的系统提示 */
-export function reviewSystemPrompt(kind: ReviewKind): string {
-  return PROMPTS[kind].system;
+/** 这一类审核默认的「审核要求」（后台的默认文案） */
+export function defaultReviewGuide(kind: ReviewKind): string {
+  return PROMPTS[kind].guide;
+}
+
+/** 这一类审核固定接在后面的「输出格式」（后台只读展示，让管理员知道不用自己写这些） */
+export function reviewFormatRules(kind: ReviewKind): string {
+  return formatRules(PROMPTS[kind].categories);
+}
+
+/**
+ * 这一类审核的系统提示 = 审核要求 + 输出格式。
+ * guide 不给（或是空的）就用默认的；格式那段永远在最后，模型更听最后说的。
+ */
+export function reviewSystemPrompt(kind: ReviewKind, guide?: string): string {
+  const body = guide?.trim() || PROMPTS[kind].guide;
+  return `${body}\n\n${formatRules(PROMPTS[kind].categories)}`;
 }
 
 /** 正文太长就掐掉尾巴：截断点落在换行处，别把一句话劈成两半 */
