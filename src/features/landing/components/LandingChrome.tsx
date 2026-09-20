@@ -6,6 +6,7 @@
  * 所以 /themes 这类独立静态页可以直接复用这些组件，不用各自接一套逻辑。
  */
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowRight, PenLine } from "lucide-react";
 import { DarkToggle } from "@/components/DarkToggle";
 import { GithubMark } from "@/components/GithubMark";
@@ -64,8 +65,10 @@ export function StartWritingLink() {
 // 除「更新日志」是独立路由外，其余都是页内锚点，对应 Landing.tsx 里各 section 的 id；
 // 改 id 必须同步改这里，否则导航点了不动
 const NAV = [
-  { href: "#features", label: "功能" },
+  { href: "#editor", label: "编辑器" },
   { href: "#themes", label: "主题" },
+  { href: "#ai-review", label: "AI 审核" },
+  { href: "#publish", label: "一键发布" },
   { href: "#desktop", label: "Mac 版" },
   { href: "/changelog", label: "更新日志" },
   { href: "#faq", label: "常见问题" },
@@ -73,6 +76,11 @@ const NAV = [
 
 export function LandingHeader() {
   const { onLogin } = useLandingActions();
+  // 这条顶栏也用在 /themes、/changelog 上：那里的 #锚点要先回到落地页才跳得到。
+  // 回 /about 而不是 /——有本机文稿的人打开 / 是工作台，不是落地页
+  const pathname = usePathname();
+  const onLanding = pathname === "/" || pathname === "/about";
+  const resolve = (href: string) => (href.startsWith("#") && !onLanding ? `/about${href}` : href);
   return (
     // app-titlebar / traffic-inset：桌面壳未登录时显示落地页，这条顶栏充当系统标题栏
     <header className="app-titlebar sticky top-0 z-40 border-b border-[var(--hairline)] bg-[var(--paper)]/85 backdrop-blur-md">
@@ -88,7 +96,7 @@ export function LandingHeader() {
           {NAV.map((n) => (
             <Link
               key={n.href}
-              href={n.href}
+              href={resolve(n.href)}
               className="text-[13.5px] text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]"
             >
               {n.label}
