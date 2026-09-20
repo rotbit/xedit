@@ -20,6 +20,7 @@ import {
   Loader2,
   Minus,
   MoreHorizontal,
+  SpellCheck,
   Palette,
   PenLine,
   Plus,
@@ -66,6 +67,8 @@ export const ReaderActions = memo(function ReaderActions({
   empty,
   split,
   onToggleSplit,
+  review,
+  onToggleReview,
   reading,
   onToggleReading,
   onInsert,
@@ -77,6 +80,9 @@ export const ReaderActions = memo(function ReaderActions({
   empty: boolean;
   split: boolean;
   onToggleSplit: () => void;
+  /** AI 审核模式开着没有（标注直接画在编辑器里，开启会先从双屏 / 阅读退回普通编辑视图） */
+  review: boolean;
+  onToggleReview: () => void;
   reading: boolean;
   onToggleReading: () => void;
   /** 插入类命令直通编辑器的 applyFormat */
@@ -248,6 +254,15 @@ export const ReaderActions = memo(function ReaderActions({
         onClick={onToggleSplit}
       >
         <Columns2 size={15} />
+      </button>
+      {/* AI 审核：直接在编辑区的正文上标出可以再改的地方，右侧逐条给意见 */}
+      <button
+        className={`${review ? iconBtnOn : iconBtnIdle} disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent`}
+        title={review ? "退出审核" : "AI 审核：逐句挑毛病，给得出改法的可以一键采纳"}
+        onClick={onToggleReview}
+        disabled={empty}
+      >
+        <SpellCheck size={15} />
       </button>
       {/* 阅读模式：整块编辑区换成渲染后的成品，宽栏通读。
           进出同一个按钮，图标自己说明当前该往哪走，不再另加高亮态 */}

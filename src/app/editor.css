@@ -433,3 +433,34 @@
     transition: none;
   }
 }
+
+/* ── AI 审核的正文标注 ───────────────────────────────────────────
+   有意见的那几个字底下画一道彩色波浪线，配一层极淡的底色：认得出、找得到，
+   又不至于把正文糊成一片花。每一类的颜色由结果现给（见 editorMarks.ts 的
+   reviewMarkCss），这里只固定画法，用 --rv-* 变量接色；
+   没接上色（分类对不上）时退到强调色，不会变成透明看不见。 */
+.cm-editor .cm-review-mark {
+  background: var(--rv-tint, color-mix(in srgb, var(--accent) 10%, transparent));
+  border-radius: 2px;
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--rv-color, var(--accent));
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+/* 选中的那条：底色加重、波浪线换成实线，一眼看出说的是这句 */
+.cm-editor .cm-review-mark.cm-review-active {
+  background: var(--rv-tint-on, color-mix(in srgb, var(--accent) 22%, transparent));
+  text-decoration-style: solid;
+  text-decoration-thickness: 2px;
+  box-shadow: 0 0 0 1px var(--rv-color, var(--accent));
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-editor .cm-review-mark {
+    transition: none;
+  }
+}
