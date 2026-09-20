@@ -6,6 +6,8 @@
  * 审核类型不同，整套分类都不一样（表述审核看语病，合规审核看诱导关注）。
  */
 
+import type { ReviewKind } from "@/lib/ai/reviewKinds";
+
 export interface ReviewCategory {
   id: string;
   label: string;
@@ -60,3 +62,15 @@ export interface ReviewItemView extends ReviewItem {
 
 /** 审核这一趟走到哪了 */
 export type ReviewPhase = "idle" | "loading" | "done" | "error";
+
+/** 历史记录里的一趟审核：够认出是哪一趟（整份结果按 id 另取，见 history.ts） */
+export interface ReviewRecordMeta {
+  id: string;
+  /** ISO 时间 */
+  createdAt: string;
+  kinds: ReviewKind[];
+  /** 当时用的模型，形如 deepseek/deepseek-chat */
+  model: string;
+  /** 这一趟一共给了几条意见 */
+  total: number;
+}

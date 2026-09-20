@@ -12,6 +12,7 @@ import {
   reviewSystemPrompt,
   type ReviewPart,
 } from "@/lib/ai/reviewPrompt";
+import { cleanDocId, saveReviewRecord } from "@/lib/ai/reviewHistory";
 import { getReviewGuide, getReviewModel, siteAiKey } from "@/lib/ai/siteSettings";
 import { aiLimiter, aiDailyLimit } from "@/lib/ai/limit";
 
@@ -22,6 +23,9 @@ import { aiLimiter, aiDailyLimit } from "@/lib/ai/limit";
  * 请求体里只收正文和审核类型（可以一次勾几类，各跑各的提示词，合成一份结果）——provider / model / key 带了也不看。
  * 花的是站点的钱，口径与 AI 生成封面一致：必须登录，且只对 ADMIN_EMAILS 白名单开放，
  * 另按账号限量。
+ *
+ * 请求里带了 docId 的，跑成之后存一条历史（见 lib/ai/reviewHistory），回包里多一个 record；
+ * 存不进去不算审核失败——意见照给，只是这一趟回看不了。
  */
 
 /** 请求体上限：正文这边自己会截到 24k 字，留足余量，再多就是有人在灌 */
@@ -42,6 +46,8 @@ interface Body {
   kinds?: unknown;
   /** 单选时代的写法，老网页还在用；两个都不给就按表述审 */
   kind?: unknown;
+  /** 哪篇文章：给了才记历史 */
+  docId?: unknown;
 }
 
 export async function POST(req: Request) {
@@ -136,7 +142,23 @@ export async function POST(req: Request) {
     if (failed && "error" in failed && parts.every((p) => "error" in p)) {
       return NextResponse.json({ error: "failed", message: failed.error }, { status: 502 });
     }
-    return NextResponse.json(mergeReviewResults(parts));
+    const result = mergeReviewResults(parts);
+    const docId = cleanDocId(body.docId);
+    let record = null;
+    if (docId) {
+      try {
+        record = await saveReviewRecord({
+          userId,
+          docId,
+          kinds,
+          model: `${provider.id}/${model}`,
+          result,
+        });
+      } catch (e) {
+        console.error("存审核历史失败", e instanceof Error ? e.name : e);
+      }
+    }
+    return NextResponse.json({ ...result, record });
   } catch (e) {
     if (e instanceof AiError) {
       return NextResponse.json({ error: e.code, message: e.message }, { status: STATUS[e.code] ?? 502 });

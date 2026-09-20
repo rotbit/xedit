@@ -5,14 +5,16 @@
 // 挂在它身上，那几条 CSS 的生命周期就跟审核模式严丝合缝。
 
 import { memo, useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronUp, History, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
 import { reviewKindsLabel } from "@/lib/ai/reviewKinds";
 import { reviewMarkCss } from "./editorMarks";
 import { tint } from "./colors";
 import { useAiConfig } from "./aiConfig";
 import { ReviewAiSettings } from "./ReviewAiSettings";
 import { ReviewSummaryPanel } from "./ReviewSummaryPanel";
-import type { ReviewCategory, ReviewPhase } from "./types";
+import { ReviewHistoryPanel } from "./ReviewHistory";
+import { formatRecordTime } from "./history";
+import type { ReviewCategory, ReviewPhase, ReviewRecordMeta } from "./types";
 
 const navBtn =
   "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent";
@@ -57,6 +59,10 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   onSummaryOpen,
   settingsOpen,
   onSettingsOpen,
+  docId,
+  record,
+  fromHistory,
+  onOpenRecord,
 }: {
   phase: ReviewPhase;
   /** 出错时服务端那句话：摆在横杠上，别让用户只看见「没能完成」 */
@@ -84,7 +90,15 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   /** 设置面板的开合提到外面：意见栏出错时那句「去设置」也要能把它打开 */
   settingsOpen: boolean;
   onSettingsOpen: (open: boolean) => void;
+  /** 审核历史按文章归档 */
+  docId: string;
+  /** 眼前这份结果在历史里的那条记录 */
+  record: ReviewRecordMeta | null;
+  /** 眼前这份是从历史里翻出来的（不是刚跑的）：横杠上要说明白，免得当成新意见 */
+  fromHistory: boolean;
+  onOpenRecord: (id: string) => void;
 }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const loading = phase === "loading";
   const elapsed = useElapsedSeconds(loading);
   // 重跑时把总评面板收掉：那是上一趟的总评，新结果出来时不该自己又弹开
@@ -93,8 +107,9 @@ export const ReviewToolbar = memo(function ReviewToolbar({
     onRerun();
   };
   const [cfg] = useAiConfig();
-  // 这一趟审的是哪一类，始终摆在明面上（用哪个模型由后台定，这里不显示）
-  const kind = reviewKindsLabel(cfg.kinds);
+  // 这一趟审的是哪一类，始终摆在明面上（用哪个模型由后台定，这里不显示）。
+  // 翻历史时说的是当时审的那几类，不是现在勾着的
+  const kind = reviewKindsLabel(fromHistory && record ? record.kinds : cfg.kinds);
 
   return (
     <div className="relative flex h-9 shrink-0 items-center gap-2 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4 text-[12px] text-[var(--ink-soft)]">
@@ -104,10 +119,14 @@ export const ReviewToolbar = memo(function ReviewToolbar({
       {loading ? (
         <span className="flex min-w-0 items-center gap-1.5 text-[var(--ink)]" role="status">
           <Sparkles size={13} className="review-breathe shrink-0 text-[var(--accent)]" />
-          <span className="truncate font-medium">AI 正在通读全文，做{kind}…</span>
-          <span className="shrink-0 tabular-nums text-[var(--ink-faint)]">
-            {elapsed} 秒{elapsed >= 8 ? " · 一般要半分钟到一分钟" : ""}
+          <span className="truncate font-medium">
+            {fromHistory ? "正在翻出这条审核记录…" : `AI 正在通读全文，做${kind}…`}
           </span>
+          {fromHistory ? null : (
+            <span className="shrink-0 tabular-nums text-[var(--ink-faint)]">
+              {elapsed} 秒{elapsed >= 8 ? " · 一般要半分钟到一分钟" : ""}
+            </span>
+          )}
         </span>
       ) : phase === "error" ? (
         <span className="flex min-w-0 items-center gap-1.5">
@@ -124,6 +143,9 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         <span className="shrink-0 whitespace-nowrap">
           {total} 条建议
           {handled > 0 ? <span className="text-[var(--ink-faint)]"> · 已处理 {handled}</span> : null}
+          {fromHistory && record ? (
+            <span className="text-[var(--ink-faint)]"> · {formatRecordTime(record.createdAt)} 的记录</span>
+          ) : null}
         </span>
       )}
 
@@ -196,6 +218,14 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         <button className={navBtn} title="下一条（⌥↓）" onClick={onNext} disabled={!canNext}>
           <ChevronDown size={14} />
         </button>
+        <button
+          data-menu-trigger
+          className={`${navBtn} ${historyOpen ? "bg-[var(--accent-wash)] text-[var(--ink)]" : ""}`}
+          title="审核历史"
+          onClick={() => setHistoryOpen((v) => !v)}
+        >
+          <History size={13} />
+        </button>
         <button className={navBtn} title="重新审核" onClick={rerun} disabled={loading}>
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
         </button>
@@ -206,6 +236,18 @@ export const ReviewToolbar = memo(function ReviewToolbar({
 
       {settingsOpen ? (
         <ReviewAiSettings onClose={() => onSettingsOpen(false)} onRerun={rerun} />
+      ) : null}
+
+      {historyOpen ? (
+        <ReviewHistoryPanel
+          docId={docId}
+          currentId={record?.id ?? null}
+          onOpen={(id) => {
+            onSummaryOpen(false);
+            onOpenRecord(id);
+          }}
+          onClose={() => setHistoryOpen(false)}
+        />
       ) : null}
 
       {summary && summaryOpen && phase === "done" ? (
