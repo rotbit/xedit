@@ -41,3 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+
+# AI 工具过程产物（生图候选、playwright 截图/日志、宣传素材），只留本地
+/output/
