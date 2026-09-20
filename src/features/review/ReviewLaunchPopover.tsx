@@ -13,14 +13,20 @@ import { useRef } from "react";
 import { Sparkles } from "lucide-react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
+import { ReviewHistoryList } from "./ReviewHistory";
 import { ReviewSettingsFields, reviewPanel, useReviewKeyReady } from "./ReviewSettings";
 
 export function ReviewLaunchPopover({
+  docId,
   onClose,
   onStart,
+  onOpenRecord,
 }: {
+  docId: string;
   onClose: () => void;
   onStart: () => void;
+  /** 不重新审，直接翻出历史里的某一趟 */
+  onOpenRecord: (id: string) => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const { ready, hint } = useReviewKeyReady();
@@ -54,6 +60,18 @@ export function ReviewLaunchPopover({
       {!ready ? (
         <p className="mt-1.5 text-[11px] leading-snug text-[var(--ink-faint)]">{hint}</p>
       ) : null}
+
+      {/* 审过的就别再花一次额度：以前的意见都在这儿，点开就是 */}
+      <div className="mt-3 border-t border-[var(--hairline-soft)] pt-2.5 empty:hidden">
+        <ReviewHistoryList
+          docId={docId}
+          emptyHint={false}
+          onOpen={(id) => {
+            onClose();
+            onOpenRecord(id);
+          }}
+        />
+      </div>
     </div>
   );
 }

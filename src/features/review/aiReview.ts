@@ -7,7 +7,7 @@
  *
  * 纯函数，不认识 React，也不弹提示：错误一律抛出，message 就是能给用户看的一句话。
  */
-import type { ReviewResult } from "./types";
+import type { ReviewRecordMeta, ReviewResult } from "./types";
 import { readAiConfig, type AiConfig } from "./aiConfig";
 
 const REVIEW_API = "/api/ai/review";
@@ -22,12 +22,33 @@ export class AiReviewError extends Error {
   }
 }
 
+/** 一趟审核的产出：结果，外加服务端替它存下的那条历史（没存成就是 null，意见照看，只是回看不了） */
+export interface ReviewRun {
+  result: ReviewResult;
+  record: ReviewRecordMeta | null;
+}
+
+/** 回包里的 record 是服务端自己拼的，这里只确认形状，不细究 */
+export function asRecordMeta(value: unknown): ReviewRecordMeta | null {
+  const r = value as Partial<ReviewRecordMeta> | null;
+  if (!r || typeof r.id !== "string" || typeof r.createdAt !== "string") return null;
+  return {
+    id: r.id,
+    createdAt: r.createdAt,
+    kinds: Array.isArray(r.kinds) ? r.kinds : [],
+    model: typeof r.model === "string" ? r.model : "",
+    total: typeof r.total === "number" ? r.total : 0,
+  };
+}
+
 /** 请求一次真审核。调用方务必传 signal：退出审核 / 换文档时要能把它掐掉 */
 export async function requestAiReview(
   content: string,
   cfg: AiConfig,
-  signal?: AbortSignal
-): Promise<ReviewResult> {
+  signal?: AbortSignal,
+  /** 哪篇文章：带上它，服务端才会把这一趟记进历史 */
+  docId?: string
+): Promise<ReviewRun> {
   let res: Response;
   try {
     res = await fetch(REVIEW_API, {
@@ -36,6 +57,7 @@ export async function requestAiReview(
       body: JSON.stringify({
         content,
         kinds: cfg.kinds,
+        docId,
       }),
       signal,
     });
@@ -45,7 +67,7 @@ export async function requestAiReview(
     throw new AiReviewError(OFFLINE, "offline");
   }
   const data = (await res.json().catch(() => null)) as
-    | (Partial<ReviewResult> & { error?: unknown; message?: unknown })
+    | (Partial<ReviewResult> & { error?: unknown; message?: unknown; record?: unknown })
     | null;
   if (!res.ok) {
     const message = typeof data?.message === "string" ? data.message : "";
@@ -56,9 +78,12 @@ export async function requestAiReview(
     throw new AiReviewError("服务返回的结果看不懂，请再试一次", "failed");
   }
   return {
-    summary: typeof data.summary === "string" ? data.summary : "",
-    categories: data.categories,
-    items: data.items,
+    result: {
+      summary: typeof data.summary === "string" ? data.summary : "",
+      categories: data.categories,
+      items: data.items,
+    },
+    record: asRecordMeta(data.record),
   };
 }
 
@@ -66,6 +91,10 @@ export async function requestAiReview(
  * 界面真正调的那个：按本机此刻勾的审核类型跑一趟（勾了几类，服务端就一起审、合成一份结果）。
  * 设置是在发起这一刻读的，所以在面板里改完再点「重新审核」，用的就是新设置。
  */
-export function runReview(content: string, signal?: AbortSignal): Promise<ReviewResult> {
-  return requestAiReview(content, readAiConfig(), signal);
+export function runReview(
+  content: string,
+  signal?: AbortSignal,
+  docId?: string
+): Promise<ReviewRun> {
+  return requestAiReview(content, readAiConfig(), signal, docId);
 }

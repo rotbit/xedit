@@ -70,7 +70,9 @@ export const ReaderActions = memo(function ReaderActions({
   split,
   onToggleSplit,
   review,
+  docId,
   onStartReview,
+  onOpenReviewRecord,
   onExitReview,
   reading,
   onToggleReading,
@@ -87,6 +89,9 @@ export const ReaderActions = memo(function ReaderActions({
   review: boolean;
   /** 按启动面板里选好的类型与模型开跑 */
   onStartReview: () => void;
+  /** 审核历史按文章归档；点历史里的一趟就直接翻出来看，不重新审 */
+  docId: string;
+  onOpenReviewRecord: (id: string) => void;
   onExitReview: () => void;
   reading: boolean;
   onToggleReading: () => void;
@@ -285,7 +290,12 @@ export const ReaderActions = memo(function ReaderActions({
           <SpellCheck size={15} />
         </button>
         {launchOpen && !review ? (
-          <ReviewLaunchPopover onClose={closeLaunch} onStart={onStartReview} />
+          <ReviewLaunchPopover
+            docId={docId}
+            onClose={closeLaunch}
+            onStart={onStartReview}
+            onOpenRecord={onOpenReviewRecord}
+          />
         ) : null}
       </div>
       {/* 阅读模式：整块编辑区换成渲染后的成品，宽栏通读。

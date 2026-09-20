@@ -157,6 +157,7 @@ export function ArticleReader({
     active: reviewOn,
     content,
     docKey,
+    docId,
     editorRef,
     scrollEl,
   });
@@ -165,10 +166,21 @@ export function ArticleReader({
 
   /** 开审核先退回普通编辑视图（标注长在编辑器上）。审哪一类、用谁审，
       在顶栏那颗按钮弹出的启动面板里已经选好了，这里只管开跑 */
+  const { rerun: runNewReview, openRecord: loadReviewRecord } = reviewApi;
   const startReview = useCallback(() => {
     openEdit();
+    runNewReview(); // 上一回要是在翻历史，这里得拨回「真跑一趟」
     setReviewOn(true);
-  }, [openEdit]);
+  }, [openEdit, runNewReview]);
+  /** 翻一条审核历史出来看：不调模型。已经在审核模式里也是它 */
+  const openReviewRecord = useCallback(
+    (id: string) => {
+      openEdit();
+      loadReviewRecord(id);
+      setReviewOn(true);
+    },
+    [openEdit, loadReviewRecord]
+  );
   const openReviewSettings = useCallback(() => setReviewSettingsOpen(true), []);
   const openReviewSummary = useCallback(() => setReviewSummaryOpen(true), []);
 
@@ -304,7 +316,9 @@ export function ArticleReader({
               split={split}
               onToggleSplit={toggleSplit}
               review={reviewOn}
+              docId={docId}
               onStartReview={startReview}
+              onOpenReviewRecord={openReviewRecord}
               onExitReview={exitReview}
               reading={reading}
               onToggleReading={toggleReading}
@@ -370,6 +384,10 @@ export function ArticleReader({
                   onSummaryOpen={setReviewSummaryOpen}
                   settingsOpen={reviewSettingsOpen}
                   onSettingsOpen={setReviewSettingsOpen}
+                  docId={docId}
+                  record={reviewApi.record}
+                  fromHistory={reviewApi.fromHistory}
+                  onOpenRecord={reviewApi.openRecord}
                 />
               ) : null}
               {/* 飞书式目录入口，贴在正文列左上角的留白里，展开后由面板顶部的收起按钮接管。
