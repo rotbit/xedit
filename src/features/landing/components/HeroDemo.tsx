@@ -69,7 +69,7 @@ export function HeroDemo({ themes, children }: Props) {
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--hairline-strong)] bg-[var(--panel)] shadow-[0_24px_70px_-30px_rgba(0,0,0,0.45)]">
+    <div className="overflow-hidden rounded-[14px] border border-[var(--hairline-strong)] bg-[var(--panel)] shadow-[0_30px_80px_-34px_rgba(0,0,0,0.5)]">
       {/* 窗口条 */}
       <div className="flex h-10 items-center gap-3 border-b border-[var(--hairline)] bg-[var(--sidebar)] px-4">
         <span className="flex shrink-0 gap-1.5" aria-hidden="true">

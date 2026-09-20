@@ -25,11 +25,11 @@ function Row({
   return (
     <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16">
       <div className={reverse ? "lg:order-2" : undefined}>
-        <p className="flex items-center gap-2 text-[11.5px] font-medium tracking-[0.18em] text-[var(--brand)]">
-          <span className="h-1 w-1 rounded-full bg-[var(--brand)]" />
+        <p className="inline-flex items-center gap-2 rounded-full border border-[var(--hairline)] bg-[var(--brand-tint)] px-3 py-1 text-[11px] font-medium tracking-[0.16em] text-[var(--brand)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--ember)]" aria-hidden="true" />
           {eyebrow}
         </p>
-        <h2 className="mt-3.5 text-[clamp(22px,3vw,29px)] font-semibold leading-[1.35] tracking-tight">
+        <h2 className="mt-5 text-[clamp(22px,3vw,30px)] font-semibold leading-[1.35] tracking-[-0.02em]">
           {title}
         </h2>
         <p className="mt-4 text-[14.5px] leading-[1.85] text-[var(--ink-soft)]">{lead}</p>
@@ -48,8 +48,7 @@ function Row({
 }
 
 // 三张示意图共用的卡片外观，保证三段的视觉重量一致
-const card =
-  "rounded-xl border border-[var(--hairline)] bg-[var(--panel)] p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]";
+const card = "lp-card p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]";
 
 /** 内联流水线：Markdown → 带 style 的 HTML → 公众号后台 */
 function InlinePipeline() {
