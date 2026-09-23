@@ -9,7 +9,7 @@ import { createCoverLimiter } from "@/lib/coverGenerate/limit";
 
 const DEFAULT_DAILY_LIMIT = 30;
 
-/** 每个管理员每个自然日最多跑几次；没配或填得不合法都按 30 */
+/** 每个账号每个自然日最多跑几次（后台可给单个账号另设额度）；没配或填得不合法都按 30 */
 export function aiDailyLimit(): number {
   const n = Number(process.env.AI_DAILY_LIMIT);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_DAILY_LIMIT;

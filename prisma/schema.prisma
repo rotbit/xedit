@@ -25,6 +25,12 @@ model User {
   banReason     String?
   /// 存储配额（字节）；空 = 用全局默认，0 = 不限制
   storageQuota  BigInt?
+  /// 已开通的功能权限 key（见 lib/permissionKeys）；新用户默认一个都没有，管理员不看这列、一律全开
+  permissions   String[]          @default([])
+  /// AI 审核每日次数的单独额度；空 = 用全局默认（AI_DAILY_LIMIT）
+  aiReviewDailyLimit Int?
+  /// AI 生成封面每日张数的单独额度；空 = 用全局默认（COVER_GENERATE_DAILY_LIMIT）
+  aiCoverDailyLimit  Int?
   accounts      Account[]
   sessions      Session[]
   documents     Document[]

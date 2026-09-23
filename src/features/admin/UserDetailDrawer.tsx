@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * 后台的账号明细抽屉：进来时一次性拉 /api/admin/users/[id]，展示账号信息、近期文章和素材清单。
- * 纯只读视图，封禁、改配额等动作在 AdminDashboard 那边的弹窗里做。
+ * 后台的账号明细抽屉：进来时一次性拉 /api/admin/users/[id]，展示账号信息、功能权限、近期文章和素材清单。
+ * 功能权限（开关与每日上限）就地改、就地存，存成功后回调 onChanged 让列表重拉；
+ * 封禁、改配额等动作仍在 AdminDashboard 那边的弹窗里做。
  * 接口返回的文章与素材都是截断后的若干条，所以小标题写的是「近 N 篇」而不是总数。
  */
 import { useEffect, useState } from "react";
@@ -10,9 +11,19 @@ import { ExternalLink, FileText, Film, Image as ImageIcon, Loader2, ShieldCheck,
 import { useEscape } from "@/hooks/useEscape";
 import { formatBytes, formatDate, quotaLabel, usagePercent } from "./format";
 import type { UserDetailResp } from "./types";
+import { UserPermissionsCard } from "./UserPermissionsCard";
 
-/** 账号明细抽屉：基本信息 + 文章列表 + 按体积排序的素材清单 */
-export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+/** 账号明细抽屉：基本信息 + 功能权限 + 文章列表 + 按体积排序的素材清单 */
+export function UserDetailDrawer({
+  id,
+  onClose,
+  onChanged,
+}: {
+  id: string;
+  onClose: () => void;
+  /** 权限或上限存成功后调用，一般传列表的刷新函数 */
+  onChanged?: () => void;
+}) {
   const [detail, setDetail] = useState<UserDetailResp | null>(null);
   const [error, setError] = useState("");
   useEscape(onClose, true);
@@ -134,6 +145,8 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
                   文章 {t.docCount} · 回收站 {t.trashCount} · 素材 {t.assetCount}
                 </p>
               </div>
+
+              <UserPermissionsCard user={u} totals={t} onChanged={onChanged} />
 
               {/* 文章 */}
               <Section title={`文章（近 ${detail.docs.length} 篇）`}>

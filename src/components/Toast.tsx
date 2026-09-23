@@ -67,7 +67,8 @@ export function Toaster() {
   }, [dismiss]);
 
   return (
-    <div className="pointer-events-none fixed left-1/2 top-16 z-[100] flex -translate-x-1/2 flex-col items-center gap-2">
+    // z-[130] 压在所有浮层之上（后台抽屉 105、确认框 110、命令面板 120）：提示是即时反馈，不该被哪层遮罩糊住
+    <div className="pointer-events-none fixed left-1/2 top-16 z-[130] flex -translate-x-1/2 flex-col items-center gap-2">
       {items.map((t) => (
         <div
           key={t.id}

@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Image as ImageIcon, ImagePlus, Loader2 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { Dropdown } from "@/components/Dropdown";
 import { toast } from "@/components/Toast";
+import { useCan } from "@/hooks/usePermissions";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import { saveImageSrc } from "@/lib/editor/commands";
 import { MAX_IMAGE_SIZE, sizeLimitError } from "@/lib/media";
@@ -18,7 +18,7 @@ import { COVER_RATIO, coverTileCls } from "./coverStyles";
 
 /**
  * 元信息行里的「封面」：挑一张图存进文章 frontmatter 的 `cover:`。
- * 三个来源：正文图片 / 从电脑上传 / AI 生成（只对管理员开放）——后两种存下来的图不在正文里，一样算数
+ * 三个来源：正文图片 / 从电脑上传 / AI 生成（后台按账号开通）——后两种存下来的图不在正文里，一样算数
  * （发送到公众号时连图一起发过去，见 sendWechatDraft 的 coverImage）。
  * 封面跟着正文走，同步、导出都不用另外管。
  */
@@ -127,10 +127,10 @@ function CoverPanel({
 }) {
   const body = useMemo(() => parseFrontmatter(content)?.body ?? content, [content]);
   const images = useMemo(() => bodyImages(body), [body]);
-  // 生图花的是站点的钱，目前只对管理员开放（服务端另有一道判定，见 /api/cover/generate）。
+  // 生图花的是站点的钱，只对开通了「AI 生成封面」的账号开放（服务端另有一道判定，见 /api/cover/generate）。
   // 其他人连页签都不摆：摆一个点进去只会说「不给用」的功能没意义
-  const isAdmin = useSession().data?.user?.isAdmin === true;
-  const tabs = isAdmin ? TABS : TABS.filter(([id]) => id !== "ai");
+  const canCover = useCan("ai_cover");
+  const tabs = canCover ? TABS : TABS.filter(([id]) => id !== "ai");
   // 正文一张图都没有时直接停在「上传」：让人对着一句「先去正文插图」发呆没意义
   const [tab, setTab] = useState<Tab>(images.length > 0 ? "body" : "upload");
   const display = useDisplaySrc();

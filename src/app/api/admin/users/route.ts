@@ -8,6 +8,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { adminSessionUserId, isAdminEmail } from "@/lib/admin";
 import { DEFAULT_STORAGE_QUOTA } from "@/lib/guards";
+import { knownPermissions } from "@/lib/permissionKeys";
 
 // 页大小写死、不接受客户端传入：下面几次 groupBy 的 in 列表长度由它决定，放开就等于放开查询成本
 const PAGE_SIZE = 50;
@@ -49,6 +50,7 @@ export async function GET(req: Request) {
         bannedAt: true,
         banReason: true,
         storageQuota: true,
+        permissions: true,
         _count: { select: { documents: { where: { deletedAt: null } }, assets: true } },
       },
     }),
@@ -96,6 +98,8 @@ export async function GET(req: Request) {
       docCount: u._count.documents,
       assetCount: u._count.assets,
       admin: isAdminEmail(u.email),
+      // 库里存的原值（不叠加管理员全开 / 封禁全关），后台勾选框要照着它回显
+      permissions: knownPermissions(u.permissions),
     })),
   });
 }
