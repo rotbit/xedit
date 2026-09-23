@@ -11,7 +11,12 @@ export interface XeditDesktop {
   platform?: string;
   /** 桌面壳顶栏自己会显示草稿进度胶囊，网页这边就不再一条条弹提示 */
   draftProgress?: boolean;
+  /** 客户端版本（package.json 的 version，形如 "0.1.1"）；0.1.1 之前的壳没有这个字段 */
+  version?: string;
 }
+
+/** 「发送到公众号」依赖壳内置的草稿服务，这个版本起才有；更早的壳会连不上服务 */
+export const WECHAT_DRAFT_MIN_VERSION = "0.1.1";
 
 /** 取桌面壳接口；不在壳里（或服务端渲染时）返回 null */
 export function desktopShell(): XeditDesktop | null {
@@ -22,4 +27,24 @@ export function desktopShell(): XeditDesktop | null {
 /** 当前是不是跑在 xEdit 桌面壳里 */
 export function isDesktopShell(): boolean {
   return desktopShell() !== null;
+}
+
+/** 把 "0.1.1" 这类版本号拆成数字段，非数字段当 0 */
+const parts = (v: string): number[] => v.split(".").map((n) => Number.parseInt(n, 10) || 0);
+
+/**
+ * 当前桌面壳版本是否不低于 min。不在壳里、或壳太旧没报版本，都算不满足。
+ * 只在客户端里比较，服务端渲染时恒为 false（调用方须在点击后才读，避免水合不一致）。
+ */
+export function desktopVersionAtLeast(min: string): boolean {
+  const v = desktopShell()?.version;
+  if (!v) return false;
+  const a = parts(v);
+  const b = parts(min);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x > y;
+  }
+  return true;
 }
