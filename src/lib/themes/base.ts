@@ -239,7 +239,10 @@ ${CALLOUT_CSS}
 }
 #nice sup.footnote-num {
   font-size: 12px;
-  line-height: 0;
+  /* 公众号会检查 line-height < font-size 并报「文字重叠」风险，所以不能用 line-height: 0 压行框；
+     改为贴行框顶部对齐，小字号盒子本来就矮于正文行框，同样不会撑高整行 */
+  line-height: 1.2;
+  vertical-align: top;
 }
 #nice .footnote-refs {
   margin-top: 32px;
