@@ -56,7 +56,7 @@ const wechatGreen: ThemePreset = {
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #067f42; }
 #nice h2 { font-size: 20px; color: #1f1f1f; }
-#nice h2 .content { display: inline-block; padding: 0 5px 3px 2px; background-image: linear-gradient(transparent 60%, rgba(7, 193, 96, 0.22) 60%); }
+#nice h2 .content { display: inline-block; padding: 0 5px 3px 2px; background-color: rgba(7, 193, 96, 0.22); }
 #nice h3 { font-size: 17px; color: #067f42; }
 #nice h3 .prefix { display: inline-block; width: 7px; height: 7px; background-color: #07c160; border-radius: 50%; margin-right: 9px; vertical-align: middle; }
 #nice h4 { font-size: 16px; color: #067f42; }
@@ -83,7 +83,7 @@ const techBlue: ThemePreset = {
   color: "#1e6bb8",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #14508c; }
-#nice h2 { font-size: 19px; color: #14508c; border-left: 4px solid #1e6bb8; background-image: linear-gradient(90deg, #eef5fc, rgba(238, 245, 252, 0) 85%); border-radius: 0 6px 6px 0; }
+#nice h2 { font-size: 19px; color: #14508c; border-left: 4px solid #1e6bb8; background-color: #eef5fc; border-radius: 0 6px 6px 0; }
 #nice h2 .content { display: inline-block; padding: 8px 12px; }
 #nice h3 { font-size: 17px; color: #14508c; }
 #nice h3 .prefix { display: inline-block; width: 8px; height: 8px; border: 2px solid #1e6bb8; border-radius: 2px; margin-right: 9px; vertical-align: middle; }
@@ -113,9 +113,9 @@ const lanying: ThemePreset = {
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #0e6fd0; }
 #nice h2 { font-size: 18px; }
-#nice h2 .content { display: block; color: #ffffff; background-image: linear-gradient(135deg, #38a0f2, #0e6fd0); padding: 8px 16px; border-radius: 8px 8px 8px 0; font-size: 17px; letter-spacing: 1px; }
+#nice h2 .content { display: block; color: #ffffff; background-color: #0e6fd0; padding: 8px 16px; border-radius: 8px 8px 8px 0; font-size: 17px; letter-spacing: 1px; }
 #nice h3 { font-size: 17px; color: #0e6fd0; }
-#nice h3 .prefix { display: inline-block; width: 4px; height: 16px; background-image: linear-gradient(180deg, #4aa8f5, #0e6fd0); margin-right: 8px; border-radius: 2px; }
+#nice h3 .prefix { display: inline-block; width: 4px; height: 16px; background-color: #0e6fd0; margin-right: 8px; border-radius: 2px; }
 #nice h4 { font-size: 16px; color: #0e6fd0; }
 #nice a { color: #0e6fd0; text-decoration: none; border-bottom: 1px solid #9dcdf6; }
 #nice strong { color: #0c62b8; }
@@ -148,7 +148,7 @@ const orangeHeart: ThemePreset = {
 #nice h3 .prefix { display: inline-block; width: 4px; height: 15px; background-color: #ef7060; margin-right: 9px; border-radius: 2px; }
 #nice h4 { font-size: 16px; color: #e05442; }
 #nice a { color: #e05442; text-decoration: none; border-bottom: 1px solid #f6b3aa; }
-#nice strong { color: #d64937; background-image: linear-gradient(transparent 62%, #fde3de 62%); }
+#nice strong { color: #d64937; background-color: #fde3de; padding: 0 2px; }
 #nice em { color: #c25546; }
 #nice del { color: #999999; }
 #nice blockquote { border-left: 4px solid #ef7060; background-color: #fdf2ee; color: #595959; padding: 10px 16px; }
@@ -178,7 +178,7 @@ const violet: ThemePreset = {
 #nice h3 .prefix { display: inline-block; width: 4px; height: 15px; background-color: #a25dbd; margin-right: 9px; border-radius: 2px; }
 #nice h4 { font-size: 16px; color: #6d3487; }
 #nice a { color: #8e44ad; text-decoration: none; border-bottom: 1px solid #d3b3e0; }
-#nice strong { color: #7d3c98; background-image: linear-gradient(transparent 62%, #f0e4f7 62%); }
+#nice strong { color: #7d3c98; background-color: #f0e4f7; padding: 0 2px; }
 #nice em { color: #7d5093; }
 #nice del { color: #999999; }
 #nice blockquote { border: 1px solid #e9dbf2; background-color: #faf7fc; color: #6f5680; border-radius: 12px; padding: 8px 18px; }
@@ -297,7 +297,7 @@ const magazine: ThemePreset = {
 #nice h3 .content { display: inline-block; border-bottom: 1px solid #1a1a1a; padding-bottom: 3px; }
 #nice h4 { font-size: 16px; color: #1a1a1a; }
 #nice a { color: #1a1a1a; text-decoration: none; border-bottom: 2px solid #d8c9a3; }
-#nice strong { color: #1a1a1a; background-image: linear-gradient(transparent 60%, #efe3c4 60%); }
+#nice strong { color: #1a1a1a; background-color: #efe3c4; padding: 0 2px; }
 #nice em { color: #6b5d3f; }
 #nice del { color: #999999; }
 #nice blockquote { border-left: none; background-color: transparent; text-align: center; color: #6b6b6b; font-size: 17px; padding: 26px 24px 6px 24px; background-image: ${quoteMark("d8c9a3")}; background-repeat: no-repeat; background-position: center 4px; background-size: 24px 17px; }
@@ -324,7 +324,7 @@ const nightIndigo: ThemePreset = {
 #nice p { color: #c6cade; }
 #nice h1 { font-size: 22px; text-align: center; color: #7aa2f7; }
 #nice h2 { font-size: 19px; color: #7aa2f7; }
-#nice h2 .content { display: inline-block; padding: 0 2px 8px 2px; background-image: linear-gradient(90deg, #7aa2f7, #bb9af7); background-repeat: no-repeat; background-size: 100% 3px; background-position: 0 100%; }
+#nice h2 .content { display: inline-block; padding: 0 2px 8px 2px; border-bottom: 3px solid #7aa2f7; }
 #nice h3 { font-size: 17px; color: #bb9af7; }
 #nice h3 .prefix { display: inline-block; width: 4px; height: 16px; background-color: #bb9af7; margin-right: 8px; border-radius: 2px; }
 #nice h4 { font-size: 16px; color: #7dcfff; }
@@ -356,9 +356,9 @@ const sakura: ThemePreset = {
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #d8577f; }
 #nice h2 { font-size: 19px; text-align: center; color: #2f2f2f; }
-#nice h2 .content { display: inline-block; padding: 0 6px 3px 6px; background-image: linear-gradient(transparent 58%, #fbdce6 58%); }
+#nice h2 .content { display: inline-block; padding: 0 6px 3px 6px; background-color: #fbdce6; }
 #nice h3 { font-size: 17px; color: #d8577f; }
-#nice h3 .prefix { display: inline-block; width: 10px; height: 10px; background-image: linear-gradient(135deg, #f6b6ca, #e8618c); border-radius: 50% 50% 50% 0; margin-right: 8px; }
+#nice h3 .prefix { display: inline-block; width: 10px; height: 10px; background-color: #e8618c; border-radius: 50% 50% 50% 0; margin-right: 8px; }
 #nice h4 { font-size: 16px; color: #d8577f; }
 #nice a { color: #e8618c; text-decoration: none; border-bottom: 1px solid #f0a1bb; }
 #nice strong { color: #d8577f; }
