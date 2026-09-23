@@ -47,27 +47,26 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
 
   return (
     <>
-      {/* 新建中整颗一起变淡：只淡左半会看着像按钮裂了。
-          外壳自己垫一层 accent：中间那条半透明分隔线要叠在 accent 上才是「同一颗按钮」，否则透出的是纸色 */}
+      {/* 外观跟左边的视图切换器同一家族：描边 + 面板底色的低调控件，两段各自是圆角小按钮，
+          悬停才亮 accent-wash。不再用实心 accent 大色块：顶栏本来安静，一块高对比色板压过了内容。
+          新建中整颗一起变淡：只淡左半会看着像按钮裂了 */}
       <div
-        className={`ml-2 flex h-8 shrink-0 items-stretch rounded-md bg-[var(--accent)] ${docActions.creating ? "opacity-60" : ""}`}
+        className={`ml-2 flex h-8 shrink-0 items-center gap-0.5 rounded-md border border-[var(--hairline)] bg-[var(--panel)] p-0.5 ${docActions.creating ? "opacity-60" : ""}`}
       >
         <button
-          className="flex cursor-pointer items-center gap-1.5 rounded-l-md bg-[var(--accent)] pl-3 pr-2.5 text-[12.5px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
+          className="flex h-7 cursor-pointer items-center gap-1.5 rounded pl-2 pr-2.5 text-[12.5px] font-medium text-[var(--ink)] transition-colors hover:bg-[var(--accent-wash)]"
           onClick={() => void docActions.createDoc()}
           disabled={docActions.creating}
         >
           {docActions.creating ? (
-            <Loader2 size={14} className="animate-spin" />
+            <Loader2 size={14} className="animate-spin text-[var(--ink-faint)]" />
           ) : (
-            <FilePlus2 size={14} />
+            <FilePlus2 size={14} className="text-[var(--ink-faint)]" />
           )}
           新建文章
         </button>
-        {/* 半透明细线把两段分开，底色仍是同一块 accent，看着还是一颗按钮 */}
-        <span className="w-px shrink-0 bg-[var(--accent-fg)]/25" />
         <button
-          className="flex w-7 cursor-pointer items-center justify-center rounded-r-md bg-[var(--accent)] text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
+          className={`flex h-7 w-6 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${anchor ? "bg-[var(--accent-wash)] text-[var(--ink)]" : ""}`}
           data-menu-trigger
           title="导入"
           onClick={toggle}

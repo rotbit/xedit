@@ -43,6 +43,10 @@ export const CHANGELOG: ChangelogEntry[] = [
         kind: "fixed",
         text: "链接转成的脚注上标不再触发公众号「行高小于字体大小」的检测提示。",
       },
+      {
+        kind: "improved",
+        text: "工作台顶栏的「新建文章」按钮改成轻量描边样式，和旁边的视图切换器风格统一。",
+      },
     ],
   },
   {
