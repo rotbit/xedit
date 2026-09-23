@@ -2,16 +2,30 @@ import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * /api/cover/generate 的门禁与限流：未登录、非管理员、没配 Token、请求体、并发与每日额度。
- * 只把会话换成桩——管理员判定走真的 lib/admin（按 ADMIN_EMAILS 现算），
- * 生图也走真的 lib/coverGenerate/replicate，只是全局 fetch 是假的，绝不真的打 Replicate。
+ * /api/cover/generate 的门禁与限流：未登录、没开通、没配 Token、请求体、并发与每日额度。
+ * 会话和库换成桩（库里只放一张内存用户表）——权限判定走真的 lib/permissions + lib/admin
+ * （管理员按 ADMIN_EMAILS 现算），生图也走真的 lib/coverGenerate/replicate，
+ * 只是全局 fetch 是假的，绝不真的打 Replicate。
  */
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
+vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: vi.fn() } } }));
 
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import { POST } from "@/app/api/cover/generate/route";
 
 const authMock = auth as unknown as Mock;
+const findUserMock = prisma.user.findUnique as unknown as Mock;
+
+interface UserRow {
+  email: string | null;
+  bannedAt: Date | null;
+  permissions: string[];
+  aiReviewDailyLimit: number | null;
+  aiCoverDailyLimit: number | null;
+}
+/** 内存用户表：按 id 查；没登记过的 id 就当库里没这个人 */
+let users: Map<string, UserRow>;
 
 const TOKEN = "r8_TESTTOKEN_SHOULD_NOT_LEAK";
 const ADMIN = "boss@example.com";
@@ -61,9 +75,22 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
     })
   );
 
-const signedInAs = (id: string, email: string) => authMock.mockResolvedValue({ user: { id, email } });
+/** 登录成某个账号，并把它登记进内存用户表（默认一个权限都没开） */
+const signedInAs = (id: string, email: string, extra: Partial<UserRow> = {}) => {
+  users.set(id, {
+    email,
+    bannedAt: null,
+    permissions: [],
+    aiReviewDailyLimit: null,
+    aiCoverDailyLimit: null,
+    ...extra,
+  });
+  authMock.mockResolvedValue({ user: { id, email } });
+};
 
 beforeEach(() => {
+  users = new Map();
+  findUserMock.mockImplementation(async ({ where }: { where: { id: string } }) => users.get(where.id) ?? null);
   vi.stubEnv("ADMIN_EMAILS", ADMIN);
   vi.stubEnv("REPLICATE_API_TOKEN", TOKEN);
   // 失败路径会往 stderr 写一行，测试输出里不需要
@@ -87,7 +114,7 @@ describe("POST /api/cover/generate 的门禁", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("登录了但不在 ADMIN_EMAILS 里 → 403，上游一次没碰", async () => {
+  it("登录了但没开通 ai_cover → 403，上游一次没碰", async () => {
     const fetchMock = okFetch();
     vi.stubGlobal("fetch", fetchMock);
     signedInAs("u-normal", "someone@example.com");
@@ -96,9 +123,37 @@ describe("POST /api/cover/generate 的门禁", () => {
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({
       error: "forbidden",
-      message: "AI 生成封面目前只对管理员开放",
+      message: "你的账号还没开通 AI 生成封面，找管理员开通",
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("只开了 ai_review 的也不行：权限按项算", async () => {
+    vi.stubGlobal("fetch", okFetch());
+    signedInAs("u-review-only", "someone@example.com", { permissions: ["ai_review"] });
+    expect((await post(ONE)).status).toBe(403);
+  });
+
+  it("开通了 ai_cover 的普通账号 → 200", async () => {
+    vi.stubGlobal("fetch", okFetch());
+    signedInAs("u-granted", "someone@example.com", { permissions: ["ai_cover"] });
+    const res = await post(ONE);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ images: [DATA_URL] });
+  });
+
+  it("开通了但被封禁 → 403", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    signedInAs("u-banned", "someone@example.com", { permissions: ["ai_cover"], bannedAt: new Date() });
+    expect((await post(ONE)).status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("会话还在但库里已没这个人 → 403", async () => {
+    vi.stubGlobal("fetch", okFetch());
+    authMock.mockResolvedValue({ user: { id: "u-gone", email: ADMIN } });
+    expect((await post(ONE)).status).toBe(403);
   });
 
   it("名单大小写、空格都不计较；改名单立刻生效", async () => {
@@ -236,5 +291,16 @@ describe("POST /api/cover/generate 的限流", () => {
     const body = await res.json();
     expect(body.error).toBe("rate_limited");
     expect(body.message).toContain("今天");
+  });
+
+  it("账号单设了额度就用它的，不看全局默认", async () => {
+    vi.stubEnv("COVER_GENERATE_DAILY_LIMIT", "5");
+    vi.stubGlobal("fetch", okFetch());
+    signedInAs("u-own-limit", "someone@example.com", { permissions: ["ai_cover"], aiCoverDailyLimit: 1 });
+
+    expect((await post(ONE)).status).toBe(200);
+    const res = await post(ONE);
+    expect(res.status).toBe(429);
+    expect((await res.json()).message).toContain("每天 1 次");
   });
 });

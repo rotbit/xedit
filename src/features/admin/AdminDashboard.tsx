@@ -35,6 +35,7 @@ import { DauChart } from "./DauChart";
 import { AiSettingsCard } from "./AiSettingsCard";
 import { AiPromptCard } from "./AiPromptCard";
 import { UserDetailDrawer } from "./UserDetailDrawer";
+import { PermissionBadge } from "./PermissionBadge";
 
 /** 超级管理员后台：全站概览 + 账号列表（封禁 / 配额 / 删号 / 明细） */
 export function AdminDashboard() {
@@ -256,7 +257,9 @@ export function AdminDashboard() {
                           <span title="ADMIN_EMAILS 白名单管理员">
                             <ShieldCheck size={14} className="shrink-0 text-[var(--accent)]" />
                           </span>
-                        ) : null}
+                        ) : (
+                          <PermissionBadge permissions={u.permissions} />
+                        )}
                       </p>
                       <p className="truncate text-[12px] text-[var(--ink-faint)]">{u.email ?? "—"}</p>
                     </div>
@@ -405,7 +408,12 @@ export function AdminDashboard() {
       ) : null}
       {detailId ? (
         // key 让切换账号时整体重挂载，抽屉内部不用手动清状态
-        <UserDetailDrawer key={detailId} id={detailId} onClose={() => setDetailId(null)} />
+        <UserDetailDrawer
+          key={detailId}
+          id={detailId}
+          onClose={() => setDetailId(null)}
+          onChanged={refreshAll}
+        />
       ) : null}
       <Toaster />
     </div>

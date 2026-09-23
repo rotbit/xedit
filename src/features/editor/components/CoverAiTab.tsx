@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { AiIcon } from "@/components/AiIcon";
-import { useSession } from "next-auth/react";
+import { useCan } from "@/hooks/usePermissions";
 import { useStore } from "@/store/useStore";
 import {
   COVER_COLORS,
@@ -21,7 +21,7 @@ import { COVER_RATIO, coverTileCls } from "./coverStyles";
  * 封面选择器的「AI 生成」页签：填好标题、重点词和要对比的两个产品，交给本站的
  * /api/cover/generate 生图（提示词是服务端写死的模板，这里只提供填空）。
  * 一次只生一张，不行就再点一次「再来一次」；看中了就走存图那条路。
- * Replicate Token 在服务端（浏览器拿不到），生图又花的是站点的钱、只对管理员开放，
+ * Replicate Token 在服务端（浏览器拿不到），生图又花的是站点的钱、只对开通了的账号开放，
  * 所以这里先问一句站点配没配、自己够不够格。
  */
 
@@ -98,7 +98,7 @@ export function CoverAiTab({
 }: {
   onUse: (file: File) => Promise<void>;
 }) {
-  const isAdmin = useSession().data?.user?.isAdmin === true;
+  const canCover = useCan("ai_cover");
   const [service, setService] = useState<CoverServiceState | "checking">("checking");
   /** forbidden 那一屏上显示的话：接口回过就用服务端的说法，没有就用默认那句 */
   const [denied, setDenied] = useState("");
@@ -118,11 +118,11 @@ export function CoverAiTab({
 
   useEffect(() => {
     const ctrl = new AbortController();
-    void coverServiceState(isAdmin, ctrl.signal).then((s) => {
+    void coverServiceState(canCover, ctrl.signal).then((s) => {
       if (!ctrl.signal.aborted) setService(s);
     });
     return () => ctrl.abort();
-  }, [isAdmin]);
+  }, [canCover]);
 
   const run = async () => {
     running.current?.abort();
@@ -148,7 +148,7 @@ export function CoverAiTab({
     } catch (e) {
       // 自己被 abort 掉（关面板、点了「再来一次」）不是错，不用报
       if (ctrl.signal.aborted) return;
-      // 资格被收回（管理员名单改了、会话过期）：再点也没用，直接换成那一屏，别留个还能点的按钮
+      // 资格被收回（后台关了权限、会话过期）：再点也没用，直接换成那一屏，别留个还能点的按钮
       if (e instanceof CoverGenerateError && (e.code === "forbidden" || e.code === "unauthorized")) {
         setDenied(e.message);
         setService("forbidden");
@@ -181,7 +181,7 @@ export function CoverAiTab({
   if (service === "offline") return <p className={tip}>现在连不上服务器，稍后再试</p>;
   if (service === "unconfigured") return <p className={tip}>服务端还没有配置 AI 生成封面</p>;
   if (service === "forbidden")
-    return <p className={tip}>{denied || "AI 生成封面目前只对管理员开放"}</p>;
+    return <p className={tip}>{denied || "你的账号还没开通 AI 生成封面，找管理员开通"}</p>;
 
   return (
     <div className="flex flex-col gap-2 px-3 pb-2 pt-2">

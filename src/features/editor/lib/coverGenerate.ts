@@ -22,7 +22,7 @@ export interface CoverProduct {
   color: CoverColor;
 }
 
-/** 带服务端错误码的失败，界面据此分流（如 403 要改口说「只对管理员开放」）；连不上时是 offline */
+/** 带服务端错误码的失败，界面据此分流（如 403 要改口说「账号没开通」）；连不上时是 offline */
 export class CoverGenerateError extends Error {
   code: string;
   constructor(message: string, code: string) {
@@ -54,14 +54,14 @@ export function isCoverColor(value: unknown): value is CoverColor {
  * 生封面能不能用：
  *   offline      连不上服务器（离线壳、断网、反代挂了）
  *   unconfigured 站点没配生图 Token
- *   forbidden    配了，但当前账号不是管理员（生图花的是站点的钱）
+ *   forbidden    配了，但当前账号没开通「AI 生成封面」（生图花的是站点的钱）
  *   ready        可以生成
  */
 export type CoverServiceState = "offline" | "unconfigured" | "forbidden" | "ready";
 
-/** isAdmin 由调用方从会话里取（session.user.isAdmin）；服务端另有一道判定，这里只决定界面显示什么 */
+/** allowed 由调用方从 useCan("ai_cover") 取；服务端另有一道判定，这里只决定界面显示什么 */
 export async function coverServiceState(
-  isAdmin: boolean,
+  allowed: boolean,
   signal?: AbortSignal
 ): Promise<CoverServiceState> {
   try {
@@ -74,7 +74,7 @@ export async function coverServiceState(
     // 连不上、答的不是 JSON（被网关拦了）都按「够不着服务器」处理
     return "offline";
   }
-  return isAdmin ? "ready" : "forbidden";
+  return allowed ? "ready" : "forbidden";
 }
 
 /**
