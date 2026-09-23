@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { adminSessionUserId } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 
-/** 审核历史与审核本身同一道门：必须登录，且只对 ADMIN_EMAILS 白名单开放 */
+/** 审核历史与审核本身同一道门：必须登录，且账号开通了 ai_review 权限（管理员自带） */
 export async function historyUser(): Promise<{ userId: string } | { response: NextResponse }> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -13,16 +13,16 @@ export async function historyUser(): Promise<{ userId: string } | { response: Ne
       ),
     };
   }
-  const userId = adminSessionUserId(session);
-  if (!userId) {
+  const access = await requirePermission(session, "ai_review");
+  if (!access) {
     return {
       response: NextResponse.json(
-        { error: "forbidden", message: "AI 审核目前只对管理员开放" },
+        { error: "forbidden", message: "你的账号还没开通 AI 审核，找管理员开通" },
         { status: 403 }
       ),
     };
   }
-  return { userId };
+  return { userId: access.userId };
 }
 
 export const notFound = () =>

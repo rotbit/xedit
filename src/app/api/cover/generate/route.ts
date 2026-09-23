@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { adminSessionUserId } from "@/lib/admin";
 import { coverLimiter } from "@/lib/coverGenerate/limit";
+import { requirePermission } from "@/lib/permissions";
 import {
   CoverError,
   coverDailyLimit,
@@ -14,8 +14,8 @@ import {
 
 /**
  * AI 生成公众号封面：Replicate Token 只在服务端用，浏览器全程碰不到，只拿得到图。
- * 生图按张收费、花的是站点的账户，所以目前只对 ADMIN_EMAILS 白名单里的管理员开放，
- * 并按账号限量（同时只能生一张、每天 COVER_GENERATE_DAILY_LIMIT 张，见 lib/coverGenerate/limit）。
+ * 生图按张收费、花的是站点的账户，所以只对开通了 ai_cover 权限的账号开放（见 lib/permissions，管理员自带），
+ * 并按账号限量（同时只能生一张、每天默认 COVER_GENERATE_DAILY_LIMIT 张，后台可给单个账号另设，见 lib/coverGenerate/limit）。
  */
 
 /** 请求体上限：里面只有标题、两个重点词和两个产品名，16KB 绰绰有余 */
@@ -36,14 +36,15 @@ export async function POST(req: Request) {
       { status: 401 }
     );
   }
-  // 管理员身份按服务端的 ADMIN_EMAILS 现算，不信任请求里的任何字段
-  const userId = adminSessionUserId(session);
-  if (!userId) {
+  // 权限每次现查库（撤销立刻生效），不信任请求里的任何字段
+  const access = await requirePermission(session, "ai_cover");
+  if (!access) {
     return NextResponse.json(
-      { error: "forbidden", message: "AI 生成封面目前只对管理员开放" },
+      { error: "forbidden", message: "你的账号还没开通 AI 生成封面，找管理员开通" },
       { status: 403 }
     );
   }
+  const { userId } = access;
   if (!coverGenerateConfigured()) {
     return NextResponse.json(
       { error: "no_token", message: "服务端还没有配置 AI 生成封面" },
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "bad_input", message }, { status: 400 });
   }
 
-  const limit = coverDailyLimit();
+  const limit = access.dailyLimit ?? coverDailyLimit();
   const slot = coverLimiter.take(userId, limit);
   if (!slot.ok) {
     return slot.reason === "busy"

@@ -1,5 +1,7 @@
 /** /api/admin/* 的响应形状（服务端已把 BigInt 转成 number） */
 
+import type { Permission } from "@/lib/permissionKeys";
+
 export interface Overview {
   users: { total: number; banned: number; newThisWeek: number };
   docs: { total: number };
@@ -24,6 +26,8 @@ export interface AdminUser {
   docCount: number;
   assetCount: number;
   admin: boolean;
+  /** 库里存的开通项（不含管理员「默认全开」的推导，列表上据此标 AI 徽标） */
+  permissions: Permission[];
 }
 
 export interface UserListResp {
@@ -50,6 +54,11 @@ export interface UserDetailResp {
     storageQuota: number | null;
     admin: boolean;
     logins: string[];
+    /** 库里存的开通项；管理员不看这个，默认全开 */
+    permissions: Permission[];
+    /** 每日次数上限；null=用站点默认（见 totals 里的 default*） */
+    aiReviewDailyLimit: number | null;
+    aiCoverDailyLimit: number | null;
   };
   totals: {
     docCount: number;
@@ -57,6 +66,8 @@ export interface UserDetailResp {
     assetCount: number;
     storageUsed: number;
     defaultQuota: number;
+    defaultAiReviewDailyLimit: number;
+    defaultAiCoverDailyLimit: number;
   };
   docs: {
     id: string;

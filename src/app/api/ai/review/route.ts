@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { adminSessionUserId } from "@/lib/admin";
 import { AiError, chatComplete } from "@/lib/ai/chat";
 import { aiProvider } from "@/lib/ai/providers";
 import { DEFAULT_REVIEW_KIND, cleanReviewKinds, isReviewKind } from "@/lib/ai/reviewKinds";
@@ -15,14 +14,15 @@ import {
 import { cleanDocId, saveReviewRecord } from "@/lib/ai/reviewHistory";
 import { getReviewGuide, getReviewModel, siteAiKey } from "@/lib/ai/siteSettings";
 import { aiLimiter, aiDailyLimit } from "@/lib/ai/limit";
+import { requirePermission } from "@/lib/permissions";
 
 /**
  * AI 文章审核：正文进去，一份 ReviewResult 出来（形状见 features/review/types）。
  *
  * 用哪家的哪个模型、key 是什么、提示词怎么写，全由管理后台定（见 lib/ai/siteSettings，环境变量兜底）。
  * 请求体里只收正文和审核类型（可以一次勾几类，各跑各的提示词，合成一份结果）——provider / model / key 带了也不看。
- * 花的是站点的钱，口径与 AI 生成封面一致：必须登录，且只对 ADMIN_EMAILS 白名单开放，
- * 另按账号限量。
+ * 花的是站点的钱，口径与 AI 生成封面一致：必须登录，且账号开通了 ai_review 权限（见 lib/permissions，
+ * 管理员自带），另按账号限量——后台给这个账号单设了额度就用它的，没设走全局默认。
  *
  * 请求里带了 docId 的，跑成之后存一条历史（见 lib/ai/reviewHistory），回包里多一个 record；
  * 存不进去不算审核失败——意见照给，只是这一趟回看不了。
@@ -78,13 +78,14 @@ export async function POST(req: Request) {
       { status: 401 }
     );
   }
-  const userId = adminSessionUserId(session);
-  if (!userId) {
+  const access = await requirePermission(session, "ai_review");
+  if (!access) {
     return NextResponse.json(
-      { error: "forbidden", message: "AI 审核目前只对管理员开放" },
+      { error: "forbidden", message: "你的账号还没开通 AI 审核，找管理员开通" },
       { status: 403 }
     );
   }
+  const { userId } = access;
   const chosen = await getReviewModel();
   const provider = aiProvider(chosen.provider)!;
   const model = chosen.model;
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
       { status: 503 }
     );
   }
-  const limit = aiDailyLimit();
+  const limit = access.dailyLimit ?? aiDailyLimit();
   const slot = aiLimiter.take(userId, limit);
   if (!slot.ok) {
     return slot.reason === "busy"
