@@ -142,6 +142,47 @@ function transformVideos(root: HTMLElement): void {
   }
 }
 
+/**
+ * Chrome 用选区复制时会丢掉最外层 section 及其内联样式，顶层块会失去主题的字号/行高/颜色
+ * （行高退回 normal），所以把根上这几项显式抄到每个顶层块上；块自己已有的值不覆盖。
+ */
+const ROOT_INHERITED_PROPS = ["font-size", "line-height", "color", "letter-spacing", "font-family"];
+
+function propagateRootStyles(root: HTMLElement): void {
+  for (const child of Array.from(root.children) as HTMLElement[]) {
+    for (const prop of ROOT_INHERITED_PROPS) {
+      const value = root.style.getPropertyValue(prop);
+      if (value && !child.style.getPropertyValue(prop)) {
+        child.style.setProperty(prop, value);
+      }
+    }
+  }
+}
+
+/**
+ * 公众号「内容结构检测」用 Range.getClientRects() 数行：行内元素（strong/em/span/br…）
+ * 会把一行拆成多个矩形，算出来的行高偏小，误报「行高小于字体大小」。
+ * 它只检查带直接文本子节点的块（且不查 span），所以把混排块里的裸文本包进无属性的 span，
+ * 块本身就没有直接文本了，检测直接跳过；纯文本段落与 pre 内部保持原样。
+ */
+const MIXED_TEXT_BLOCKS = "p, h1, h2, h3, h4, h5, h6, li, td, th, div, section, blockquote, figcaption";
+
+function wrapMixedText(root: HTMLElement): void {
+  const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>(MIXED_TEXT_BLOCKS))];
+  for (const el of candidates) {
+    if (el.closest("pre")) continue;
+    if (el.children.length === 0) continue;
+    const texts = Array.from(el.childNodes).filter(
+      (n): n is Text => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim().length > 0
+    );
+    for (const text of texts) {
+      const span = document.createElement("span");
+      text.replaceWith(span);
+      span.appendChild(text);
+    }
+  }
+}
+
 /** 微信会丢弃 class/id/data-*，复制前统一移除，减小体积 */
 function cleanAttributes(root: HTMLElement): void {
   const all = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
@@ -188,6 +229,7 @@ export async function buildWechatHtml(
   const cssLayers = [BASE_CSS, opts.codeCss, opts.themeCss];
   if (opts.customCss?.trim()) cssLayers.push(opts.customCss);
   inlineStyles(root, cssLayers);
+  propagateRootStyles(root);
 
   // 公众号正文自带页边距、且有深色模式：白底主题去掉根部横向内边距与底色，
   // 避免正文被双重内缩，也让公众号深色模式能正常接管底色（深色主题保留自己的底与边距）
@@ -198,6 +240,7 @@ export async function buildWechatHtml(
     root.style.paddingRight = "0";
   }
 
+  wrapMixedText(root);
   cleanAttributes(root);
   return root.outerHTML;
 }
