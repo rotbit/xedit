@@ -35,6 +35,7 @@ import type { FormatCommand } from "@/lib/editor/commands";
 import { ThemePickerPanel } from "@/components/ThemePicker";
 import { resolveTheme } from "@/lib/themes";
 import { isDesktopShell } from "@/lib/desktopShell";
+import { MAC_DOWNLOAD_URL } from "@/lib/site";
 import { useStore } from "@/store/useStore";
 import { ToggleRow } from "./MenuControls";
 import { copyDoc, type CopyTarget } from "../lib/copyDoc";
@@ -233,23 +234,34 @@ export const ReaderActions = memo(function ReaderActions({
                 复制到知乎
               </button>
               {/* 「发送到公众号」要驱动本机的草稿服务开一个 Chrome 填后台，只有桌面壳里
-                  服务才是自己起来的；纯浏览器里冒出个 Chrome 窗口很莫名，索性不露出。
+                  服务才是自己起来的；纯浏览器里冒出个 Chrome 窗口很莫名，所以网页版只放一条
+                  置灰的引导，点了去拿 Mac 版，免得用户以为没这功能。
                   菜单点开后才渲染（copyMenuOpen 初值 false，只有点击能翻开），
                   所以这里读 window 不会造成水合不一致。 */}
+              <div className={menuDivider} />
               {isDesktopShell() ? (
-                <>
-                  <div className={menuDivider} />
-                  <button
-                    className={menuItem}
-                    onClick={() => {
-                      setCopyMenuOpen(false);
-                      void sendWechatDraft(setDraftStatus);
-                    }}
-                  >
-                    发送到公众号
-                  </button>
-                </>
-              ) : null}
+                <button
+                  className={menuItem}
+                  onClick={() => {
+                    setCopyMenuOpen(false);
+                    void sendWechatDraft(setDraftStatus);
+                  }}
+                >
+                  发送到公众号
+                </button>
+              ) : (
+                <a
+                  className={`${menuItem} text-[var(--ink-faint)]`}
+                  href={MAC_DOWNLOAD_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="自动填进公众号后台草稿，仅 Mac 客户端支持"
+                  onClick={() => setCopyMenuOpen(false)}
+                >
+                  <span>发送到公众号</span>
+                  <span className="ml-auto text-[11px]">需 Mac 版 ↗</span>
+                </a>
+              )}
             </div>
           </>
         ) : null}
