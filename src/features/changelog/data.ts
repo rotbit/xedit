@@ -39,6 +39,10 @@ export const CHANGELOG: ChangelogEntry[] = [
         kind: "fixed",
         text: "主题去掉文字背景渐变，复制到公众号不再触发「内容结构检测」的渐变提示，深色模式下高亮更清晰。",
       },
+      {
+        kind: "fixed",
+        text: "链接转成的脚注上标不再触发公众号「行高小于字体大小」的检测提示。",
+      },
     ],
   },
   {
