@@ -34,7 +34,7 @@ import {
 import type { FormatCommand } from "@/lib/editor/commands";
 import { ThemePickerPanel } from "@/components/ThemePicker";
 import { resolveTheme } from "@/lib/themes";
-import { isDesktopShell } from "@/lib/desktopShell";
+import { desktopVersionAtLeast, isDesktopShell, WECHAT_DRAFT_MIN_VERSION } from "@/lib/desktopShell";
 import { MAC_DOWNLOAD_URL } from "@/lib/site";
 import { useStore } from "@/store/useStore";
 import { ToggleRow } from "./MenuControls";
@@ -233,13 +233,13 @@ export const ReaderActions = memo(function ReaderActions({
               >
                 复制到知乎
               </button>
-              {/* 「发送到公众号」要驱动本机的草稿服务开一个 Chrome 填后台，只有桌面壳里
-                  服务才是自己起来的；纯浏览器里冒出个 Chrome 窗口很莫名，所以网页版只放一条
-                  置灰的引导，点了去拿 Mac 版，免得用户以为没这功能。
+              {/* 「发送到公众号」靠桌面壳内置的草稿服务填公众号后台，网页版没有这个服务，
+                  所以只放一条置灰的引导去拿客户端，免得用户以为没这功能；
+                  旧版壳（0.1.1 之前）同样没有服务，点了只会报「没连上」，改成提示更新。
                   菜单点开后才渲染（copyMenuOpen 初值 false，只有点击能翻开），
                   所以这里读 window 不会造成水合不一致。 */}
               <div className={menuDivider} />
-              {isDesktopShell() ? (
+              {desktopVersionAtLeast(WECHAT_DRAFT_MIN_VERSION) ? (
                 <button
                   className={menuItem}
                   onClick={() => {
@@ -255,11 +255,17 @@ export const ReaderActions = memo(function ReaderActions({
                   href={MAC_DOWNLOAD_URL}
                   target="_blank"
                   rel="noreferrer"
-                  title="自动填进公众号后台草稿，仅 Mac 客户端支持"
+                  title={
+                    isDesktopShell()
+                      ? "当前客户端版本过旧，没有公众号草稿服务，请下载最新版"
+                      : "自动填进公众号后台草稿，仅桌面客户端支持"
+                  }
                   onClick={() => setCopyMenuOpen(false)}
                 >
                   <span>发送到公众号</span>
-                  <span className="ml-auto text-[11px]">需 Mac 版 ↗</span>
+                  <span className="ml-auto text-[11px]">
+                    {isDesktopShell() ? "请更新客户端 ↗" : "需桌面版 ↗"}
+                  </span>
                 </a>
               )}
             </div>
