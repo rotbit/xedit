@@ -120,7 +120,7 @@ export function buildCustomThemeCss(spec: CustomThemeSpec): string {
       break;
     case "bar":
       rules.push(
-        `#nice h2 { font-size: 19px; color: ${deep}; border-left: 4px solid ${accent}; background-image: linear-gradient(90deg, ${wash}, ${rgba(accent, 0)}); border-radius: 0 ${radius}px ${radius}px 0; }`,
+        `#nice h2 { font-size: 19px; color: ${deep}; border-left: 4px solid ${accent}; background-color: ${wash}; border-radius: 0 ${radius}px ${radius}px 0; }`,
         `#nice h2 .content { display: inline-block; padding: 7px 12px; }`
       );
       break;

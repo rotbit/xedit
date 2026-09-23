@@ -32,6 +32,16 @@ export interface ChangelogEntry {
 /** 新的在前 */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-09-23",
+    title: "主题去掉文字背景渐变，适配公众号深色模式",
+    items: [
+      {
+        kind: "fixed",
+        text: "主题去掉文字背景渐变，复制到公众号不再触发「内容结构检测」的渐变提示，深色模式下高亮更清晰。",
+      },
+    ],
+  },
+  {
     date: "2026-09-20",
     title: "AI 文章审核上线内测，官网有了更新日志",
     items: [
