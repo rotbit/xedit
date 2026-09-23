@@ -47,8 +47,11 @@ describe("公众号视频占位块", () => {
     expect(note.style.fontSize).toBe("15px");
     expect(note.style.textAlign).toBe("center");
     // 第二行是 <br> 后的 span，字号更小、不加粗
-    const hint = note.querySelector("span");
-    expect(hint).not.toBeNull();
+    // 首行裸文本会被包进无样式 span（绕开公众号行高误报），按文案找提示 span
+    const hint = Array.from(note.querySelectorAll("span")).find((s) =>
+      s.textContent?.includes("发表前请在公众号后台")
+    );
+    expect(hint).toBeDefined();
     expect(hint!.style.fontSize).toBe("13px");
     expect(hint!.style.fontWeight).toBe("normal");
   });
