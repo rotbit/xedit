@@ -23,7 +23,7 @@ import {
 import { locateInSource, type SourceSpan } from "./locate";
 import { runReview, type ReviewRun } from "./aiReview";
 import { loadReviewRecord, saveReviewActions } from "./history";
-import { deriveStatus, isHandled } from "./status";
+import { deriveStatus, isHandled, locateQuote } from "./status";
 import type {
   ReviewAction,
   ReviewCategory,
@@ -287,7 +287,7 @@ export function useReview({
     const marks: ReviewMark[] = [];
     for (const it of items) {
       if (it.status !== "open") continue;
-      const span = locateInSource(doc, it.quote, it.line);
+      const span = locateQuote(it, doc);
       if (!span) continue;
       spans.set(it.id, span);
       marks.push({
@@ -408,8 +408,8 @@ export function useReview({
       if (!item?.suggestion) return;
       const view = editorRef.current?.view();
       if (!view) return;
-      const span = locateInSource(view.state.doc.toString(), item.quote, item.line);
-      if (!span) return; // 正文已经变了，这条本来就失效了
+      const span = locateQuote(item, view.state.doc.toString());
+      if (!span) return; // 正文已经变了（或已经采纳过），这条没得再采
       view.dispatch({ changes: { from: span.from, to: span.to, insert: item.suggestion } });
       // 编辑器的 onChange 有 120ms 节流，这里催一把，卡片立刻变成「已采纳」
       editorRef.current?.flush();

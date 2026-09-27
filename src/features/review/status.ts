@@ -6,8 +6,26 @@
  * 本身就是采纳的证据。这样 ⌘Z 撤销之后，quote 一回来这条意见自己就活过来了。
  */
 
-import { locateInSource } from "./locate";
+import { locateInSource, type SourceSpan } from "./locate";
 import type { ReviewAction, ReviewItem, ReviewStatus } from "./types";
+
+/**
+ * 这条意见的引文此刻在源码里的位置——「还等着处理」意义上的位置。
+ *
+ * 建议常常只是在引文上添几个字（「正确」→「正确性」），采纳之后引文照样能搜到，
+ * 只不过它已经躺在建议里了。那种情况不算「还在」，否则采纳按钮会一直亮着，
+ * 每按一次再补一个「性」。
+ */
+export function locateQuote(item: ReviewItem, source: string): SourceSpan | null {
+  const span = locateInSource(source, item.quote, item.line);
+  if (!span) return null;
+  const { suggestion } = item;
+  if (suggestion && suggestion !== item.quote && suggestion.includes(item.quote)) {
+    const done = locateInSource(source, suggestion, item.line);
+    if (done && done.from <= span.from && span.to <= done.to) return null;
+  }
+  return span;
+}
 
 export function deriveStatus(
   item: ReviewItem,
@@ -15,7 +33,7 @@ export function deriveStatus(
   action?: ReviewAction
 ): ReviewStatus {
   if (action === "ignored") return "ignored";
-  if (locateInSource(source, item.quote, item.line)) {
+  if (locateQuote(item, source)) {
     return action === "acked" ? "acked" : "open";
   }
   // quote 没了：是被换成建议了（采纳），还是作者自己改了（失效）
