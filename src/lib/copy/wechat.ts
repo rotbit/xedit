@@ -163,17 +163,24 @@ function propagateRootStyles(root: HTMLElement): void {
  * 公众号「内容结构检测」用 Range.getClientRects() 数行：行内元素（strong/em/span/br…）
  * 会把一行拆成多个矩形，算出来的行高偏小，误报「行高小于字体大小」。
  * 它只检查带直接文本子节点的块（且不查 span），所以把混排块里的裸文本包进无属性的 span，
- * 块本身就没有直接文本了，检测直接跳过；纯文本段落与 pre 内部保持原样。
+ * 块本身就没有直接文本了，检测直接跳过；纯文本段落保持原样。
+ *
+ * 代码块也得包：高亮后的 code 是「裸文本 + 着色 span + <br>」混排，一样会被误报；
+ * 而弹窗里点「继续插入」时公众号会把被标记元素的内联样式剥掉，code 的字号、等宽字体、
+ * 底色一起没了，整块退化成正文字体的普通文字。pre 里空白有意义，所以连纯空白的文本节点也包。
  */
-const MIXED_TEXT_BLOCKS = "p, h1, h2, h3, h4, h5, h6, li, td, th, div, section, blockquote, figcaption";
+const MIXED_TEXT_BLOCKS =
+  "p, h1, h2, h3, h4, h5, h6, li, td, th, div, section, blockquote, figcaption, pre > code";
 
 function wrapMixedText(root: HTMLElement): void {
   const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>(MIXED_TEXT_BLOCKS))];
   for (const el of candidates) {
-    if (el.closest("pre")) continue;
+    const inCode = el.tagName === "CODE";
+    if (!inCode && el.closest("pre")) continue;
     if (el.children.length === 0) continue;
     const texts = Array.from(el.childNodes).filter(
-      (n): n is Text => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim().length > 0
+      (n): n is Text =>
+        n.nodeType === Node.TEXT_NODE && (inCode || (n.textContent ?? "").trim().length > 0)
     );
     for (const text of texts) {
       const span = document.createElement("span");
