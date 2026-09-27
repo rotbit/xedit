@@ -211,7 +211,7 @@ export function CoverAiTab({
       <div className="flex items-center gap-2">
         <input
           className={inputCls}
-          placeholder="产品 / 模型名称"
+          placeholder="产品 / 模型名称（可不填）"
           value={saved.leftName}
           onChange={(e) => setSaved({ ...saved, leftName: e.target.value })}
         />
@@ -258,7 +258,7 @@ export function CoverAiTab({
 
       <button
         className="flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[var(--accent)] text-[12px] text-[var(--accent-fg)] transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
-        disabled={busy || saving || title.trim() === "" || saved.leftName.trim() === ""}
+        disabled={busy || saving || title.trim() === ""}
         onClick={() => void run()}
       >
         {busy ? <Loader2 size={14} className="animate-spin" /> : <AiIcon size={14} />}

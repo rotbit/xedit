@@ -100,7 +100,7 @@ describe("填空清洗", () => {
     });
     expect(fields.title).toBe("标 题 里带引号 和 空白");
     expect(fields.highlights).toEqual(["重 点", "第二个"]);
-    expect(fields.left.name).toBe("A 名");
+    expect(fields.left?.name).toBe("A 名");
     // 不认识的色号退回深灰，不因为一个错字整单失败
     expect(fields.right?.color).toBe("gray");
   });
@@ -113,10 +113,10 @@ describe("填空清洗", () => {
     });
     expect(fields.title).toHaveLength(100);
     expect(fields.highlights[0]).toHaveLength(30);
-    expect(fields.left.name).toHaveLength(40);
+    expect(fields.left?.name).toHaveLength(40);
   });
 
-  it("标题、产品 A 是必填；产品 B 没名字就当没填", () => {
+  it("只有标题必填；产品 A 可不填，主题色照取它的色点；产品 B 没名字就当没填", () => {
     const bad = (req: Args) => {
       try {
         coverFields(req);
@@ -131,15 +131,35 @@ describe("填空清洗", () => {
       expect((e as CoverError).code).toBe("bad_input");
       expect((e as CoverError).message).toMatch(/标题是空的/);
     }
-    for (const left of [undefined, {}, { name: "  " }, "字符串"]) {
-      const e = bad({ title: "标题", left });
-      expect(e, JSON.stringify(left)).toBeInstanceOf(CoverError);
-      expect((e as CoverError).message).toMatch(/至少填一个产品/);
+    for (const left of [undefined, {}, { name: "  " }, "字符串", null]) {
+      const fields = coverFields({ title: "标题", left });
+      expect(fields.left, JSON.stringify(left)).toBeUndefined();
+      expect(fields.right).toBeUndefined();
+      expect(fields.accent).toBe("gray");
     }
+    // 名字空了主题色也照取
+    const noName = coverFields({ title: "标题", left: { name: " ", color: "purple" } });
+    expect(noName.left).toBeUndefined();
+    expect(noName.accent).toBe("purple");
     const blankRight = coverFields({ title: "标题", left: { name: "A" }, right: { name: " " } });
     expect(blankRight.right).toBeUndefined();
     // 没传 color 也算数：按不认识处理，退回深灰
-    expect(coverFields({ title: "标题", left: { name: "A" } }).left.color).toBe("gray");
+    expect(coverFields({ title: "标题", left: { name: "A" } }).left?.color).toBe("gray");
+  });
+
+  it("只填了产品 B：升格成产品 A（单卡片），产品 B 置空", () => {
+    const fields = coverFields({
+      title: "标题",
+      left: { name: "  ", color: "teal" },
+      right: { name: "GPT", color: "green" },
+    });
+    expect(fields.left).toEqual({ name: "GPT", color: "green" });
+    expect(fields.right).toBeUndefined();
+    expect(fields.accent).toBe("teal");
+    expect(coverFields({ title: "标题", right: { name: "GPT" } }).left).toEqual({
+      name: "GPT",
+      color: "gray",
+    });
   });
 });
 
@@ -177,6 +197,24 @@ describe("buildPrompt", () => {
     expect(p).toContain("重点突出：\n「快」\n右侧展示：\nClaude\n");
     expect(p).not.toContain("对比关系");
     expect(p).not.toContain("VS");
+  });
+
+  it("零产品：右侧放几何视觉，不提卡片、VS、Logo，也没有「右侧展示」", () => {
+    const p = buildPrompt(
+      coverFields({ title: "纯标题封面", highlights: ["关键"], left: { name: "", color: "purple" } })
+    );
+    expect(p).toContain("放抽象的科技感几何视觉（淡色圆弧、圆形色块、柔和光晕），不放产品卡片");
+    expect(p).toContain("- 前两三行放核心标题，字号大、粗");
+    expect(p).toContain("关键词与几何装饰使用紫色，其他文字使用深灰。");
+    expect(p).toContain("「纯标题封面」");
+    expect(p).toContain("几何");
+    // 除了版式那句明说「不放产品卡片，不放 Logo」，别处一概不提卡片和 Logo
+    const rest = p.replace("不放产品卡片，不放 Logo", "");
+    expect(rest).not.toContain("卡片");
+    expect(rest).not.toContain("Logo");
+    expect(p).not.toMatch(/vs/i);
+    expect(p).not.toContain("右侧展示");
+    expect(p).not.toContain("品牌或模型名称");
   });
 
   it("一个重点词都没填：换成让模型自己从标题里挑，不留空的「」", () => {
@@ -310,8 +348,6 @@ describe("generateCovers", () => {
     const missing: Args[] = [
       { title: "", left: { name: "A", color: "blue" } },
       { title: "   ", left: { name: "A", color: "blue" } },
-      { title: "猫" },
-      { title: "猫", left: { name: " " } },
     ];
     for (const args of missing) {
       const m = mockFetch(jsonRes(200, {}));

@@ -185,7 +185,7 @@ describe("POST /api/cover/generate 的请求体", () => {
     expect((await post(ONE, { "content-length": String(64 * 1024) })).status).toBe(413);
   });
 
-  it("标题或产品 A 为空、或根本不是 JSON → 400，上游一次没碰", async () => {
+  it("标题为空、或根本不是 JSON → 400，上游一次没碰（产品 A 不填不算错）", async () => {
     const fetchMock = okFetch();
     vi.stubGlobal("fetch", fetchMock);
     signedInAs("u-bad-input", ADMIN);
@@ -193,10 +193,6 @@ describe("POST /api/cover/generate 的请求体", () => {
     const empty = await post({ title: "   ", left: { name: "Claude", color: "blue" } });
     expect(empty.status).toBe(400);
     expect((await empty.json()).message).toMatch(/标题是空的/);
-
-    const noLeft = await post({ title: "标题", left: { name: " " } });
-    expect(noLeft.status).toBe(400);
-    expect((await noLeft.json()).message).toMatch(/至少填一个产品/);
 
     expect((await post({})).status).toBe(400);
     const broken = await post("{ 不是 JSON");
