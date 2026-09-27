@@ -41,7 +41,8 @@ export function stripExt(name: string): string {
  */
 export function altFromFileName(name: string): string {
   const base = stripExt(name).trim();
-  return /^(image|img|blob|screenshot|截图|图片|未命名)(\s*[-_ ]?\d*)?$/i.test(base) ? "" : base;
+  // 占位名 + 可选序号：image1 / img_3 / screenshot-2 / image (2)
+  return /^(image|img|blob|screenshot|截图|图片|未命名)\s*[-_]?\s*(\(\d+\)|\d+)?$/i.test(base) ? "" : base;
 }
 
 export function maxSizeOf(mime: string): number {
