@@ -114,7 +114,8 @@ export function tocPlugin(md: MarkdownIt): void {
 // Markdown 把任意多个空行折叠成一个段落间隔，但公众号作者习惯用空行控制留白，
 // 编辑器里看到的空行应与渲染效果一致：1 个空行是标准段落分隔，
 // 第 2 个起每个空行输出一个空段落（<p><br></p>，公众号编辑器自身表示空行的方式）。
-// 文首的空行没有分隔职责，每行都算留白。
+// 文首的空行没有分隔职责，每行都算留白；但文首若是 frontmatter（已被 renderMarkdown 剥掉），
+// 它就是「上一个块」，紧跟其后的那个空行只是与正文的分隔，不能变成公众号里的一个空段。
 export function blankLinePlugin(md: MarkdownIt): void {
   md.core.ruler.push("preserve_blank_lines", (state) => {
     const tokens = state.tokens;
@@ -123,7 +124,7 @@ export function blankLinePlugin(md: MarkdownIt): void {
     const offset = lineOffsetOf(state.env);
     let depth = 0;
     let prevEnd = 0; // 上一个顶层块的结束行（不含尾随空行）
-    let atStart = true;
+    let atStart = offset === 0;
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
       if (depth === 0 && token.nesting >= 0 && token.map) {
