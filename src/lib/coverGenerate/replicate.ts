@@ -120,54 +120,74 @@ function cleanProduct(value: unknown): CoverProduct | null {
 }
 
 /**
- * 请求里的几个填空洗成模板能直接用的那份。标题和产品 A 是必填：
- * 少了它们模板就只剩一堆约束，生出来的图跟这篇文章没关系。
+ * 请求里的几个填空洗成模板能直接用的那份。只有标题必填：少了它模板就只剩一堆约束，
+ * 生出来的图跟这篇文章没关系。产品都可以不填，不填就是右侧放几何视觉的纯标题封面；
+ * 只填了产品 B 就把它当成产品 A（单卡片）。主题色取产品 A 那个色点，名字空也照取。
  */
 export function coverFields(req: CoverRequest): CoverFields {
   const title = cleanSlot(req.title, MAX_TITLE);
   if (!title) throw new CoverError("bad_input", "标题是空的，先给文章起个标题");
-  const left = cleanProduct(req.left);
-  if (!left) throw new CoverError("bad_input", "至少填一个产品 / 模型名称");
+  const accent = coverColor(((req.left ?? {}) as { color?: unknown }).color);
+  let left = cleanProduct(req.left);
+  let right = cleanProduct(req.right);
+  if (!left && right) [left, right] = [right, null];
   const highlights = (Array.isArray(req.highlights) ? req.highlights : [])
     .map((one) => cleanSlot(one, MAX_HIGHLIGHT))
     .filter((one) => one !== "")
     .slice(0, MAX_HIGHLIGHTS);
-  const right = cleanProduct(req.right);
-  return { title, highlights, left, ...(right ? { right } : {}) };
+  return {
+    title,
+    highlights,
+    accent,
+    ...(left ? { left } : {}),
+    ...(right ? { right } : {}),
+  };
 }
 
 /**
  * 提示词是一份写死的中文模板，调用方只能往几个填空里塞字，改不掉版式和那一串「不要什么」。
- * 有没有产品 B 决定右侧是对比还是单卡片，跟着变的几句都在下面就地判断。
+ * 填了几个产品决定右侧是对比、单卡片还是几何视觉（零产品），跟着变的几句都在下面就地判断。
  * aspect 是这次真要下发的比例（模型不认 21:9 时会被换掉），免得提示词和入参各说一套。
  */
 export function buildPrompt(fields: CoverFields, aspect = DEFAULT_ASPECT): string {
-  const { title, highlights, left, right } = fields;
+  const { title, highlights, accent, left, right } = fields;
   const colorOf = (p: CoverProduct) => COLOR_PHRASE[p.color];
   return [
     `设计一张微信公众号文章封面，比例 ${aspect}，整体风格为：极简、干净、高级、科技感、产品评测感。`,
     "背景以纯白 / 极浅灰白为主，带非常轻微的柔和渐变，不要深色背景，不要花哨，不要复杂插画。整体大量留白，画面清爽。",
     "版式采用左右结构：",
-    `左侧约占 45%，放标题文字；右侧约占 45%，放产品 / 模型${right ? "对比视觉" : "视觉"}；中间保留适当呼吸空间。`,
+    `左侧约占 45%，放标题文字；右侧约占 45%，${
+      left
+        ? `放产品 / 模型${right ? "对比视觉" : "视觉"}`
+        : "放抽象的科技感几何视觉（淡色圆弧、圆形色块、柔和光晕），不放产品卡片，不放 Logo"
+    }；中间保留适当呼吸空间。`,
     "标题区域要有明显层次：",
-    "- 第一行放品牌或模型名称，字号中等偏大",
-    "- 第二、第三行放核心标题，字号更大、更粗",
+    ...(left
+      ? ["- 第一行放品牌或模型名称，字号中等偏大", "- 第二、第三行放核心标题，字号更大、更粗"]
+      : ["- 前两三行放核心标题，字号大、粗"]),
     "- 最重要的关键词用品牌主题色突出",
     "- 其余文字使用接近黑色的深灰",
     "- 行距宽松，不要把文字挤在一起",
     "- 不要塞很多小字，不要参数列表，不要功能清单",
-    right
-      ? "右侧使用两个圆角卡片 / 产品卡片形成对比关系。"
-      : "右侧使用一张圆角产品卡片作为视觉主体。",
-    "卡片背景为白色，有非常轻微的阴影和淡淡的品牌色光晕。",
-    right ? "每张卡片只保留：" : "卡片只保留：",
-    "Logo + 品牌名 / 模型名。",
+    // 零产品：右侧不放卡片和 Logo，卡片那几行整段不要
+    ...(left
+      ? [
+          right
+            ? "右侧使用两个圆角卡片 / 产品卡片形成对比关系。"
+            : "右侧使用一张圆角产品卡片作为视觉主体。",
+          "卡片背景为白色，有非常轻微的阴影和淡淡的品牌色光晕。",
+          right ? "每张卡片只保留：" : "卡片只保留：",
+          "Logo + 品牌名 / 模型名。",
+        ]
+      : []),
     "不要加入功能列表、勾选项、参数、评分等信息。",
     ...(right ? ["两张卡片中间可以放一个简洁的 VS，略带手写笔刷感，但不要太夸张。"] : []),
     "色彩控制在 2～3 个主色以内。",
-    right
-      ? `${left.name} 使用${colorOf(left)}，${right.name} 使用${colorOf(right)}，其他文字使用深灰。`
-      : `${left.name} 使用${colorOf(left)}，其他文字使用深灰。`,
+    !left
+      ? `关键词与几何装饰使用${COLOR_PHRASE[accent]}，其他文字使用深灰。`
+      : right
+        ? `${left.name} 使用${colorOf(left)}，${right.name} 使用${colorOf(right)}，其他文字使用深灰。`
+        : `${left.name} 使用${colorOf(left)}，其他文字使用深灰。`,
     "不要高饱和霓虹色，不要五颜六色。",
     "可以在背景角落加入非常淡的几何圆弧、圆形色块或浅色渐变作为层次，但透明度很低，不能抢主体。",
     "整体参考：AI 产品发布页 + 科技媒体封面 + 极简 SaaS 官网视觉。",
@@ -180,15 +200,14 @@ export function buildPrompt(fields: CoverFields, aspect = DEFAULT_ASPECT): strin
     "- 不要卡通插画",
     "- 不要人物",
     "- 不要过度装饰",
-    "- 保证公众号裁切后核心文字和 Logo 不被挡住",
+    left ? "- 保证公众号裁切后核心文字和 Logo 不被挡住" : "- 保证公众号裁切后核心文字不被挡住",
     "当前标题：",
     `「${title}」`,
     // 一个重点词都没填就把这件事交回给模型，别留一行空的「」
     ...(highlights.length > 0
       ? ["重点突出：", ...highlights.map((one) => `「${one}」`)]
       : ["重点突出：从标题里挑 1～2 个最关键的词"]),
-    "右侧展示：",
-    right ? `${left.name} vs ${right.name}` : left.name,
+    ...(left ? ["右侧展示：", right ? `${left.name} vs ${right.name}` : left.name] : []),
     "最终效果要像一张高级、简洁、有明确视觉重点的公众号科技评测封面。",
     "字体不要太大，画面至少保留 30% 留白，标题最多 3 行，视觉重点只允许 1～2 个。",
   ].join("\n");
@@ -243,7 +262,9 @@ export interface CoverProduct {
 export interface CoverFields {
   title: string;
   highlights: string[];
-  left: CoverProduct;
+  /** 主题色：产品 A 那个色点（名字空也照取），零产品时给关键词和几何装饰用 */
+  accent: CoverColor;
+  left?: CoverProduct;
   right?: CoverProduct;
 }
 
