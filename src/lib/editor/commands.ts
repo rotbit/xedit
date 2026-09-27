@@ -3,7 +3,7 @@
 import { EditorView } from "@codemirror/view";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { extractVideoPoster } from "@/lib/videoPoster";
-import { VIDEO_EXT, isVideoMime, stripExt } from "@/lib/media";
+import { VIDEO_EXT, altFromFileName, isVideoMime } from "@/lib/media";
 import { getActiveVault } from "@/lib/localBackend/vaultSession";
 import type { VaultBackend } from "@/lib/localBackend/vaultBackend";
 import { reserveUploadSlots } from "@/lib/editor/uploadPlaceholder";
@@ -67,7 +67,7 @@ async function videoMarkdown(file: File, notify: Notify): Promise<string | null>
   ]);
   if (!url) return null;
   const posterPart = posterUrl ? ` "poster=${posterUrl}"` : "";
-  return `\n![${stripExt(file.name)}](${url}${posterPart})\n`;
+  return `\n![${altFromFileName(file.name)}](${url}${posterPart})\n`;
 }
 
 /** 文件名里的空格和括号会把 Markdown 链接截断，逐字转义（读附件时会 decode 回去） */
@@ -94,7 +94,7 @@ async function vaultImageMarkdown(
   notify: Notify
 ): Promise<string | null> {
   try {
-    return `\n![${stripExt(file.name)}](${await saveImageSrc(file, vault)})\n`;
+    return `\n![${altFromFileName(file.name)}](${await saveImageSrc(file, vault)})\n`;
   } catch (e) {
     notify(`「${file.name}」${errText(e, "存入文库失败")}`, "error");
     return null;
@@ -112,7 +112,7 @@ function mediaMarkdown(
   if (isVideoMime(file.type)) return videoMarkdown(file, notify);
   if (vault) return vaultImageMarkdown(vault, file, notify);
   return uploadMedia(file, notify).then((url) =>
-    url ? `\n![${stripExt(file.name)}](${url})\n` : null
+    url ? `\n![${altFromFileName(file.name)}](${url})\n` : null
   );
 }
 

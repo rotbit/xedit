@@ -35,6 +35,15 @@ export function stripExt(name: string): string {
   return name.replace(/\.[^.]+$/, "");
 }
 
+/**
+ * 插图的 alt（预览与公众号里会当图注显示）：从文件名来。
+ * 剪贴板粘贴的截图浏览器一律叫 image.png，这种占位名不是作者写的说明，不该变成一行「image」图注。
+ */
+export function altFromFileName(name: string): string {
+  const base = stripExt(name).trim();
+  return /^(image|img|blob|screenshot|截图|图片|未命名)(\s*[-_ ]?\d*)?$/i.test(base) ? "" : base;
+}
+
 export function maxSizeOf(mime: string): number {
   return isVideoMime(mime) ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
 }

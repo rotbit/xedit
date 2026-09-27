@@ -45,8 +45,9 @@ describe("frontmatter 的行号偏移", () => {
 
   it("多余空行补出来的空段落也跟着偏移", () => {
     // 0:--- 1:a: 1 2:--- 3:空 4:正文 5:空 6:空 7:尾段
+    // 第 3 行只是 frontmatter 与正文的分隔，不补空段；第 6 行才是多余空行
     const html = renderMarkdown("---\na: 1\n---\n\n正文\n\n\n尾段\n");
-    expect(lineOfText(html, "<br>")).toBe(3);
+    expect(lineOfText(html, "<br>")).toBe(6);
     expect(lineOfText(html, "尾段")).toBe(7);
   });
 });
