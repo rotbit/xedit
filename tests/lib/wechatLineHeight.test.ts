@@ -52,16 +52,28 @@ describe("公众号行高误报：混排段落的裸文本包进 span", () => {
     expect(p.querySelector("span")).toBeNull();
   });
 
-  it("代码块内部不受影响：仍是 文本 + <br> 的直接子节点", async () => {
+  it("多行代码块：code 里的裸文本也包进裸 span，空白一个不少", async () => {
     const doc = await build("```\na b\n  c\n```");
     const code = doc.querySelector("pre > code")!;
     expect(code).not.toBeNull();
-    expect(doc.querySelector("pre")!.querySelector("span")).toBeNull();
+    expect(directTexts(code)).toHaveLength(0);
     const kinds = Array.from(code.childNodes).map((n) =>
       n.nodeType === Node.TEXT_NODE ? "text" : (n as Element).tagName
     );
-    expect(kinds).toEqual(["text", "BR", "text"]);
-    expect(code.textContent).toBe("a b  c");
+    expect(kinds).toEqual(["SPAN", "BR", "SPAN"]);
+    for (const s of Array.from(code.children).filter((c) => c.tagName === "SPAN")) {
+      expect(s.hasAttribute("style")).toBe(false);
+    }
+    expect(code.textContent).toBe("a\u00a0b\u00a0\u00a0c");
+    // code 自己的内联样式（字号、等宽字体）原样保留
+    expect((code as HTMLElement).style.getPropertyValue("font-family")).toContain("Menlo");
+  });
+
+  it("单行代码块没有混排，不多包一层", async () => {
+    const doc = await build("```\nabc\n```");
+    const code = doc.querySelector("pre > code")!;
+    expect(code.childNodes).toHaveLength(1);
+    expect(code.firstChild!.nodeType).toBe(Node.TEXT_NODE);
   });
 });
 
