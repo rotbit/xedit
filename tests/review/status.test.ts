@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveStatus, isHandled, isOpen } from "@/features/review/status";
+import { deriveStatus, isHandled, isOpen, locateQuote } from "@/features/review/status";
 import type { ReviewItem } from "@/features/review/types";
 
 /**
@@ -46,6 +46,17 @@ describe("deriveStatus", () => {
 
   it("作者自己把这句改了 → 失效", () => {
     expect(deriveStatus(item, source("这事儿不难。"))).toBe("stale");
+  });
+
+  it("建议只是在引文上添字：采纳后引文虽还能搜到，也算已采纳，别再让人重复采纳", () => {
+    const addOn: ReviewItem = {
+      ...item,
+      quote: "没有时间检查代码的正确",
+      suggestion: "没有时间检查代码的正确性",
+    };
+    expect(deriveStatus(addOn, source("也没有时间检查代码的正确。"))).toBe("open");
+    expect(deriveStatus(addOn, source("也没有时间检查代码的正确性。"))).toBe("accepted");
+    expect(locateQuote(addOn, source("也没有时间检查代码的正确性。"))).toBeNull();
   });
 
   it("本来就没有建议可采纳的那种，引文一没就是失效", () => {
