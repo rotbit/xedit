@@ -153,6 +153,8 @@ function buildChevrons(view: EditorView): DecorationSet {
       from: range.from,
       to: range.to,
       enter: (node) => {
+        // 这些块不可能包含可折叠的 Markdown 标题，尤其不要进入长代码块的语言语法树。
+        if (/^(FencedCode|CodeBlock|Paragraph|Table|HTMLBlock)$/.test(node.name)) return false;
         if (!FOLDABLE_HEADING.test(node.name)) return;
         const line = state.doc.lineAt(node.from);
         // 视口被折叠切成几段时，同一行理论上可能被相邻两段各扫一次
@@ -163,6 +165,7 @@ function buildChevrons(view: EditorView): DecorationSet {
         // 已折叠的不挂三角：行尾那枚 "…" 药丸就是展开入口
         if (foldedAt(state, line.to)) return;
         decos.push(Decoration.widget({ widget: new FoldChevron(), side: 1 }).range(line.to));
+        return false;
       },
     });
   }
