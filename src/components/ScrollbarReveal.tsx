@@ -16,7 +16,8 @@ export function ScrollbarReveal() {
     const timers = new WeakMap<Element, number>();
     const onScroll = (e: Event) => {
       const el = e.target instanceof Element ? e.target : document.documentElement;
-      el.classList.add("is-scrolling");
+      // 重复 add 也会写 class 属性；连续滚动只续计时，避免每帧重复修改滚动容器。
+      if (!el.classList.contains("is-scrolling")) el.classList.add("is-scrolling");
       window.clearTimeout(timers.get(el));
       timers.set(
         el,

@@ -1,7 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 
 /**
- * 编辑器的滚动坐标换算。从 MarkdownEditor.tsx 抽出来只为控制单文件长度，逻辑未变。
+ * 编辑器的滚动坐标换算、位置上报与跳转。
  *
  * 首页文章视图把标题区与正文放进同一个外层滚动容器，此时 .cm-scroller 不再滚动
  * （overflow:visible），滚动读写都要改指向那个外层容器 —— 下面每个函数的 parent
@@ -15,17 +15,27 @@ export function docTopOffset(view: EditorView, parent: HTMLElement | null): numb
   return parent.getBoundingClientRect().top - view.documentTop;
 }
 
-/** 报告当前滚到了哪一行（双屏同步滚动用） */
+/**
+ * 在 CodeMirror 的布局读取阶段报告顶端行号，目录、滚动记忆与双屏同步共用。
+ * 滚动事件里直接读 lineBlockAtHeight 会强制提前测量；同一帧的请求按 key 合并，
+ * 等编辑器稳定视口后再读取，回调留到 write 阶段，避免读布局与更新界面交错。
+ */
 export function reportScrollLine(
   view: EditorView,
   parent: HTMLElement | null,
   cb: (line: number, ratio: number) => void
 ) {
-  const top = Math.max(0, docTopOffset(view, parent));
-  const block = view.lineBlockAtHeight(top);
-  const line = view.state.doc.lineAt(block.from).number - 1;
-  const ratio = block.height > 0 ? Math.min(1, Math.max(0, (top - block.top) / block.height)) : 0;
-  cb(line, ratio);
+  view.requestMeasure({
+    key: reportScrollLine,
+    read: () => {
+      const top = Math.max(0, docTopOffset(view, parent));
+      const block = view.lineBlockAtHeight(top);
+      const line = view.state.doc.lineAt(block.from).number - 1;
+      const ratio = block.height > 0 ? Math.min(1, Math.max(0, (top - block.top) / block.height)) : 0;
+      return { line, ratio };
+    },
+    write: ({ line, ratio }) => cb(line, ratio),
+  });
 }
 
 /**

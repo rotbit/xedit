@@ -110,6 +110,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         onChange: pushChange,
         flush: pushChange.flush,
         onSelectionChange: (info) => onSelectionChangeRef.current?.(info),
+        // CodeMirror 已监听所有祖先容器的滚动，这里同时接收外层滚动与内置 scroller 的事件。
         onScroll: (view) => {
           if (onScrollLineRef.current) {
             reportScrollLine(view, scrollParentRef.current, onScrollLineRef.current);
@@ -145,20 +146,6 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       effects: liveCompartment.current.reconfigure(editorModeExtension(live)),
     });
   }, [live]);
-
-  // 滚动容器在编辑器外层时，scroll 事件不会经过 CodeMirror，得单独挂一份监听
-  useEffect(() => {
-    const parent = scrollParent ?? null;
-    if (!parent) return;
-    const onScroll = () => {
-      const view = viewRef.current;
-      if (view && onScrollLineRef.current) {
-        reportScrollLine(view, parent, onScrollLineRef.current);
-      }
-    };
-    parent.addEventListener("scroll", onScroll, { passive: true });
-    return () => parent.removeEventListener("scroll", onScroll);
-  }, [scrollParent]);
 
   useImperativeHandle(ref, () => ({
     flush: () => pushChange.flush(),

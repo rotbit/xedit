@@ -236,7 +236,8 @@ export function buildDecorations(view: EditorView, caret: number[]): Built {
         }
         if (name === "FencedCode") {
           fencedCodeDecorations(ctx, node);
-          return;
+          // 代码高亮由独立扩展负责；即时排版只处理围栏与行背景，不遍历内嵌语言语法树。
+          return false;
         }
         if (name === "ListMark") {
           const listType = node.node.parent?.parent?.name;
@@ -347,7 +348,9 @@ const livePreviewPlugin = ViewPlugin.fromClass(
       // 键盘扩选/全选也要重建：选区扫到围栏行时得现出被隐藏的 ``` 原文。
       // viewport 变化仍按冻结的光标位置补齐新进入视口的装饰。
       const selectionNeedsRebuild = update.selectionSet && !this.selectingWithMouse;
-      if (update.docChanged || update.viewportChanged || selectionNeedsRebuild || forced) {
+      // 后台解析补完时文本和视口可能都没变，新识别出的 Markdown 也需要更新排版。
+      const treeChanged = syntaxTree(update.startState) !== syntaxTree(update.state);
+      if (update.docChanged || update.viewportChanged || selectionNeedsRebuild || treeChanged || forced) {
         const built = buildDecorations(update.view, this.caret);
         this.decorations = built.decorations;
         this.atomics = built.atomics;
