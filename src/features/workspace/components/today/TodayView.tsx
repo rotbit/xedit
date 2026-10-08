@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toast";
+import { useLocale, useT } from "@/i18n/useT";
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { bucketTodos, collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, relativeDayLabel, shiftDay, todayKey } from "@/lib/todos/dates";
@@ -48,6 +49,9 @@ function useTodaySignals(): string {
 
 export function TodayView({ ws }: { ws: Workspace }) {
   const { library, nav, docActions } = ws;
+  const t = useT();
+  // 日期格式化显式传 context 里的语言：服务端渲染时模块变量是各请求共享的，不可靠
+  const locale = useLocale();
   const docs = library.docs;
   const today = useTodaySignals();
   const [dayKey, setDayKey] = useState(today);
@@ -59,8 +63,10 @@ export function TodayView({ ws }: { ws: Workspace }) {
   }
 
   const isToday = dayKey === today;
-  const title = formatDayTitle(dayKey);
-  const subtitle = isToday ? title.sub : (relativeDayLabel(dayKey, today) ?? title.sub);
+  const title = formatDayTitle(dayKey, locale);
+  const rel = isToday ? null : relativeDayLabel(dayKey, today);
+  // relativeDayLabel 只给语言无关的标识，叫法在这里翻译
+  const subtitle = rel === "yesterday" ? t("昨天") : rel === "tomorrow" ? t("明天") : title.sub;
   const events = readDayEvents(dayKey);
   const buckets = isToday ? bucketTodos(collectTodos(docs ?? [], today), today) : null;
 
@@ -70,7 +76,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
       await setTaskChecked(item, checked);
       return true;
     } catch {
-      toast("保存失败：浏览器存储空间不足", "error");
+      toast(t("保存失败：浏览器存储空间不足"), "error");
       return false;
     }
   };
@@ -83,7 +89,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
       return true;
     } catch {
       // 本地写满或云端建稿失败都落到这里；面板不关、字不清，方便重试
-      toast("没记上：存储空间不足或网络异常，稍后再试", "error");
+      toast(t("没记上：存储空间不足或网络异常，稍后再试"), "error");
       return false;
     }
   };
@@ -94,7 +100,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
       await deleteTask(item);
       return true;
     } catch {
-      toast("删除失败：浏览器存储空间不足", "error");
+      toast(t("删除失败：浏览器存储空间不足"), "error");
       return false;
     }
   };
@@ -114,10 +120,10 @@ export function TodayView({ ws }: { ws: Workspace }) {
           </h1>
           <div className="flex shrink-0 items-center gap-1">
             <button type="button" className={navBtnCls} onClick={() => setDayKey((k) => shiftDay(k, -1))}>
-              ‹ 昨天
+              ‹ {t("前一天")}
             </button>
             <button type="button" className={navBtnCls} onClick={() => setDayKey((k) => shiftDay(k, 1))}>
-              明天 ›
+              {t("后一天")} ›
             </button>
           </div>
         </div>

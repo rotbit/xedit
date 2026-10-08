@@ -3,16 +3,18 @@
 import { createPortal } from "react-dom";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
+import { Languages, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { stashAndDetachMirror } from "@/lib/orphanDrafts";
 import { toast } from "@/components/Toast";
 import { toggleDark } from "@/components/DarkToggle";
 import { resetSettings } from "@/hooks/useSettings";
 import { useEscape } from "@/hooks/useEscape";
+import { setLocale } from "@/i18n/locale";
+import { useLocale, useT } from "@/i18n/useT";
 import { menuItemCls, menuPanelCls } from "../constants";
 import type { AccountMenuAnchor } from "../hooks/useMenus";
 
-/** 菜单最小宽度：触发行较窄时仍能容下「退出登录」 */
+/** 菜单最小宽度：触发行较窄时仍能容下「退出登录」（英文 Sign out 更短，按中文留宽即可） */
 const MIN_WIDTH = 186;
 
 /** 侧栏底部账户菜单：贴着触发行向上弹出。
@@ -27,6 +29,8 @@ export function AccountMenu({
   onClose: () => void;
 }) {
   useEscape(onClose);
+  const t = useT();
+  const locale = useLocale();
   const run = (fn: () => void) => () => {
     onClose();
     fn();
@@ -49,13 +53,20 @@ export function AccountMenu({
         <button className={menuItemCls} onClick={run(toggleDark)}>
           <Moon size={14} className="text-[var(--ink-faint)] dark:hidden" />
           <Sun size={14} className="hidden text-[var(--ink-faint)] dark:block" />
-          <span className="dark:hidden">夜间模式</span>
-          <span className="hidden dark:block">日间模式</span>
+          <span className="dark:hidden">{t("夜间模式")}</span>
+          <span className="hidden dark:block">{t("日间模式")}</span>
+        </button>
+        {/* 菜单里放成一行而不是 LangToggle 那种方块按钮，和上面的夜间模式同一形态。
+            文字写目标语言本身的名字：看不懂当前语言的人也认得出自己的语言 */}
+        <button className={menuItemCls} onClick={run(() => setLocale(locale === "zh" ? "en" : "zh"))}>
+          <Languages size={14} className="text-[var(--ink-faint)]" />
+          {/* i18n-ignore 语言名不翻译 */}
+          {locale === "zh" ? "English" : "中文"}
         </button>
         {user?.isAdmin ? (
           <a className={menuItemCls} href="/admin">
             <ShieldCheck size={14} className="text-[var(--ink-faint)]" />
-            管理后台
+            {t("管理后台")}
           </a>
         ) : null}
         <div className="my-1 border-t border-[var(--hairline)]" />
@@ -67,13 +78,13 @@ export function AccountMenu({
             // 存不下（配额满）就整份镜像留着不清——稿子比干净更重要。
             // 设置那份是模块级缓存（GET 只发一次），不一起清的话换账号后
             // 沿用的还是上一个账号的主题/自定义 CSS
-            if (!stashAndDetachMirror()) toast("有未同步草稿，本次未清理本地缓存", "info");
+            if (!stashAndDetachMirror()) toast(t("有未同步草稿，本次未清理本地缓存"), "info");
             resetSettings();
             void signOut();
           })}
         >
           <LogOut size={14} className="text-[var(--ink-faint)]" />
-          退出登录
+          {t("退出登录")}
         </button>
       </div>
     </>,

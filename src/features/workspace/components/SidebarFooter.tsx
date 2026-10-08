@@ -10,8 +10,10 @@ import { useState } from "react";
 import { ChevronsUpDown, FolderOpen, Images, Loader2, LogIn, Trash2 } from "lucide-react";
 import { openAuth } from "@/components/AuthDialog";
 import { DarkToggle } from "@/components/DarkToggle";
+import { LangToggle } from "@/components/LangToggle";
 import { askConfirm } from "@/components/PromptDialog";
 import { toast } from "@/components/Toast";
+import { useT } from "@/i18n/useT";
 import { listLocalCats, notifyDocsChanged } from "@/lib/localDocs";
 import {
   closeVault,
@@ -88,6 +90,7 @@ function SimpleRow({
 
 /** 本地模式的文库来源：开着磁盘文件夹就显示库名，否则给个入口去开一个 */
 function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) {
+  const t = useT();
   if (vault.status === "open") {
     return (
       <div className="flex min-w-0 items-center gap-1 text-[11px] text-[var(--ink-faint)]">
@@ -97,12 +100,12 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
         </span>
         <button
           className="shrink-0 cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
-          title="关闭文件夹，回到浏览器存储"
+          title={t("关闭文件夹，回到浏览器存储")}
           onClick={() => {
-            void closeVault().then(() => toast("已关闭文件夹，回到浏览器存储", "info"));
+            void closeVault().then(() => toast(t("已关闭文件夹，回到浏览器存储"), "info"));
           }}
         >
-          关闭
+          {t("关闭")}
         </button>
       </div>
     );
@@ -112,7 +115,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
     return (
       <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--ink-faint)]">
         <Loader2 size={14} className="shrink-0 animate-spin" />
-        <span className="min-w-0 truncate">正在打开…</span>
+        <span className="min-w-0 truncate">{t("正在打开…")}</span>
       </div>
     );
   }
@@ -122,7 +125,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
     return (
       <button className={vaultBtnCls} onClick={() => void resumeVault()}>
         <FolderOpen size={14} className="shrink-0" />
-        <span className="min-w-0 truncate">恢复访问「{vault.name}」</span>
+        <span className="min-w-0 truncate">{t("恢复访问「{name}」", { name: vault.name ?? "" })}</span>
       </button>
     );
   }
@@ -132,9 +135,9 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
     return (
       <span
         className="block truncate text-[11px] text-[var(--ink-faint)]"
-        title="打开文件夹需要 Chrome / Edge 等 Chromium 浏览器"
+        title={t("打开文件夹需要 Chrome / Edge 等 Chromium 浏览器")}
       >
-        本地模式 · 数据保存在本设备
+        {t("本地模式 · 数据保存在本设备")}
       </span>
     );
   }
@@ -142,7 +145,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
   return (
     <button className={vaultBtnCls} onClick={onOpen}>
       <FolderOpen size={14} className="shrink-0" />
-      <span className="min-w-0 truncate">打开文件夹作为文库</span>
+      <span className="min-w-0 truncate">{t("打开文件夹作为文库")}</span>
     </button>
   );
 }
@@ -150,6 +153,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
 /** 侧栏底部：登录态是工具入口 + 账户，离线态是提示，本地模式是登录引导 */
 export function SidebarFooter({ ws }: { ws: Workspace }) {
   const { auth, menus, library, vault } = ws;
+  const t = useT();
 
   /** 选一个磁盘文件夹当文库；浏览器里还攒着文章就问一句要不要一起搬进去 */
   const openVaultAsLibrary = async () => {
@@ -158,22 +162,22 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
     const r = await openVaultFromPicker();
     if (r === "cancelled") return;
     if (r === "unsupported") {
-      toast("当前浏览器不支持打开本地文件夹，请用 Chrome / Edge", "error");
+      toast(t("当前浏览器不支持打开本地文件夹，请用 Chrome / Edge"), "error");
       return;
     }
     if (r === "failed") return; // vaultSession 已经弹过失败原因
-    toast(`已打开文件夹「${getVaultState().name}」`, "success");
+    toast(t("已打开文件夹「{name}」", { name: getVaultState().name ?? "" }), "success");
     if (n === 0) return; // 空库就空着，让用户自己新建
     const ok = await askConfirm({
-      title: "迁移浏览器里的文章",
-      message: `浏览器里还有 ${n} 篇本地文章，要搬进这个文件夹吗？搬完后浏览器里的副本会删除。`,
-      confirmText: "迁移",
+      title: t("迁移浏览器里的文章"),
+      message: t("浏览器里还有 {n} 篇本地文章，要搬进这个文件夹吗？搬完后浏览器里的副本会删除。", { n }),
+      confirmText: t("迁移"),
     });
     if (!ok) return;
     const moved = await migrateBrowserDocsToVault();
     notifyDocsChanged();
     library.setCustomCats(listLocalCats()); // 空分类只在分类表里，得单独再读一次
-    toast(`已迁入 ${moved} 篇文章`, "success");
+    toast(t("已迁入 {n} 篇文章", { n: moved }), "success");
   };
 
   // 0 转成 null：SimpleRow 拿到 null 就不画计数气泡，空回收站不该顶着一个「0」
@@ -182,7 +186,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
     <SimpleRow
       ws={ws}
       viewKey={TRASH}
-      label="回收站"
+      label={t("回收站")}
       count={trashCount}
       icon={<Trash2 size={14} />}
     />
@@ -192,12 +196,12 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
     <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
       {auth.loggedIn ? (
         <>
-          <SimpleRow ws={ws} viewKey={ASSETS} label="图片库" count={null} icon={<Images size={14} />} />
+          <SimpleRow ws={ws} viewKey={ASSETS} label={t("图片库")} count={null} icon={<Images size={14} />} />
           {trashRow}
           <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
             <button
               className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 hover:bg-[var(--sidebar-hover)]"
-              title="账户"
+              title={t("账户")}
               onClick={menus.toggleAccountMenu}
             >
               <Avatar user={auth.session?.user} />
@@ -221,7 +225,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
         <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
           <div
             className="flex w-full items-center gap-2 rounded-md px-1.5 py-1"
-            title="离线中 · 联网后自动同步"
+            title={t("离线中 · 联网后自动同步")}
           >
             <Avatar user={auth.user} />
             <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--ink-soft)]">
@@ -229,9 +233,13 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
             </span>
             <span className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--ink-faint)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--ink-faint)]" />
-              离线
+              {t("离线")}
             </span>
-            <DarkToggle />
+            {/* 两个方块按钮紧挨着成一组，不吃外层的 gap */}
+            <div className="flex shrink-0 items-center">
+              <LangToggle />
+              <DarkToggle />
+            </div>
           </div>
         </div>
       ) : (
@@ -244,13 +252,17 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
             onClick={() => openAuth("login")}
           >
             <LogIn size={14} />
-            登录同步到云端
+            {t("登录同步到云端")}
           </button>
           <div className="mt-2 flex items-center gap-2 border-t border-[var(--hairline)] px-1.5 pt-2">
             <div className="min-w-0 flex-1">
               <VaultRow vault={vault} onOpen={() => void openVaultAsLibrary()} />
             </div>
-            <DarkToggle />
+            {/* 两个方块按钮紧挨着成一组，不吃外层的 gap */}
+            <div className="flex shrink-0 items-center">
+              <LangToggle />
+              <DarkToggle />
+            </div>
           </div>
         </>
       )}

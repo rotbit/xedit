@@ -10,6 +10,8 @@
 import { useMemo, useRef, useState } from "react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
+import type { TFn } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { searchDocs } from "@/lib/docSearch";
 import { isTemplateDoc } from "@/lib/templates";
@@ -31,10 +33,10 @@ interface Option {
 const MAX_RESULTS = 8;
 const RECENT_COUNT = 7;
 
-const docOption = (doc: DocMeta): Option => ({
+const docOption = (doc: DocMeta, t: TFn): Option => ({
   key: doc.id,
   target: { kind: "doc", id: doc.id },
-  label: doc.title || UNTITLED_DOC,
+  label: doc.title || t(UNTITLED_DOC),
   hint: doc.category ?? "",
 });
 
@@ -42,7 +44,7 @@ const docOption = (doc: DocMeta): Option => ({
  * 候选列表。模板分类不进候选：往模板里记待办，从模板新建的每篇稿子都会带上它，
  * 而今天页又不收模板里的待办，记进去就等于看不见。
  */
-function buildOptions(docs: DocMeta[], query: string): Option[] {
+function buildOptions(docs: DocMeta[], query: string, t: TFn): Option[] {
   const pool = docs.filter((d) => !isTemplateDoc(d));
   const q = query.trim();
   if (!q) {
@@ -50,21 +52,22 @@ function buildOptions(docs: DocMeta[], query: string): Option[] {
     const first: Option = {
       key: "notes",
       target: { kind: "notes" },
-      label: notes ? notes.title || NOTES_TITLE : `${NOTES_TITLE}（新建）`,
+      // 清单的标题不翻译：它是 findNotesDoc 认那篇文章的依据，新建出来就叫这个名字
+      label: notes ? notes.title || NOTES_TITLE : t("{title}（新建）", { title: NOTES_TITLE }),
       hint: notes?.category ?? "",
     };
     const recent = searchDocs(
       pool.filter((d) => d.id !== notes?.id),
       "",
       { limit: RECENT_COUNT }
-    ).map((h) => docOption(h.doc));
+    ).map((h) => docOption(h.doc, t));
     return [first, ...recent];
   }
-  const hits = searchDocs(pool, q, { limit: MAX_RESULTS }).map((h) => docOption(h.doc));
+  const hits = searchDocs(pool, q, { limit: MAX_RESULTS }).map((h) => docOption(h.doc, t));
   // 只要没有同名的就给「新建」：只看「有没有命中」的话，搜「周报」时正文提到周报的文章
   // 会把新建入口挤掉，用户就没法建一篇真正叫「周报」的了
   if (!pool.some((d) => d.title === q)) {
-    hits.push({ key: "new", target: { kind: "new", title: q }, label: `新建《${q}》`, hint: "" });
+    hits.push({ key: "new", target: { kind: "new", title: q }, label: t("新建《{title}》", { title: q }), hint: "" });
   }
   return hits;
 }
@@ -87,11 +90,12 @@ function Panel({
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const [pending, setPending] = useState(false);
+  const t = useT();
   useDismissMenu(panelRef, onClose, true);
   useEscape(onClose);
 
   // 搜正文要逐篇读缓存，没变的输入不重算（输入任务文字时会频繁重渲染）
-  const options = useMemo(() => buildOptions(docs, query), [docs, query]);
+  const options = useMemo(() => buildOptions(docs, query, t), [docs, query, t]);
   const active = Math.min(sel, options.length - 1);
 
   const submit = async (target: AddTarget | undefined) => {
@@ -124,23 +128,23 @@ function Panel({
     <div
       ref={panelRef}
       role="dialog"
-      aria-label="记一件事"
+      aria-label={t("记一件事")}
       className="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] p-2 text-[13px] shadow-lg"
     >
       <input
         ref={taskRef}
         autoFocus
         className={inputCls}
-        placeholder="要做什么…"
+        placeholder={t("要做什么…")}
         value={text}
         disabled={pending}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
       />
-      <div className="mb-1 mt-2.5 px-0.5 text-[12px] text-[var(--ink-faint)]">记到</div>
+      <div className="mb-1 mt-2.5 px-0.5 text-[12px] text-[var(--ink-faint)]">{t("记到")}</div>
       <input
         className={inputCls}
-        placeholder="搜索文章…"
+        placeholder={t("搜索文章…")}
         value={query}
         disabled={pending}
         onChange={(e) => {
@@ -149,7 +153,7 @@ function Panel({
         }}
         onKeyDown={onKeyDown}
       />
-      <div role="listbox" aria-label="目标文章" className="mt-1">
+      <div role="listbox" aria-label={t("目标文章")} className="mt-1">
         {options.map((o, i) => (
           <div
             key={o.key}
@@ -189,6 +193,7 @@ export function QuickAdd({
   onSubmit: (text: string, target: AddTarget) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   return (
     <div className="relative mb-1.5">
       <button
@@ -201,7 +206,7 @@ export function QuickAdd({
         onClick={() => setOpen((v) => !v)}
       >
         <span className="h-4 w-4 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--hairline-strong)]" />
-        记一件事…
+        {t("记一件事…")}
       </button>
       {open ? <Panel docs={docs} onSubmit={onSubmit} onClose={() => setOpen(false)} /> : null}
     </div>
