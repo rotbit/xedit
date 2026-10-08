@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
-import { ASSETS } from "../constants";
+import { ASSETS, TODAY } from "../constants";
 import { allCategories } from "../lib/catTree";
 import { ContentHeader } from "./ContentHeader";
 import { DocListEmpty, DocListSkeleton } from "./DocListStates";
@@ -25,6 +25,12 @@ const AssetsGallery = dynamic(
   () => import("@/components/assets/AssetsGallery").then((m) => m.AssetsGallery),
   { ssr: false, loading: viewLoading }
 );
+
+/** 今天页带着待办汇总与当日记录，只有点进来的人才需要 */
+const TodayView = dynamic(() => import("./today/TodayView").then((m) => m.TodayView), {
+  ssr: false,
+  loading: viewLoading,
+});
 
 /**
  * 列表首帧渲染完后趁浏览器空闲预热阅读器模块：
@@ -104,6 +110,8 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
       ) : activeCat === ASSETS ? (
         // 图片库是通栏两栏（网格 + 右侧详情栏），不套居中窄容器、自己管滚动
         <AssetsGallery ossConfigured={config?.oss ?? false} onOpenDoc={nav.openDoc} />
+      ) : activeCat === TODAY ? (
+        <TodayView ws={ws} />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[960px] px-4 pb-24 pt-6 sm:px-8">

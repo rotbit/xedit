@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { pruneIndex } from "@/lib/docIndex";
 import { searchDocIds } from "@/lib/docSearch";
+import { pruneTodoCache } from "@/lib/todos/collect";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { nameOf, parentOf } from "../lib/catPath";
 import { buildTree, findNode } from "../lib/catTree";
@@ -109,8 +110,11 @@ export function useWorkspace() {
 
   // 文库一变就把已不在库里的文章清出 docIndex 缓存：缓存按 id 长住，
   // 不清就会把删掉的、退出登录换库之后的正文一直攥在内存里
+  // 待办缓存同理（侧栏「今天」计数与今天页共用）
   useEffect(() => {
-    pruneIndex((docs ?? []).map((doc) => doc.id));
+    const ids = (docs ?? []).map((doc) => doc.id);
+    pruneIndex(ids);
+    pruneTodoCache(ids);
   }, [docs]);
 
   /**

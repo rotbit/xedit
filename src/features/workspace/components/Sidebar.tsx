@@ -1,10 +1,13 @@
 "use client";
 
-import { PanelLeftClose, Search } from "lucide-react";
+import { useMemo } from "react";
+import { CalendarCheck, PanelLeftClose, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { useDragDivider } from "@/hooks/useDragDivider";
-import { ALL } from "../constants";
+import { actionableCount, bucketTodos, collectTodos } from "@/lib/todos/collect";
+import { todayKey } from "@/lib/todos/dates";
+import { ALL, TODAY, countCls, rowCls } from "../constants";
 import { clampSidebarWidth } from "../hooks/useSidebarPrefs";
 import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
@@ -12,13 +15,21 @@ import type { Workspace } from "../hooks/useWorkspace";
 
 /**
  * 工作区侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕。
- * 结构自上而下——工作区头 / 全局搜索 / 统计行 / 分类树 / 工具与账户。
+ * 结构自上而下——工作区头 / 全局搜索 / 今天 / 统计行 / 分类树 / 工具与账户。
  */
 export function Sidebar({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, menus, totalChars } = ws;
   const { docs } = library;
   /** 统计文字兼作「全部文章」入口：当前就在全部列表时文字加深 */
   const allActive = nav.activeCat === ALL && !nav.readingId;
+  const todayActive = nav.activeCat === TODAY && !nav.readingId;
+  /** 「今天」右侧的数：逾期 + 今天到期 + 清单里没定日期的。
+   *  docs 每次自动保存都换引用，collectTodos 按 updatedAt 缓存解析结果，重算只是遍历一遍 */
+  const todoCount = useMemo(() => {
+    if (!docs) return 0;
+    const today = todayKey();
+    return actionableCount(bucketTodos(collectTodos(docs, today), today));
+  }, [docs]);
 
   /** 右缘手柄拖拽调宽：过程中只用本地值，松手才落盘（与阅读器分隔条同一套 hook） */
   const resize = useDragDivider<{ x: number; w: number }>({
@@ -74,6 +85,25 @@ export function Sidebar({ ws }: { ws: Workspace }) {
             </kbd>
           ) : null}
         </div>
+      </div>
+
+      <div className="shrink-0 px-2 pb-1">
+        <button
+          className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(todayActive)}`}
+          style={{ paddingLeft: "6px" }}
+          onClick={() => nav.openCategory(TODAY)}
+        >
+          {/* 与分类树的展开箭头同宽的占位，让图标和文件夹图标对齐 */}
+          <span className="h-5 w-5 shrink-0" />
+          <CalendarCheck
+            size={14}
+            className={todayActive ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}
+          />
+          <span className="ml-1 min-w-0 flex-1 truncate">今天</span>
+          {todoCount > 0 ? (
+            <span className={`rounded-full px-1.5 text-[11px] ${countCls(todayActive)}`}>{todoCount}</span>
+          ) : null}
+        </button>
       </div>
 
       {/* 统计行不放按钮：新建文件夹 / 刷新 / 新建文章 / 导入都在右键菜单里（这行和树的空白处都能右键），

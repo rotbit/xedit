@@ -7,7 +7,7 @@ import { useRegisterCommands } from "@/hooks/useRegisterCommands";
 import type { Command } from "@/lib/commandRegistry";
 import { listTemplates } from "@/lib/templates";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
-import { ALL, TRASH } from "../constants";
+import { ALL, TODAY, TRASH } from "../constants";
 import type { Workspace } from "./useWorkspace";
 
 interface Params {
@@ -49,6 +49,12 @@ export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
           group: "导航",
           label: "回到全部文章",
           run: () => nav.openCategory(ALL),
+        },
+        {
+          id: "workspace.today",
+          group: "导航",
+          label: "打开今天",
+          run: () => nav.openCategory(TODAY),
         },
         {
           id: "workspace.trash",
