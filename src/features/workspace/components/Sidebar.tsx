@@ -1,12 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import { CalendarCheck, Files, PanelLeftClose, Search } from "lucide-react";
+import { CalendarCheck, PanelLeftClose, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { useDragDivider } from "@/hooks/useDragDivider";
 import { useT } from "@/i18n/useT";
-import { actionableCount, bucketTodos, collectTodos } from "@/lib/todos/collect";
+import {
+  actionableCount,
+  bucketTodos,
+  collectTodos,
+} from "@/lib/todos/collect";
 import { todayKey } from "@/lib/todos/dates";
 import { ALL, TODAY, countCls, rowCls } from "../constants";
 import { clampSidebarWidth } from "../hooks/useSidebarPrefs";
@@ -42,10 +46,16 @@ function NavRow({
     >
       {/* 与分类行的展开箭头同宽的占位，图标和文件夹图标对齐 */}
       <span className="h-5 w-5 shrink-0" />
-      <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>{icon}</span>
+      <span
+        className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}
+      >
+        {icon}
+      </span>
       <span className="ml-1 min-w-0 flex-1 truncate">{label}</span>
       {count > 0 ? (
-        <span className={`rounded-full px-1.5 text-[11px] ${countCls(active)}`}>{count}</span>
+        <span className={`rounded-full px-1.5 text-[11px] ${countCls(active)}`}>
+          {count}
+        </span>
       ) : null}
     </button>
   );
@@ -125,8 +135,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         </div>
       </div>
 
-      {/* 两个虚拟入口与分类树同一套行度量，当成树上最前面的两行；
-          「全部文章」兼作根分类的右键菜单（新建文件夹 / 刷新 / 导入），树的空白处也能右键 */}
+      {/* 「今天」与分类树同一套行度量，当成树上最前面的一行 */}
       <div className="mt-1 shrink-0 px-2">
         <NavRow
           icon={<CalendarCheck size={14} />}
@@ -135,14 +144,24 @@ export function Sidebar({ ws }: { ws: Workspace }) {
           count={todoCount}
           onClick={() => nav.openCategory(TODAY)}
         />
-        <NavRow
-          icon={<Files size={14} />}
-          label={t("全部文章")}
-          active={allActive}
+        {/* 分类树的标题行，本身就是「全部文章」入口：它是这一组的总目录而不是并列的一个分类，
+            所以不给图标、不给灰底，选中只把字加深；兼作根分类的右键菜单（新建文件夹 / 刷新 / 导入） */}
+        <button
+          className={`mt-3 flex w-full cursor-pointer items-center rounded-md px-2 py-1 text-left text-[11px] font-medium tracking-wider transition-colors disabled:cursor-default ${
+            allActive
+              ? "text-[var(--ink)]"
+              : "text-[var(--ink-faint)] hover:text-[var(--ink)]"
+          }`}
           disabled={docs === null}
           onClick={() => nav.openCategory(ALL)}
           onContextMenu={(e) => menus.openCatMenuAt(e, ALL)}
-        />
+          title={t("全部文章")}
+        >
+          <span className="min-w-0 flex-1 truncate">{t("文章")}</span>
+          {docs && docs.length > 0 ? (
+            <span className="tabular-nums font-normal">{docs.length}</span>
+          ) : null}
+        </button>
       </div>
 
       <CategoryTree ws={ws} />
