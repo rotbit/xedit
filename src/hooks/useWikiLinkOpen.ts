@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { askConfirm } from "@/components/PromptDialog";
+import { t } from "@/i18n/t";
 import { normalizeTitle, WIKI_OPEN_EVENT } from "@/lib/wikiLink";
 import type { DocMeta } from "@/features/workspace/types";
 
@@ -40,9 +41,9 @@ export function useWikiLinkOpen(params: WikiLinkOpenParams) {
       // 目标还不存在：Obsidian 的做法是直接建空文章，这里多问一句——
       // 点错一个链接就凭空多出一篇文章，在「文章」而非「笔记」的语境下更扰人
       void askConfirm({
-        title: "文章不存在",
-        message: `文章「${target}」还不存在，是否新建并打开？`,
-        confirmText: "新建",
+        title: t("文章不存在"),
+        message: t("文章「{title}」还不存在，是否新建并打开？", { title: target }),
+        confirmText: t("新建"),
       }).then((ok) => {
         if (ok) void createDoc(category, { title: target });
       });

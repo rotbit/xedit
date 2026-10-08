@@ -4,9 +4,10 @@ import { notifyDocsChanged, saveLocalCats } from "@/lib/localDocs";
 import { getLocalBackend } from "@/lib/localBackend";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 import { askInput, askConfirm } from "@/components/PromptDialog";
 import { ALL, MAX_DEPTH, UNCATEGORIZED } from "../constants";
-import { nameOf, parentOf } from "../lib/catPath";
+import { displayCatPath, nameOf, parentOf } from "../lib/catPath";
 import type { AuthMode } from "./useAuthMode";
 import type { DocLibrary } from "./useDocLibrary";
 import type { WorkspaceNav } from "./useWorkspaceNav";
@@ -38,7 +39,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
   /** 云端分类操作需要联网；本地模式不受限 */
   const requireOnline = (): boolean => {
     if (!localMode && !online) {
-      toast("离线时分类操作暂不可用，联网后再试", "error");
+      toast(t("离线时分类操作暂不可用，联网后再试"), "error");
       return false;
     }
     return true;
@@ -53,15 +54,15 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     const path = parent ? `${parent}/${name}` : name;
     const parts = path.split("/").map((p) => p.trim());
     if (parts.some((p) => !p)) {
-      toast("分类名不能为空", "error");
+      toast(t("分类名不能为空"), "error");
       return null;
     }
     if (parts.length > MAX_DEPTH) {
-      toast(`最多支持 ${MAX_DEPTH} 级分类`, "error");
+      toast(t("最多支持 {n} 级分类", { n: MAX_DEPTH }), "error");
       return null;
     }
     if (path === UNCATEGORIZED || customCats.includes(path)) {
-      toast("分类已存在", "error");
+      toast(t("分类已存在"), "error");
       return null;
     }
     return path;
@@ -70,8 +71,10 @@ export function useCategoryActions({ auth, library, nav }: Params) {
   const createCategory = async (parentPath?: string) => {
     const name = (
       await askInput({
-        title: parentPath ? `在「${parentPath}」下新建子文件夹` : "新建文件夹",
-        placeholder: parentPath ? "子文件夹名称" : "文件夹名称，可用 / 建子文件夹",
+        title: parentPath
+          ? t("在「{name}」下新建子文件夹", { name: displayCatPath(parentPath, t) })
+          : t("新建文件夹"),
+        placeholder: parentPath ? t("子文件夹名称") : t("文件夹名称，可用 / 建子文件夹"),
       })
     )?.trim();
     if (!name) return;
@@ -118,9 +121,9 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     const oldName = nameOf(path);
     const name = (
       await askInput({
-        title: `重命名「${oldName}」`,
+        title: t("重命名「{name}」", { name: oldName }),
         defaultValue: oldName,
-        confirmText: "重命名",
+        confirmText: t("重命名"),
       })
     )
       ?.trim()
@@ -129,8 +132,8 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     const to = assertCatName(parentOf(path), name);
     if (!to) return;
     if (!requireOnline()) return;
-    if (await relocateCategory(path, to)) toast("已重命名", "success");
-    else toast("重命名失败", "error");
+    if (await relocateCategory(path, to)) toast(t("已重命名"), "success");
+    else toast(t("重命名失败"), "error");
   };
 
   /** 拖拽把分类挂到新父级下（parent 空串 = 提升为顶级分类） */
@@ -138,22 +141,30 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     const to = parent ? `${parent}/${nameOf(path)}` : nameOf(path);
     if (to === path) return;
     if (to === UNCATEGORIZED) {
-      toast(`不能与「${UNCATEGORIZED}」同名`, "error");
+      toast(t("不能与「{name}」同名", { name: t(UNCATEGORIZED) }), "error");
       return;
     }
     if (!requireOnline()) return;
     if (await relocateCategory(path, to)) {
-      toast(parent ? `已移动到「${parent}」` : "已设为顶级分类", "success");
+      toast(
+        parent
+          ? t("已移动到「{name}」", { name: displayCatPath(parent, t) })
+          : t("已设为顶级分类"),
+        "success"
+      );
     } else {
-      toast("移动失败", "error");
+      toast(t("移动失败"), "error");
     }
   };
 
   const removeCategory = async (path: string) => {
     const ok = await askConfirm({
-      title: "删除文件夹",
-      message: `删除文件夹「${path}」及其子文件夹？其中的文章会移入「${UNCATEGORIZED}」。`,
-      confirmText: "删除",
+      title: t("删除文件夹"),
+      message: t("删除文件夹「{name}」及其子文件夹？其中的文章会移入「{target}」。", {
+        name: displayCatPath(path, t),
+        target: t(UNCATEGORIZED),
+      }),
+      confirmText: t("删除"),
       danger: true,
     });
     if (!ok) return;
@@ -170,7 +181,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
         body: JSON.stringify({ action: "remove", from: path }),
       });
       if (!res.ok) {
-        toast("删除失败", "error");
+        toast(t("删除失败"), "error");
         return;
       }
     }
@@ -187,7 +198,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     if (store.docId && inSub(store.category || UNCATEGORIZED)) {
       store.setCategory(UNCATEGORIZED);
     }
-    toast("已删除文件夹", "success");
+    toast(t("已删除文件夹"), "success");
   };
 
   return { createCategory, renameCategory, moveCategory, removeCategory };

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 import { getMirrorMeta, saveMirrorLocal } from "@/lib/docStore";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
 import { isLocalId, updateLocalDoc } from "@/lib/localDocs";
@@ -65,7 +66,7 @@ async function saveDocument(doc: EditorDocument, manual: boolean): Promise<Persi
   if (result === "local-error") {
     if (!localErrorNotified) {
       localErrorNotified = true;
-      toast("本地保存失败，内容仍在编辑器中", "error");
+      toast(t("本地保存失败，内容仍在编辑器中"), "error");
     }
   } else {
     localErrorNotified = false;
@@ -101,7 +102,7 @@ async function saveManualVersion(id: string, title: string) {
     useStore.getState().setSaveState("saved");
   } catch {
     useStore.getState().setSaveState("saved");
-    toast("已同步云端，版本存档失败", "error");
+    toast(t("已同步云端，版本存档失败"), "error");
   }
 }
 
@@ -115,7 +116,7 @@ async function saveNow() {
     case "offline": return;
     // 本地写失败的提示已由 saveDocument 弹过（自动保存同样要提醒），这里不重复
     case "local-error": return;
-    case "push-failed": return toast("云端暂不可达，已存本地稍后自动同步", "error");
+    case "push-failed": return toast(t("云端暂不可达，已存本地稍后自动同步"), "error");
     case "synced": return saveManualVersion(doc.docId!, doc.title);
   }
 }

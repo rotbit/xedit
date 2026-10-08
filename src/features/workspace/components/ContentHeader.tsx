@@ -9,6 +9,7 @@ import { tk } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { ALL, ASSETS, TODAY } from "../constants";
+import { displayCatName, displayCatPath } from "../lib/catPath";
 import { NewDocButton } from "./NewDocButton";
 import type { DocMeta } from "../types";
 import type { DocView } from "../hooks/useSidebarPrefs";
@@ -41,7 +42,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
           <>
             {sep}
             <button className={crumbCls} onClick={() => openCategory(readingDoc.category!)}>
-              {readingDoc.category}
+              {displayCatPath(readingDoc.category, t)}
             </button>
           </>
         ) : null}
@@ -78,10 +79,10 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
           <span key={path} className="flex min-w-0 items-center gap-1">
             {sep}
             {last ? (
-              <span className={crumbNow}>{p}</span>
+              <span className={crumbNow}>{displayCatName(p, t)}</span>
             ) : (
               <button className={crumbCls} onClick={() => openCategory(path)}>
-                {p}
+                {displayCatName(p, t)}
               </button>
             )}
           </span>

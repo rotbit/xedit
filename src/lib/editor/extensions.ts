@@ -8,6 +8,7 @@ import { languages } from "@codemirror/language-data";
 import { syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import { editorSearch } from "@/lib/editor/searchPanel";
+import { t } from "@/i18n/t";
 import { livePreview } from "@/lib/livePreview";
 import { codeHighlight, mdHighlight, sourceHeadingHighlight } from "@/lib/editor/highlight";
 import { caretAndActiveLine } from "@/lib/editor/caret";
@@ -53,7 +54,8 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
     lineSelectionWithoutNewline,
     caretAndActiveLine,
     EditorView.lineWrapping,
-    placeholder("在这里输入…"),
+    // 建编辑器那一刻按当前语言取；切换语言后下次重建编辑器（切文章等）生效
+    placeholder(t("在这里输入…")),
     markdown({
       base: markdownLanguage,
       codeLanguages: languages,
@@ -73,8 +75,8 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
     slashMenu({ onState: options.onSlashChange, notify: options.notify }),
     // `[[` 文章标题补全：同样只在打开时消费按键，两个菜单的触发条件互不重叠。
     wikiLinkMenu({ getDocs: options.getDocs, onState: options.onWikiMenuChange }),
-    // ⌘F 查找替换：面板中文化 + 停在顶部，样式见 app/editor.css；按键仍走下面的 searchKeymap。
-    editorSearch,
+    // ⌘F 查找替换：面板本地化 + 停在顶部，样式见 app/editor.css；按键仍走下面的 searchKeymap。
+    editorSearch(),
     // 下面三个都用 Prec.highest：要抢在 markdownKeymap（Prec.high）和 indentWithTab 前面。
     // 排在两个菜单之后 —— 同优先级按数组顺序先到先得，菜单开着时 Enter/Tab 仍归菜单。
     tableKeymap,

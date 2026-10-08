@@ -36,6 +36,8 @@ import { ThemePickerPanel } from "@/components/ThemePicker";
 import { resolveTheme } from "@/lib/themes";
 import { desktopVersionAtLeast, isDesktopShell, WECHAT_DRAFT_MIN_VERSION } from "@/lib/desktopShell";
 import { MAC_DOWNLOAD_URL } from "@/lib/site";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 import { useStore } from "@/store/useStore";
 import { ToggleRow } from "./MenuControls";
 import { copyDoc, type CopyTarget } from "../lib/copyDoc";
@@ -55,12 +57,12 @@ const menuDivider = "my-1 border-t border-[var(--hairline)]";
 
 /** 插入类操作：不依赖选区，放在浮动工具条里既占地方又难点，收进 + 菜单 */
 const INSERT_ITEMS: { cmd: FormatCommand; icon: React.ReactNode; label: string }[] = [
-  { cmd: "image", icon: <ImageIcon size={14} />, label: "图片" },
-  { cmd: "video", icon: <Film size={14} />, label: "视频（上传）" },
-  { cmd: "table", icon: <Table size={14} />, label: "表格" },
-  { cmd: "codeblock", icon: <SquareCode size={14} />, label: "代码块" },
-  { cmd: "tasklist", icon: <ListTodo size={14} />, label: "任务列表" },
-  { cmd: "hr", icon: <Minus size={14} />, label: "分割线" },
+  { cmd: "image", icon: <ImageIcon size={14} />, label: tk("图片") },
+  { cmd: "video", icon: <Film size={14} />, label: tk("视频（上传）") },
+  { cmd: "table", icon: <Table size={14} />, label: tk("表格") },
+  { cmd: "codeblock", icon: <SquareCode size={14} />, label: tk("代码块") },
+  { cmd: "tasklist", icon: <ListTodo size={14} />, label: tk("任务列表") },
+  { cmd: "hr", icon: <Minus size={14} />, label: tk("分割线") },
 ];
 
 // memo：这一簇按钮跟正文无关，却和编辑区共处同一棵树，打字时不该跟着重渲染。
@@ -102,6 +104,7 @@ export const ReaderActions = memo(function ReaderActions({
   onOpenShare: () => void;
   onDelete?: () => void;
 }) {
+  const t = useT();
   const linkFootnote = useStore((s) => s.linkFootnote);
   const setLinkFootnote = useStore((s) => s.setLinkFootnote);
   const syncScroll = useStore((s) => s.syncScroll);
@@ -154,7 +157,7 @@ export const ReaderActions = memo(function ReaderActions({
       <div className="relative">
         <button
           className={insertOpen ? iconBtnOn : iconBtnIdle}
-          title="插入"
+          title={t("插入")}
           onClick={() => setInsertOpen((v) => !v)}
         >
           <Plus size={16} />
@@ -173,7 +176,7 @@ export const ReaderActions = memo(function ReaderActions({
                   }}
                 >
                   {it.icon}
-                  {it.label}
+                  {t(it.label)}
                 </button>
               ))}
             </div>
@@ -187,7 +190,7 @@ export const ReaderActions = memo(function ReaderActions({
           className="flex h-8 cursor-pointer items-center gap-0.5 rounded-lg pl-2 pr-1.5 text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-45"
           onClick={() => setCopyMenuOpen((v) => !v)}
           disabled={empty || copying !== null || draftStatus !== null}
-          title={draftStatus ?? "一键复制"}
+          title={draftStatus ?? t("一键复制")}
         >
           {copying !== null || draftStatus !== null ? (
             <Loader2 size={16} className="animate-spin" />
@@ -203,7 +206,7 @@ export const ReaderActions = memo(function ReaderActions({
               {/* 复制出去的排版由主题决定，编辑态看不到；在这里点一下就能换，不必先切到预览 */}
               <div className="flex items-center gap-1 px-3.5 pb-1.5 pt-0.5 text-[11px] text-[var(--ink-faint)]">
                 <Palette size={12} className="shrink-0" />
-                <span className="min-w-0 truncate">排版主题：{themeName}</span>
+                <span className="min-w-0 truncate">{t("排版主题：{name}", { name: themeName })}</span>
                 <button
                   className="ml-auto shrink-0 cursor-pointer text-[var(--ink-soft)] underline decoration-[var(--hairline-strong)] underline-offset-2 hover:text-[var(--ink)]"
                   onClick={() => {
@@ -211,7 +214,7 @@ export const ReaderActions = memo(function ReaderActions({
                     setThemeOpen(true);
                   }}
                 >
-                  切换
+                  {t("切换")}
                 </button>
               </div>
               <div className={menuDivider} />
@@ -222,7 +225,7 @@ export const ReaderActions = memo(function ReaderActions({
                   void copy("wechat");
                 }}
               >
-                复制到公众号
+                {t("复制到公众号")}
               </button>
               <button
                 className={menuItem}
@@ -231,7 +234,7 @@ export const ReaderActions = memo(function ReaderActions({
                   void copy("zhihu");
                 }}
               >
-                复制到知乎
+                {t("复制到知乎")}
               </button>
               {/* 「发送到公众号」靠桌面壳内置的草稿服务填公众号后台，网页版没有这个服务，
                   所以只放一条置灰的引导去拿客户端，免得用户以为没这功能；
@@ -247,7 +250,7 @@ export const ReaderActions = memo(function ReaderActions({
                     void sendWechatDraft(setDraftStatus);
                   }}
                 >
-                  发送到公众号
+                  {t("发送到公众号")}
                 </button>
               ) : (
                 <a
@@ -257,14 +260,14 @@ export const ReaderActions = memo(function ReaderActions({
                   rel="noreferrer"
                   title={
                     isDesktopShell()
-                      ? "当前客户端版本过旧，没有公众号草稿服务，请下载最新版"
-                      : "自动填进公众号后台草稿，仅桌面客户端支持"
+                      ? t("当前客户端版本过旧，没有公众号草稿服务，请下载最新版")
+                      : t("自动填进公众号后台草稿，仅桌面客户端支持")
                   }
                   onClick={() => setCopyMenuOpen(false)}
                 >
-                  <span>发送到公众号</span>
+                  <span>{t("发送到公众号")}</span>
                   <span className="ml-auto text-[11px]">
-                    {isDesktopShell() ? "请更新客户端 ↗" : "需桌面版 ↗"}
+                    {isDesktopShell() ? t("请更新客户端 ↗") : t("需桌面版 ↗")}
                   </span>
                 </a>
               )}
@@ -294,8 +297,8 @@ export const ReaderActions = memo(function ReaderActions({
           ref={reviewBtnRef}
           data-menu-trigger
           className={`${review || launchOpen ? iconBtnOn : iconBtnIdle} disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent`}
-          title={review ? "退出 AI 审核" : "AI 审核：检查表述与公众号合规"}
-          aria-label={review ? "退出 AI 审核" : "AI 审核"}
+          title={review ? t("退出 AI 审核") : t("AI 审核：检查表述与公众号合规")}
+          aria-label={review ? t("退出 AI 审核") : t("AI 审核")}
           aria-expanded={launchOpen && !review}
           aria-haspopup="dialog"
           aria-pressed={review}
@@ -324,7 +327,7 @@ export const ReaderActions = memo(function ReaderActions({
           进出同一个按钮，图标自己说明当前该往哪走，不再另加高亮态 */}
       <button
         className={iconBtnIdle}
-        title={reading ? "返回编辑（⌘⇧E）" : "阅读模式：全屏只看渲染后的成品（⌘⇧E）"}
+        title={reading ? t("返回编辑（⌘⇧E）") : t("阅读模式：全屏只看渲染后的成品（⌘⇧E）")}
         onClick={onToggleReading}
       >
         {reading ? <PenLine size={16} /> : <BookOpen size={16} />}
@@ -332,7 +335,7 @@ export const ReaderActions = memo(function ReaderActions({
       <div className="relative">
         <button
           className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--ink)]"
-          title="更多操作"
+          title={t("更多操作")}
           onClick={() => setMenuOpen((v) => !v)}
         >
           <MoreHorizontal size={16} />
@@ -350,7 +353,7 @@ export const ReaderActions = memo(function ReaderActions({
                 }}
               >
                 <Share2 size={14} />
-                分享给他人查看与批注…
+                {t("分享给他人查看与批注…")}
               </button>
               {/* 版本历史低频，收进菜单；顶栏只留复制这个核心动作 */}
               <button
@@ -361,10 +364,10 @@ export const ReaderActions = memo(function ReaderActions({
                 }}
               >
                 <History size={14} />
-                版本历史…
+                {t("版本历史…")}
               </button>
               <div className={menuDivider} />
-              <p className={menuCaption}>导出</p>
+              <p className={menuCaption}>{t("导出")}</p>
               {EXPORT_ITEMS.map(({ kind, label }) => (
                 <button
                   key={kind}
@@ -374,17 +377,17 @@ export const ReaderActions = memo(function ReaderActions({
                     void runExport(kind);
                   }}
                 >
-                  {label}
+                  {t(label)}
                 </button>
               ))}
               <div className={menuDivider} />
               {/* 开关行自带 stopPropagation，连续切换时菜单不收 */}
-              <ToggleRow label="外链转文末引用" value={linkFootnote} onChange={setLinkFootnote} />
-              <ToggleRow label="同步滚动" value={syncScroll} onChange={setSyncScroll} />
-              <ToggleRow label="源码模式（⌘/）" value={sourceMode} onChange={setSourceMode} />
+              <ToggleRow label={t("外链转文末引用")} value={linkFootnote} onChange={setLinkFootnote} />
+              <ToggleRow label={t("同步滚动")} value={syncScroll} onChange={setSyncScroll} />
+              <ToggleRow label={t("源码模式（⌘/）")} value={sourceMode} onChange={setSourceMode} />
               {/* 双屏的开合逻辑（含「开着审核时切过去要先退出审核」）都在父级的 onToggleSplit 里，
                   这里只是换了个入口，开关状态仍由父级的 split 说了算 */}
-              <ToggleRow label="双屏预览（⌘E）" value={split} onChange={onToggleSplit} />
+              <ToggleRow label={t("双屏预览（⌘E）")} value={split} onChange={onToggleSplit} />
               {onDelete ? (
                 <>
                   <div className={menuDivider} />
@@ -396,7 +399,7 @@ export const ReaderActions = memo(function ReaderActions({
                     }}
                   >
                     <Trash2 size={14} />
-                    删除文章
+                    {t("删除文章")}
                   </button>
                 </>
               ) : null}

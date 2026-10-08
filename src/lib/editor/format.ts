@@ -4,6 +4,7 @@ import { EditorSelection, type ChangeSpec, type EditorState, type SelectionRange
 import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import { EditorView } from "@codemirror/view";
+import { t, tk } from "@/i18n/t";
 import {
   COLOR_SPAN_CLOSE,
   COLOR_SPAN_LOOKBACK,
@@ -54,7 +55,8 @@ function wrapRange(state: EditorState, range: SelectionRange, before: string, af
   };
 }
 
-const LINK_TEXT = "链接文字";
+// 插进正文的占位字，按当前语言给（插入那一刻 t()，常量里只存原文）
+const LINK_TEXT = tk("链接文字");
 const LINK_URL = "https://";
 /** 长得像网址就当网址：选中一段地址按 Cmd+K，地址该进括号而不是当链接文字 */
 const URL_LIKE = /^(?:https?:\/\/|mailto:|www\.)\S+$/i;
@@ -67,6 +69,7 @@ const URL_LIKE = /^(?:https?:\/\/|mailto:|www\.)\S+$/i;
  */
 export function insertLink(view: EditorView) {
   const { state } = view;
+  const linkText = t(LINK_TEXT);
   view.dispatch(
     state.changeByRange((range) => {
       const text = state.doc.sliceString(range.from, range.to);
@@ -78,17 +81,17 @@ export function insertLink(view: EditorView) {
           : trimmed
         : null;
       if (url) {
-        const insert = `[${LINK_TEXT}](${url})`;
+        const insert = `[${linkText}](${url})`;
         return {
           changes: { from: range.from, to: range.to, insert },
-          range: EditorSelection.range(range.from + 1, range.from + 1 + LINK_TEXT.length),
+          range: EditorSelection.range(range.from + 1, range.from + 1 + linkText.length),
         };
       }
       if (!text) {
-        const insert = `[${LINK_TEXT}](${LINK_URL})`;
+        const insert = `[${linkText}](${LINK_URL})`;
         return {
           changes: { from: range.from, to: range.to, insert },
-          range: EditorSelection.range(range.from + 1, range.from + 1 + LINK_TEXT.length),
+          range: EditorSelection.range(range.from + 1, range.from + 1 + linkText.length),
         };
       }
       // 地址位留空、放一个光标（不是选区）：即时渲染只认光标来现出链接源码，
@@ -163,7 +166,7 @@ export function applyColor(view: EditorView, color: string | null) {
     const text = state.doc.sliceString(from, to);
     const wrapped = text.match(COLOR_SPAN_WRAPPED);
     if (color === null && !wrapped) return { range }; // 没颜色可清，原样不动
-    const inner = (wrapped ? wrapped[1] : text) || "有色文字";
+    const inner = (wrapped ? wrapped[1] : text) || t("有色文字");
     const open = color === null ? "" : colorSpanOpen(color);
     const insert = color === null ? inner : `${open}${inner}${COLOR_SPAN_CLOSE}`;
     return {
@@ -320,7 +323,9 @@ export function insertCodeBlock(view: EditorView): void {
   view.focus();
 }
 
-export const TABLE_TEMPLATE = `| 表头 | 表头 |
-| --- | --- |
-| 内容 | 内容 |
-| 内容 | 内容 |`;
+/** 插入表格的骨架；写成函数是为了按插入那一刻的语言给表头 / 单元格占位字 */
+export function tableTemplate(): string {
+  const head = t("表头");
+  const cell = t("内容");
+  return `| ${head} | ${head} |\n| --- | --- |\n| ${cell} | ${cell} |\n| ${cell} | ${cell} |`;
+}

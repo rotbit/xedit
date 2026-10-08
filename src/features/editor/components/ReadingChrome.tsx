@@ -8,18 +8,20 @@ import { Palette } from "lucide-react";
 import { Dropdown } from "@/components/Dropdown";
 import { ThemePickerPanel } from "@/components/ThemePicker";
 import { CHARS_PER_MINUTE, wordCount } from "@/lib/wordCount";
+import { useT } from "@/i18n/useT";
 import { useStore } from "@/store/useStore";
 
 /** 预览顶栏右侧的排版主题入口：主题只作用于渲染后的成品，所以入口就放在成品旁边，
  *  点开是主题列表 + 字号/行高/段距微调 */
 export function ThemeTrigger({ themeName }: { themeName: string }) {
+  const t = useT();
   return (
     <Dropdown
       width={430}
       trigger={
         <button
           className="flex h-7 max-w-[200px] cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-          title="切换排版主题"
+          title={t("切换排版主题")}
         >
           <Palette size={14} className="shrink-0" />
           <span className="truncate">{themeName}</span>
@@ -33,14 +35,17 @@ export function ThemeTrigger({ themeName }: { themeName: string }) {
 
 /** 阅读模式顶栏右侧：字数 · 预计阅读时长 */
 export function ReadingMeta() {
+  const t = useT();
   const content = useStore((s) => s.content);
   // wordCount 内部要过几遍正则，只在正文变化时重扫
   const chars = useMemo(() => wordCount(content), [content]);
 
   return (
     <span className="flex items-center gap-2 text-[12px] text-[var(--ink-faint)]">
-      <span>{chars} 字</span>
-      {chars > 0 ? <span>· 约 {Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE))} 分钟读完</span> : null}
+      <span>{t("{n} 字", { n: chars, abs: chars })}</span>
+      {chars > 0 ? (
+        <span>{t("· 约 {m} 分钟读完", { m: Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE)) })}</span>
+      ) : null}
     </span>
   );
 }

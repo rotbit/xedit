@@ -7,6 +7,7 @@ import { VIDEO_EXT, altFromFileName, isVideoMime } from "@/lib/media";
 import { getActiveVault } from "@/lib/localBackend/vaultSession";
 import type { VaultBackend } from "@/lib/localBackend/vaultBackend";
 import { reserveUploadSlots } from "@/lib/editor/uploadPlaceholder";
+import { t } from "@/i18n/t";
 import {
   insertLink,
   toggleInlineFormat,
@@ -17,7 +18,7 @@ import {
   insertBlock,
   insertCallout,
   insertCodeBlock,
-  TABLE_TEMPLATE,
+  tableTemplate,
 } from "@/lib/editor/format";
 
 /** 提示的种类，与 Toast 的三档一致（这里只声明语义，不认识具体 UI） */
@@ -54,7 +55,7 @@ async function uploadMedia(file: File, notify: Notify): Promise<string | null> {
     return await uploadMediaFile(file);
   } catch (e) {
     // 带上文件名：一次粘好几张时，光说「上传失败」用户不知道是哪张没成
-    notify(`「${file.name}」${errText(e, "上传失败")}`, "error");
+    notify(t("「{name}」{error}", { name: file.name, error: errText(e, t("上传失败")) }), "error");
     return null;
   }
 }
@@ -96,7 +97,7 @@ async function vaultImageMarkdown(
   try {
     return `\n![${altFromFileName(file.name)}](${await saveImageSrc(file, vault)})\n`;
   } catch (e) {
-    notify(`「${file.name}」${errText(e, "存入文库失败")}`, "error");
+    notify(t("「{name}」{error}", { name: file.name, error: errText(e, t("存入文库失败")) }), "error");
     return null;
   }
 }
@@ -131,7 +132,7 @@ export function handleMediaFiles(
   const all = Array.from(files);
   const unsupported = all.filter((f) => f.type.startsWith("video/") && !isVideoMime(f.type));
   for (const f of unsupported) {
-    notify(`「${f.name}」格式不支持，视频请用 mp4 / webm / mov`, "error");
+    notify(t("「{name}」格式不支持，视频请用 mp4 / webm / mov", { name: f.name }), "error");
   }
   // 图片视频混着拖进来也按用户给的文件顺序排，不分两拨
   const media = all.filter((f) => f.type.startsWith("image/") || isVideoMime(f.type));
@@ -142,7 +143,7 @@ export function handleMediaFiles(
   const slots = reserveUploadSlots(
     view,
     pos,
-    media.map((f) => f.name || "未命名文件")
+    media.map((f) => f.name || t("未命名文件"))
   );
   // 进度与成功都不弹 toast：占位牌子就在落点上转着，传完原地变成图，盖一条提示反而挡正文
 
@@ -156,7 +157,7 @@ export function handleMediaFiles(
       .then((markdown) => {
         if (!markdown) return slots[i].cancel();
         if (!slots[i].resolve(markdown))
-          notify(`「${file.name}」的插入位置已被删掉，没有插入`, "info");
+          notify(t("「{name}」的插入位置已被删掉，没有插入", { name: file.name }), "info");
       })
       .catch(() => slots[i].cancel());
   });
@@ -175,11 +176,11 @@ export function runFormatCommand(
 ) {
   switch (cmd) {
     case "bold":
-      return toggleInlineFormat(view, "**", "加粗文字");
+      return toggleInlineFormat(view, "**", t("加粗文字"));
     case "italic":
-      return toggleInlineFormat(view, "*", "斜体文字");
+      return toggleInlineFormat(view, "*", t("斜体文字"));
     case "strike":
-      return toggleInlineFormat(view, "~~", "删除线");
+      return toggleInlineFormat(view, "~~", t("删除线"));
     case "color":
       return applyColor(view, arg ?? null);
     case "code":
@@ -201,7 +202,7 @@ export function runFormatCommand(
     case "link":
       return insertLink(view);
     case "image":
-      return insertBlock(view, "![图片描述](https://)");
+      return insertBlock(view, `![${t("图片描述")}](https://)`);
     case "video": {
       // 直接拉起文件选择上传，比让用户手填视频 URL 更顺手
       const input = document.createElement("input");
@@ -214,7 +215,7 @@ export function runFormatCommand(
       return;
     }
     case "table":
-      return insertBlock(view, TABLE_TEMPLATE);
+      return insertBlock(view, tableTemplate());
     case "hr":
       return insertBlock(view, "---");
   }

@@ -22,6 +22,8 @@ import { WorkspaceContent } from "./components/WorkspaceContent";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { useWorkspaceCommands } from "./hooks/useWorkspaceCommands";
 import { useHydrated } from "@/hooks/useHydrated";
+import { t } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 
 const FeishuDialog = dynamic(
   () => import("@/components/FeishuDialog").then((m) => m.FeishuDialog),
@@ -36,6 +38,14 @@ const ImportDialog = dynamic(
 /** 外部（旧链接、桌面壳菜单栏）能触发的动作；`?new=1` 是 action=new 的老写法 */
 const URL_ACTIONS = ["new", "import-file", "import-folder", "feishu"] as const;
 type UrlAction = (typeof URL_ACTIONS)[number];
+
+/**
+ * 放在组件外用模块级 t()：startLocalWriting 的身份必须稳定（deps 为空），
+ * 闭包里拿不到随语言变化的 useT() 版本，而模块级 t() 调用时才读当前语言。
+ */
+function notifyStorageUnavailable() {
+  toast(t("浏览器本地存储不可用，无法离线写作，请登录后使用"), "error");
+}
 
 interface HomeProps {
   /** 服务端渲染好的落地页；已登录时为 null（那条路径根本走不到落地页） */
@@ -53,6 +63,7 @@ export function Home({ landing }: HomeProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const feishuSync = useFeishuSync();
   const hydrated = useHydrated();
+  const t = useT();
 
   // 打开过文件夹（哪怕还是空库）也算有工作区：本地文库此刻在磁盘上，不该退回落地页
   const hasWorkspace =
@@ -133,7 +144,7 @@ export function Home({ landing }: HomeProps) {
     try {
       const doc = hasDraft
         ? createLocalDoc({ title: s.title, content: s.content })
-        : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN });
+        : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN }); // i18n-ignore 写进数据的文章标题，与中文欢迎正文配套
       // 草稿已入库，清空旧缓冲，避免登录后被旧迁移逻辑重复上传
       if (hasDraft) s.setDoc({ id: null, title: UNTITLED_DOC, content: DEFAULT_MARKDOWN });
       // 走 ref 取 ws：这个回调要进落地页的 context，函数身份得一直稳定
@@ -141,7 +152,7 @@ export function Home({ landing }: HomeProps) {
       wsRef.current.nav.openDoc(doc.id);
     } catch {
       // 本地文档库全靠 localStorage，不可用就只能明说（旧的单稿编辑页已下线）
-      toast("浏览器本地存储不可用，无法离线写作，请登录后使用", "error");
+      notifyStorageUnavailable();
     }
   }, []);
 
@@ -150,7 +161,8 @@ export function Home({ landing }: HomeProps) {
     () => ({
       onStart: startLocalWriting,
       onLogin: () => openAuth("login"),
-      startLabel: hasLocalDraft ? "继续编辑本地文稿" : "开始写作",
+      // 落地页整体保持中文（不在双语范围内），按钮文案跟着落地页走
+      startLabel: hasLocalDraft ? "继续编辑本地文稿" : "开始写作", // i18n-ignore
     }),
     [startLocalWriting, hasLocalDraft]
   );
@@ -209,7 +221,7 @@ export function Home({ landing }: HomeProps) {
       {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
       {!auth.online && !auth.localMode ? (
         <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-[var(--hairline)] bg-[var(--panel)] px-3.5 py-1.5 text-[12px] text-[var(--ink-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
-          已离线 · 改动保存在本地，联网后自动同步
+          {t("已离线 · 改动保存在本地，联网后自动同步")}
         </div>
       ) : null}
       {/* 飞书同步在后台跑着（或悄悄中断了）而对话框已关：右下角留个胶囊，点开回到详情 */}
@@ -222,7 +234,7 @@ export function Home({ landing }: HomeProps) {
           {feishuSync.syncing ? (
             <>
               <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
-              {feishuSync.retry ? "飞书同步重试中" : "飞书同步中"}
+              {feishuSync.retry ? t("飞书同步重试中") : t("飞书同步中")}
               {feishuSync.progress
                 ? ` ${feishuSync.progress.total - feishuSync.progress.pending}/${feishuSync.progress.total}`
                 : "…"}
@@ -230,7 +242,7 @@ export function Home({ landing }: HomeProps) {
           ) : (
             <>
               <AlertCircle size={14} className="text-red-500" />
-              飞书同步已中断，点击查看
+              {t("飞书同步已中断，点击查看")}
             </>
           )}
         </button>
@@ -273,22 +285,23 @@ export function Home({ landing }: HomeProps) {
 
 /** 会话在客户端失效、手上又没有落地页 HTML 时的最小可用界面 */
 function SignedOutFallback({ onStart }: { onStart: () => void }) {
+  const t = useT();
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 bg-[var(--paper)] px-6 text-center">
       <LogoMark className="h-12 w-auto text-[var(--ink)]" />
-      <p className="text-[15px] text-[var(--ink-soft)]">登录状态已失效，重新开始吧</p>
+      <p className="text-[15px] text-[var(--ink-soft)]">{t("登录状态已失效，重新开始吧")}</p>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button
           className="h-10 cursor-pointer rounded-lg bg-[var(--accent)] px-5 text-[14px] font-medium text-[var(--accent-fg)]"
           onClick={onStart}
         >
-          开始写作
+          {t("开始写作")}
         </button>
         <button
           className="h-10 cursor-pointer rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-5 text-[14px]"
           onClick={() => openAuth("login")}
         >
-          登录 / 注册
+          {t("登录 / 注册")}
         </button>
       </div>
     </div>

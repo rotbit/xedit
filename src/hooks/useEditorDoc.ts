@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
 import {
   isLocalId,
@@ -145,7 +146,7 @@ export function useEditorDoc(routeDocId: string | null) {
       const meta = listLocalDocs().find((d) => d.id === routeDocId);
       const content = getLocalDocContent(routeDocId);
       if (!meta || content === null) {
-        toast("本地文章不存在", "error");
+        toast(t("本地文章不存在"), "error");
         router.replace("/");
         return;
       }
@@ -200,15 +201,15 @@ export function useEditorDoc(routeDocId: string | null) {
       // 本机记得登录过就别把人往登录上引，按「这篇没缓存过」说
       toast(
         wasAuthed()
-          ? "离线中，这篇文章还没有缓存到本地，联网后打开一次即可离线使用"
-          : "请先登录后再打开云端文章",
+          ? t("离线中，这篇文章还没有缓存到本地，联网后打开一次即可离线使用")
+          : t("请先登录后再打开云端文章"),
         "error"
       );
       router.replace("/");
       return;
     }
     if (!navigator.onLine) {
-      toast("此文章尚未离线缓存，联网后打开一次即可离线使用", "error");
+      toast(t("此文章尚未离线缓存，联网后打开一次即可离线使用"), "error");
       router.replace("/");
       return;
     }
@@ -217,7 +218,7 @@ export function useEditorDoc(routeDocId: string | null) {
       const res = await fetch(`/api/documents/${routeDocId}`).catch(() => null);
       if (cancelled) return;
       if (!res || !res.ok) {
-        toast("文章不存在或无权限", "error");
+        toast(t("文章不存在或无权限"), "error");
         router.replace("/");
         return;
       }

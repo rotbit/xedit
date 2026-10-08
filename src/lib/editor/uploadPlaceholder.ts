@@ -15,6 +15,7 @@
 
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 import { MapMode, StateEffect, StateField, type Extension } from "@codemirror/state";
+import { t } from "@/i18n/t";
 
 /** 一枚待落笔的占位：id 用来在映射后的装饰集合里找回自己 */
 interface Slot {
@@ -42,11 +43,11 @@ class UploadChipWidget extends WidgetType {
   toDOM() {
     const wrap = document.createElement("span");
     wrap.className = "cm-upload-chip";
-    wrap.setAttribute("aria-label", `正在上传 ${this.name}`);
+    wrap.setAttribute("aria-label", t("正在上传 {name}", { name: this.name }));
     const spin = document.createElement("span");
     spin.className = "cm-upload-chip-spin";
     const label = document.createElement("span");
-    label.textContent = `上传中 ${this.name}`;
+    label.textContent = t("上传中 {name}", { name: this.name });
     wrap.append(spin, label);
     return wrap;
   }

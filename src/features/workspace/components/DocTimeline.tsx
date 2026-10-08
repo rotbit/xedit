@@ -3,7 +3,9 @@
 import { MoreHorizontal } from "lucide-react";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { formatRelativeTime } from "@/lib/format";
+import { useLocale, useT } from "@/i18n/useT";
 import { UNCATEGORIZED } from "../constants";
+import { displayCatName, displayCatPath } from "../lib/catPath";
 import { groupByDay } from "../lib/dayGroups";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -23,6 +25,7 @@ function cleanExcerpt(s: string): string {
 /** 回收站行右侧的恢复 / 彻底删除：行布局里不再需要分隔线，压成一排贴边小按钮 */
 function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
   const { docActions } = ws;
+  const t = useT();
   return (
     <div className="flex shrink-0 gap-1.5 pt-0.5">
       <button
@@ -32,7 +35,7 @@ function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
           void docActions.restoreDoc(doc);
         }}
       >
-        恢复
+        {t("恢复")}
       </button>
       <button
         className="cursor-pointer rounded-md px-2 py-0.5 text-[11.5px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
@@ -41,7 +44,7 @@ function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
           void docActions.hardDeleteDoc(doc);
         }}
       >
-        彻底删除
+        {t("彻底删除")}
       </button>
     </div>
   );
@@ -52,6 +55,7 @@ function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
 function TimelineRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
   const { nav, menus, drag } = ws;
   const { isTrash } = nav;
+  const t = useT();
   const cat = doc.category || UNCATEGORIZED;
   const excerpt = cleanExcerpt(doc.excerpt || "");
   const chars = typeof doc.chars === "number" ? doc.chars : 0;
@@ -73,14 +77,14 @@ function TimelineRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
     >
       <div className="min-w-0">
         <p className="truncate text-[15.5px] font-semibold leading-[1.4] text-[var(--ink)]">
-          {doc.title || UNTITLED_DOC}
+          {doc.title || t(UNTITLED_DOC)}
         </p>
         <p
           className={`mt-0.5 truncate text-[13px] ${
             excerpt ? "text-[var(--ink-soft)]" : "text-[var(--ink-faint)]"
           }`}
         >
-          {excerpt || "尚无内容"}
+          {excerpt || t("尚无内容")}
         </p>
       </div>
       {isTrash ? (
@@ -89,12 +93,12 @@ function TimelineRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
         <>
           <div className="whitespace-nowrap pt-1 text-right text-[11.5px] leading-relaxed">
             {/* 只显示末级分类名；窄屏放不下就整行让位给时间 */}
-            <span className="hidden text-[var(--ink-soft)] sm:block" title={cat}>
-              {cat.split("/").pop()}
+            <span className="hidden text-[var(--ink-soft)] sm:block" title={displayCatPath(cat, t)}>
+              {displayCatName(cat.split("/").pop() ?? cat, t)}
             </span>
             <span className="block tabular-nums text-[var(--ink-faint)]">
               {formatRelativeTime(doc.updatedAt)}
-              {chars > 0 ? ` · ${chars.toLocaleString()} 字` : ""}
+              {chars > 0 ? ` · ${t("{n} 字", { n: chars.toLocaleString(), abs: chars })}` : ""}
             </span>
           </div>
           <button
@@ -118,7 +122,8 @@ function TimelineRow({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
  * 日期本身充当版面的装饰，比等高卡片网格更安静也更省纵向空间。
  */
 export function DocTimeline({ ws }: { ws: Workspace }) {
-  const groups = groupByDay(ws.filtered);
+  const locale = useLocale();
+  const groups = groupByDay(ws.filtered, undefined, locale);
 
   return (
     // 切换分类时整个列表一次短淡入就够了（key 一换就重挂），行不各自上浮：

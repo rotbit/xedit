@@ -19,8 +19,10 @@ import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { logEvent } from "@/lib/todos/events";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 import { askInput, askConfirm } from "@/components/PromptDialog";
 import { UNCATEGORIZED, isVirtualCat } from "../constants";
+import { displayCatPath } from "../lib/catPath";
 import { mergedCloudList } from "../lib/docSource";
 import type { DocMeta } from "../types";
 import type { AuthMode } from "./useAuthMode";
@@ -63,7 +65,7 @@ export function useDocActions({ auth, library, nav }: Params) {
       };
       // 至少转 400ms，避免瞬间完成时图标闪一下看不出反馈
       await Promise.all([work(), new Promise((r) => setTimeout(r, 400))]);
-      toast("已刷新", "success");
+      toast(t("已刷新"), "success");
     } finally {
       setRefreshing(false);
     }
@@ -82,7 +84,7 @@ export function useDocActions({ auth, library, nav }: Params) {
       setDocs(relist());
       nav.openDoc(doc.id);
     } catch {
-      toast("新建失败：浏览器存储空间不足", "error");
+      toast(t("新建失败：浏览器存储空间不足"), "error");
     }
   };
 
@@ -109,7 +111,7 @@ export function useDocActions({ auth, library, nav }: Params) {
       nav.openDoc(doc.id);
       setCreating(false);
     } catch {
-      toast("新建失败", "error");
+      toast(t("新建失败"), "error");
       setCreating(false);
     }
   };
@@ -147,8 +149,8 @@ export function useDocActions({ auth, library, nav }: Params) {
   const createFromTemplate = async (template: DocMeta, category?: string) => {
     const name = (
       await askInput({
-        title: "用模板新建",
-        placeholder: "文章标题",
+        title: t("用模板新建"),
+        placeholder: t("文章标题"),
         defaultValue: defaultTitleFromTemplate(template.title),
       })
     )?.trim();
@@ -166,16 +168,16 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 
   const removeDoc = async (doc: DocMeta) => {
-    const label = doc.title || UNTITLED_DOC;
+    const label = doc.title || t(UNTITLED_DOC);
     if (localMode) {
       // 磁盘文库的删除是移进 .trash/（后端 deleteDoc 已如此），浏览器存储则是真删
       const vault = getActiveVault();
       const ok = await askConfirm({
-        title: "删除文章",
+        title: t("删除文章"),
         message: vault
-          ? `删除「${label}」？移入回收站，可在回收站恢复。`
-          : `删除「${label}」？本地文章删除后无法找回。`,
-        confirmText: vault ? "移入回收站" : "删除",
+          ? t("删除「{name}」？移入回收站，可在回收站恢复。", { name: label })
+          : t("删除「{name}」？本地文章删除后无法找回。", { name: label }),
+        confirmText: vault ? t("移入回收站") : t("删除"),
         danger: true,
       });
       if (!ok) return;
@@ -184,17 +186,17 @@ export function useDocActions({ auth, library, nav }: Params) {
       notifyDocsChanged(); // 回收站列表也听这个事件
       // 删掉的文章不该还开着：正读着它就退回列表
       if (nav.readingId === doc.id) nav.setReadingId(null);
-      toast(vault ? "已移入回收站" : "已删除", "success");
+      toast(vault ? t("已移入回收站") : t("已删除"), "success");
       return;
     }
     if (!online) {
-      toast("离线时无法删除云端文章，联网后再试", "error");
+      toast(t("离线时无法删除云端文章，联网后再试"), "error");
       return;
     }
     const ok = await askConfirm({
-      title: "删除文章",
-      message: `把「${label}」移入回收站？可随时恢复。`,
-      confirmText: "移入回收站",
+      title: t("删除文章"),
+      message: t("把「{name}」移入回收站？可随时恢复。", { name: label }),
+      confirmText: t("移入回收站"),
       danger: true,
     });
     if (!ok) return;
@@ -204,9 +206,9 @@ export function useDocActions({ auth, library, nav }: Params) {
       setDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
       // 移进回收站的文章同样不该还开着
       if (nav.readingId === doc.id) nav.setReadingId(null);
-      toast("已移入回收站", "success");
+      toast(t("已移入回收站"), "success");
     } else {
-      toast("删除失败", "error");
+      toast(t("删除失败"), "error");
     }
   };
 
@@ -217,13 +219,13 @@ export function useDocActions({ auth, library, nav }: Params) {
       // 却已从列表消失，用户再也找不到它（只能刷新页面）
       const back = vault.restoreFromTrash(doc.id);
       if (!back) {
-        toast("恢复失败：回收站里找不到这个文件", "error");
+        toast(t("恢复失败：回收站里找不到这个文件"), "error");
         return;
       }
       setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
       setDocs(listLocalDocs());
       notifyDocsChanged();
-      toast("已恢复", "success");
+      toast(t("已恢复"), "success");
       return;
     }
     const res = await fetch(`/api/documents/${doc.id}`, {
@@ -235,35 +237,37 @@ export function useDocActions({ auth, library, nav }: Params) {
       setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
       // 恢复的文章由同步引擎拉回镜像并刷新列表
       void syncNow();
-      toast("已恢复", "success");
+      toast(t("已恢复"), "success");
     } else {
-      toast("恢复失败", "error");
+      toast(t("恢复失败"), "error");
     }
   };
 
   const hardDeleteDoc = async (doc: DocMeta) => {
     const vault = localMode ? getActiveVault() : null;
     const ok = await askConfirm({
-      title: "彻底删除",
+      title: t("彻底删除"),
       message: vault
-        ? `彻底删除「${doc.title || UNTITLED_DOC}」？彻底删除后无法找回。`
-        : `彻底删除「${doc.title || UNTITLED_DOC}」？包括全部版本历史，无法找回。`,
-      confirmText: "彻底删除",
+        ? t("彻底删除「{name}」？彻底删除后无法找回。", { name: doc.title || t(UNTITLED_DOC) })
+        : t("彻底删除「{name}」？包括全部版本历史，无法找回。", {
+            name: doc.title || t(UNTITLED_DOC),
+          }),
+      confirmText: t("彻底删除"),
       danger: true,
     });
     if (!ok) return;
     if (vault) {
       vault.purgeFromTrash(doc.id);
       setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      toast("已彻底删除", "success");
+      toast(t("已彻底删除"), "success");
       return;
     }
     const res = await fetch(`/api/documents/${doc.id}?hard=1`, { method: "DELETE" });
     if (res.ok) {
       setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      toast("已彻底删除", "success");
+      toast(t("已彻底删除"), "success");
     } else {
-      toast("删除失败", "error");
+      toast(t("删除失败"), "error");
     }
   };
 
@@ -273,19 +277,19 @@ export function useDocActions({ auth, library, nav }: Params) {
     if (!vault) return;
     const count = vault.listTrash().length;
     if (count === 0) {
-      toast("回收站是空的");
+      toast(t("回收站是空的"));
       return;
     }
     const ok = await askConfirm({
-      title: "清空回收站",
-      message: `删除回收站里的 ${count} 篇文章？彻底删除后无法找回。`,
-      confirmText: "清空",
+      title: t("清空回收站"),
+      message: t("删除回收站里的 {n} 篇文章？彻底删除后无法找回。", { n: count }),
+      confirmText: t("清空"),
       danger: true,
     });
     if (!ok) return;
     vault.emptyTrash();
     setTrashDocs([]);
-    toast("回收站已清空", "success");
+    toast(t("回收站已清空"), "success");
   };
 
   const moveDoc = async (doc: DocMeta, category: string) => {
@@ -298,16 +302,16 @@ export function useDocActions({ auth, library, nav }: Params) {
     if (local) updateLocalDoc(doc.id, { category });
     else saveMirrorLocal(doc.id, { category });
     setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null);
-    toast(`已移动到「${category}」`, "success");
+    toast(t("已移动到「{name}」", { name: displayCatPath(category, t) }), "success");
     if (!local) void syncNow();
   };
 
   const renameDoc = async (doc: DocMeta) => {
     const name = (
       await askInput({
-        title: "重命名文章",
-        placeholder: "文章标题",
-        defaultValue: doc.title || UNTITLED_DOC,
+        title: t("重命名文章"),
+        placeholder: t("文章标题"),
+        defaultValue: doc.title || t(UNTITLED_DOC),
       })
     )?.trim();
     if (!name || name === doc.title) return;
@@ -324,12 +328,15 @@ export function useDocActions({ auth, library, nav }: Params) {
       if (!local) void syncNow();
     }
     setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, title } : d)) ?? null);
-    toast("已重命名", "success");
+    toast(t("已重命名"), "success");
   };
 
   const moveToNewCategory = async (doc: DocMeta) => {
     const name = (
-      await askInput({ title: "新建文件夹并移入", placeholder: "文件夹名称，可用 / 建子文件夹" })
+      await askInput({
+        title: t("新建文件夹并移入"),
+        placeholder: t("文件夹名称，可用 / 建子文件夹"),
+      })
     )?.trim();
     if (!name) return;
     void moveDoc(doc, name.slice(0, 100));
@@ -338,18 +345,18 @@ export function useDocActions({ auth, library, nav }: Params) {
   /** 推送/写回飞书：冲突时确认后强制覆盖；未开写入权限时引导升级授权 */
   const pushToFeishu = async (doc: DocMeta) => {
     if (localMode || isLocalId(doc.id)) {
-      toast("本地文章还没上云，登录并同步后才能推送到飞书", "error");
+      toast(t("本地文章还没上云，登录并同步后才能推送到飞书"), "error");
       return;
     }
     if (!online) {
-      toast("离线时无法推送，联网后再试", "error");
+      toast(t("离线时无法推送，联网后再试"), "error");
       return;
     }
     if (pushingFeishu) return;
     setPushingFeishu(true);
     try {
       await syncNow(); // 先把手上未保存的改动冲上云，推的才是最新内容
-      toast("正在推送到飞书，篇幅长或图片多时需要一点时间…", "info");
+      toast(t("正在推送到飞书，篇幅长或图片多时需要一点时间…"), "info");
       const push = (force: boolean) =>
         fetch("/api/feishu/push", {
           method: "POST",
@@ -360,22 +367,26 @@ export function useDocActions({ auth, library, nav }: Params) {
       let data = await res.json().catch(() => ({}));
       if (res.status === 409 && data.conflict) {
         const ok = await askConfirm({
-          title: "飞书侧有更新",
-          message: `「${doc.title || UNTITLED_DOC}」在飞书里自上次同步后有改动，继续推送会用 xedit 的内容覆盖飞书侧。要覆盖吗？`,
-          confirmText: "覆盖推送",
+          title: t("飞书侧有更新"),
+          message: t(
+            "「{name}」在飞书里自上次同步后有改动，继续推送会用 xedit 的内容覆盖飞书侧。要覆盖吗？",
+            { name: doc.title || t(UNTITLED_DOC) }
+          ),
+          confirmText: t("覆盖推送"),
           danger: true,
         });
         if (!ok) return;
-        toast("正在覆盖推送…", "info");
+        toast(t("正在覆盖推送…"), "info");
         res = await push(true);
         data = await res.json().catch(() => ({}));
       }
       if (res.status === 403 && data.needWriteAuth) {
         const ok = await askConfirm({
-          title: "需要开通写入权限",
-          message:
-            "推送需在你的飞书应用「权限管理」里再开通 3 个免审权限：wiki:wiki、docx:document、docs:document.media:upload。开通后点「重新授权」完成升级，再推送一次即可。",
-          confirmText: "重新授权",
+          title: t("需要开通写入权限"),
+          message: t(
+            "推送需在你的飞书应用「权限管理」里再开通 3 个免审权限：wiki:wiki、docx:document、docs:document.media:upload。开通后点「重新授权」完成升级，再推送一次即可。"
+          ),
+          confirmText: t("重新授权"),
         });
         if (ok) {
           window.open(
@@ -387,18 +398,19 @@ export function useDocActions({ auth, library, nav }: Params) {
         return;
       }
       if (!res.ok) {
-        toast(data.error ?? "推送失败", "error");
+        toast(data.error ?? t("推送失败"), "error");
         return;
       }
-      const extra = data.imageFailed > 0 ? `（${data.imageFailed} 张图片转存失败）` : "";
+      const extra =
+        data.imageFailed > 0 ? t("（{n} 张图片转存失败）", { n: data.imageFailed }) : "";
       toast(
         data.action === "created"
-          ? `已推送到飞书知识库${extra}`
-          : `已写回飞书原文档${extra}`,
+          ? t("已推送到飞书知识库{extra}", { extra })
+          : t("已写回飞书原文档{extra}", { extra }),
         "success"
       );
     } catch {
-      toast("推送失败：网络异常", "error");
+      toast(t("推送失败：网络异常"), "error");
     } finally {
       setPushingFeishu(false);
     }

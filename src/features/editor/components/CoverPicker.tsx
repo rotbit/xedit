@@ -5,6 +5,8 @@ import { Check, ChevronDown, Image as ImageIcon, ImagePlus, Loader2 } from "luci
 import { Dropdown } from "@/components/Dropdown";
 import { toast } from "@/components/Toast";
 import { useCan } from "@/hooks/usePermissions";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import { saveImageSrc } from "@/lib/editor/commands";
 import { MAX_IMAGE_SIZE, sizeLimitError } from "@/lib/media";
@@ -65,6 +67,7 @@ export function CoverPicker({
   /** 选了哪张（写进正文的地址）；null = 不设封面。写回正文由调用方做 */
   onPick: (src: string | null) => void;
 }) {
+  const t = useT();
   const cover = coverOf(content);
   const display = useDisplaySrc();
   const shown = cover ? display(cover) : "";
@@ -83,7 +86,7 @@ export function CoverPicker({
         <button
           className={`flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${broken ? "text-[var(--danger,#d9534f)]" : "text-[var(--ink-faint)]"}`}
           title={
-            broken ? "封面图片打不开了，请重新选择" : "公众号封面：发送到公众号时自动设好"
+            broken ? t("封面图片打不开了，请重新选择") : t("公众号封面：发送到公众号时自动设好")
           }
         >
           {shown && !broken ? (
@@ -97,7 +100,7 @@ export function CoverPicker({
           ) : (
             <ImageIcon size={12} className="shrink-0" />
           )}
-          <span>{broken ? "封面已失效" : cover ? "封面" : "设置封面"}</span>
+          <span>{broken ? t("封面已失效") : cover ? t("封面") : t("设置封面")}</span>
           <ChevronDown size={12} className="shrink-0 opacity-60" />
         </button>
       }
@@ -109,9 +112,9 @@ export function CoverPicker({
 
 type Tab = "body" | "upload" | "ai";
 const TABS: [Tab, string][] = [
-  ["body", "正文图片"],
-  ["upload", "上传"],
-  ["ai", "AI 生成"],
+  ["body", tk("正文图片")],
+  ["upload", tk("上传")],
+  ["ai", tk("AI 生成")],
 ];
 
 function CoverPanel({
@@ -125,6 +128,7 @@ function CoverPanel({
   onPick: (src: string | null) => void;
   close: () => void;
 }) {
+  const t = useT();
   const body = useMemo(() => parseFrontmatter(content)?.body ?? content, [content]);
   const images = useMemo(() => bodyImages(body), [body]);
   // 生图花的是站点的钱，只对开通了「AI 生成封面」的账号开放（服务端另有一道判定，见 /api/cover/generate）。
@@ -143,7 +147,7 @@ function CoverPanel({
       onPick(await saveImageSrc(file));
       close();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "保存封面失败", "error");
+      toast(e instanceof Error ? e.message : t("保存封面失败"), "error");
     }
   };
 
@@ -161,7 +165,7 @@ function CoverPanel({
             }`}
             onClick={() => setTab(id)}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -176,7 +180,7 @@ function CoverPanel({
             className="w-[92px] shrink-0 rounded-md border border-[var(--hairline)] object-cover"
             style={COVER_RATIO}
           />
-          <span className="text-[12px] text-[var(--ink-faint)]">当前封面</span>
+          <span className="text-[12px] text-[var(--ink-faint)]">{t("当前封面")}</span>
         </div>
       ) : null}
 
@@ -202,7 +206,7 @@ function CoverPanel({
             close();
           }}
         >
-          不设封面
+          {t("不设封面")}
         </button>
       ) : null}
     </div>
@@ -220,10 +224,11 @@ function BodyTab({
   display: (src: string) => string;
   onPick: (src: string) => void;
 }) {
+  const t = useT();
   if (images.length === 0)
     return (
       <div className="px-3 pb-3 pt-2 text-[12px] leading-relaxed text-[var(--ink-soft,var(--ink-faint))]">
-        正文里还没有图片。先在正文插一张，或者换上面的「上传」「AI 生成」。
+        {t("正文里还没有图片。先在正文插一张，或者换上面的「上传」「AI 生成」。")}
       </div>
     );
   return (
@@ -235,7 +240,7 @@ function BodyTab({
             key={src}
             className={`${coverTileCls} ${on ? "border-[var(--accent)]! shadow-[0_0_0_1px_var(--accent)]" : ""}`}
             style={COVER_RATIO}
-            title={on ? "当前封面" : "设为封面"}
+            title={on ? t("当前封面") : t("设为封面")}
             onClick={() => onPick(src)}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -253,13 +258,14 @@ function BodyTab({
 }
 
 function UploadTab({ onFile }: { onFile: (file: File) => Promise<void> }) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const take = async (file: File | undefined) => {
     if (!file || busy) return;
-    if (!file.type.startsWith("image/")) return toast("封面只能用图片", "error");
+    if (!file.type.startsWith("image/")) return toast(t("封面只能用图片"), "error");
     if (file.size > MAX_IMAGE_SIZE) return toast(sizeLimitError(file.type), "error");
     setBusy(true);
     await onFile(file);
@@ -294,14 +300,14 @@ function UploadTab({ onFile }: { onFile: (file: File) => Promise<void> }) {
         {busy ? (
           <>
             <Loader2 size={18} className="animate-spin" />
-            <span className="text-[12px]">正在上传…</span>
+            <span className="text-[12px]">{t("正在上传…")}</span>
           </>
         ) : (
           <>
             <ImagePlus size={18} />
-            <span className="text-[12px]">点击选择，或把图片拖到这里</span>
+            <span className="text-[12px]">{t("点击选择，或把图片拖到这里")}</span>
             <span className="text-[11px] text-[var(--ink-faint)]">
-              建议 900×383 以上，10MB 以内
+              {t("建议 900×383 以上，10MB 以内")}
             </span>
           </>
         )}

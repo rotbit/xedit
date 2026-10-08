@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { askConfirm } from "@/components/PromptDialog";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 import { notifyDocsChanged } from "@/lib/localDocs";
 import {
   applyRenameLinks,
@@ -57,15 +58,19 @@ export function useRenameLinks({ docId, docs, title, docVersion, refresh }: Para
       busyRef.current = true;
       try {
         const ok = await askConfirm({
-          title: "更新双向链接",
-          message: `有 ${targets.length} 篇文章链接到「${oldTitle}」，一并改成「${newTitle}」？`,
-          confirmText: "一并更新",
+          title: t("更新双向链接"),
+          message: t("有 {n} 篇文章链接到「{old}」，一并改成「{new}」？", {
+            n: targets.length,
+            old: oldTitle,
+            new: newTitle,
+          }),
+          confirmText: t("一并更新"),
         });
         if (!ok) return;
         const { updated, failed } = await applyRenameLinks(targets, oldTitle, newTitle);
         (refresh ?? notifyDocsChanged)();
-        if (updated > 0) toast(`已更新 ${updated} 篇文章的链接`, "success");
-        if (failed > 0) toast(`${failed} 篇文章的链接更新失败`, "error");
+        if (updated > 0) toast(t("已更新 {n} 篇文章的链接", { n: updated }), "success");
+        if (failed > 0) toast(t("{n} 篇文章的链接更新失败", { n: failed }), "error");
       } finally {
         busyRef.current = false;
       }

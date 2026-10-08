@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 
 export interface SyncFailure {
   nodeToken: string;
@@ -156,7 +157,7 @@ const RETRY_DELAYS_MS = [2000, 5000, 15000, 30000, 60000];
  */
 async function fetchBatch(payload: object): Promise<SyncBatch> {
   for (let attempt = 0; ; attempt++) {
-    if (cancelRequested) throw new SyncAbort("已手动停止", { manual: true });
+    if (cancelRequested) throw new SyncAbort(t("已手动停止"), { manual: true });
     let transient: string;
     try {
       const res = await fetch("/api/feishu/sync", {
@@ -172,14 +173,14 @@ async function fetchBatch(payload: object): Promise<SyncBatch> {
         return data;
       }
       if (data && res.status < 500 && res.status !== 429) {
-        throw new SyncAbort(data.error ?? "同步失败", {
+        throw new SyncAbort(data.error ?? t("同步失败"), {
           needReconnect: Boolean(data.needReconnect),
         });
       }
-      transient = data?.error ?? `服务端暂时不可用（HTTP ${res.status}）`;
+      transient = data?.error ?? t("服务端暂时不可用（HTTP {status}）", { status: res.status });
     } catch (e) {
       if (e instanceof SyncAbort) throw e;
-      transient = "网络请求失败";
+      transient = t("网络请求失败");
     }
     emit({ retry: { attempt: attempt + 1, reason: transient } });
     await backoff(RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)]);
@@ -238,13 +239,13 @@ export async function startFeishuSync(
     }
     toast(
       acc.created + acc.updated > 0
-        ? `同步完成：新增 ${acc.created} 篇，更新 ${acc.updated} 篇`
-        : "同步完成：内容没有变化",
+        ? t("同步完成：新增 {created} 篇，更新 {updated} 篇", { created: acc.created, updated: acc.updated })
+        : t("同步完成：内容没有变化"),
       "success"
     );
     onSynced();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "同步失败";
+    const msg = e instanceof Error ? e.message : t("同步失败");
     const manual = e instanceof SyncAbort && e.manual;
     // 中断原因固定进面板，不再只有一闪而过的 toast；已同步的批次都已入库，可续传
     emit({
@@ -253,7 +254,7 @@ export async function startFeishuSync(
       errorAcked: manual,
       reconnectRequired: e instanceof SyncAbort && e.needReconnect,
     });
-    toast(manual ? "同步已停止，随时可以继续" : msg, manual ? "info" : "error");
+    toast(manual ? t("同步已停止，随时可以继续") : msg, manual ? "info" : "error");
   } finally {
     emit({ syncing: false, scanning: false, retry: null, cancelling: false, current: [] });
   }

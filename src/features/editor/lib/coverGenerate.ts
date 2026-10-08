@@ -5,13 +5,14 @@
  * 纯函数，不认识 React，也不弹提示——错误一律抛出，由界面决定怎么显示。
  */
 
+import { t, tk } from "@/i18n/t";
 import { IMAGE_EXT } from "@/lib/media";
 
 /** 生封面接口。同源，浏览器默认就把登录 cookie 带上 */
 const GENERATE_API = "/api/cover/generate";
 
 /** 连不上服务器时的说法：和「站点没配置」是两回事，界面上给的下一步动作也不同 */
-const OFFLINE = "现在连不上服务器，稍后再试";
+const OFFLINE = tk("现在连不上服务器，稍后再试");
 
 /** 与服务端 lib/coverGenerate/replicate 那份白名单一一对应，改了要两边一起改 */
 export type CoverColor = "blue" | "orange" | "green" | "purple" | "red" | "teal" | "gray";
@@ -32,17 +33,17 @@ export class CoverGenerateError extends Error {
 }
 
 /**
- * 配色选项：id 是与服务约定的值，label 给界面用，css 只是色点画出来的样子——
+ * 配色选项：id 是与服务约定的值，label 给界面用（存中文原文，显示处 t()），css 只是色点画出来的样子——
  * 真正进提示词的是服务端那份中文说法（「暖橙 / 陶土色」之类），这里的色值不下发。
  */
 export const COVER_COLORS: { id: CoverColor; label: string; css: string }[] = [
-  { id: "blue", label: "蓝色", css: "#2f6fed" },
-  { id: "orange", label: "暖橙", css: "#d9783f" },
-  { id: "green", label: "绿色", css: "#2f9e5e" },
-  { id: "purple", label: "紫色", css: "#7c53e0" },
-  { id: "red", label: "红色", css: "#d94b4b" },
-  { id: "teal", label: "青色", css: "#1d9a94" },
-  { id: "gray", label: "深灰", css: "#5a6270" },
+  { id: "blue", label: tk("蓝色"), css: "#2f6fed" },
+  { id: "orange", label: tk("暖橙"), css: "#d9783f" },
+  { id: "green", label: tk("绿色"), css: "#2f9e5e" },
+  { id: "purple", label: tk("紫色"), css: "#7c53e0" },
+  { id: "red", label: tk("红色"), css: "#d94b4b" },
+  { id: "teal", label: tk("青色"), css: "#1d9a94" },
+  { id: "gray", label: tk("深灰"), css: "#5a6270" },
 ];
 
 /** 从 localStorage 之类读回来的色号得先验一遍，不认识的按调用方的默认值走 */
@@ -108,7 +109,7 @@ export async function generateCovers(
   } catch (e) {
     // abort 要原样往上抛，否则界面分不清「用户关了面板」和「连不上服务器」
     if (e instanceof DOMException && e.name === "AbortError") throw e;
-    throw new CoverGenerateError(OFFLINE, "offline");
+    throw new CoverGenerateError(t(OFFLINE), "offline");
   }
   const data = (await res.json().catch(() => null)) as
     | { images?: unknown; error?: unknown; message?: unknown }
@@ -117,12 +118,12 @@ export async function generateCovers(
     // 限流、权限这些说法服务端已经写成人话了，原样显示
     const message = typeof data?.message === "string" ? data.message : "";
     const code = typeof data?.error === "string" ? data.error : "failed";
-    throw new CoverGenerateError(message || `生成失败（${res.status}）`, code);
+    throw new CoverGenerateError(message || t("生成失败（{status}）", { status: res.status }), code);
   }
   const images = Array.isArray(data?.images)
     ? data.images.filter((i): i is string => typeof i === "string" && i.startsWith("data:"))
     : [];
-  if (images.length === 0) throw new CoverGenerateError("服务没有返回图片，请再试一次", "failed");
+  if (images.length === 0) throw new CoverGenerateError(t("服务没有返回图片，请再试一次"), "failed");
   return images;
 }
 
@@ -136,7 +137,7 @@ function base64ToBytes(base64: string): Uint8Array {
 /** dataURL → File：生成结果是 dataURL，而存图那条路（文库 / 云端）要的是 File */
 export function dataUrlToFile(dataUrl: string, name?: string): File {
   const m = dataUrl.match(/^data:([^;,]+)(;base64)?,([\s\S]*)$/);
-  if (!m) throw new Error("生成结果不是图片数据");
+  if (!m) throw new Error(t("生成结果不是图片数据"));
   const mime = m[1];
   const bytes = m[2] ? base64ToBytes(m[3]) : new TextEncoder().encode(decodeURIComponent(m[3]));
   const ext = IMAGE_EXT[mime] ?? "png";
