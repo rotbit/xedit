@@ -68,7 +68,7 @@ export function CategoryPickHost() {
           <input
             autoFocus
             className="h-9 w-full rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] pl-8 pr-3 text-[13px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
-            placeholder={t("搜索分类…")}
+            placeholder={t("搜索文件夹…")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -90,7 +90,7 @@ export function CategoryPickHost() {
         ) : null}
         {shown.length === 0 && !state.createOption ? (
           <p className="px-3 py-8 text-center text-[12.5px] text-[var(--ink-faint)]">
-            {t("没有匹配的分类")}
+            {t("没有匹配的文件夹")}
           </p>
         ) : (
           shown.map((c) => {

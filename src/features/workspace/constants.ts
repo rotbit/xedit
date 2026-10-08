@@ -19,16 +19,29 @@ export { UNCATEGORIZED } from "@/lib/docDefaults";
  *  这里只作防失控的宽松上限 */
 export const MAX_DEPTH = 12;
 
-/** 树缩进：每层 17px，与 Obsidian 文件树同宽，等距不压缩——引导线要落在箭头正下方、
+/** 树缩进：每层 17px，与 Obsidian 文件树同宽，等距不压缩——引导线要落在父级图标位正下方、
  *  行高亮要从缩进处起，层距一压缩就互相压住。深层标题靠截断；仍设总上限防超深历史路径 */
 export function treeIndent(depth: number): number {
   return Math.min(depth * 17, 102);
 }
 
-/** 树行的左外边距：悬停/选中底色从这里起，父级引导线（x = 16 + treeIndent(depth-1)）
+/** 树行的左外边距：悬停/选中底色从这里起，父级引导线（x = 15 + treeIndent(depth-1)）
  *  留在行左缘外侧不被盖住（Obsidian 同款）。根行铺满整宽 */
 export function rowInset(depth: number): number {
-  return depth === 0 ? 0 : 5 + treeIndent(depth);
+  return depth === 0 ? 0 : 2 + treeIndent(depth);
+}
+
+/**
+ * 树行（文件夹行、文章行）的左内边距，让 14px 图标位的中心落在 15 + treeIndent(depth)：
+ * - depth 0：行无外边距，内边距 8 → 图标中心 8 + 7 = 15，与 NavRow、搜索框的图标同一条线。
+ * - depth > 0：外边距 rowInset(depth) = 2 + treeIndent(depth)，
+ *   内边距 p 满足 2 + treeIndent(depth) + p + 7 = 15 + treeIndent(depth) → p = 6。
+ *   父级引导线在 15 + treeIndent(depth - 1) = 行左缘 - 4，仍露在行左缘外侧；
+ *   外边距取 2 而不是更大，是为了让底色到图标之间留足 6px，不显得挤。
+ * 引导线由 CategoryRow 的 TreeGuide 画在 15 + treeIndent(父 depth)，正好对准父行图标位中心。
+ */
+export function rowPadLeft(depth: number): number {
+  return depth === 0 ? 8 : 6;
 }
 
 /** 拖拽悬停时落点行的高亮样式（放入该分类） */
@@ -40,13 +53,13 @@ export const DROP_LINE_BOTTOM = "shadow-[0_3px_0_0_var(--accent)]";
 /** 侧栏行的基础样式：选中态强调，未选中态 hover 提亮 */
 export function rowCls(active: boolean): string {
   return active
-    ? "bg-[var(--sidebar-active)] font-medium text-[var(--accent-deep)]"
+    ? "bg-[var(--sidebar-active)] text-[var(--accent-deep)]"
     : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]";
 }
 
-/** 侧栏行右侧计数气泡样式 */
-export function countCls(active: boolean): string {
-  return active ? "bg-[var(--panel)]/70 text-[var(--accent-deep)]" : "text-[var(--ink-faint)]";
+/** 侧栏行右侧计数：裸数字，不加胶囊底；选中与否同一灰度，数字只是旁注 */
+export function countCls(): string {
+  return "text-[11px] tabular-nums text-[var(--ink-faint)]";
 }
 
 /** 弹出菜单条目样式：定义在 components 层（下拉菜单也用同一份），这里只做转出 */

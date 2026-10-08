@@ -3,7 +3,8 @@
 import { FileText, Trash2 } from "lucide-react";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { useT } from "@/i18n/useT";
-import { DROP_LINE_BOTTOM, DROP_LINE_TOP, rowCls, rowInset } from "../constants";
+import { DROP_LINE_BOTTOM, DROP_LINE_TOP, rowCls, rowInset, rowPadLeft } from "../constants";
+import { iconTone } from "./NavRow";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
@@ -27,20 +28,19 @@ export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth:
     >
       <button
         className={`flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${rowCls(active)}`}
-        // 外边距缩进同 CategoryRow；内边距 25 让文档图标与同层分类的箭头盒子右缘对齐
+        // 外边距缩进同 CategoryRow；14px 图标位 + gap-2，与同层文件夹行的图标、文字左缘对齐
         style={{
           marginLeft: `${rowInset(depth)}px`,
           width: `calc(100% - ${rowInset(depth)}px)`,
-          paddingLeft: "25px",
+          paddingLeft: `${rowPadLeft(depth)}px`,
         }}
         onClick={() => nav.openDoc(doc.id)}
         onContextMenu={(e) => menus.openDocMenuAt(e, doc.id)}
         title={doc.title}
       >
-        <FileText
-          size={12}
-          className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}`}
-        />
+        <span className={`flex w-[14px] shrink-0 justify-center ${iconTone(active)}`}>
+          <FileText size={12} />
+        </span>
         <span className="min-w-0 flex-1 truncate">{label}</span>
       </button>
       <button

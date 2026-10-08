@@ -25,8 +25,9 @@ import {
   resumeVault,
   type VaultState,
 } from "@/lib/localBackend/vaultSession";
-import { ASSETS, TRASH, countCls, rowCls } from "../constants";
+import { ASSETS, TRASH } from "../constants";
 import { AccountMenu } from "./AccountMenu";
+import { NavRow } from "./NavRow";
 import type { AuthUser } from "../hooks/useAuthMode";
 import type { Workspace } from "../hooks/useWorkspace";
 
@@ -57,8 +58,8 @@ function Avatar({ user }: { user: AuthUser | undefined }) {
 const vaultBtnCls =
   "flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--hairline)] px-2 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 
-/** 图片库 / 回收站两个入口的行样式与分类行一致，但没有展开箭头与拖拽 */
-function SimpleRow({
+/** 图片库 / 回收站入口：就是一条 NavRow，选中态按当前视图算 */
+function ViewRow({
   ws,
   viewKey,
   label,
@@ -71,20 +72,14 @@ function SimpleRow({
   count: number | null;
   icon: React.ReactNode;
 }) {
-  const active = ws.nav.activeCat === viewKey && !ws.nav.readingId;
   return (
-    <button
-      className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(active)}`}
-      style={{ paddingLeft: "6px" }}
+    <NavRow
+      icon={icon}
+      label={label}
+      active={ws.nav.activeCat === viewKey && !ws.nav.readingId}
+      count={count}
       onClick={() => ws.nav.openCategory(viewKey)}
-    >
-      <span className="h-5 w-5 shrink-0" />
-      <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>{icon}</span>
-      <span className="ml-1 min-w-0 flex-1 truncate">{label}</span>
-      {count !== null ? (
-        <span className={`rounded-full px-1.5 text-[11px] ${countCls(active)}`}>{count}</span>
-      ) : null}
-    </button>
+    />
   );
 }
 
@@ -180,10 +175,10 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
     toast(t("已迁入 {n} 篇文章", { n: moved }), "success");
   };
 
-  // 0 转成 null：SimpleRow 拿到 null 就不画计数气泡，空回收站不该顶着一个「0」
+  // 0 转成 null：NavRow 拿到 null 就不画计数，空回收站不该顶着一个「0」
   const trashCount = library.trashDocs?.length ? library.trashDocs.length : null;
   const trashRow = (
-    <SimpleRow
+    <ViewRow
       ws={ws}
       viewKey={TRASH}
       label={t("回收站")}
@@ -196,11 +191,11 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
     <div className="shrink-0 border-t border-[var(--hairline)] px-2 pb-2 pt-1.5">
       {auth.loggedIn ? (
         <>
-          <SimpleRow ws={ws} viewKey={ASSETS} label={t("图片库")} count={null} icon={<Images size={14} />} />
+          <ViewRow ws={ws} viewKey={ASSETS} label={t("图片库")} count={null} icon={<Images size={14} />} />
           {trashRow}
           <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
             <button
-              className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 hover:bg-[var(--sidebar-hover)]"
+              className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 hover:bg-[var(--sidebar-hover)]"
               title={t("账户")}
               onClick={menus.toggleAccountMenu}
             >
@@ -224,7 +219,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
         // 不给账户菜单——登出、后台这些都要联网；图片库/回收站同理，先藏着
         <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
           <div
-            className="flex w-full items-center gap-2 rounded-md px-1.5 py-1"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1"
             title={t("离线中 · 联网后自动同步")}
           >
             <Avatar user={auth.user} />
@@ -254,7 +249,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
             <LogIn size={14} />
             {t("登录同步到云端")}
           </button>
-          <div className="mt-2 flex items-center gap-2 border-t border-[var(--hairline)] px-1.5 pt-2">
+          <div className="mt-2 flex items-center gap-2 border-t border-[var(--hairline)] px-2 pt-2">
             <div className="min-w-0 flex-1">
               <VaultRow vault={vault} onOpen={() => void openVaultAsLibrary()} />
             </div>

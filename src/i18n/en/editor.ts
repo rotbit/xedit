@@ -52,7 +52,7 @@ export const editor: Record<string, string> = {
   切换双屏预览: "Toggle Split Preview",
   切换阅读模式: "Toggle Reading Mode",
   版本历史: "Version History",
-  "移动到分类…": "Move to Category…",
+  "移动到文件夹…": "Move to Folder…",
   复制导出: "Copy & Export",
 
   // 复制与导出

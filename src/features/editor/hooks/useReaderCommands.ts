@@ -74,7 +74,7 @@ export function useReaderCommands({
     { id: "view.split", group: t("视图"), label: t("切换双屏预览"), keys: "⌘E", run: toggleSplit },
     { id: "view.reading", group: t("视图"), label: t("切换阅读模式"), keys: "⌘⇧E", run: toggleReading },
     { id: "doc.versions", group: t("文章"), label: t("版本历史"), run: openVersions },
-    { id: "doc.move", group: t("文章"), label: t("移动到分类…"), run: pickCategory },
+    { id: "doc.move", group: t("文章"), label: t("移动到文件夹…"), run: pickCategory },
     { id: "doc.share", group: t("文章"), label: t("分享给他人查看与批注…"), run: openShare },
     {
       id: "doc.delete",

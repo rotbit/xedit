@@ -39,7 +39,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
   /** 云端分类操作需要联网；本地模式不受限 */
   const requireOnline = (): boolean => {
     if (!localMode && !online) {
-      toast(t("离线时分类操作暂不可用，联网后再试"), "error");
+      toast(t("离线时文件夹操作暂不可用，联网后再试"), "error");
       return false;
     }
     return true;
@@ -54,15 +54,15 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     const path = parent ? `${parent}/${name}` : name;
     const parts = path.split("/").map((p) => p.trim());
     if (parts.some((p) => !p)) {
-      toast(t("分类名不能为空"), "error");
+      toast(t("文件夹名不能为空"), "error");
       return null;
     }
     if (parts.length > MAX_DEPTH) {
-      toast(t("最多支持 {n} 级分类", { n: MAX_DEPTH }), "error");
+      toast(t("最多支持 {n} 级文件夹", { n: MAX_DEPTH }), "error");
       return null;
     }
     if (path === UNCATEGORIZED || customCats.includes(path)) {
-      toast(t("分类已存在"), "error");
+      toast(t("文件夹已存在"), "error");
       return null;
     }
     return path;
@@ -149,7 +149,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
       toast(
         parent
           ? t("已移动到「{name}」", { name: displayCatPath(parent, t) })
-          : t("已设为顶级分类"),
+          : t("已设为顶级文件夹"),
         "success"
       );
     } else {
