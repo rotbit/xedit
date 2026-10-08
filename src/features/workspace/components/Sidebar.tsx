@@ -18,7 +18,7 @@ import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 侧栏虚拟入口行：和 CategoryRow 同样的高度、缩进与图标位，只是没有展开箭头 */
+/** 侧栏虚拟入口行：和 CategoryRow 同样的高度，但图标顶格——它不是树上的一个分类，不该去对齐文件夹图标 */
 function NavRow({
   icon,
   label,
@@ -39,13 +39,11 @@ function NavRow({
   return (
     <button
       className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors disabled:cursor-default ${rowCls(active)}`}
-      style={{ paddingLeft: "6px" }}
+      style={{ paddingLeft: "8px" }}
       disabled={disabled}
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
-      {/* 与分类行的展开箭头同宽的占位，图标和文件夹图标对齐 */}
-      <span className="h-5 w-5 shrink-0" />
       <span
         className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}
       >
@@ -137,7 +135,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         </div>
       </div>
 
-      {/* 「今天」与分类树同一套行度量，当成树上最前面的一行 */}
+      {/* 「今天」是固定入口：行高与树一致，图标与下面「文章」标题左缘对齐，三者不再一个缩进一个顶格 */}
       <div className="mt-1 shrink-0 px-2">
         <NavRow
           icon={<CalendarCheck size={14} />}
@@ -149,7 +147,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         {/* 分类树的标题行，本身就是「全部文章」入口：它是这一组的总目录而不是并列的一个分类，
             所以不给图标、不给灰底，选中只把字加深；兼作根分类的右键菜单（新建文件夹 / 刷新 / 导入） */}
         <button
-          className={`mt-3 flex w-full cursor-pointer items-center rounded-md px-2 py-1 text-left text-[11px] font-medium tracking-wider transition-colors disabled:cursor-default ${
+          className={`mt-2.5 flex w-full cursor-pointer items-center rounded-md px-2 py-1 text-left text-[12px] font-medium transition-colors disabled:cursor-default ${
             allActive
               ? "text-[var(--ink)]"
               : "text-[var(--ink-faint)] hover:text-[var(--ink)]"
