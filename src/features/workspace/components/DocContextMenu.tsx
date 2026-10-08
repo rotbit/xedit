@@ -42,7 +42,7 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
   /** 分类可能有几百个且层级很深，弹带搜索的选择器而不是在菜单里平铺 */
   const moveViaPicker = async () => {
     const target = await askCategoryPick({
-      title: t("移动「{name}」到分类", { name: doc.title || t(UNTITLED_DOC) }),
+      title: t("移动「{name}」到文件夹", { name: doc.title || t(UNTITLED_DOC) }),
       categories: allCategories(library.customCats, library.docs),
       current: cat,
     });
@@ -70,7 +70,7 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
       </button>
       <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
         <FolderInput size={14} className="text-[var(--ink-faint)]" />
-        {t("移动到分类")}
+        {t("移动到文件夹")}
       </button>
       <button className={menuItemCls} onClick={run(() => void docActions.moveToNewCategory(doc))}>
         <FolderPlus size={14} className="text-[var(--ink-faint)]" />

@@ -14,7 +14,7 @@ export function CategoryTree({ ws }: { ws: Workspace }) {
   const rootDrop = drag.dropSpot?.kind === "cat" && drag.dropSpot.key === ALL;
 
   return (
-    <nav className="mt-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
+    <nav className="mt-0 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
       {tree.map((n) => (
         <CategoryRow key={n.path} ws={ws} node={n} depth={0} />
       ))}

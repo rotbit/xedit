@@ -115,13 +115,13 @@ function Pick({
         {folder
           ? picked && targetCat !== UNCATEGORIZED
             ? t(
-                "选一个文件夹，整个目录会放进「{cat}」，子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。",
+                "选一个文件夹，整个目录会放进「{cat}」，子文件夹会原样保留为文件夹，文件名就是标题，正文里引用的本地图片会一并上传。",
                 { cat }
               )
-            : t("选一个文件夹，子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。")
+            : t("选一个文件夹，子文件夹会原样保留为文件夹，文件名就是标题，正文里引用的本地图片会一并上传。")
           : picked
             ? t("选一个或多个 .md 文件，导入到文件夹「{cat}」。", { cat })
-            : t("选一个或多个 .md 文件，导入到当前分类「{cat}」。", { cat })}
+            : t("选一个或多个 .md 文件，导入到当前文件夹「{cat}」。", { cat })}
       </p>
       <div className="flex items-center gap-3">
         <button className={btnPrimary} onClick={onPick}>
@@ -135,7 +135,7 @@ function Pick({
         </button>
       </div>
       <p className="text-[12px] leading-5 text-[var(--ink-faint)]">
-        {t("重复导入不会产生重复文章：同分类同标题的会被更新。")}
+        {t("重复导入不会产生重复文章：同文件夹同标题的会被更新。")}
       </p>
     </div>
   );

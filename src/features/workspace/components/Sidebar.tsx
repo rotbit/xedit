@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { CalendarCheck, PanelLeftClose, Search } from "lucide-react";
+import { CalendarCheck, Library, PanelLeftClose, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { useDragDivider } from "@/hooks/useDragDivider";
@@ -12,59 +12,20 @@ import {
   collectTodos,
 } from "@/lib/todos/collect";
 import { todayKey } from "@/lib/todos/dates";
-import { ALL, TODAY, countCls, rowCls } from "../constants";
+import { ALL, TODAY } from "../constants";
 import { clampSidebarWidth } from "../hooks/useSidebarPrefs";
 import { CategoryTree } from "./CategoryTree";
+import { NavRow } from "./NavRow";
 import { SidebarFooter } from "./SidebarFooter";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 侧栏虚拟入口行：和 CategoryRow 同样的高度，但图标顶格——它不是树上的一个分类，不该去对齐文件夹图标 */
-function NavRow({
-  icon,
-  label,
-  active,
-  count = 0,
-  disabled,
-  onClick,
-  onContextMenu,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  count?: number;
-  disabled?: boolean;
-  onClick: () => void;
-  onContextMenu?: (e: React.MouseEvent) => void;
-}) {
-  return (
-    <button
-      className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors disabled:cursor-default ${rowCls(active)}`}
-      style={{ paddingLeft: "8px" }}
-      disabled={disabled}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-    >
-      <span
-        className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}
-      >
-        {icon}
-      </span>
-      <span className="ml-1 min-w-0 flex-1 truncate">{label}</span>
-      {count > 0 ? (
-        <span className={`rounded-full px-1.5 text-[11px] ${countCls(active)}`}>
-          {count}
-        </span>
-      ) : null}
-    </button>
-  );
-}
-
 /**
  * 工作区侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕。
- * 结构自上而下——工作区头 / 全局搜索 / 今天 · 全部文章 / 分类树 / 工具与账户。
+ * 结构自上而下——工作区头 / 全局搜索 / 今天 · 全部文章 / 「文件夹」小标题 + 分类树 / 工具与账户。
+ * 全部行共用一套网格（左内边距 8px + 14px 图标位 + 8px 间距 + 文字），图标、文字各自对齐成一条线。
  */
 export function Sidebar({ ws }: { ws: Workspace }) {
-  const { nav, prefs, library, menus } = ws;
+  const { nav, prefs, library, menus, catActions } = ws;
   const { docs } = library;
   const t = useT();
   const allActive = nav.activeCat === ALL && !nav.readingId;
@@ -114,14 +75,15 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         </button>
       </div>
 
-      <div className="shrink-0 px-3 pb-2 pt-0.5">
+      {/* 与下面各行同一网格：放大镜落在 8px，文字落在 30px */}
+      <div className="shrink-0 px-2 pb-2 pt-0.5">
         <div className="relative">
           <Search
             size={14}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--ink-faint)]"
           />
           <input
-            className="h-8 w-full rounded-md border border-[var(--hairline)] bg-[var(--panel)] pl-8 pr-9 text-[12.5px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--hairline-strong)]"
+            className="h-7 w-full rounded-md bg-[var(--panel)] pl-[30px] pr-9 text-[12.5px] outline-none ring-[var(--hairline-strong)] transition-shadow placeholder:text-[var(--ink-faint)] focus:ring-1"
             placeholder={nav.isTrash ? t("搜索回收站…") : t("搜索文章…")}
             value={nav.search}
             onChange={(e) => nav.onSearch(e.target.value)}
@@ -135,8 +97,8 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         </div>
       </div>
 
-      {/* 「今天」是固定入口：行高与树一致，图标与下面「文章」标题左缘对齐，三者不再一个缩进一个顶格 */}
-      <div className="mt-1 shrink-0 px-2">
+      {/* 视图组：靠位置表明身份——搜索之下、文件夹之上的两条固定入口 */}
+      <div className="flex shrink-0 flex-col gap-0.5 px-2">
         <NavRow
           icon={<CalendarCheck size={14} />}
           label={t("今天")}
@@ -144,24 +106,32 @@ export function Sidebar({ ws }: { ws: Workspace }) {
           count={todoCount}
           onClick={() => nav.openCategory(TODAY)}
         />
-        {/* 分类树的标题行，本身就是「全部文章」入口：它是这一组的总目录而不是并列的一个分类，
-            所以不给图标、不给灰底，选中只把字加深；兼作根分类的右键菜单（新建文件夹 / 刷新 / 导入） */}
-        <button
-          className={`mt-2.5 flex w-full cursor-pointer items-center rounded-md px-2 py-1 text-left text-[12px] font-medium transition-colors disabled:cursor-default ${
-            allActive
-              ? "text-[var(--ink)]"
-              : "text-[var(--ink-faint)] hover:text-[var(--ink)]"
-          }`}
+        {/* 右键兼作根级菜单（新建文章 / 新建文件夹 / 刷新 / 导入） */}
+        <NavRow
+          icon={<Library size={14} />}
+          label={t("全部文章")}
+          active={allActive}
           disabled={docs === null}
           onClick={() => nav.openCategory(ALL)}
           onContextMenu={(e) => menus.openCatMenuAt(e, ALL)}
-          title={t("全部文章")}
+        />
+      </div>
+
+      {/* 「文件夹」小标题：只标出下面是文件夹树，不可点；悬停露出「＋」新建顶级文件夹 */}
+      <div className="mt-3 shrink-0 px-2">
+        <div
+          className="group flex h-[22px] items-center px-2 text-[11px] text-[var(--ink-faint)]"
+          onContextMenu={(e) => menus.openCatMenuAt(e, ALL)}
         >
-          <span className="min-w-0 flex-1 truncate">{t("文章")}</span>
-          {docs && docs.length > 0 ? (
-            <span className="tabular-nums font-normal">{docs.length}</span>
-          ) : null}
-        </button>
+          <span className="min-w-0 flex-1 truncate">{t("文件夹")}</span>
+          <button
+            className="hidden h-[18px] w-[18px] cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] transition-colors hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)] group-hover:flex"
+            title={t("新建文件夹")}
+            onClick={() => void catActions.createCategory()}
+          >
+            <Plus size={12} />
+          </button>
+        </div>
       </div>
 
       <CategoryTree ws={ws} />

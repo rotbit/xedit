@@ -251,7 +251,7 @@ export function ArticleReader({
 
   const moveToNewCategory = async () => {
     const name = (
-      await askInput({ title: t("新建分类并移入"), placeholder: t("分类名称，可用 / 建子分类") })
+      await askInput({ title: t("新建文件夹并移入"), placeholder: t("文件夹名称，可用 / 建子文件夹") })
     )?.trim();
     if (!name) return;
     moveToCategory(name.slice(0, 100));
@@ -260,10 +260,10 @@ export function ArticleReader({
   /** 分类几百个且层级深，弹带搜索的选择器（与文章列表右键菜单同款） */
   const pickCategory = async () => {
     const target = await askCategoryPick({
-      title: t("移动到分类"),
+      title: t("移动到文件夹"),
       categories: categories ?? [],
       current: category || UNCATEGORIZED,
-      createOption: t("新建分类并移入…"),
+      createOption: t("新建文件夹并移入…"),
     });
     if (target === CREATE_CATEGORY) return void moveToNewCategory();
     if (target) moveToCategory(target);
@@ -442,7 +442,7 @@ export function ArticleReader({
                           平时不带底色，和同行的保存状态、字数一种质感，悬停才浮出浅底提示可点 */}
                       <button
                         className="-ml-1 flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-                        title={`${t(category || UNCATEGORIZED)}\n${t("点击移动到分类")}`}
+                        title={`${t(category || UNCATEGORIZED)}\n${t("点击移动到文件夹")}`}
                         onClick={() => void pickCategory()}
                       >
                         <Folder size={12} className="shrink-0" />

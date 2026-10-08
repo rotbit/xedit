@@ -101,8 +101,8 @@ export const components: Record<string, string> = {
     "If it gets interrupted, no problem: the next sync skips unchanged docs and picks up where it left off.",
   "之后飞书里有更新，再来点一次即可。": "When things change in Feishu later, just click it again",
   "同步规则": "Sync Rules",
-  "知识库目录层级映射为文章分类：飞书知识库/空间名/…":
-    "The wiki hierarchy maps to article categories: 飞书知识库/<space name>/…",
+  "知识库目录层级映射为文件夹：飞书知识库/空间名/…":
+    "The wiki hierarchy maps to folders: 飞书知识库/<space name>/…",
   "文档里的图片自动转存到你的图片库，不再依赖飞书": "Images in docs are copied to your image library, so they no longer depend on Feishu",
   "重复同步是安全的：没改动的整篇跳过，有改动的更新并保留版本历史":
     "Syncing again is safe: unchanged docs are skipped, changed ones are updated with version history kept",
@@ -194,18 +194,18 @@ export const components: Record<string, string> = {
   "暂不登录，继续本地写作": "Not now, keep writing locally",
 
   // 导入本地 Markdown（ImportDialog）
-  "选一个文件夹，整个目录会放进「{cat}」，子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。":
-    "Pick a folder. Everything goes into “{cat}”; subfolders become categories, file names become titles, and local images referenced in the text are uploaded too",
-  "选一个文件夹，子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。":
-    "Pick a folder. Subfolders become categories, file names become titles, and local images referenced in the text are uploaded too",
+  "选一个文件夹，整个目录会放进「{cat}」，子文件夹会原样保留为文件夹，文件名就是标题，正文里引用的本地图片会一并上传。":
+    "Pick a folder. Everything goes into “{cat}”; subfolders stay as folders, file names become titles, and local images referenced in the text are uploaded too",
+  "选一个文件夹，子文件夹会原样保留为文件夹，文件名就是标题，正文里引用的本地图片会一并上传。":
+    "Pick a folder. Subfolders stay as folders, file names become titles, and local images referenced in the text are uploaded too",
   "选一个或多个 .md 文件，导入到文件夹「{cat}」。": "Pick one or more .md files to import into the folder “{cat}”",
-  "选一个或多个 .md 文件，导入到当前分类「{cat}」。": "Pick one or more .md files to import into the current category “{cat}”",
+  "选一个或多个 .md 文件，导入到当前文件夹「{cat}」。": "Pick one or more .md files to import into the current folder “{cat}”",
   "选择文件夹…": "Choose Folder…",
   "选择文件…": "Choose Files…",
   "改为导入文件": "Import files instead",
   "改为导入文件夹": "Import a folder instead",
-  "重复导入不会产生重复文章：同分类同标题的会被更新。":
-    "Importing again won't create duplicates: articles with the same category and title are updated",
+  "重复导入不会产生重复文章：同文件夹同标题的会被更新。":
+    "Importing again won't create duplicates: articles with the same folder and title are updated",
   "正在导入 {done} / {total}": "Importing {done} / {total}",
   "没有可导入的文件：只认 .md / .markdown，以 . 开头的目录会跳过。":
     "Nothing to import: only .md / .markdown files are recognized, and folders starting with . are skipped",
@@ -264,13 +264,11 @@ export const components: Record<string, string> = {
   "已保存": "Saved",
   "已存本地，联网后同步": "Saved locally, will sync when online",
   "本地保存失败": "Couldn't save locally",
-  "新建分类并移入": "Move to New Folder",
-  "分类名称，可用 / 建子分类": "Folder name (use / for subfolders)",
-  "新建分类并移入…": "Move to New Folder…",
+  "新建文件夹并移入…": "Move to New Folder…",
   "登录后才能分享文章": "Sign in to share articles",
   "目录": "Outline",
   "展开目录": "Show outline",
-  "点击移动到分类": "Click to move to another folder",
+  "点击移动到文件夹": "Click to move to another folder",
   "已更新到最新版本": "Updated to the latest version",
   "约 {n} 分钟读完": "{n} min read",
   "拖动调整源码/预览宽度": "Drag to resize source / preview",
@@ -308,8 +306,8 @@ export const components: Record<string, string> = {
   "链接（⌘K）": "Link (⌘K)",
 
   // ── CategoryPickDialog / CommandPalette / QuickSwitcher / menus ──
-  "搜索分类…": "Search categories…",
-  "没有匹配的分类": "No matching categories",
+  "搜索文件夹…": "Search folders…",
+  "没有匹配的文件夹": "No matching folders",
   "当前所在": "Current",
   "搜索命令…": "Search commands…",
   "↑↓ 选择 · ↵ 执行 · esc 关闭": "↑↓ Select · ↵ Run · esc Close",
