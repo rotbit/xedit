@@ -6,7 +6,7 @@
  */
 import { ChevronRight, CalendarDays, List, PanelLeftOpen, Trash2, X } from "lucide-react";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
-import { ALL, ASSETS } from "../constants";
+import { ALL, ASSETS, TODAY } from "../constants";
 import { NewDocButton } from "./NewDocButton";
 import type { DocMeta } from "../types";
 import type { DocView } from "../hooks/useSidebarPrefs";
@@ -55,6 +55,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
     );
   }
   if (activeCat === ASSETS) return <span className={crumbNow}>图片库</span>;
+  if (activeCat === TODAY) return <span className={crumbNow}>今天</span>;
   if (isTrash) return <span className={crumbNow}>回收站</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
   if (activeCat === ALL || readingId) return <span className={crumbNow}>全部文章</span>;
@@ -100,7 +101,8 @@ export function ContentHeader({
   onActionSlotRef: (el: HTMLDivElement | null) => void;
 }) {
   const { nav, prefs, docActions, auth, vault, library } = ws;
-  const inList = !nav.readingId && nav.activeCat !== ASSETS;
+  // 图片库、今天都不是文章列表：没有视图切换，也不在这里新建
+  const inList = !nav.readingId && nav.activeCat !== ASSETS && nav.activeCat !== TODAY;
   // 清空回收站只对磁盘文库开放：云端回收站有 30 天自动清理，逐篇彻底删除就够了
   const canEmptyTrash =
     nav.isTrash && !nav.readingId && auth.localMode && vault.status === "open";

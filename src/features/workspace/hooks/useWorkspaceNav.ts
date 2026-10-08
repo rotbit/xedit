@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { isDocumentSaved, persistEditorDocument } from "@/lib/editor/persistence";
 import { useStore } from "@/store/useStore";
-import { ALL, ASSETS, TRASH, isVirtualCat } from "../constants";
+import { ALL, ASSETS, TODAY, TRASH, isVirtualCat } from "../constants";
 import { removeLocal } from "../lib/storage";
 import type { SidebarPrefs } from "./useSidebarPrefs";
 
@@ -67,12 +67,12 @@ export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
     removeLocal(K_LEGACY_TABS);
   }, []);
 
-  /** 侧栏全局搜索：在阅读/图片库视图里输入时先切回文章列表 */
+  /** 侧栏全局搜索：在阅读/图片库/今天视图里输入时先切回文章列表（这两个视图不展示搜索结果） */
   const onSearch = (v: string) => {
     setSearch(v);
     if (!v) return;
     setReading(null);
-    if (activeCat === ASSETS) setActiveCat(ALL);
+    if (activeCat === ASSETS || activeCat === TODAY) setActiveCat(ALL);
   };
 
   const openCategory = (path: string) => {

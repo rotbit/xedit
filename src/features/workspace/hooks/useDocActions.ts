@@ -16,6 +16,7 @@ import { saveMirrorLocal, removeMirrorDoc, applyServerDoc } from "@/lib/docStore
 import { syncNow } from "@/lib/sync";
 import { applyTemplate, defaultTitleFromTemplate, isTemplateCategory } from "@/lib/templates";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { logEvent } from "@/lib/todos/events";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
 import { askInput, askConfirm } from "@/components/PromptDialog";
@@ -77,6 +78,7 @@ export function useDocActions({ auth, library, nav }: Params) {
   ) => {
     try {
       const doc = createLocalDoc({ category: cat, title, content });
+      logEvent({ kind: "create", docId: doc.id, title: doc.title });
       setDocs(relist());
       nav.openDoc(doc.id);
     } catch {
@@ -102,6 +104,7 @@ export function useDocActions({ auth, library, nav }: Params) {
       if (!res.ok) throw new Error();
       const doc = await res.json();
       applyServerDoc(doc); // 新文档立即入镜像，编辑页/离线随时可用
+      logEvent({ kind: "create", docId: doc.id, title: doc.title });
       setDocs(mergedCloudList());
       nav.openDoc(doc.id);
       setCreating(false);
@@ -109,6 +112,31 @@ export function useDocActions({ auth, library, nav }: Params) {
       toast("新建失败", "error");
       setCreating(false);
     }
+  };
+
+  /**
+   * 静默建稿：建好只刷新列表，不跳转打开。给「今天」页的快速输入用——
+   * 记一件事时自动建出待办清单那篇，用户人还该留在今天页。
+   * 失败直接抛（存储写满 / 接口报错），由调用方决定怎么提示。
+   */
+  const createDocQuietly = async (title: string, content: string): Promise<void> => {
+    const local = localMode || !online;
+    if (local) {
+      const doc = createLocalDoc({ category: UNCATEGORIZED, title, content });
+      logEvent({ kind: "create", docId: doc.id, title: doc.title });
+      setDocs(localMode ? listLocalDocs() : mergedCloudList());
+      return;
+    }
+    const res = await fetch("/api/documents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, content, category: UNCATEGORIZED }),
+    });
+    if (!res.ok) throw new Error(`create failed: ${res.status}`);
+    const doc = await res.json();
+    applyServerDoc(doc);
+    logEvent({ kind: "create", docId: doc.id, title: doc.title });
+    setDocs(mergedCloudList());
   };
 
   /**
@@ -381,6 +409,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     pushingFeishu,
     refreshDocs,
     createDoc,
+    createDocQuietly,
     createFromTemplate,
     removeDoc,
     restoreDoc,

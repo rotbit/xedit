@@ -6,7 +6,11 @@ import { getMirrorMeta, saveMirrorLocal } from "@/lib/docStore";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
 import { isLocalId, updateLocalDoc } from "@/lib/localDocs";
 import { isPushInFlight } from "@/lib/sync";
-import { isDocumentSaved, persistEditorDocument, type EditorDocument, type PersistResult } from "@/lib/editor/persistence";
+import { getSavedDocument, isDocumentSaved, persistEditorDocument, type EditorDocument, type PersistResult } from "@/lib/editor/persistence";
+import { getDocContent } from "@/lib/docContent";
+import { wordCount } from "@/lib/wordCount";
+import { logEvent } from "@/lib/todos/events";
+import { setMountedDocId } from "@/lib/editor/mounted";
 import { useStore, type SaveState } from "@/store/useStore";
 
 /** 保留两种入口的提示策略：手动保存失败显示待同步，自动保存在线失败显示错误。 */
@@ -25,7 +29,36 @@ function saveStateFor(result: PersistResult, manual: boolean): SaveState {
 /** 本地写失败只提醒一次，别让配额满的机器每隔几百毫秒弹一条 */
 let localErrorNotified = false;
 
+/** 上一次算过的字数：自动保存每次都要比前后两版，长文只数新的那一版 */
+let counted: { content: string; count: number } | null = null;
+
+function countOf(content: string): number {
+  if (counted?.content === content) return counted.count;
+  counted = { content, count: wordCount(content) };
+  return counted.count;
+}
+
+/**
+ * 「做了」一栏的写作记录：这次落盘比上次多（少）了多少字。
+ * 基准必须在落盘之前取——persistEditorDocument 成功后会把落盘基准刷成本次内容。
+ * 基准不是这一篇（理论上装载时已记过，兜底）就退回存储里的旧正文，它此刻还没被覆盖。
+ */
+function previousContent(doc: EditorDocument): string {
+  const saved = getSavedDocument();
+  if (saved.docId === doc.docId) return saved.content;
+  return doc.docId ? getDocContent(doc.docId) : "";
+}
+
+function logWrite(doc: EditorDocument, before: string) {
+  if (!doc.docId || before === doc.content) return;
+  // 先数旧版（多半正是上次缓存的那份），再数新版，单槽缓存刚好一次命中一次新算
+  const prev = countOf(before);
+  const delta = countOf(doc.content) - prev;
+  if (delta !== 0) logEvent({ kind: "write", docId: doc.docId, title: doc.title, chars: delta });
+}
+
 async function saveDocument(doc: EditorDocument, manual: boolean): Promise<PersistResult> {
+  const before = previousContent(doc);
   const result = await persistEditorDocument(doc, () => {
     if (useStore.getState().docId === doc.docId) useStore.getState().setSaveState("saving");
   });
@@ -36,6 +69,7 @@ async function saveDocument(doc: EditorDocument, manual: boolean): Promise<Persi
     }
   } else {
     localErrorNotified = false;
+    if (result !== "draft") logWrite(doc, before);
   }
   const store = useStore.getState();
   // 往返期间用户切走了：状态行归新文章所有，旧结果不能往上盖
@@ -54,7 +88,7 @@ async function saveDocument(doc: EditorDocument, manual: boolean): Promise<Persi
 }
 
 /** 手动存档只在同步成功后请求，版本失败不会把已保存的正文标成失败。 */
-async function saveManualVersion(id: string) {
+async function saveManualVersion(id: string, title: string) {
   try {
     const response = await fetch(`/api/documents/${id}/versions`, {
       method: "POST",
@@ -62,6 +96,7 @@ async function saveManualVersion(id: string) {
       body: JSON.stringify({ kind: "manual" }),
     });
     await response.json().catch(() => ({}));
+    if (response.ok) logEvent({ kind: "version", docId: id, title });
     // 成功不弹提示：标题下的保存状态已经说明了，toast 盖在正文上反而挡视线
     useStore.getState().setSaveState("saved");
   } catch {
@@ -81,7 +116,7 @@ async function saveNow() {
     // 本地写失败的提示已由 saveDocument 弹过（自动保存同样要提醒），这里不重复
     case "local-error": return;
     case "push-failed": return toast("云端暂不可达，已存本地稍后自动同步", "error");
-    case "synced": return saveManualVersion(doc.docId!);
+    case "synced": return saveManualVersion(doc.docId!, doc.title);
   }
 }
 
@@ -209,6 +244,12 @@ export function useEditorSave() {
   const title = useStore((s) => s.title);
   const content = useStore((s) => s.content);
   const category = useStore((s) => s.category);
+
+  // 登记「编辑器正开着这篇」：待办写回据此决定走 store 还是直接写存储
+  useEffect(() => {
+    setMountedDocId(docId);
+    return () => setMountedDocId(null);
+  }, [docId]);
 
   useEffect(() => {
     if (!docId) {
