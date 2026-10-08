@@ -117,15 +117,15 @@ export function useDocActions({ auth, library, nav }: Params) {
   /**
    * 静默建稿：建好只刷新列表，不跳转打开。给「今天」页的快速输入用——
    * 记一件事时自动建出待办清单那篇，用户人还该留在今天页。
-   * 失败直接抛（存储写满 / 接口报错），由调用方决定怎么提示。
+   * 失败直接抛（存储写满 / 接口报错），由调用方决定怎么提示。返回新文章 id。
    */
-  const createDocQuietly = async (title: string, content: string): Promise<void> => {
+  const createDocQuietly = async (title: string, content: string): Promise<string> => {
     const local = localMode || !online;
     if (local) {
       const doc = createLocalDoc({ category: UNCATEGORIZED, title, content });
       logEvent({ kind: "create", docId: doc.id, title: doc.title });
       setDocs(localMode ? listLocalDocs() : mergedCloudList());
-      return;
+      return doc.id;
     }
     const res = await fetch("/api/documents", {
       method: "POST",
@@ -137,6 +137,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     applyServerDoc(doc);
     logEvent({ kind: "create", docId: doc.id, title: doc.title });
     setDocs(mergedCloudList());
+    return doc.id as string;
   };
 
   /**

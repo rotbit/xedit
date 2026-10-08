@@ -106,6 +106,18 @@ export function toggleTaskLine(md: string, line: number, checked: boolean): stri
   return lines.join("\n");
 }
 
+/**
+ * 删掉第 line 行（连同它的换行）；那一行不是任务项就原样返回。
+ * 按 \n 切开再拼回去：\r 留在各行自己的尾巴上，删掉一整段 `内容\r` 之后 \r\n 风格自然不变。
+ */
+export function removeTaskLine(md: string, line: number): string {
+  const lines = md.split("\n");
+  const target = lines[line];
+  if (target === undefined || !TASK_RE.test(target.replace(/\r$/, ""))) return md;
+  lines.splice(line, 1);
+  return lines.join("\n");
+}
+
 /** 末尾追加一行 `- [ ] text`；沿用原文的换行风格，文末有没有换行都接得上 */
 export function appendTask(md: string, text: string): string {
   const clean = text.replace(/[\r\n]+/g, " ").trim();

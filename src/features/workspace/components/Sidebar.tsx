@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { CalendarCheck, PanelLeftClose, Search } from "lucide-react";
+import { CalendarCheck, Files, PanelLeftClose, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { useDragDivider } from "@/hooks/useDragDivider";
@@ -13,14 +13,50 @@ import { CategoryTree } from "./CategoryTree";
 import { SidebarFooter } from "./SidebarFooter";
 import type { Workspace } from "../hooks/useWorkspace";
 
+/** 侧栏虚拟入口行：和 CategoryRow 同样的高度、缩进与图标位，只是没有展开箭头 */
+function NavRow({
+  icon,
+  label,
+  active,
+  count = 0,
+  disabled,
+  onClick,
+  onContextMenu,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  count?: number;
+  disabled?: boolean;
+  onClick: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <button
+      className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors disabled:cursor-default ${rowCls(active)}`}
+      style={{ paddingLeft: "6px" }}
+      disabled={disabled}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+    >
+      {/* 与分类行的展开箭头同宽的占位，图标和文件夹图标对齐 */}
+      <span className="h-5 w-5 shrink-0" />
+      <span className={active ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}>{icon}</span>
+      <span className="ml-1 min-w-0 flex-1 truncate">{label}</span>
+      {count > 0 ? (
+        <span className={`rounded-full px-1.5 text-[11px] ${countCls(active)}`}>{count}</span>
+      ) : null}
+    </button>
+  );
+}
+
 /**
  * 工作区侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕。
- * 结构自上而下——工作区头 / 全局搜索 / 今天 / 统计行 / 分类树 / 工具与账户。
+ * 结构自上而下——工作区头 / 全局搜索 / 今天 · 全部文章 / 分类树 / 工具与账户。
  */
 export function Sidebar({ ws }: { ws: Workspace }) {
-  const { nav, prefs, library, menus, totalChars } = ws;
+  const { nav, prefs, library, menus } = ws;
   const { docs } = library;
-  /** 统计文字兼作「全部文章」入口：当前就在全部列表时文字加深 */
   const allActive = nav.activeCat === ALL && !nav.readingId;
   const todayActive = nav.activeCat === TODAY && !nav.readingId;
   /** 「今天」右侧的数：逾期 + 今天到期 + 清单里没定日期的。
@@ -87,43 +123,24 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         </div>
       </div>
 
-      <div className="shrink-0 px-2 pb-1">
-        <button
-          className={`flex w-full cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(todayActive)}`}
-          style={{ paddingLeft: "6px" }}
+      {/* 两个虚拟入口与分类树同一套行度量，当成树上最前面的两行；
+          「全部文章」兼作根分类的右键菜单（新建文件夹 / 刷新 / 导入），树的空白处也能右键 */}
+      <div className="mt-1 shrink-0 px-2">
+        <NavRow
+          icon={<CalendarCheck size={14} />}
+          label="今天"
+          active={todayActive}
+          count={todoCount}
           onClick={() => nav.openCategory(TODAY)}
-        >
-          {/* 与分类树的展开箭头同宽的占位，让图标和文件夹图标对齐 */}
-          <span className="h-5 w-5 shrink-0" />
-          <CalendarCheck
-            size={14}
-            className={todayActive ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"}
-          />
-          <span className="ml-1 min-w-0 flex-1 truncate">今天</span>
-          {todoCount > 0 ? (
-            <span className={`rounded-full px-1.5 text-[11px] ${countCls(todayActive)}`}>{todoCount}</span>
-          ) : null}
-        </button>
-      </div>
-
-      {/* 统计行不放按钮：新建文件夹 / 刷新 / 新建文章 / 导入都在右键菜单里（这行和树的空白处都能右键），
-          新建与导入另有主区域顶部的分体按钮，侧栏保持只有导航 */}
-      <div
-        className="flex h-6 shrink-0 items-center pl-4 pr-2.5"
-        onContextMenu={(e) => menus.openCatMenuAt(e, ALL)}
-      >
-        <button
-          className={`cursor-pointer text-left text-[11px] transition-colors hover:text-[var(--ink)] disabled:cursor-default disabled:hover:text-[var(--ink-faint)] ${
-            allActive ? "text-[var(--ink)]" : "text-[var(--ink-faint)]"
-          }`}
-          title="查看全部文章"
+        />
+        <NavRow
+          icon={<Files size={14} />}
+          label="全部文章"
+          active={allActive}
           disabled={docs === null}
           onClick={() => nav.openCategory(ALL)}
-        >
-          {docs === null
-            ? "同步中…"
-            : `${docs.length} 篇文章${totalChars > 0 ? ` · ${totalChars.toLocaleString()} 字` : ""}`}
-        </button>
+          onContextMenu={(e) => menus.openCatMenuAt(e, ALL)}
+        />
       </div>
 
       <CategoryTree ws={ws} />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { storage } from "../../setup";
-import { DAY_LOG_CHANGED_EVENT, logEvent, readDayEvents, WRITE_MERGE_MS } from "@/lib/todos/events";
+import { DAY_LOG_CHANGED_EVENT, logEvent, readDayEvents, removeDayEvent, WRITE_MERGE_MS } from "@/lib/todos/events";
 
 const at = (h: number, m = 0, day = 8) => new Date(2026, 9, day, h, m).getTime();
 const K = "2026-10-08";
@@ -59,5 +59,22 @@ describe("logEvent", () => {
     expect(readDayEvents(K)).toEqual([]);
     storage.setItem("xedit-day-log:2026-10-08", JSON.stringify([{ ts: "x" }, { ts: 1, kind: "write" }, null]));
     expect(readDayEvents(K)).toEqual([{ ts: 1, kind: "write" }]);
+  });
+});
+
+describe("removeDayEvent", () => {
+  it("按 ts + kind 删一条并派发事件；对不上什么都不做", () => {
+    logEvent({ kind: "create", docId: "a", title: "A", ts: at(9) });
+    logEvent({ kind: "task", text: "x", ts: at(9) });
+    logEvent({ kind: "version", docId: "a", title: "A", ts: at(10) });
+    let fired = 0;
+    const on = () => fired++;
+    window.addEventListener(DAY_LOG_CHANGED_EVENT, on);
+    removeDayEvent(K, at(9), "task");
+    removeDayEvent(K, at(11), "task");
+    removeDayEvent("2026-10-09", at(10), "version");
+    window.removeEventListener(DAY_LOG_CHANGED_EVENT, on);
+    expect(fired).toBe(1);
+    expect(readDayEvents(K).map((e) => e.kind)).toEqual(["create", "version"]);
   });
 });

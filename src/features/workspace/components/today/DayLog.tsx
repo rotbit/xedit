@@ -2,11 +2,12 @@
 
 /**
  * 「做了」一栏：某一天的事件流（本地日志），按时间升序。
- * 只读展示，不做跳转：这里是回顾，不是入口；要打开文章去侧栏或左栏。
+ * 不做跳转：这里是回顾，不是入口；要打开文章去侧栏或左栏。
+ * 可以删条目：误记的、不想留的流水删掉就是，日志本来就只在本机。
  */
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import type { DayEvent } from "@/lib/todos/events";
-import { ColumnHead, EmptyLine } from "./parts";
+import { ColumnHead, EmptyLine, RemoveButton } from "./parts";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -77,7 +78,15 @@ function EventBody({ e }: { e: DayEvent }) {
   );
 }
 
-export function DayLog({ events, isToday }: { events: DayEvent[]; isToday: boolean }) {
+export function DayLog({
+  events,
+  isToday,
+  onRemove,
+}: {
+  events: DayEvent[];
+  isToday: boolean;
+  onRemove: (e: DayEvent) => void;
+}) {
   // 日志本就按写入顺序追加，这里再排一次兜住手改存储或跨设备导入的乱序
   const sorted = [...events].sort((a, b) => a.ts - b.ts);
   return (
@@ -88,13 +97,14 @@ export function DayLog({ events, isToday }: { events: DayEvent[]; isToday: boole
       ) : (
         <div className="divide-y divide-[var(--hairline-soft)]">
           {sorted.map((e, i) => (
-            <div key={`${e.ts}-${i}`} className="flex gap-3.5 px-0.5 py-2">
+            <div key={`${e.ts}-${i}`} className="group flex gap-3.5 px-0.5 py-2">
               <span className="w-10 shrink-0 pt-0.5 font-mono text-[12.5px] text-[var(--ink-faint)]">
                 {clock(e.ts)}
               </span>
               <div className="min-w-0 flex-1">
                 <EventBody e={e} />
               </div>
+              <RemoveButton label="删除这条记录" onClick={() => onRemove(e)} />
             </div>
           ))}
         </div>

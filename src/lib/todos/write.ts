@@ -1,5 +1,5 @@
 /**
- * 待办的写回（副作用层）：勾选、追加都落到文章正文里，走现有的存储与同步。
+ * 待办的写回（副作用层）：勾选、追加、删除都落到文章正文里，走现有的存储与同步。
  *
  * 编辑器正开着的那篇不能直接写存储：编辑器 store 里的内容才是最新的，
  * 下一次自动保存会拿它整篇回写，把这边写进存储的改动盖掉。
@@ -16,7 +16,7 @@ import type { DocMeta } from "@/features/workspace/types";
 import { findNotesDoc, type TodoItem } from "./collect";
 import { parseDueTag, todayKey } from "./dates";
 import { logEvent } from "./events";
-import { appendTask, markPublished, parseTaskLines, toggleTaskLine } from "./parse";
+import { appendTask, markPublished, parseTaskLines, removeTaskLine, toggleTaskLine } from "./parse";
 
 export const NOTES_TITLE = "待办清单";
 
@@ -57,15 +57,17 @@ export async function writeDocContent(docId: string, next: string): Promise<void
 
 /**
  * 找到这条待办此刻所在的行。列表是按缓存算的，用户可能刚在别处改过正文，
- * 行号对不上就按文字再找一次（取第一条勾选状态与目标相反的同名任务）；找不到返回 -1。
+ * 行号对不上就按文字再找一次；找不到返回 -1。
+ * notChecked 给定时只认勾选状态与它相反的同名任务（勾选要找还没勾的那条）；
+ * 删除不挑状态，传 null。
  */
-function locateTask(md: string, item: TodoItem, checked: boolean): number {
+function locateTask(md: string, item: TodoItem, notChecked: boolean | null): number {
   const today = todayKey();
   const tasks = parseTaskLines(md);
   const same = (raw: string) => parseDueTag(raw, today).text === item.text;
   const exact = tasks.find((t) => t.line === item.line);
   if (exact && same(exact.raw)) return exact.line;
-  return tasks.find((t) => t.checked !== checked && same(t.raw))?.line ?? -1;
+  return tasks.find((t) => (notChecked === null || t.checked !== notChecked) && same(t.raw))?.line ?? -1;
 }
 
 /** 勾选 / 取消一条待办；勾上时记一条「完成」到当日记录 */
@@ -86,22 +88,50 @@ export async function setTaskChecked(item: TodoItem, checked: boolean): Promise<
   if (checked) logEvent({ kind: "task", text: item.text, docId: item.docId, title: item.docTitle });
 }
 
+/** 往指定文章末尾追加一条待办 */
+export async function addTaskToDoc(docId: string, text: string): Promise<void> {
+  const md = readDocContent(docId);
+  const next = appendTask(md, text);
+  if (next === md) return; // 空文字
+  await writeDocContent(docId, next);
+}
+
 /**
- * 快速输入：往待办清单那篇追加一行；还没有这篇就建一篇。
- * createDoc 由界面层提供（要走本地 / 云端两条建稿路径，且不跳转打开）。
+ * 从文章正文里删掉这条待办所在的那一行。publish 来源没有对应的行（它来自 frontmatter），
+ * 界面上不给删除入口，这里也直接忽略。
  */
-export async function addNoteTask(
+export async function deleteTask(item: TodoItem): Promise<void> {
+  if (item.source === "publish") return;
+  const md = readDocContent(item.docId);
+  const line = locateTask(md, item, null);
+  if (line < 0) return;
+  const next = removeTaskLine(md, line);
+  if (next === md) return;
+  await writeDocContent(item.docId, next);
+}
+
+/** 建稿函数由界面层提供（要走本地 / 云端两条建稿路径，且不跳转打开），返回新文章 id */
+export type CreateDocQuietly = (title: string, content: string) => Promise<string>;
+
+/**
+ * 新建一篇文章，正文就是这一条待办；返回新文章 id，空文字不建。
+ * 建稿时直接把任务写进正文，省得建完再读写一轮。
+ */
+export async function createDocWithTask(
+  title: string,
   text: string,
-  docs: DocMeta[],
-  createDoc: (title: string, content: string) => Promise<void>
-): Promise<void> {
-  const clean = text.replace(/[\r\n]+/g, " ").trim();
-  if (!clean) return;
+  createDoc: CreateDocQuietly
+): Promise<string | null> {
+  const body = appendTask("", text);
+  if (!body) return null;
+  return createDoc(title, body);
+}
+
+/** 快速输入的默认目标：往待办清单那篇追加一行；还没有这篇就建一篇 */
+export async function addNoteTask(text: string, docs: DocMeta[], createDoc: CreateDocQuietly): Promise<void> {
+  const body = appendTask("", text);
+  if (!body) return;
   const notes = findNotesDoc(docs);
-  if (notes) {
-    const md = readDocContent(notes.id);
-    await writeDocContent(notes.id, appendTask(md, clean));
-    return;
-  }
-  await createDoc(NOTES_TITLE, `---\ntype: todo\n---\n\n- [ ] ${clean}\n`);
+  if (notes) return addTaskToDoc(notes.id, text);
+  await createDoc(NOTES_TITLE, `---\ntype: todo\n---\n\n${body}`);
 }

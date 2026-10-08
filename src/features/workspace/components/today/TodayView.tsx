@@ -11,10 +11,11 @@ import { toast } from "@/components/Toast";
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { bucketTodos, collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, relativeDayLabel, shiftDay, todayKey } from "@/lib/todos/dates";
-import { DAY_LOG_CHANGED_EVENT, readDayEvents } from "@/lib/todos/events";
-import { addNoteTask, setTaskChecked } from "@/lib/todos/write";
+import { DAY_LOG_CHANGED_EVENT, readDayEvents, removeDayEvent, type DayEvent } from "@/lib/todos/events";
+import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, setTaskChecked } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
 import { DayLog } from "./DayLog";
+import type { AddTarget } from "./QuickAdd";
 import { DoneColumn, TodoColumn } from "./TodoColumn";
 
 const navBtnCls =
@@ -74,16 +75,32 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
-  const add = async (text: string): Promise<boolean> => {
+  const add = async (text: string, target: AddTarget): Promise<boolean> => {
     try {
-      await addNoteTask(text, docs ?? [], docActions.createDocQuietly);
+      if (target.kind === "notes") await addNoteTask(text, docs ?? [], docActions.createDocQuietly);
+      else if (target.kind === "doc") await addTaskToDoc(target.id, text);
+      else await createDocWithTask(target.title, text, docActions.createDocQuietly);
       return true;
     } catch {
-      // 本地写满或云端建稿失败都落到这里；输入框里的字不清，方便重试
+      // 本地写满或云端建稿失败都落到这里；面板不关、字不清，方便重试
       toast("没记上：存储空间不足或网络异常，稍后再试", "error");
       return false;
     }
   };
+
+  /** 同 toggle：失败只提示，由调用方把那一行放回来 */
+  const remove = async (item: TodoItem): Promise<boolean> => {
+    try {
+      await deleteTask(item);
+      return true;
+    } catch {
+      toast("删除失败：浏览器存储空间不足", "error");
+      return false;
+    }
+  };
+
+  // 日志删条目只会让存储变小，不会写满失败；删完 removeDayEvent 自己派发事件触发重渲染
+  const removeEvent = (e: DayEvent) => removeDayEvent(dayKey, e.ts, e.kind);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -110,15 +127,16 @@ export function TodayView({ ws }: { ws: Workspace }) {
             <TodoColumn
               buckets={buckets}
               today={today}
-              docsReady={docs !== null}
+              docs={docs}
               onToggle={toggle}
               onAdd={add}
+              onRemove={remove}
               onOpenDoc={nav.openDoc}
             />
           ) : (
-            <DoneColumn events={events} />
+            <DoneColumn events={events} onRemove={removeEvent} />
           )}
-          <DayLog events={events} isToday={isToday} />
+          <DayLog events={events} isToday={isToday} onRemove={removeEvent} />
         </div>
       </div>
     </div>

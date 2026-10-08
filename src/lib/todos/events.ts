@@ -94,3 +94,18 @@ export function logEvent(e: Omit<DayEvent, "ts"> & { ts?: number }): void {
     window.dispatchEvent(new CustomEvent(DAY_LOG_CHANGED_EVENT, { detail: key }));
   }
 }
+
+/**
+ * 删一条记录：按 ts + kind 定位（同一毫秒记两条同类事件几乎不可能，够唯一）。
+ * 找不到就什么都不做，也不派发事件——多半是别的标签页已经删过了。
+ */
+export function removeDayEvent(key: string, ts: number, kind: DayEvent["kind"]): void {
+  const list = readDayEvents(key);
+  const i = list.findIndex((e) => e.ts === ts && e.kind === kind);
+  if (i < 0) return;
+  list.splice(i, 1);
+  writeLocal(PREFIX + key, JSON.stringify(list));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(DAY_LOG_CHANGED_EVENT, { detail: key }));
+  }
+}
