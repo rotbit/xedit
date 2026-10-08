@@ -44,15 +44,15 @@ export async function buildZhihuHtml(markdown: string): Promise<string> {
       const p = document.createElement("p");
       const img = document.createElement("img");
       img.src = poster;
-      img.alt = caption || "视频封面";
+      img.alt = caption || "视频封面"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
       p.appendChild(img);
       parts.push(p);
     }
     const noteP = document.createElement("p");
     const em = document.createElement("em");
     em.textContent = caption
-      ? `（此处有视频「${caption}」，请用知乎编辑器的视频按钮插入）`
-      : "（此处有视频，请用知乎编辑器的视频按钮插入）";
+      ? `（此处有视频「${caption}」，请用知乎编辑器的视频按钮插入）` // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+      : "（此处有视频，请用知乎编辑器的视频按钮插入）"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
     noteP.appendChild(em);
     parts.push(noteP);
     container.replaceWith(...parts);

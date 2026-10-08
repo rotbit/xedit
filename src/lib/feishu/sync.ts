@@ -11,6 +11,7 @@ import {
   type WikiNode,
 } from "./api";
 import { feishuBlocksToMarkdown, feishuImageTokens } from "./markdown";
+import { tk } from "@/i18n/t";
 
 /**
  * 知识库 → xedit 的分批增量同步。
@@ -38,12 +39,12 @@ export interface SyncBatchResult {
 }
 
 /** 导入分类树的根：文章还在这棵子树下就跟随飞书目录，挪出去即视为用户认领 */
-const ROOT_CAT = "飞书知识库";
+const ROOT_CAT = "飞书知识库"; // i18n-ignore 同步落库的分类名，是数据
 
 /** 目录层级 → 分类路径：`飞书知识库/空间名/祖先…`，段内斜杠替换掉，超长丢弃深层级 */
 function buildCategory(spaceName: string, path: string[]): string {
   const segs = [spaceName, ...path]
-    .map((s) => s.replaceAll("/", "／").trim().slice(0, 24))
+    .map((s) => s.replaceAll("/", "／").trim().slice(0, 24)) // i18n-ignore 路径分隔符替换，是数据
     .filter(Boolean);
   let out = ROOT_CAT;
   for (const seg of segs) {
@@ -142,8 +143,8 @@ export async function syncFeishuSpace(
   if (truncated) {
     result.failed.push({
       nodeToken: "",
-      title: "（知识库过大）",
-      reason: "节点数超过上限，仅同步前 1000 个",
+      title: tk("（知识库过大）"),
+      reason: tk("节点数超过上限，仅同步前 1000 个"),
     });
   }
 
@@ -178,7 +179,7 @@ export async function syncFeishuSpace(
     if (processed >= BATCH_DOCS) break;
     if (processed > 0 && Date.now() - startedAt > TIME_BUDGET_MS) break;
     processed++;
-    const title = node.title.trim() || "未命名文档";
+    const title = node.title.trim() || "未命名文档"; // i18n-ignore 落库的文章标题，是数据
     try {
       const blocks = await listDocBlocks(token, node.objToken);
       await images.prime(feishuImageTokens(blocks));
@@ -216,7 +217,7 @@ export async function syncFeishuSpace(
       result.failed.push({
         nodeToken: node.nodeToken,
         title,
-        reason: e instanceof Error ? e.message : "未知错误",
+        reason: e instanceof Error ? e.message : tk("未知错误"),
       });
     }
   }
@@ -224,7 +225,7 @@ export async function syncFeishuSpace(
   result.pending = changed.length - processed;
   result.nextUp = changed
     .slice(processed, processed + BATCH_DOCS)
-    .map((n) => n.title.trim() || "未命名文档");
+    .map((n) => n.title.trim() || "未命名文档"); // i18n-ignore 落库的文章标题，是数据
   result.done = result.pending === 0;
   if (result.done) {
     await prisma.feishuConnection.updateMany({

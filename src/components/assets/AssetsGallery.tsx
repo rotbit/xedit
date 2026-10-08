@@ -18,6 +18,8 @@ import { AssetInspector } from "./AssetInspector";
 import { AssetsGrid } from "./AssetsGrid";
 import { AssetsToolbar } from "./AssetsToolbar";
 import { useAssetsFeed } from "./useAssetsFeed";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 
 /** 图片库：左网格 + 右详情栏的通栏两栏视图，双击开大图 */
 
@@ -59,6 +61,7 @@ export function AssetsGallery({
   // 「同步 OSS 历史」会认领整个 bucket 的无主文件，接口只对管理员开放，按钮也只给管理员看
   const isAdmin = useSession().data?.user?.isAdmin === true;
   const feed = useAssetsFeed();
+  const t = useT();
   const { assets, measure, loadMore, refresh, dropLocal, hasMore } = feed;
 
   // 没存过时 readLocal 给 null、Number(null) 是 0，clampCols 会把它夹成 COLS_MIN；COLS_DEFAULT 只在服务端渲染和存了非数字时用得上
@@ -138,11 +141,11 @@ export function AssetsGallery({
     try {
       const res = await fetch("/api/assets", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "同步失败");
-      toast(data.added > 0 ? `已同步 ${data.added} 张历史图片` : "没有新的历史图片", "success");
+      if (!res.ok) throw new Error(data.error ?? tk("同步失败"));
+      toast(data.added > 0 ? t("已同步 {n} 张历史图片", { n: data.added }) : t("没有新的历史图片"), "success");
       await refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "同步失败", "error");
+      toast(e instanceof Error ? t(e.message) : t("同步失败"), "error");
     } finally {
       setSyncing(false);
     }
@@ -158,11 +161,11 @@ export function AssetsGallery({
         await uploadMediaFile(file);
         ok += 1;
       } catch (e) {
-        toast(e instanceof Error ? e.message : `「${file.name}」上传失败`, "error");
+        toast(e instanceof Error ? t(e.message) : t("「{name}」上传失败", { name: file.name }), "error");
       }
     }
     if (ok > 0) {
-      toast(`已上传 ${ok} 个文件`, "success");
+      toast(t("已上传 {n} 个文件", { n: ok }), "success");
       await refresh();
     }
     setUploading(false);
@@ -171,15 +174,15 @@ export function AssetsGallery({
   const removeAsset = useCallback(
     async (asset: Asset) => {
       const ok = await askConfirm({
-        title: "删除文件",
-        message: "同时会从 OSS 删除该文件；引用了它的文章会显示失效。",
-        confirmText: "删除",
+        title: t("删除文件"),
+        message: t("同时会从 OSS 删除该文件；引用了它的文章会显示失效。"),
+        confirmText: t("删除"),
         danger: true,
       });
       if (!ok) return;
       const res = await fetch(`/api/assets/${asset.id}`, { method: "DELETE" });
       if (!res.ok) {
-        toast("删除失败", "error");
+        toast(t("删除失败"), "error");
         return;
       }
       // 删完只把这一条从本地列表摘掉：refresh 会退回第一页整体替换，已经往下翻出来的页和滚动位置全丢
@@ -187,9 +190,9 @@ export function AssetsGallery({
       // 删的不一定是详情栏里那张（大图里也能删），所以只有正好是它时才收起详情栏
       setSelectedId((prev) => (prev === asset.id ? null : prev));
       setLightbox(null);
-      toast("已删除", "success");
+      toast(t("已删除"), "success");
     },
-    [dropLocal]
+    [dropLocal, t]
   );
 
   return (
@@ -213,13 +216,13 @@ export function AssetsGallery({
         <div className="min-w-0 flex-1 overflow-y-auto px-4 pb-16 pt-4 sm:px-6">
           {!ossConfigured ? (
             <p className="mb-3 rounded-lg bg-[var(--accent-wash)]/60 px-4 py-2.5 text-[12.5px] text-[var(--accent-deep)]">
-              服务端未配置阿里云 OSS，图片库仅可浏览已有记录
+              {t("服务端未配置阿里云 OSS，图片库仅可浏览已有记录")}
             </p>
           ) : null}
 
           {assets === null ? (
             <div className="flex items-center justify-center gap-2 py-24 text-[13px] text-[var(--ink-faint)]">
-              <Loader2 size={16} className="animate-spin" /> 加载中…
+              <Loader2 size={16} className="animate-spin" /> {t("加载中…")}
             </div>
           ) : assets.length === 0 ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--hairline-strong)] py-20">
@@ -227,12 +230,12 @@ export function AssetsGallery({
               <p className="text-center text-[13px] leading-6 text-[var(--ink-faint)]">
                 {feed.isDefaultView ? (
                   <>
-                    还没有素材。在编辑器里粘贴图片或视频，
+                    {t("还没有素材。在编辑器里粘贴图片或视频，")}
                     <br />
-                    {isAdmin ? "或点「同步 OSS 历史」把已有文件找回来" : "或点右上角「上传」添加"}
+                    {isAdmin ? t("或点「同步 OSS 历史」把已有文件找回来") : t("或点右上角「上传」添加")}
                   </>
                 ) : (
-                  "没有符合条件的文件"
+                  t("没有符合条件的文件")
                 )}
               </p>
             </div>

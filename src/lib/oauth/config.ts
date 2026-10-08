@@ -25,7 +25,7 @@ let jwtKeyCache: Uint8Array | null = null;
 export function jwtKey(): Uint8Array {
   if (jwtKeyCache) return jwtKeyCache;
   const secret = process.env.AUTH_SECRET;
-  if (!secret) throw new Error("缺少 AUTH_SECRET，无法签发 MCP access token");
+  if (!secret) throw new Error("缺少 AUTH_SECRET，无法签发 MCP access token"); // i18n-ignore 部署配置错误，给运维看的
   jwtKeyCache = new Uint8Array(scryptSync(secret, "xedit-oauth-jwt-v1", 32));
   return jwtKeyCache;
 }

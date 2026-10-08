@@ -8,6 +8,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { sanitizeCustomThemes } from "@/lib/themes/custom";
+import { tk } from "@/i18n/t";
 
 /** 侧栏手动排序：{ items: { 父路径: [`c:子名` | `d:文档id`…] } } 是当前写入的混排序列，
  *  cats/docs 是老版本的两份独立序列（父路径→子名 / 分类→文档id），仍收下以免旧端回写时丢数据。
@@ -43,7 +44,7 @@ function sanitizeSidebarOrder(raw: unknown): string | null {
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   const settings = await prisma.userSettings.findUnique({
     where: { userId: session.user.id },
@@ -55,7 +56,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   const denied = await readOnlyGuard(session.user.id);
   if (denied) return denied;

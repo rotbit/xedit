@@ -11,6 +11,8 @@ import {
   type CoverFields,
   type CoverRequest,
 } from "@/lib/coverGenerate/replicate";
+import { tk, translate } from "@/i18n/t";
+import { localeOfRequest } from "@/i18n/server";
 
 /**
  * AI 生成公众号封面：Replicate Token 只在服务端用，浏览器全程碰不到，只拿得到图。
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json(
-      { error: "unauthorized", message: "请先登录再使用 AI 生成封面" },
+      { error: "unauthorized", message: tk("请先登录再使用 AI 生成封面") },
       { status: 401 }
     );
   }
@@ -40,14 +42,14 @@ export async function POST(req: Request) {
   const access = await requirePermission(session, "ai_cover");
   if (!access) {
     return NextResponse.json(
-      { error: "forbidden", message: "你的账号还没开通 AI 生成封面，找管理员开通" },
+      { error: "forbidden", message: tk("你的账号还没开通 AI 生成封面，找管理员开通") },
       { status: 403 }
     );
   }
   const { userId } = access;
   if (!coverGenerateConfigured()) {
     return NextResponse.json(
-      { error: "no_token", message: "服务端还没有配置 AI 生成封面" },
+      { error: "no_token", message: tk("服务端还没有配置 AI 生成封面") },
       { status: 503 }
     );
   }
@@ -68,7 +70,7 @@ export async function POST(req: Request) {
   try {
     fields = coverFields(body);
   } catch (e) {
-    const message = e instanceof CoverError ? e.message : "封面信息不完整";
+    const message = e instanceof CoverError ? e.message : tk("封面信息不完整");
     return NextResponse.json({ error: "bad_input", message }, { status: 400 });
   }
 
@@ -77,11 +79,11 @@ export async function POST(req: Request) {
   if (!slot.ok) {
     return slot.reason === "busy"
       ? NextResponse.json(
-          { error: "busy", message: "上一张还在生成，等它出来再点" },
+          { error: "busy", message: tk("上一张还在生成，等它出来再点") },
           { status: 409 }
         )
       : NextResponse.json(
-          { error: "rate_limited", message: `今天的 AI 生成封面次数用完了（每天 ${limit} 次），明天再来` },
+          { error: "rate_limited", message: translate("今天的 AI 生成封面次数用完了（每天 {limit} 次），明天再来", localeOfRequest(req), { limit }) },
           { status: 429 }
         );
   }
@@ -93,7 +95,7 @@ export async function POST(req: Request) {
     // 原始错误只进服务端日志：上游报文常带请求 id 之类的内部细节（口径同 lib/routeAuth 的 serverError）
     console.error("AI 生成封面失败", e);
     const code = e instanceof CoverError ? e.code : "failed";
-    const message = e instanceof CoverError ? e.message : "生成失败，请稍后再试";
+    const message = e instanceof CoverError ? e.message : tk("生成失败，请稍后再试");
     return NextResponse.json({ error: code, message }, { status: STATUS[code] ?? 502 });
   } finally {
     slot.release();
@@ -101,4 +103,4 @@ export async function POST(req: Request) {
 }
 
 const tooLarge = () =>
-  NextResponse.json({ error: "too_large", message: "封面信息太长了" }, { status: 413 });
+  NextResponse.json({ error: "too_large", message: tk("封面信息太长了") }, { status: 413 });

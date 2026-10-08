@@ -4,6 +4,7 @@
 
 import { ChevronsLeft } from "lucide-react";
 import { outlineIndent } from "@/hooks/useOutline";
+import { useT } from "@/i18n/useT";
 
 export function OutlineNav({
   outline,
@@ -18,17 +19,18 @@ export function OutlineNav({
   /** 覆盖 <nav> 的外层类名（宽度 / 显隐 / 收缩），默认桌面 190px 窄列 */
   className?: string;
 }) {
+  const t = useT();
   return (
     <nav className={className}>
       <div className="sticky top-0 pt-1">
         {/* 标题行：可收起时右边挂《，与滚动区左上角的浮动入口对调 */}
         {onClose ? (
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">大纲</p>
+            <p className="text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">{t("大纲")}</p>
             <button
               type="button"
-              title="收起目录"
-              aria-label="收起目录"
+              title={t("收起目录")}
+              aria-label={t("收起目录")}
               onClick={onClose}
               className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
             >
@@ -36,7 +38,7 @@ export function OutlineNav({
             </button>
           </div>
         ) : (
-          <p className="mb-3 text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">大纲</p>
+          <p className="mb-3 text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">{t("大纲")}</p>
         )}
         <div className="flex flex-col gap-0.5">
           {outline.map((h, i) => (

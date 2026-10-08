@@ -10,7 +10,7 @@ import type { DocMeta } from "@/features/workspace/types";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 
 /** 模板所在的分类名；子分类（如「模板/周报」）同样算模板 */
-export const TEMPLATE_CATEGORY = "模板";
+export const TEMPLATE_CATEGORY = "模板"; // i18n-ignore 保留分类名，存进数据；显示处 t()
 
 /** 分类路径是否落在模板目录下 */
 export function isTemplateCategory(category?: string | null): boolean {
@@ -36,7 +36,7 @@ export function defaultTitleFromTemplate(templateTitle: string): string {
   return templateTitle.replaceAll(TEMPLATE_CATEGORY, "").trim() || UNTITLED_DOC;
 }
 
-const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
+const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"]; // i18n-ignore 模板变量 {{weekday}} 的取值，写进正文，属于内容
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -66,7 +66,7 @@ export function applyTemplate(content: string, ctx: TemplateContext): string {
     year: String(now.getFullYear()),
     month: pad(now.getMonth() + 1),
     day: pad(now.getDate()),
-    weekday: `星期${WEEKDAYS[now.getDay()]}`,
+    weekday: `星期${WEEKDAYS[now.getDay()]}`, // i18n-ignore 模板变量 {{weekday}} 的取值，写进正文，属于内容
   };
   return content.replace(VAR, (whole, name: string) => {
     const value = values[name.toLowerCase()];

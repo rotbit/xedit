@@ -8,6 +8,7 @@ import { Check, Undo2 } from "lucide-react";
 import { diffQuote } from "./diff";
 import { tint } from "./colors";
 import type { ReviewCategory, ReviewItemView } from "./types";
+import { useT } from "@/i18n/useT";
 
 const actionBtn =
   "cursor-pointer rounded-md px-2 py-[3px] text-[11px] transition-colors disabled:cursor-default disabled:opacity-40";
@@ -49,6 +50,7 @@ export function ReviewCard({
   onIgnore: () => void;
   onAck: () => void;
 }) {
+  const t = useT();
   // 已处理的缩成一行，只留个交代，别再占着版面
   if (item.status === "accepted" || item.status === "acked") {
     return (
@@ -56,10 +58,10 @@ export function ReviewCard({
         {item.status === "accepted" ? (
           <>
             <Check size={12} className="shrink-0 text-emerald-600" />
-            <span className="shrink-0">已采纳</span>
+            <span className="shrink-0">{t("已采纳")}</span>
           </>
         ) : (
-          <span className="shrink-0">已知道</span>
+          <span className="shrink-0">{t("已知道")}</span>
         )}
         <span className="min-w-0 truncate">{item.suggestion ?? item.quote}</span>
       </div>
@@ -101,7 +103,7 @@ export function ReviewCard({
         ) : null}
         {stale ? (
           <span className="rounded bg-[var(--paper)] px-1 text-[10px] text-[var(--ink-faint)]">
-            原文已修改
+            {t("原文已修改")}
           </span>
         ) : null}
       </div>
@@ -115,7 +117,7 @@ export function ReviewCard({
 
       {item.suggestion && !stale ? (
         <>
-          <p className="mt-1.5 text-[10px] tracking-[0.08em] text-[var(--ink-faint)]">建议改为</p>
+          <p className="mt-1.5 text-[10px] tracking-[0.08em] text-[var(--ink-faint)]">{t("建议改为")}</p>
           <SuggestionDiff quote={item.quote} suggestion={item.suggestion} />
         </>
       ) : null}
@@ -123,7 +125,7 @@ export function ReviewCard({
       {stale ? (
         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[var(--ink-faint)]">
           <Undo2 size={12} className="shrink-0" />
-          这句已经不在正文里了，撤销回去它会自己回来
+          {t("这句已经不在正文里了，撤销回去它会自己回来")}
         </p>
       ) : (
         <div className="mt-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -131,23 +133,23 @@ export function ReviewCard({
             <button
               className={`${actionBtn} bg-[var(--accent)] text-white hover:opacity-90`}
               onClick={onAccept}
-              title="把原文替换成建议（⌘Z 可撤销）"
+              title={t("把原文替换成建议（⌘Z 可撤销）")}
             >
-              采纳
+              {t("采纳")}
             </button>
           ) : (
             <button
               className={`${actionBtn} border border-[var(--hairline)] text-[var(--ink-soft)] hover:bg-[var(--paper)]`}
               onClick={onAck}
             >
-              知道了
+              {t("知道了")}
             </button>
           )}
           <button
             className={`${actionBtn} text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)]`}
             onClick={onIgnore}
           >
-            忽略
+            {t("忽略")}
           </button>
         </div>
       )}

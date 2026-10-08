@@ -13,6 +13,7 @@ import { ossConfigured, ossDeleteMany } from "@/lib/oss";
 import { cleanPermissions, knownPermissions, type Permission } from "@/lib/permissionKeys";
 import { aiDailyLimit } from "@/lib/ai/limit";
 import { coverDailyLimit } from "@/lib/coverGenerate/replicate";
+import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -34,8 +35,8 @@ async function requireAdmin() {
   return adminSessionUserId(session);
 }
 
-const forbidden = () => NextResponse.json({ error: "无权访问" }, { status: 403 });
-const notFound = () => NextResponse.json({ error: "账号不存在" }, { status: 404 });
+const forbidden = () => NextResponse.json({ error: tk("无权访问") }, { status: 403 });
+const notFound = () => NextResponse.json({ error: tk("账号不存在") }, { status: 404 });
 
 /** 账号明细：基本信息 + 文档列表 + 按体积排序的素材清单 */
 export async function GET(_req: Request, { params }: Params) {
@@ -106,7 +107,7 @@ export async function GET(_req: Request, { params }: Params) {
       aiReviewDailyLimit: user.aiReviewDailyLimit,
       aiCoverDailyLimit: user.aiCoverDailyLimit,
       // 登录方式：OAuth 平台名 + 是否设了密码
-      logins: [...user.accounts.map((a) => a.provider), ...(user.passwordHash ? ["密码"] : [])],
+      logins: [...user.accounts.map((a) => a.provider), ...(user.passwordHash ? [tk("密码")] : [])],
     },
     totals: {
       docCount,
@@ -146,7 +147,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (typeof body.banned === "boolean") {
     if (body.banned && isAdminEmail(target.email)) {
-      return NextResponse.json({ error: "管理员账号不能封禁" }, { status: 400 });
+      return NextResponse.json({ error: tk("管理员账号不能封禁") }, { status: 400 });
     }
     data.bannedAt = body.banned ? new Date() : null;
     data.banReason =
@@ -162,18 +163,18 @@ export async function PATCH(req: Request, { params }: Params) {
     } else if (typeof body.storageQuota === "number" && Number.isFinite(body.storageQuota)) {
       const bytes = Math.round(body.storageQuota);
       if (bytes < 0 || bytes > MAX_QUOTA) {
-        return NextResponse.json({ error: "配额需在 0 到 1TB 之间" }, { status: 400 });
+        return NextResponse.json({ error: tk("配额需在 0 到 1TB 之间") }, { status: 400 });
       }
       data.storageQuota = BigInt(bytes);
     } else {
-      return NextResponse.json({ error: "配额格式不正确" }, { status: 400 });
+      return NextResponse.json({ error: tk("配额格式不正确") }, { status: 400 });
     }
   }
 
   if ("permissions" in body) {
     // 整组覆盖而不是增删：前端交上来的就是勾选框的全貌，混进认不出的 key 宁可报错也不静默吞掉
     const permissions = cleanPermissions(body.permissions);
-    if (!permissions) return NextResponse.json({ error: "认不出这个权限" }, { status: 400 });
+    if (!permissions) return NextResponse.json({ error: tk("认不出这个权限") }, { status: 400 });
     data.permissions = permissions;
   }
 
@@ -181,14 +182,14 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!(field in body)) continue;
     const limit = cleanDailyLimit(body[field]);
     if (limit === undefined) {
-      return NextResponse.json({ error: "每日次数需在 1 到 10000 之间" }, { status: 400 });
+      return NextResponse.json({ error: tk("每日次数需在 1 到 10000 之间") }, { status: 400 });
     }
     data[field] = limit;
   }
 
   // 一个可改字段都没命中就报错，而不是静默成功：否则前端会以为改上了
   if (Object.keys(data).length === 0) {
-    return NextResponse.json({ error: "没有要修改的字段" }, { status: 400 });
+    return NextResponse.json({ error: tk("没有要修改的字段") }, { status: 400 });
   }
 
   const updated = await prisma.user.update({
@@ -226,7 +227,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   });
   if (!target) return notFound();
   if (isAdminEmail(target.email)) {
-    return NextResponse.json({ error: "管理员账号不能删除" }, { status: 400 });
+    return NextResponse.json({ error: tk("管理员账号不能删除") }, { status: 400 });
   }
 
   // OSS 清理失败不阻断删号（对象可能已不存在），残留可再用「同步 OSS 历史」找回排查

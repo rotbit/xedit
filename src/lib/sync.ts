@@ -31,6 +31,7 @@ import { isLocalId } from "./localDocs";
 import { getSessionEpoch, isCurrentEpoch } from "./sessionEpoch";
 import { toast } from "@/components/Toast";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
+import { t } from "@/i18n/t";
 
 export const SYNC_DONE_EVENT = "xedit:sync-done";
 
@@ -142,8 +143,8 @@ async function uploadMirrorDoc(id: string): Promise<boolean> {
       if (conflict) {
         toast(
           conflict.archived
-            ? "云端有另一份改动，已存为历史版本，本地内容已覆盖上去"
-            : "云端有另一份改动，历史版本没存下来，本地内容已覆盖上去",
+            ? t("云端有另一份改动，已存为历史版本，本地内容已覆盖上去")
+            : t("云端有另一份改动，历史版本没存下来，本地内容已覆盖上去"),
           "info"
         );
       }

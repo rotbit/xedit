@@ -151,7 +151,7 @@ function inlineElements(children: Token[] | null): TextElement[] {
       case "image": {
         // 行内混排的图片没有块位置，降级为链接（独占一段的图片在块层单独处理）
         const src = tk.attrGet("src") ?? "";
-        const alt = tk.content || "图片";
+        const alt = tk.content || "图片"; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
         if (src) {
           out.push(run(alt, { ...style, link: { url: encodeURIComponent(src) } }));
         }

@@ -14,6 +14,9 @@ import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "./Toast";
 import { askConfirm } from "./PromptDialog";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
+import { rich } from "@/i18n/rich";
 
 /** 列表项：接口刻意不返回正文（只带字数），正文由 VersionPreview 单独再取一次 */
 export interface VersionMeta {
@@ -26,9 +29,9 @@ export interface VersionMeta {
 
 // 三种来源都由服务端写死：auto=写作途中定时定格，manual=点了「存档」，restore=回滚前对当前稿的自动备份
 const KIND_LABEL: Record<VersionMeta["kind"], { text: string; cls: string }> = {
-  auto: { text: "自动", cls: "bg-[var(--paper)] text-[var(--ink-faint)]" },
-  manual: { text: "手动", cls: "bg-[#eef4fb] text-[#1e6bb8] dark:bg-[#1c2a3a] dark:text-[#7fb3e8]" },
-  restore: { text: "回滚备份", cls: "bg-[var(--accent-wash)] text-[var(--accent-deep)]" },
+  auto: { text: tk("自动"), cls: "bg-[var(--paper)] text-[var(--ink-faint)]" },
+  manual: { text: tk("手动"), cls: "bg-[#eef4fb] text-[#1e6bb8] dark:bg-[#1c2a3a] dark:text-[#7fb3e8]" },
+  restore: { text: tk("回滚备份"), cls: "bg-[var(--accent-wash)] text-[var(--accent-deep)]" },
 };
 
 /** 版本列表里的时刻：同年的省掉年份——这里的条目绝大多数是今年的，年份纯噪音 */
@@ -48,6 +51,7 @@ export function VersionsPanel({
   onRestored: (docId: string) => void;
 }) {
   const docId = useStore((s) => s.docId);
+  const t = useT();
   useEscape(onClose, open);
   // 上面两个 hook 必须无条件调用（useEscape 靠第二个参数开关），所以 return 只能放在它们后面
   if (!open) return null;
@@ -66,9 +70,9 @@ export function VersionsPanel({
           <>
             <PanelHeader onClose={onClose} />
             <p className="px-6 py-10 text-center text-[12px] leading-6 text-[var(--ink-faint)]">
-              版本历史随云端同步提供。
+              {t("版本历史随云端同步提供。")}
               <br />
-              登录 GitHub 后，自动保存会按时间留存版本，可一键回滚。
+              {t("登录 GitHub 后，自动保存会按时间留存版本，可一键回滚。")}
             </p>
           </>
         )}
@@ -78,11 +82,12 @@ export function VersionsPanel({
 }
 
 function PanelHeader({ onClose, extra }: { onClose: () => void; extra?: React.ReactNode }) {
+  const t = useT();
   return (
     <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--hairline)] pl-4 pr-2">
       <span className="flex items-center gap-2 text-[13px] font-medium">
         <History size={16} className="text-[var(--ink-soft)]" />
-        版本历史
+        {t("版本历史")}
       </span>
       <div className="flex items-center gap-1">
         {extra}
@@ -118,6 +123,7 @@ function VersionPreview({
   // 当前稿只在挂载（= 选中这个版本）那一刻快照一次：活订阅的话，编辑区后台自动保存
   // 或同步引擎一改 store，整份 diff 就会在用户眼前重算/跳动。version.id 是 key，
   // 换版本重挂载即重新取一份最新的当前稿
+  const t = useT();
   const [current] = useState(() => {
     const s = useStore.getState();
     return { title: s.title, content: s.content };
@@ -166,23 +172,24 @@ function VersionPreview({
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--hairline)] bg-[var(--panel)] pl-5 pr-2">
         <span className="text-[13px] font-medium">{versionTime(version.createdAt)}</span>
         <span className={`rounded px-1.5 py-px text-[10px] ${KIND_LABEL[version.kind]?.cls ?? ""}`}>
-          {KIND_LABEL[version.kind]?.text ?? version.kind}
+          {KIND_LABEL[version.kind] ? t(KIND_LABEL[version.kind].text) : version.kind}
         </span>
         {stats ? (
           stats.add || stats.del ? (
             <span className="text-[11.5px] text-[var(--ink-faint)]">
-              <span className="text-emerald-600 dark:text-emerald-400">+{stats.add}</span>
-              {" "}
-              <span className="text-red-600 dark:text-red-400">−{stats.del}</span> 行
+              {rich(t("{add} {del} 行", { lines: stats.add + stats.del }), {
+                add: <span className="text-emerald-600 dark:text-emerald-400">+{stats.add}</span>,
+                del: <span className="text-red-600 dark:text-red-400">−{stats.del}</span>,
+              })}
             </span>
           ) : (
-            <span className="text-[11px] text-[var(--ink-faint)]">与当前稿一致</span>
+            <span className="text-[11px] text-[var(--ink-faint)]">{t("与当前稿一致")}</span>
           )
         ) : null}
         <span className="flex-1" />
         {stats && (stats.add || stats.del) ? (
           <span className="hidden text-[11px] text-[var(--ink-faint)] lg:block">
-            绿 = 该版本独有（回滚恢复） · 红 = 当前稿独有（回滚丢弃）
+            {t("绿 = 该版本独有（回滚恢复） · 红 = 当前稿独有（回滚丢弃）")}
           </span>
         ) : null}
         <button
@@ -195,34 +202,34 @@ function VersionPreview({
           ) : (
             <ArchiveRestore size={12} />
           )}
-          回滚到此版本
+          {t("回滚到此版本")}
         </button>
         <button
           className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)]"
-          title="关闭预览"
+          title={t("关闭预览")}
           onClick={onClose}
         >
           <X size={16} />
         </button>
       </div>
       {failed ? (
-        <p className="py-10 text-center text-[12px] text-[var(--ink-faint)]">版本加载失败</p>
+        <p className="py-10 text-center text-[12px] text-[var(--ink-faint)]">{t("版本加载失败")}</p>
       ) : !diff || !snap ? (
         <div className="flex items-center justify-center gap-2 py-10 text-[12px] text-[var(--ink-faint)]">
-          <Loader2 size={14} className="animate-spin" /> 加载中…
+          <Loader2 size={14} className="animate-spin" /> {t("加载中…")}
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[820px] px-6 py-5">
             {snap.title !== currentTitle ? (
               <div className="mb-4 rounded-md border border-[var(--hairline)] bg-[var(--panel)] px-3 py-2 text-[12px]">
-                标题：
+                {t("标题：")}
                 <span className="text-red-600 line-through dark:text-red-400">
-                  {currentTitle || UNTITLED_DOC}
+                  {currentTitle || t(UNTITLED_DOC)}
                 </span>
                 <span className="mx-1.5 text-[var(--ink-faint)]">→</span>
                 <span className="text-emerald-700 dark:text-emerald-300">
-                  {snap.title || UNTITLED_DOC}
+                  {snap.title || t(UNTITLED_DOC)}
                 </span>
               </div>
             ) : null}
@@ -271,6 +278,7 @@ function VersionList({
   onClose: () => void;
   onRestored: (docId: string) => void;
 }) {
+  const t = useT();
   // null 表示加载中
   const [versions, setVersions] = useState<VersionMeta[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -302,31 +310,31 @@ function VersionList({
     const res = await fetch(`/api/documents/${docId}/versions`, { method: "POST" });
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      toast(data.created ? "已存档当前版本" : "内容与最近版本相同，无需重复存档", data.created ? "success" : "info");
+      toast(data.created ? t("已存档当前版本") : t("内容与最近版本相同，无需重复存档"), data.created ? "success" : "info");
       await refresh();
     } else {
-      toast("存档失败", "error");
+      toast(t("存档失败"), "error");
     }
   };
 
   // 提示里那句「当前内容会先自动备份」不是这里做的：服务端在同一个事务里先存一版 kind=restore，再用旧内容覆盖文档
   const restore = async (v: VersionMeta) => {
     const ok = await askConfirm({
-      title: "回滚到该版本",
-      message: `回滚到 ${versionTime(v.createdAt)} 的版本？\n当前内容会先自动备份为一个新版本。`,
-      confirmText: "回滚",
+      title: t("回滚到该版本"),
+      message: t("回滚到 {time} 的版本？\n当前内容会先自动备份为一个新版本。", { time: versionTime(v.createdAt) }),
+      confirmText: t("回滚"),
     });
     if (!ok) return;
     setBusyId(v.id);
     try {
       const res = await fetch(`/api/documents/${docId}/versions/${v.id}`, { method: "POST" });
       if (!res.ok) throw new Error();
-      toast("已回滚到所选版本", "success");
+      toast(t("已回滚到所选版本"), "success");
       setPreview(null); // 回滚后当前稿已变，预览失去意义
       onRestored(docId);
       await refresh();
     } catch {
-      toast("回滚失败", "error");
+      toast(t("回滚失败"), "error");
     } finally {
       setBusyId(null);
     }
@@ -334,9 +342,9 @@ function VersionList({
 
   const remove = async (v: VersionMeta) => {
     const ok = await askConfirm({
-      title: "删除版本",
-      message: "删除该版本快照？",
-      confirmText: "删除",
+      title: t("删除版本"),
+      message: t("删除该版本快照？"),
+      confirmText: t("删除"),
       danger: true,
     });
     if (!ok) return;
@@ -345,7 +353,7 @@ function VersionList({
       if (preview?.id === v.id) setPreview(null);
       await refresh();
     } else {
-      toast("删除失败", "error");
+      toast(t("删除失败"), "error");
     }
   };
 
@@ -357,26 +365,27 @@ function VersionList({
           <button
             className="flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-[12px] text-[var(--ink-soft)] hover:bg-[var(--paper)] hover:text-[var(--accent)]"
             onClick={() => void saveNow()}
-            title="把当前内容立即存为一个版本"
+            title={t("把当前内容立即存为一个版本")}
           >
             <BookmarkPlus size={14} />
-            存档
+            {t("存档")}
           </button>
         }
       />
       {versions === null ? (
         <div className="flex items-center justify-center gap-2 py-10 text-[12px] text-[var(--ink-faint)]">
-          <Loader2 size={14} className="animate-spin" /> 加载中…
+          <Loader2 size={14} className="animate-spin" /> {t("加载中…")}
         </div>
       ) : versions.length === 0 ? (
         <p className="px-6 py-10 text-center text-[12px] leading-6 text-[var(--ink-faint)]">
-          还没有版本。编辑会实时自动保存，首次保存先留个底，之后每写满 10 分钟
-          定格一版，停笔或关页面时再补一版；也可以点右上角「存档」立即保存。
+          {t(
+            "还没有版本。编辑会实时自动保存，首次保存先留个底，之后每写满 10 分钟定格一版，停笔或关页面时再补一版；也可以点右上角「存档」立即保存。"
+          )}
         </p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
           <p className="px-4 pb-1.5 pt-1 text-[11px] text-[var(--ink-faint)]">
-            点任意版本，左侧预览内容与改动
+            {t("点任意版本，左侧预览内容与改动")}
           </p>
           {versions.map((v, i) => (
             <div
@@ -399,15 +408,15 @@ function VersionList({
                 <span
                   className={`rounded px-1.5 py-px text-[10px] ${KIND_LABEL[v.kind]?.cls ?? ""}`}
                 >
-                  {KIND_LABEL[v.kind]?.text ?? v.kind}
+                  {KIND_LABEL[v.kind] ? t(KIND_LABEL[v.kind].text) : v.kind}
                 </span>
                 {/* 接口按 createdAt 倒序给，所以只有下标 0 才是最新的一版 */}
-                {i === 0 ? <span className="text-[10px] text-[var(--ink-faint)]">最新</span> : null}
+                {i === 0 ? <span className="text-[10px] text-[var(--ink-faint)]">{t("最新")}</span> : null}
                 <span className="flex-1" />
                 <button
                   // 触屏没有 hover，group-hover 永远不会触发，所以 hover:none 下让删除、回滚两个按钮常显，否则根本点不出来
                   className="invisible cursor-pointer rounded p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-red-600 dark:hover:text-red-400 group-hover:visible [@media(hover:none)]:visible"
-                  title="删除该版本"
+                  title={t("删除该版本")}
                   onClick={(e) => {
                     e.stopPropagation();
                     void remove(v);
@@ -417,7 +426,7 @@ function VersionList({
                 </button>
                 <button
                   className="invisible flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[11px] text-[var(--ink-soft)] hover:bg-[var(--panel)] hover:text-[var(--accent)] group-hover:visible [@media(hover:none)]:visible"
-                  title="回滚到该版本"
+                  title={t("回滚到该版本")}
                   onClick={(e) => {
                     e.stopPropagation();
                     void restore(v);
@@ -429,11 +438,11 @@ function VersionList({
                   ) : (
                     <ArchiveRestore size={12} />
                   )}
-                  回滚
+                  {t("回滚")}
                 </button>
               </div>
               <p className="mt-0.5 truncate text-[11.5px] text-[var(--ink-faint)]">
-                {v.title || UNTITLED_DOC} · {v.chars} 字
+                {v.title || t(UNTITLED_DOC)} · {t("{n} 字", { n: v.chars, abs: v.chars })}
               </p>
             </div>
           ))}

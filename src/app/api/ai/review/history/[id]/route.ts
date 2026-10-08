@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { deleteReviewRecord, getReviewRecord, setReviewActions } from "@/lib/ai/reviewHistory";
 import { historyUser, notFound } from "../guard";
+import { tk } from "@/i18n/t";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 const failed = (what: string, e: unknown) => {
   console.error(what, e instanceof Error ? e.name : e);
-  return NextResponse.json({ error: "failed", message: "操作失败，稍后再试" }, { status: 500 });
+  return NextResponse.json({ error: "failed", message: tk("操作失败，稍后再试") }, { status: 500 });
 };
 
 /** 取一条记录的整份结果 */
@@ -17,7 +18,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     const record = await getReviewRecord(who.userId, (await params).id);
     return record ? NextResponse.json(record) : notFound();
   } catch (e) {
-    return failed("读审核记录失败", e);
+    return failed(tk("读审核记录失败"), e);
   }
 }
 
@@ -30,7 +31,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const ok = await setReviewActions(who.userId, (await params).id, body?.actions);
     return ok ? NextResponse.json({ ok: true }) : notFound();
   } catch (e) {
-    return failed("存审核动作失败", e);
+    return failed(tk("存审核动作失败"), e);
   }
 }
 
@@ -41,6 +42,6 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const ok = await deleteReviewRecord(who.userId, (await params).id);
     return ok ? NextResponse.json({ ok: true }) : notFound();
   } catch (e) {
-    return failed("删审核记录失败", e);
+    return failed(tk("删审核记录失败"), e);
   }
 }

@@ -4,9 +4,11 @@
  * 判定口径（管理员全开、封禁全关）在 lib/permissions，那边连着 prisma，只在服务端用。
  */
 
+import { tk } from "@/i18n/t";
+
 export const PERMISSIONS = [
-  { key: "ai_review", label: "AI 审核", hint: "在编辑器里用 AI 检查表述与公众号合规" },
-  { key: "ai_cover", label: "AI 生成封面", hint: "用 AI 生成公众号封面图，按张计费" },
+  { key: "ai_review", label: tk("AI 审核"), hint: tk("在编辑器里用 AI 检查表述与公众号合规") },
+  { key: "ai_cover", label: tk("AI 生成封面"), hint: tk("用 AI 生成公众号封面图，按张计费") },
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number]["key"];

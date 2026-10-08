@@ -10,6 +10,7 @@ import { ChevronsLeft } from "lucide-react";
 import { outlineIndent } from "@/hooks/useOutline";
 import { useActiveHeading, type SubscribeTopLine } from "@/hooks/useTopLine";
 import { useStore } from "@/store/useStore";
+import { useT } from "@/i18n/useT";
 
 interface Heading {
   level: number;
@@ -68,6 +69,7 @@ export function OutlinePanel({
   /** 订阅编辑器视口顶端的行号，用来高亮当前章节；不传则不高亮 */
   subscribeTopLine?: SubscribeTopLine;
 }) {
+  const t = useT();
   const content = useStore((s) => s.content);
   // 低优先级取值：连续打字时先渲编辑器，大纲慢一拍再补
   const deferredContent = useDeferredValue(content);
@@ -89,11 +91,11 @@ export function OutlinePanel({
     <aside className="flex h-full w-52 shrink-0 flex-col border-r border-[var(--hairline-soft)] bg-[var(--panel)]">
       {/* 标题行：左边标一下这是什么，右边的《收回面板，与正文列左上角的浮动入口对调 */}
       <div className="flex shrink-0 items-center justify-between px-3 pb-1 pt-3">
-        <span className="pl-1 text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">目录</span>
+        <span className="pl-1 text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">{t("目录")}</span>
         <button
           type="button"
-          title="收起目录"
-          aria-label="收起目录"
+          title={t("收起目录")}
+          aria-label={t("收起目录")}
           onClick={onClose}
           className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
         >

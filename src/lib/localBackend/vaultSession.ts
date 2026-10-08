@@ -17,6 +17,7 @@ import {
   queryVaultPermission,
   requestVaultPermission,
 } from "./vaultFs";
+import { t } from "@/i18n/t";
 
 export { isVaultSupported };
 
@@ -107,7 +108,7 @@ async function activate(h: FileSystemDirectoryHandle): Promise<boolean> {
     handle = h;
     backend = null;
     setState({ status: "pending", name: h.name, error: msg });
-    toast("打开文件夹失败：" + msg, "error");
+    toast(t("打开文件夹失败：{msg}", { msg }), "error");
     return false;
   }
 }
@@ -141,7 +142,7 @@ export async function resumeVault(): Promise<boolean> {
   }
   const ok = await requestVaultPermission(handle).catch(() => false);
   if (!ok) {
-    setState({ status: "pending", name: handle.name, error: "没拿到文件夹的读写权限" });
+    setState({ status: "pending", name: handle.name, error: t("没拿到文件夹的读写权限") });
     return false;
   }
   return await activate(handle);
@@ -157,7 +158,7 @@ export async function openVaultFromPicker(): Promise<OpenVaultResult> {
   } catch (e) {
     const msg = (e as Error).message;
     setState({ error: msg });
-    toast("选择文件夹失败：" + msg, "error");
+    toast(t("选择文件夹失败：{msg}", { msg }), "error");
     return "failed";
   }
   if (!picked) return "cancelled";

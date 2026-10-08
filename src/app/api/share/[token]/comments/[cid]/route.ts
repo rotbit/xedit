@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { findEnabledShare, hashGuestKey } from "@/lib/share";
+import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ token: string; cid: string }> };
 
@@ -29,12 +30,12 @@ export async function PATCH(req: Request, { params }: Params) {
   const { token, cid } = await params;
   const body = await req.json().catch(() => ({}));
   const comment = await authorizedComment(req, token, cid);
-  if (!comment) return NextResponse.json({ error: "无权操作或批注不存在" }, { status: 403 });
+  if (!comment) return NextResponse.json({ error: tk("无权操作或批注不存在") }, { status: 403 });
   if (comment.parentId) {
-    return NextResponse.json({ error: "回复不能单独销记" }, { status: 400 });
+    return NextResponse.json({ error: tk("回复不能单独销记") }, { status: 400 });
   }
   if (typeof body.resolved !== "boolean") {
-    return NextResponse.json({ error: "缺少 resolved 参数" }, { status: 400 });
+    return NextResponse.json({ error: tk("缺少 resolved 参数") }, { status: 400 });
   }
   await prisma.shareComment.update({
     where: { id: cid },
@@ -47,7 +48,7 @@ export async function PATCH(req: Request, { params }: Params) {
 export async function DELETE(req: Request, { params }: Params) {
   const { token, cid } = await params;
   const comment = await authorizedComment(req, token, cid);
-  if (!comment) return NextResponse.json({ error: "无权操作或批注不存在" }, { status: 403 });
+  if (!comment) return NextResponse.json({ error: tk("无权操作或批注不存在") }, { status: 403 });
   await prisma.$transaction([
     prisma.shareComment.deleteMany({ where: { parentId: cid } }),
     prisma.shareComment.delete({ where: { id: cid } }),

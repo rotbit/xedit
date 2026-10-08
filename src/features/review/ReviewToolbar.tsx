@@ -16,6 +16,7 @@ import { ReviewSummaryPanel } from "./ReviewSummaryPanel";
 import { ReviewHistoryPanel } from "./ReviewHistory";
 import { formatRecordTime } from "./history";
 import type { ReviewCategory, ReviewPhase, ReviewRecordMeta } from "./types";
+import { useT } from "@/i18n/useT";
 
 const navBtn =
   "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent";
@@ -99,6 +100,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   fromHistory: boolean;
   onOpenRecord: (id: string) => void;
 }) {
+  const t = useT();
   const [historyOpen, setHistoryOpen] = useState(false);
   const loading = phase === "loading";
   const elapsed = useElapsedSeconds(loading);
@@ -110,7 +112,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   const [cfg] = useAiConfig();
   // 这一趟审的是哪一类，始终摆在明面上（用哪个模型由后台定，这里不显示）。
   // 翻历史时说的是当时审的那几类，不是现在勾着的
-  const kind = reviewKindsLabel(fromHistory && record ? record.kinds : cfg.kinds);
+  const kind = reviewKindsLabel(fromHistory && record ? record.kinds : cfg.kinds, t);
 
   return (
     <div className="relative flex h-9 shrink-0 items-center gap-2 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4 text-[12px] text-[var(--ink-soft)]">
@@ -121,31 +123,32 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         <span className="flex min-w-0 items-center gap-1.5 text-[var(--ink)]" role="status">
           <AiIcon size={14} className="review-breathe shrink-0 text-[var(--accent)]" />
           <span className="truncate font-medium">
-            {fromHistory ? "正在翻出这条审核记录…" : `AI 正在通读全文，做${kind}…`}
+            {fromHistory ? t("正在翻出这条审核记录…") : t("AI 正在通读全文，做{kind}…", { kind })}
           </span>
           {fromHistory ? null : (
             <span className="shrink-0 tabular-nums text-[var(--ink-faint)]">
-              {elapsed} 秒{elapsed >= 8 ? " · 一般要半分钟到一分钟" : ""}
+              {t("{n} 秒", { n: elapsed })}
+              {elapsed >= 8 ? ` · ${t("一般要半分钟到一分钟")}` : ""}
             </span>
           )}
         </span>
       ) : phase === "error" ? (
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-[var(--ink-faint)]">{error ?? "审核没能完成"}</span>
+          <span className="truncate text-[var(--ink-faint)]">{error ? t(error) : t("审核没能完成")}</span>
           <button
             data-menu-trigger
             className="shrink-0 cursor-pointer whitespace-nowrap text-[var(--accent)] hover:underline"
             onClick={() => onSettingsOpen(true)}
           >
-            换审核类型
+            {t("换审核类型")}
           </button>
         </span>
       ) : (
         <span className="shrink-0 whitespace-nowrap">
-          {total} 条建议
-          {handled > 0 ? <span className="text-[var(--ink-faint)]"> · 已处理 {handled}</span> : null}
+          {t("{n} 条建议", { n: total })}
+          {handled > 0 ? <span className="text-[var(--ink-faint)]"> · {t("已处理 {n}", { n: handled })}</span> : null}
           {fromHistory && record ? (
-            <span className="text-[var(--ink-faint)]"> · {formatRecordTime(record.createdAt)} 的记录</span>
+            <span className="text-[var(--ink-faint)]"> · {t("{time} 的记录", { time: formatRecordTime(record.createdAt) })}</span>
           ) : null}
         </span>
       )}
@@ -159,7 +162,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
           onClick={() => onSummaryOpen(!summaryOpen)}
         >
           <AiIcon size={14} />
-          总评
+          {t("总评")}
         </button>
       ) : null}
 
@@ -174,7 +177,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
             }`}
             onClick={() => onFilter(null)}
           >
-            全部
+            {t("全部")}
           </button>
           {categories.map((c) => {
             const n = counts.get(c.id) ?? 0;
@@ -207,30 +210,30 @@ export const ReviewToolbar = memo(function ReviewToolbar({
           className={`mr-1 flex max-w-[260px] shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
             settingsOpen ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"
           }`}
-          title="审核类型"
+          title={t("审核类型")}
           onClick={() => onSettingsOpen(!settingsOpen)}
         >
           <Settings2 size={12} className="shrink-0" />
           <span className="truncate">{kind}</span>
         </button>
-        <button className={navBtn} title="上一条（⌥↑）" onClick={onPrev} disabled={!canPrev}>
+        <button className={navBtn} title={t("上一条（⌥↑）")} onClick={onPrev} disabled={!canPrev}>
           <ChevronUp size={14} />
         </button>
-        <button className={navBtn} title="下一条（⌥↓）" onClick={onNext} disabled={!canNext}>
+        <button className={navBtn} title={t("下一条（⌥↓）")} onClick={onNext} disabled={!canNext}>
           <ChevronDown size={14} />
         </button>
         <button
           data-menu-trigger
           className={`${navBtn} ${historyOpen ? "bg-[var(--accent-wash)] text-[var(--ink)]" : ""}`}
-          title="审核历史"
+          title={t("审核历史")}
           onClick={() => setHistoryOpen((v) => !v)}
         >
           <History size={14} />
         </button>
-        <button className={navBtn} title="重新审核" onClick={rerun} disabled={loading}>
+        <button className={navBtn} title={t("重新审核")} onClick={rerun} disabled={loading}>
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </button>
-        <button className={navBtn} title="退出审核" onClick={onExit}>
+        <button className={navBtn} title={t("退出审核")} onClick={onExit}>
           <X size={14} />
         </button>
       </div>

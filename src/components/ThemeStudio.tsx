@@ -11,6 +11,8 @@ import { useStore } from "@/store/useStore";
 import { useEscape } from "@/hooks/useEscape";
 import { toast } from "./Toast";
 import { askConfirm } from "./PromptDialog";
+import { useT } from "@/i18n/useT";
+import { rich } from "@/i18n/rich";
 import {
   BASE_CSS,
   buildCustomThemeCss,
@@ -81,9 +83,10 @@ function ThemeStudioInner() {
   const saveCustomTheme = useStore((s) => s.saveCustomTheme);
   const removeCustomTheme = useStore((s) => s.removeCustomTheme);
   const setThemeId = useStore((s) => s.setThemeId);
+  const t = useT();
 
   // 用 getState() 取一次而不是订阅：草稿只需要挂载时的初始值，保存过程中 store 的变动不该回灌到正在填的表单
-  const editing = useStore.getState().customThemes.find((t) => t.id === mode) ?? null;
+  const editing = useStore.getState().customThemes.find((th) => th.id === mode) ?? null;
   const [draft, setDraft] = useState<Omit<CustomThemeSpec, "id">>(() => {
     if (editing) {
       const rest = { ...editing } as Partial<CustomThemeSpec>;
@@ -112,24 +115,24 @@ function ThemeStudioInner() {
   const save = () => {
     // 编辑时保留原 id（别的设备还在引用它），只有新建才生成；保存完顺手切到这套主题
     const id = editing?.id ?? crypto.randomUUID();
-    saveCustomTheme({ ...draft, id, name: draft.name.trim() || "我的主题" });
+    saveCustomTheme({ ...draft, id, name: draft.name.trim() || t("我的主题") });
     setThemeId(CUSTOM_THEME_PREFIX + id);
     setThemeStudio("closed");
-    toast("主题已保存并应用", "success");
+    toast(t("主题已保存并应用"), "success");
   };
 
   const remove = async () => {
     if (!editing) return;
     const ok = await askConfirm({
-      title: "删除这套主题",
-      message: `「${editing.name}」将被删除；正在使用它的设备会回落到默认主题。`,
-      confirmText: "删除",
+      title: t("删除这套主题"),
+      message: t("「{name}」将被删除；正在使用它的设备会回落到默认主题。", { name: editing.name }),
+      confirmText: t("删除"),
       danger: true,
     });
     if (!ok) return;
     removeCustomTheme(editing.id);
     setThemeStudio("closed");
-    toast("已删除", "success");
+    toast(t("已删除"), "success");
   };
 
   return (
@@ -144,7 +147,7 @@ function ThemeStudioInner() {
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--hairline)] px-4">
           <span className="text-[14px] font-medium [font-family:var(--serif)]">
-            {editing ? "编辑主题" : "新建主题"}
+            {editing ? t("编辑主题") : t("新建主题")}
           </span>
           <button
             className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--paper)]"
@@ -157,16 +160,16 @@ function ThemeStudioInner() {
         <div className="flex min-h-0 flex-1">
           {/* 左：参数控件 */}
           <div className="w-[300px] shrink-0 overflow-y-auto border-r border-[var(--hairline)] p-4">
-            <label className={LABEL_CLS}>主题名称</label>
+            <label className={LABEL_CLS}>{t("主题名称")}</label>
             <input
               className="h-9 w-full rounded-lg border border-[var(--hairline-strong)] bg-[var(--paper)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
               value={draft.name}
               maxLength={30}
-              placeholder="我的主题"
+              placeholder={t("我的主题")}
               onChange={(e) => patch({ name: e.target.value })}
             />
 
-            <label className={LABEL_CLS}>主色</label>
+            <label className={LABEL_CLS}>{t("主色")}</label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -195,7 +198,7 @@ function ThemeStudioInner() {
               ))}
             </div>
 
-            <label className={LABEL_CLS}>章节标题（H2）造型</label>
+            <label className={LABEL_CLS}>{t("章节标题（H2）造型")}</label>
             <div className="flex flex-wrap gap-1.5">
               {HEADING_STYLE_OPTIONS.map((o) => (
                 <SegBtn
@@ -203,32 +206,32 @@ function ThemeStudioInner() {
                   active={draft.headingStyle === o.value}
                   onClick={() => patch({ headingStyle: o.value })}
                 >
-                  {o.label}
+                  {t(o.label)}
                 </SegBtn>
               ))}
             </div>
 
             {draft.headingStyle !== "wings" && draft.headingStyle !== "bar" ? (
               <>
-                <label className={LABEL_CLS}>标题对齐</label>
+                <label className={LABEL_CLS}>{t("标题对齐")}</label>
                 <div className="flex gap-1.5">
                   <SegBtn
                     active={draft.headingAlign === "left"}
                     onClick={() => patch({ headingAlign: "left" })}
                   >
-                    居左
+                    {t("居左")}
                   </SegBtn>
                   <SegBtn
                     active={draft.headingAlign === "center"}
                     onClick={() => patch({ headingAlign: "center" })}
                   >
-                    居中
+                    {t("居中")}
                   </SegBtn>
                 </div>
               </>
             ) : null}
 
-            <label className={LABEL_CLS}>引用块</label>
+            <label className={LABEL_CLS}>{t("引用块")}</label>
             <div className="flex flex-wrap gap-1.5">
               {QUOTE_STYLE_OPTIONS.map((o) => (
                 <SegBtn
@@ -236,12 +239,12 @@ function ThemeStudioInner() {
                   active={draft.quoteStyle === o.value}
                   onClick={() => patch({ quoteStyle: o.value })}
                 >
-                  {o.label}
+                  {t(o.label)}
                 </SegBtn>
               ))}
             </div>
 
-            <label className={LABEL_CLS}>链接样式</label>
+            <label className={LABEL_CLS}>{t("链接样式")}</label>
             <div className="flex flex-wrap gap-1.5">
               {LINK_STYLE_OPTIONS.map((o) => (
                 <SegBtn
@@ -249,12 +252,12 @@ function ThemeStudioInner() {
                   active={draft.linkStyle === o.value}
                   onClick={() => patch({ linkStyle: o.value })}
                 >
-                  {o.label}
+                  {t(o.label)}
                 </SegBtn>
               ))}
             </div>
 
-            <label className={LABEL_CLS}>圆角（引用块 / 色块） {draft.radius}px</label>
+            <label className={LABEL_CLS}>{t("圆角（引用块 / 色块） {n}px", { n: draft.radius })}</label>
             <input
               type="range"
               min={0}
@@ -273,7 +276,7 @@ function ThemeStudioInner() {
                   checked={draft.strongAccent}
                   onChange={(e) => patch({ strongAccent: e.target.checked })}
                 />
-                加粗文字用主色
+                {t("加粗文字用主色")}
               </label>
               <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[var(--ink)]">
                 <input
@@ -282,7 +285,7 @@ function ThemeStudioInner() {
                   checked={draft.serif}
                   onChange={(e) => patch({ serif: e.target.checked })}
                 />
-                正文用衬线字体（适合文化/散文类）
+                {t("正文用衬线字体（适合文化/散文类）")}
               </label>
             </div>
           </div>
@@ -294,48 +297,54 @@ function ThemeStudioInner() {
             <div className={PREVIEW_SCOPE} style={{ maxWidth: 420, margin: "0 auto" }}>
               <h2 style={{ marginTop: 24 }}>
                 <span className="prefix" />
-                <span className="content">章节标题的样子</span>
+                <span className="content">{t("章节标题的样子")}</span>
                 <span className="suffix" />
               </h2>
               <p>
-                正文段落里有<strong>加粗强调</strong>、<em>斜体语气</em>、
-                <a>一个链接</a>，还有行内代码 <code>npm run build</code> 的样式。
+                {rich(t("正文段落里有{strong}、{em}、{a}，还有行内代码 {code} 的样式。"), {
+                  strong: <strong>{t("加粗强调")}</strong>,
+                  em: <em>{t("斜体语气")}</em>,
+                  a: <a>{t("一个链接")}</a>,
+                  code: <code>npm run build</code>,
+                })}
               </p>
               <blockquote>
-                <p>引用块：好的排版是读者感觉不到排版的存在。</p>
+                <p>{t("引用块：好的排版是读者感觉不到排版的存在。")}</p>
               </blockquote>
               <h3>
                 <span className="prefix" />
-                <span className="content">三级标题</span>
+                <span className="content">{t("三级标题")}</span>
                 <span className="suffix" />
               </h3>
               <ul>
-                <li>列表项的行距与标记</li>
-                <li>第二项，检查间距是否舒服</li>
+                <li>{t("列表项的行距与标记")}</li>
+                <li>{t("第二项，检查间距是否舒服")}</li>
               </ul>
               <div className="table-container">
                 <table>
                   <thead>
                     <tr>
-                      <th>功能</th>
-                      <th>状态</th>
+                      <th>{t("功能")}</th>
+                      <th>{t("状态")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td>公众号复制</td>
-                      <td>✅ 支持</td>
+                      <td>{t("公众号复制")}</td>
+                      <td>✅ {t("支持")}</td>
                     </tr>
                     <tr>
-                      <td>斑马纹表格</td>
-                      <td>✅ 支持</td>
+                      <td>{t("斑马纹表格")}</td>
+                      <td>✅ {t("支持")}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
               <hr />
               <p>
-                分割线之后的收尾段落，用来看<strong>整体的呼吸感</strong>。
+                {rich(t("分割线之后的收尾段落，用来看{strong}。"), {
+                  strong: <strong>{t("整体的呼吸感")}</strong>,
+                })}
               </p>
               <div style={{ height: 24 }} />
             </div>
@@ -349,11 +358,11 @@ function ThemeStudioInner() {
               onClick={() => void remove()}
             >
               <Trash2 size={14} />
-              删除主题
+              {t("删除主题")}
             </button>
           ) : (
             <p className="text-[12px] text-[var(--ink-faint)]">
-              颜色只填一个主色，深浅底色与边框自动派生
+              {t("颜色只填一个主色，深浅底色与边框自动派生")}
             </p>
           )}
           <div className="flex gap-2">
@@ -361,13 +370,13 @@ function ThemeStudioInner() {
               className="cursor-pointer rounded-md border border-[var(--hairline-strong)] px-3.5 py-1.5 text-[13px] hover:bg-[var(--paper)]"
               onClick={() => setThemeStudio("closed")}
             >
-              取消
+              {t("取消")}
             </button>
             <button
               className="cursor-pointer rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)]"
               onClick={save}
             >
-              保存并应用
+              {t("保存并应用")}
             </button>
           </div>
         </div>

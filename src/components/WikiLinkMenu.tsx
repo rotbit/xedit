@@ -19,6 +19,7 @@ import {
 } from "@/lib/wikiLink/menu";
 import { UNCATEGORIZED } from "@/features/workspace/constants";
 import type { DocMeta } from "@/features/workspace/types";
+import { useT } from "@/i18n/useT";
 
 /** 菜单宽度（与 w-72 一致）、单行高度、最多显示的行数：超出内部滚动 */
 const MENU_W = 288;
@@ -41,6 +42,7 @@ export function WikiLinkMenu({
   /** 候选文章；与编辑器扩展里的 getDocs() 是同一份，只是这边用于渲染 */
   docs?: DocMeta[];
 }) {
+  const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
   const [st, setSt] = useState<WikiMenuState | null>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
@@ -96,14 +98,14 @@ export function WikiLinkMenu({
             {create ? (
               <>
                 <Plus size={16} className="shrink-0 text-[var(--accent)]" />
-                <span className="min-w-0 flex-1 truncate">新建「{item.title}」</span>
+                <span className="min-w-0 flex-1 truncate">{t("新建「{title}」", { title: item.title })}</span>
               </>
             ) : (
               <>
                 <FileText size={16} className="shrink-0 text-[var(--ink-soft)]" />
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 <span className="max-w-[7rem] shrink-0 truncate text-[11px] text-[var(--ink-faint)]">
-                  {item.doc.category || UNCATEGORIZED}
+                  {item.doc.category || t(UNCATEGORIZED)}
                 </span>
               </>
             )}

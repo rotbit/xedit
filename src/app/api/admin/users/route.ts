@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { adminSessionUserId, isAdminEmail } from "@/lib/admin";
 import { DEFAULT_STORAGE_QUOTA } from "@/lib/guards";
 import { knownPermissions } from "@/lib/permissionKeys";
+import { tk } from "@/i18n/t";
 
 // 页大小写死、不接受客户端传入：下面几次 groupBy 的 in 列表长度由它决定，放开就等于放开查询成本
 const PAGE_SIZE = 50;
@@ -17,7 +18,7 @@ const PAGE_SIZE = 50;
 export async function GET(req: Request) {
   const session = await auth();
   if (!adminSessionUserId(session)) {
-    return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    return NextResponse.json({ error: tk("无权访问") }, { status: 403 });
   }
 
   const params = new URL(req.url).searchParams;

@@ -61,7 +61,7 @@ export function imageRun(pi: PreparedImage, maxW = CONTENT_W): ImageRun {
 export function videoLink(src: string): ExternalHyperlink {
   return new ExternalHyperlink({
     link: src,
-    children: [new TextRun({ text: "▶ 点击观看视频", bold: true, color: LINK_BLUE, underline: {} })],
+    children: [new TextRun({ text: "▶ 点击观看视频", bold: true, color: LINK_BLUE, underline: {} })], // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
   });
 }
 
@@ -129,7 +129,7 @@ export function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Buil
       if (pi) out.push(imageRun(pi));
       else {
         const alt = el.getAttribute("alt");
-        out.push(makeRun(`[图片${alt ? `：${alt}` : ""}]`, { ...st, color: GRAY }));
+        out.push(makeRun(`[图片${alt ? `：${alt}` : ""}]`, { ...st, color: GRAY })); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
       }
       return;
     }

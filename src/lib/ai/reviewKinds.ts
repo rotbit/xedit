@@ -5,6 +5,7 @@
  * 要拿它列选项，服务端要拿它挑提示词与分类。提示词本身长在 reviewPrompt.ts，
  * 网页不 import 那一份，免得把几千字的系统提示打进前端包里。
  */
+import { tk } from "@/i18n/t";
 
 export type ReviewKind = "expression" | "wechat_rules";
 
@@ -19,13 +20,13 @@ export interface ReviewKindSpec {
 export const REVIEW_KINDS: ReviewKindSpec[] = [
   {
     id: "expression",
-    label: "表述审核",
-    description: "逐句看表达：啰嗦、说不清、用词不当，给得出改法的可一键采纳",
+    label: tk("表述审核"),
+    description: tk("逐句看表达：啰嗦、说不清、用词不当，给得出改法的可一键采纳"),
   },
   {
     id: "wechat_rules",
-    label: "公众号合规审核",
-    description: "对照公众号平台规则：标题党、诱导分享关注、夸大与绝对化用语、敏感内容风险",
+    label: tk("公众号合规审核"),
+    description: tk("对照公众号平台规则：标题党、诱导分享关注、夸大与绝对化用语、敏感内容风险"),
   },
 ];
 
@@ -54,12 +55,15 @@ export function cleanReviewKinds(value: unknown): ReviewKind[] {
   return kinds.length > 0 ? kinds : [DEFAULT_REVIEW_KIND];
 }
 
-/** 几类一起审时的名字：「表述审核 + 公众号合规审核」 */
-export function reviewKindsLabel(kinds: readonly ReviewKind[]): string {
-  return kinds.map((k) => reviewKindLabel(k)).join(" + ");
+/**
+ * 几类一起审时的名字：「表述审核 + 公众号合规审核」。
+ * 界面上调用时传组件里的 t 翻成当前语言；不传就是中文原文（服务端拼提示词要的就是原文）。
+ */
+export function reviewKindsLabel(kinds: readonly ReviewKind[], tr: (zh: string) => string = (s) => s): string {
+  return kinds.map((k) => tr(reviewKindLabel(k))).join(" + ");
 }
 
-/** 界面上那几处文案（胶囊、加载态）要的名字 */
+/** 一类的中文名（label 存的是原文；提示词直接用，界面上显示时再 t()） */
 export function reviewKindLabel(value: unknown): string {
   return reviewKind(value)?.label ?? reviewKind(DEFAULT_REVIEW_KIND)!.label;
 }

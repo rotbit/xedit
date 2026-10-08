@@ -43,6 +43,7 @@ import {
 } from "./vaultFs";
 import { createRescanner, type RescanResult } from "./vaultRescan";
 import { createTrash, loadTrash } from "./vaultTrash";
+import { t } from "@/i18n/t";
 
 export type { RescanResult };
 
@@ -106,14 +107,14 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       const now = Date.now();
       if (now - lastToast < TOAST_GAP) return;
       lastToast = now;
-      toast("写入文件夹失败：" + (e as Error).message, "error");
+      toast(t("写入文件夹失败：{msg}", { msg: (e as Error).message }), "error");
     });
   }
 
   function ensureDir(relPath: string): void {
     if (!relPath) return;
     enqueue(async () => {
-      if (!(await getDirectory(root, relPath, true))) throw new Error(`建不出目录 ${relPath}`);
+      if (!(await getDirectory(root, relPath, true))) throw new Error(t("建不出目录 {path}", { path: relPath }));
     });
   }
 
@@ -176,7 +177,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       if (dirPath) addCat(cats, category);
       enqueue(async () => {
         const dir = await getDirectory(root, dirPath, true);
-        if (!dir) throw new Error(`建不出目录 ${dirPath}`);
+        if (!dir) throw new Error(t("建不出目录 {path}", { path: dirPath }));
         entry.mtime = await writeTextFile(dir, name, content);
       });
       return meta;
@@ -224,7 +225,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
         // 路径在上一条队列任务里已经搬好了，这里直接写新位置
         enqueue(async () => {
           const dir = await getDirectory(root, parentPath(relPath), true);
-          if (!dir) throw new Error(`建不出目录 ${parentPath(relPath)}`);
+          if (!dir) throw new Error(t("建不出目录 {path}", { path: parentPath(relPath) }));
           e.mtime = await writeTextFile(dir, baseName(relPath), text);
         });
       }
@@ -302,7 +303,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       order = o;
       enqueue(async () => {
         const dir = await getDirectory(root, ORDER_DIR, true);
-        if (!dir) throw new Error(`建不出目录 ${ORDER_DIR}`);
+        if (!dir) throw new Error(t("建不出目录 {path}", { path: ORDER_DIR }));
         await writeTextFile(dir, ORDER_FILE, JSON.stringify(o));
       });
     },

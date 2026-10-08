@@ -7,6 +7,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { Bold, Italic, Strikethrough, Quote, Code, Link2 } from "lucide-react";
 import { ColorPicker } from "./ColorPicker";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 import type { EditorHandle, SelectionInfo } from "@/lib/editor/types";
 import type { FormatCommand } from "@/lib/editor/commands";
 
@@ -37,19 +39,19 @@ type Btn = { cmd: FormatCommand; icon: React.ReactNode; label: string };
 
 /** 顺序：加粗 · 斜体 · 删除线 · 字体颜色 ｜ H1 · H2 · H3 ｜ 引用 · 行内代码 · 链接 */
 const GROUP_A: Btn[] = [
-  { cmd: "bold", icon: <Bold size={ICON} />, label: "加粗（⌘B）" },
-  { cmd: "italic", icon: <Italic size={ICON} />, label: "斜体（⌘I）" },
-  { cmd: "strike", icon: <Strikethrough size={ICON} />, label: "删除线" },
+  { cmd: "bold", icon: <Bold size={ICON} />, label: tk("加粗（⌘B）") },
+  { cmd: "italic", icon: <Italic size={ICON} />, label: tk("斜体（⌘I）") },
+  { cmd: "strike", icon: <Strikethrough size={ICON} />, label: tk("删除线") },
 ];
 const GROUP_B: Btn[] = [
-  { cmd: "h1", icon: <HeadingGlyph level={1} />, label: "一级标题" },
-  { cmd: "h2", icon: <HeadingGlyph level={2} />, label: "二级标题" },
-  { cmd: "h3", icon: <HeadingGlyph level={3} />, label: "三级标题" },
+  { cmd: "h1", icon: <HeadingGlyph level={1} />, label: tk("一级标题") },
+  { cmd: "h2", icon: <HeadingGlyph level={2} />, label: tk("二级标题") },
+  { cmd: "h3", icon: <HeadingGlyph level={3} />, label: tk("三级标题") },
 ];
 const GROUP_C: Btn[] = [
-  { cmd: "quote", icon: <Quote size={ICON} />, label: "引用" },
-  { cmd: "code", icon: <Code size={ICON} />, label: "行内代码" },
-  { cmd: "link", icon: <Link2 size={ICON} />, label: "链接（⌘K）" },
+  { cmd: "quote", icon: <Quote size={ICON} />, label: tk("引用") },
+  { cmd: "code", icon: <Code size={ICON} />, label: tk("行内代码") },
+  { cmd: "link", icon: <Link2 size={ICON} />, label: tk("链接（⌘K）") },
 ];
 
 const btnCls =
@@ -72,6 +74,7 @@ export function FloatingToolbar({
 }) {
   // 延迟卸载：mounted 负责在不在 DOM 里，closing 负责淡出这 80ms
   const [mounted, setMounted] = useState(false);
+  const t = useT();
   const [closing, setClosing] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -256,7 +259,7 @@ export function FloatingToolbar({
       onMouseDown={(e) => e.preventDefault()}
     >
       {GROUP_A.map((b) => (
-        <button key={b.cmd} className={btnCls} title={b.label} onClick={() => run(b.cmd)}>
+        <button key={b.cmd} className={btnCls} title={t(b.label)} onClick={() => run(b.cmd)}>
           {b.icon}
         </button>
       ))}
@@ -267,13 +270,13 @@ export function FloatingToolbar({
       />
       <Divider />
       {GROUP_B.map((b) => (
-        <button key={b.cmd} className={btnCls} title={b.label} onClick={() => run(b.cmd)}>
+        <button key={b.cmd} className={btnCls} title={t(b.label)} onClick={() => run(b.cmd)}>
           {b.icon}
         </button>
       ))}
       <Divider />
       {GROUP_C.map((b) => (
-        <button key={b.cmd} className={btnCls} title={b.label} onClick={() => run(b.cmd)}>
+        <button key={b.cmd} className={btnCls} title={t(b.label)} onClick={() => run(b.cmd)}>
           {b.icon}
         </button>
       ))}

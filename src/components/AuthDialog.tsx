@@ -13,6 +13,7 @@ import { useAppConfig } from "@/features/workspace/hooks/useAppConfig";
 import { GithubMark } from "./GithubMark";
 import { LogoMark } from "./LogoMark";
 import { PaperDialog } from "./Modal";
+import { useT } from "@/i18n/useT";
 
 type Mode = "login" | "register";
 type OAuthProvider = "github" | "google" | "wechat";
@@ -120,20 +121,21 @@ function OAuthSection({
   onPick: (provider: OAuthProvider) => void;
 }) {
   const config = useAppConfig();
+  const t = useT();
   if (!config?.github && !config?.google && !config?.wechat) return null;
 
   return (
     <div className="px-6 pt-4">
       <div className="flex items-center gap-3 text-[11px] text-[var(--ink-faint)]">
         <span className="h-px flex-1 bg-[var(--hairline)]" />
-        或使用第三方账号
+        {t("或使用第三方账号")}
         <span className="h-px flex-1 bg-[var(--hairline)]" />
       </div>
       <div className="mt-3 flex flex-col gap-2">
         {config.github ? (
           <OAuthButton
             provider="github"
-            label="使用 GitHub 登录"
+            label={t("使用 GitHub 登录")}
             icon={<GithubMark size={15} />}
             busy={busy}
             onPick={onPick}
@@ -142,7 +144,7 @@ function OAuthSection({
         {config.google ? (
           <OAuthButton
             provider="google"
-            label="使用 Google 登录"
+            label={t("使用 Google 登录")}
             icon={<GoogleMark size={15} />}
             busy={busy}
             onPick={onPick}
@@ -151,7 +153,7 @@ function OAuthSection({
         {config.wechat ? (
           <OAuthButton
             provider="wechat"
-            label="使用微信登录"
+            label={t("使用微信登录")}
             icon={<WechatMark size={15} />}
             busy={busy}
             onPick={onPick}
@@ -170,6 +172,7 @@ export function AuthHost() {
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState("");
   const emailRef = useRef<HTMLInputElement>(null);
+  const t = useT();
   // 每次唤起按调用方给的模式重置（邮箱保留，重开不用再输一遍）
   const { state, close } = authHost.useHost((m) => {
     setMode(m);
@@ -182,8 +185,8 @@ export function AuthHost() {
     if (open) {
       // 等一小会儿再聚焦：面板此刻还在 toast-in 入场动画里，立刻 focus 会让焦点框跟着动画一起位移。
       // 依赖带上 mode，是为了在登录/注册之间切换后把焦点收回邮箱框
-      const t = setTimeout(() => emailRef.current?.focus(), 20);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => emailRef.current?.focus(), 20);
+      return () => clearTimeout(timer);
     }
   }, [open, mode]);
 
@@ -201,12 +204,12 @@ export function AuthHost() {
     setError("");
     const em = email.trim().toLowerCase();
     if (!EMAIL_RE.test(em)) {
-      setError("请输入正确的邮箱地址");
+      setError(t("请输入正确的邮箱地址"));
       return;
     }
     // 8 位是注册接口的下限，前端先挡一道，省掉一次注定失败的请求
     if (password.length < 8) {
-      setError("密码至少 8 位");
+      setError(t("密码至少 8 位"));
       return;
     }
     setBusy("form");
@@ -219,7 +222,7 @@ export function AuthHost() {
         });
         if (!res.ok) {
           const d = (await res.json().catch(() => ({}))) as { error?: string };
-          setError(d.error ?? "注册失败，请重试");
+          setError(d.error ? t(d.error) : t("注册失败，请重试"));
           setBusy(null);
           return;
         }
@@ -227,14 +230,14 @@ export function AuthHost() {
       // redirect: false 让 next-auth 把失败结果回传给这里，否则它会整页跳到自带的错误页，弹窗里填的内容全丢
       const r = await signIn("credentials", { email: em, password, redirect: false });
       if (r?.error) {
-        setError(mode === "register" ? "注册成功，但自动登录失败，请重新登录" : "邮箱或密码错误");
+        setError(mode === "register" ? t("注册成功，但自动登录失败，请重新登录") : t("邮箱或密码错误"));
         setBusy(null);
         return;
       }
       // 会话已写入，整页刷新以进入登录态并触发云端同步
       window.location.reload();
     } catch {
-      setError("网络错误，请稍后重试");
+      setError(t("网络错误，请稍后重试"));
       setBusy(null);
     }
   };
@@ -254,10 +257,10 @@ export function AuthHost() {
       <div className="px-6 pb-1 pt-6 text-center">
         <LogoMark className="mx-auto block h-12 w-auto text-[var(--ink)]" />
         <h3 className="mt-3 text-[17px] font-semibold [font-family:var(--serif)]">
-          {isLogin ? "登录 xEdit" : "注册 xEdit"}
+          {isLogin ? t("登录 xEdit") : t("注册 xEdit")}
         </h3>
         <p className="mt-1 text-[12px] text-[var(--ink-faint)]">
-          登录后文章自动同步云端，多设备随处可写
+          {t("登录后文章自动同步云端，多设备随处可写")}
         </p>
       </div>
 
@@ -270,7 +273,7 @@ export function AuthHost() {
             type="email"
             autoComplete="email"
             className="h-10 w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
-            placeholder="邮箱地址"
+            placeholder={t("邮箱地址")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void submit()}
@@ -282,7 +285,7 @@ export function AuthHost() {
             type="password"
             autoComplete={isLogin ? "current-password" : "new-password"}
             className="h-10 w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
-            placeholder={isLogin ? "密码" : "设置密码（至少 8 位）"}
+            placeholder={isLogin ? t("密码") : t("设置密码（至少 8 位）")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void submit()}
@@ -299,11 +302,11 @@ export function AuthHost() {
           disabled={busy !== null}
         >
           {busy === "form" ? <Loader2 size={16} className="animate-spin" /> : null}
-          {isLogin ? "登录" : "注册并登录"}
+          {isLogin ? t("登录") : t("注册并登录")}
         </button>
 
         <p className="mt-3 text-center text-[12.5px] text-[var(--ink-soft)]">
-          {isLogin ? "还没有账号？" : "已有账号？"}
+          {isLogin ? t("还没有账号？") : t("已有账号？")}
           <button
             className="ml-1 cursor-pointer font-medium text-[var(--seal)] hover:underline disabled:opacity-60"
             onClick={() => {
@@ -312,7 +315,7 @@ export function AuthHost() {
             }}
             disabled={busy !== null}
           >
-            {isLogin ? "注册新账号" : "去登录"}
+            {isLogin ? t("注册新账号") : t("去登录")}
           </button>
         </p>
       </div>
@@ -326,7 +329,7 @@ export function AuthHost() {
           onClick={dismiss}
           disabled={busy !== null}
         >
-          暂不登录，继续本地写作
+          {t("暂不登录，继续本地写作")}
         </button>
       </div>
     </PaperDialog>

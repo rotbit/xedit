@@ -107,7 +107,7 @@ function figureBlocks(el: Element, ctx: Ctx, b: Build): BlockChild[] {
     if (pi) out.push(imagePara(pi));
     else {
       const alt = img.getAttribute("alt");
-      out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`));
+      out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`)); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
     }
     if (caption) out.push(captionPara(caption));
     return out;
@@ -237,7 +237,7 @@ function splitMediaParagraph(el: Element, ctx: Ctx, b: Build): BlockChild[] {
       if (pi) out.push(imagePara(pi));
       else {
         const alt = child.getAttribute("alt");
-        out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`));
+        out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`)); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
       }
     } else {
       acc.push(node);

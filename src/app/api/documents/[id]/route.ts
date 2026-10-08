@@ -4,6 +4,7 @@ import { readOnlyGuard } from "@/lib/guards";
 import { isResponse, requireUserId } from "@/lib/routeAuth";
 import { touchDailyActive } from "@/lib/active";
 import { deleteDocument, parseBaseUpdatedAt, updateDocument } from "@/lib/documents";
+import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -25,7 +26,7 @@ export async function GET(req: Request, { params }: Params) {
       select: { updatedAt: true, deletedAt: true },
     });
     if (!head || head.deletedAt) {
-      return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+      return NextResponse.json({ error: tk("文档不存在") }, { status: 404 });
     }
     if (head.updatedAt.getTime() <= sinceAt.getTime()) {
       return new Response(null, { status: 204 });
@@ -35,7 +36,7 @@ export async function GET(req: Request, { params }: Params) {
   // 编辑器要整行（正文、时间戳都在响应里），这里不走 requireOwnedDoc 的轻量 select
   const doc = await prisma.document.findFirst({ where: { id, userId } });
   if (!doc || doc.deletedAt) {
-    return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+    return NextResponse.json({ error: tk("文档不存在") }, { status: 404 });
   }
   return NextResponse.json(doc);
 }
@@ -55,7 +56,7 @@ export async function PUT(req: Request, { params }: Params) {
       data: { deletedAt: null },
     });
     if (restored.count === 0) {
-      return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+      return NextResponse.json({ error: tk("文档不存在") }, { status: 404 });
     }
     return NextResponse.json({ ok: true });
   }
@@ -66,7 +67,7 @@ export async function PUT(req: Request, { params }: Params) {
   // 这种时候悄悄退回无条件覆盖，等于保护没了却没人知道。
   const baseUpdatedAt = parseBaseUpdatedAt(body?.baseUpdatedAt);
   if (body?.baseUpdatedAt != null && !baseUpdatedAt) {
-    return NextResponse.json({ error: "baseUpdatedAt 无法解析" }, { status: 400 });
+    return NextResponse.json({ error: tk("baseUpdatedAt 无法解析") }, { status: 400 });
   }
 
   // 保存的副作用（字段裁剪、自动留版、当日写作流水，以及回收站里的文章不给改写）
@@ -77,7 +78,7 @@ export async function PUT(req: Request, { params }: Params) {
     category: body.category,
     baseUpdatedAt,
   });
-  if (!saved) return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+  if (!saved) return NextResponse.json({ error: tk("文档不存在") }, { status: 404 });
   if (saved.conflict) {
     // 409 带回服务端当前版本：客户端据此做合并，别再原样重试同一次保存
     return NextResponse.json(
@@ -108,6 +109,6 @@ export async function DELETE(req: Request, { params }: Params) {
   const hard = new URL(req.url).searchParams.get("hard") === "1";
 
   const removed = await deleteDocument(userId, id, hard);
-  if (!removed) return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+  if (!removed) return NextResponse.json({ error: tk("文档不存在") }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

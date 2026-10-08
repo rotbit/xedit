@@ -24,6 +24,7 @@ import { locateInSource, type SourceSpan } from "./locate";
 import { runReview, type ReviewRun } from "./aiReview";
 import { loadReviewRecord, saveReviewActions } from "./history";
 import { deriveStatus, isHandled, locateQuote } from "./status";
+import { tk } from "@/i18n/t";
 import type {
   ReviewAction,
   ReviewCategory,
@@ -170,7 +171,7 @@ export function useReview({
       })
       .catch((e: unknown) => {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "审核失败");
+        setError(e instanceof Error ? e.message : tk("审核失败"));
         setPhase("error");
       });
     return () => {

@@ -23,6 +23,7 @@ const CALLOUT_CSS = Object.entries(CALLOUT_TYPES)
 export const MAC_DOTS =
   `url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='45' height='13' viewBox='0 0 45 13'%3E%3Ccircle cx='6.5' cy='6.5' r='5' fill='%23fc625d'/%3E%3Ccircle cx='22.5' cy='6.5' r='5' fill='%23fdbc40'/%3E%3Ccircle cx='38.5' cy='6.5' r='5' fill='%2335cd4b'/%3E%3C/svg%3E")`;
 
+// i18n-ignore 排版 CSS（含中文字体名等），是数据不是文案
 export const BASE_CSS = `
 #nice {
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;

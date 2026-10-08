@@ -13,8 +13,10 @@ import { RefreshCw, X } from "lucide-react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
 import { ReviewSettingsFields, reviewPanel } from "./ReviewSettings";
+import { useT } from "@/i18n/useT";
 
 export function ReviewAiSettings({ onClose, onRerun }: { onClose: () => void; onRerun: () => void }) {
+  const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
   useDismissMenu(panelRef, onClose, true);
   useEscape(onClose);
@@ -22,10 +24,10 @@ export function ReviewAiSettings({ onClose, onRerun }: { onClose: () => void; on
   return (
     <div ref={panelRef} className={`${reviewPanel} absolute right-4 top-9 z-30`}>
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[12px] font-medium text-[var(--ink)]">审核设置</span>
+        <span className="text-[12px] font-medium text-[var(--ink)]">{t("审核设置")}</span>
         <button
           className="cursor-pointer rounded p-0.5 text-[var(--ink-faint)] transition-colors hover:text-[var(--ink)]"
-          title="收起"
+          title={t("收起")}
           onClick={onClose}
         >
           <X size={14} />
@@ -42,7 +44,7 @@ export function ReviewAiSettings({ onClose, onRerun }: { onClose: () => void; on
         }}
       >
         <RefreshCw size={12} />
-        按此设置重新审核
+        {t("按此设置重新审核")}
       </button>
     </div>
   );

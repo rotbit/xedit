@@ -40,4 +40,6 @@ export const common: Record<string, string> = {
   "{n} 字": "{n} {abs, char, chars}",
   // 书名号是中文排版，英文用弯引号包标题
   "《{title}》": "“{title}”",
+  收起: "Collapse",
+  操作失败: "Something went wrong",
 };

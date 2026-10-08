@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { tk } from "@/i18n/t";
 
 export const runtime = "nodejs";
 
@@ -8,7 +9,7 @@ export const runtime = "nodejs";
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   const rows = await prisma.oAuthRefreshToken.findMany({
     where: { userId: session.user.id, revokedAt: null, expiresAt: { gt: new Date() } },
@@ -21,7 +22,7 @@ export async function GET() {
     if (!seen.has(r.clientId)) {
       seen.set(r.clientId, {
         clientId: r.clientId,
-        name: r.client.name || "未命名应用",
+        name: r.client.name || tk("未命名应用"),
         since: r.createdAt,
       });
     }
@@ -34,12 +35,12 @@ export async function GET() {
 export async function DELETE(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   const body = await req.json().catch(() => ({}));
   const clientId = typeof body?.clientId === "string" ? body.clientId : "";
   if (!clientId) {
-    return NextResponse.json({ error: "缺少 clientId" }, { status: 400 });
+    return NextResponse.json({ error: tk("缺少 clientId") }, { status: 400 });
   }
   const result = await prisma.oAuthRefreshToken.updateMany({
     where: { userId: session.user.id, clientId, revokedAt: null },

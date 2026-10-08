@@ -10,6 +10,7 @@ import {
   maxSizeOf,
   sizeLimitError,
 } from "@/lib/media";
+import { tk } from "@/i18n/t";
 
 /**
  * 媒体资产（图片/视频）的共享服务层（供 MCP 工具用）。复用 src/lib/oss.ts 的 OSS 逻辑，
@@ -23,7 +24,7 @@ function assertKind(mime: string, kind: MediaKind): void {
   const table = kind === "video" ? VIDEO_EXT : IMAGE_EXT;
   if (!(mime in table)) {
     const hint = kind === "video" ? "mp4/webm/mov" : "png/jpg/gif/webp/svg";
-    throw new Error(`不支持的${kind === "video" ? "视频" : "图片"}类型: ${mime || "未知"}（支持 ${hint}）`);
+    throw new Error(`不支持的${kind === "video" ? "视频" : "图片"}类型: ${mime || "未知"}（支持 ${hint}）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
 }
 
@@ -106,10 +107,10 @@ export async function uploadMediaBuffer(
   source: string
 ): Promise<AssetView> {
   const ext = MEDIA_EXT[mime];
-  if (!ext) throw new Error(`不支持的文件类型: ${mime || "未知"}`);
-  if (buffer.length === 0) throw new Error("空文件");
+  if (!ext) throw new Error(`不支持的文件类型: ${mime || "未知"}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+  if (buffer.length === 0) throw new Error(tk("空文件"));
   if (buffer.length > maxSizeOf(mime)) throw new Error(sizeLimitError(mime));
-  if (!ossConfigured()) throw new Error("服务端未配置阿里云 OSS，无法上传");
+  if (!ossConfigured()) throw new Error(tk("服务端未配置阿里云 OSS，无法上传"));
   // 只读封禁 / 存储配额：MCP 的两条上传路径都汇到这里
   const blocked = await uploadBlocked(userId, buffer.length);
   if (blocked) throw new Error(blocked);
@@ -161,15 +162,15 @@ async function assertPublicHttpUrl(u: string): Promise<void> {
   try {
     parsed = new URL(u);
   } catch {
-    throw new Error("非法的图片 URL");
+    throw new Error(tk("非法的图片 URL"));
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("仅支持 http/https 图片地址");
+    throw new Error(tk("仅支持 http/https 图片地址"));
   }
   const host = parsed.hostname.replace(/^\[|\]$/g, ""); // 去掉 IPv6 方括号
   const addrs = net.isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
   for (const a of addrs) {
-    if (isPrivateIp(a.address)) throw new Error("禁止访问内网 / 保留地址");
+    if (isPrivateIp(a.address)) throw new Error(tk("禁止访问内网 / 保留地址"));
   }
 }
 
@@ -184,13 +185,13 @@ async function safeMediaFetch(url: string, timeoutMs: number): Promise<Response>
     });
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get("location");
-      if (!loc) throw new Error("重定向缺少 Location");
+      if (!loc) throw new Error(tk("重定向缺少 Location"));
       current = new URL(loc, current).toString();
       continue;
     }
     return res;
   }
-  throw new Error("重定向次数过多");
+  throw new Error(tk("重定向次数过多"));
 }
 
 /**
@@ -199,7 +200,7 @@ async function safeMediaFetch(url: string, timeoutMs: number): Promise<Response>
  * 读进内存，再回头判断「太大了」，内存已经吃掉了。
  */
 async function readBodyWithLimit(res: Response, maxBytes: number, mime: string): Promise<Buffer> {
-  if (!res.body) throw new Error("抓取失败: 响应没有内容");
+  if (!res.body) throw new Error(tk("抓取失败: 响应没有内容"));
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -228,7 +229,7 @@ export async function uploadMediaFromUrl(
   if (blocked) throw new Error(blocked);
   // 视频体积大，抓取窗口放宽（MCP 路由整体上限 60s）
   const res = await safeMediaFetch(sourceUrl, kind === "video" ? 45000 : 15000);
-  if (!res.ok) throw new Error(`抓取失败: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`抓取失败: HTTP ${res.status}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   const mime = (res.headers.get("content-type") || "").split(";")[0].trim();
   assertKind(mime, kind);
   const limit = maxSizeOf(mime);

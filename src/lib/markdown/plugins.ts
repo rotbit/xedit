@@ -97,7 +97,7 @@ export function tocPlugin(md: MarkdownIt): void {
       }
     }
 
-    let html = `<section class="table-of-contents"><p class="toc-title">目录</p><ul>`;
+    let html = `<section class="table-of-contents"><p class="toc-title">目录</p><ul>`; // i18n-ignore 目录标题写进渲染结果，内容格式
     for (const h of headings) {
       html += `<li class="toc-level-${h.level}">${md.utils.escapeHtml(h.text)}</li>`;
     }

@@ -6,6 +6,7 @@ import { HrWidget, ImageWidget, VideoWidget } from "@/lib/livePreview/widgets";
 import { footnoteRef } from "@/lib/livePreview/footnote";
 import { caretTouches, type LpContext } from "@/lib/livePreview/context";
 import { colorSpanPairFromOpen } from "@/lib/editor/colorSpan";
+import { t, tk } from "@/i18n/t";
 
 /**
  * 行内语法的即时渲染分支（强调、行内代码、删除线、链接、颜色 span、图片/视频、分割线）。
@@ -32,7 +33,7 @@ const INLINE_MARK = Decoration.mark({ class: "cm-lp-mark-inline" });
 /** Mac 上 Ctrl+点击等同右键（会弹上下文菜单），打开链接只认 ⌘；其余平台只认 Ctrl。
     模块级算一次就够：装饰每次重建都要拼提示串，点击每次都要判修饰键 */
 const IS_MAC = typeof navigator === "undefined" || /Mac|iPhone|iPad/i.test(navigator.userAgent);
-const OPEN_HINT = IS_MAC ? "⌘ + 点击打开" : "Ctrl + 点击打开";
+const OPEN_HINT = IS_MAC ? tk("⌘ + 点击打开") : tk("Ctrl + 点击打开");
 
 /** 允许交给 window.open 的协议：其余（javascript:、data:、vbscript: …）点一下就是在
     自己的页面里跑别人写的代码，而文档内容可能来自导入/分享/协作，必须挡在渲染这一层——
@@ -176,7 +177,7 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
       ctx.decos.push(
         Decoration.mark({
           class: "cm-lp-link",
-          attributes: { "data-lp-href": href, title: `${href}\n${OPEN_HINT}` },
+          attributes: { "data-lp-href": href, title: `${href}\n${t(OPEN_HINT)}` },
         }).range(marks[0].to, marks[1].from)
       );
     }
@@ -194,7 +195,7 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
     ctx.decos.push(
       Decoration.mark({
         class: "cm-lp-link",
-        attributes: { "data-lp-href": href, title: OPEN_HINT },
+        attributes: { "data-lp-href": href, title: t(OPEN_HINT) },
       }).range(node.from, node.to)
     );
     return;
@@ -225,7 +226,7 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
           attributes: {
             "data-lp-wiki": target,
             // 与外链同一套规矩：单击落笔改字，⌘/Ctrl+点击才跳转
-            title: `「${target}」\n${OPEN_HINT}`,
+            title: `「${target}」\n${t(OPEN_HINT)}`, // i18n-ignore 「」只是给链接目标加引号，标点不译
           },
         }).range(textFrom, textTo)
       );

@@ -16,6 +16,7 @@ import {
   runSlashItem,
   type SlashState,
 } from "@/lib/slashMenu";
+import { useT } from "@/i18n/useT";
 
 /** 菜单宽度（与 w-60 一致）、单行高度、最多显示的行数：超出内部滚动 */
 const MENU_W = 240;
@@ -33,6 +34,7 @@ export function SlashMenu({
   /** 编辑区的滚动容器：滚动时跟着重算落点 */
   scrollEl: HTMLElement | null;
 }) {
+  const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
   const [st, setSt] = useState<SlashState | null>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
@@ -65,7 +67,7 @@ export function SlashMenu({
       onMouseDown={(e) => e.preventDefault()}
     >
       {items.length === 0 ? (
-        <div className="px-2 py-2 text-[13px] text-[var(--ink-faint)]">没有匹配的块</div>
+        <div className="px-2 py-2 text-[13px] text-[var(--ink-faint)]">{t("没有匹配的块")}</div>
       ) : (
         items.map((item, i) => {
           const Icon = item.icon;
@@ -88,8 +90,8 @@ export function SlashMenu({
               }}
             >
               <Icon size={16} className="shrink-0 text-[var(--ink-soft)]" />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">{item.hint}</span>
+              <span className="min-w-0 flex-1 truncate">{t(item.label)}</span>
+              <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">{t(item.hint)}</span>
             </button>
           );
         })

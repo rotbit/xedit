@@ -15,6 +15,8 @@ import { cleanDocId, saveReviewRecord } from "@/lib/ai/reviewHistory";
 import { getReviewGuide, getReviewModel, siteAiKey } from "@/lib/ai/siteSettings";
 import { aiLimiter, aiDailyLimit } from "@/lib/ai/limit";
 import { requirePermission } from "@/lib/permissions";
+import { tk, translate } from "@/i18n/t";
+import { localeOfRequest } from "@/i18n/server";
 
 /**
  * AI 文章审核：正文进去，一份 ReviewResult 出来（形状见 features/review/types）。
@@ -66,22 +68,22 @@ export async function POST(req: Request) {
   const asked: unknown[] = Array.isArray(body.kinds)
     ? body.kinds
     : [body.kind === undefined ? DEFAULT_REVIEW_KIND : body.kind];
-  if (asked.length === 0 || !asked.every(isReviewKind)) return bad("认不出这个审核类型");
+  if (asked.length === 0 || !asked.every(isReviewKind)) return bad(tk("认不出这个审核类型"));
   const kinds = cleanReviewKinds(asked);
   const content = typeof body.content === "string" ? body.content : "";
-  if (content.trim() === "") return bad("正文是空的，没什么可审的");
+  if (content.trim() === "") return bad(tk("正文是空的，没什么可审的"));
 
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json(
-      { error: "unauthorized", message: "请先登录再用 AI 审核" },
+      { error: "unauthorized", message: tk("请先登录再用 AI 审核") },
       { status: 401 }
     );
   }
   const access = await requirePermission(session, "ai_review");
   if (!access) {
     return NextResponse.json(
-      { error: "forbidden", message: "你的账号还没开通 AI 审核，找管理员开通" },
+      { error: "forbidden", message: tk("你的账号还没开通 AI 审核，找管理员开通") },
       { status: 403 }
     );
   }
@@ -91,8 +93,11 @@ export async function POST(req: Request) {
   const model = chosen.model;
   const key = await siteAiKey(provider);
   if (!key) {
+    const locale = localeOfRequest(req);
+    // 供应商名也按语言显示（字典里没有就原样）
+    const name = translate(provider.label, locale);
     return NextResponse.json(
-      { error: "no_key", message: `还没有配置 ${provider.label} 的 Key，到管理后台的「AI 设置」里填上` },
+      { error: "no_key", message: translate("还没有配置 {provider} 的 Key，到管理后台的「AI 设置」里填上", locale, { provider: name }) },
       { status: 503 }
     );
   }
@@ -100,9 +105,9 @@ export async function POST(req: Request) {
   const slot = aiLimiter.take(userId, limit);
   if (!slot.ok) {
     return slot.reason === "busy"
-      ? NextResponse.json({ error: "busy", message: "上一次还在跑，等它出来再点" }, { status: 409 })
+      ? NextResponse.json({ error: "busy", message: tk("上一次还在跑，等它出来再点") }, { status: 409 })
       : NextResponse.json(
-          { error: "rate_limited", message: `今天的 AI 次数用完了（每天 ${limit} 次），明天再来` },
+          { error: "rate_limited", message: translate("今天的 AI 次数用完了（每天 {limit} 次），明天再来", localeOfRequest(req), { limit }) },
           { status: 429 }
         );
   }
@@ -134,7 +139,7 @@ export async function POST(req: Request) {
           console.error(`AI 审核失败（${kind}）`, e);
           if (kinds.length === 1) throw e;
           // 走到 Error 这一支基本就是模型没按格式回答，parseReviewResult 的那句话正好给用户看
-          return { kind, error: e instanceof Error ? e.message : "审核失败" };
+          return { kind, error: e instanceof Error ? e.message : tk("审核失败") };
         }
       })
     );
@@ -164,7 +169,7 @@ export async function POST(req: Request) {
     if (e instanceof AiError) {
       return NextResponse.json({ error: e.code, message: e.message }, { status: STATUS[e.code] ?? 502 });
     }
-    const message = e instanceof Error ? e.message : "审核失败，请稍后再试";
+    const message = e instanceof Error ? e.message : tk("审核失败，请稍后再试");
     return NextResponse.json({ error: "failed", message }, { status: 502 });
   } finally {
     release();
@@ -173,4 +178,4 @@ export async function POST(req: Request) {
 
 const bad = (message: string) => NextResponse.json({ error: "bad_input", message }, { status: 400 });
 const tooLarge = () =>
-  NextResponse.json({ error: "too_large", message: "正文太长了" }, { status: 413 });
+  NextResponse.json({ error: "too_large", message: tk("正文太长了") }, { status: 413 });

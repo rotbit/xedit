@@ -18,6 +18,8 @@ import {
 } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 import { uploadBlocked } from "@/lib/guards";
+import { tk, translate } from "@/i18n/t";
+import { localeOfRequest } from "@/i18n/server";
 
 /**
  * 浏览器直传 OSS 的两步接口：
@@ -34,16 +36,16 @@ async function requireUser() {
 
 export async function POST(req: Request) {
   const userId = await requireUser();
-  if (!userId) return NextResponse.json({ error: "请先登录再使用图床" }, { status: 401 });
+  if (!userId) return NextResponse.json({ error: tk("请先登录再使用图床") }, { status: 401 });
   if (!ossConfigured()) {
-    return NextResponse.json({ error: "服务端未配置阿里云 OSS" }, { status: 501 });
+    return NextResponse.json({ error: tk("服务端未配置阿里云 OSS") }, { status: 501 });
   }
 
   const body = await req.json().catch(() => ({}));
   const mime = typeof body?.mime === "string" ? body.mime : "";
   const size = typeof body?.size === "number" ? body.size : 0;
   const ext = MEDIA_EXT[mime];
-  if (!ext) return NextResponse.json({ error: `不支持的文件类型: ${mime}` }, { status: 415 });
+  if (!ext) return NextResponse.json({ error: translate("不支持的文件类型: {type}", localeOfRequest(req), { type: mime }) }, { status: 415 });
   if (size > maxSizeOf(mime)) {
     return NextResponse.json({ error: sizeLimitError(mime) }, { status: 413 });
   }
@@ -57,19 +59,19 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   const userId = await requireUser();
-  if (!userId) return NextResponse.json({ error: "请先登录再使用图床" }, { status: 401 });
+  if (!userId) return NextResponse.json({ error: tk("请先登录再使用图床") }, { status: 401 });
   if (!ossConfigured()) {
-    return NextResponse.json({ error: "服务端未配置阿里云 OSS" }, { status: 501 });
+    return NextResponse.json({ error: tk("服务端未配置阿里云 OSS") }, { status: 501 });
   }
 
   const body = await req.json().catch(() => ({}));
   const key = typeof body?.key === "string" ? body.key : "";
   if (!OSS_KEY_PATTERN.test(key)) {
-    return NextResponse.json({ error: "非法的对象名" }, { status: 400 });
+    return NextResponse.json({ error: tk("非法的对象名") }, { status: 400 });
   }
 
   const stat = await ossStat(key);
-  if (!stat) return NextResponse.json({ error: "文件未上传成功" }, { status: 404 });
+  if (!stat) return NextResponse.json({ error: tk("文件未上传成功") }, { status: 404 });
   // 大小按对象实际类型限额：签名时校过声明值，这里再校 OSS 里的真实值
   const mime = stat.mime || MIME_BY_EXT[key.split(".").pop() ?? ""] || "";
   if (stat.size > maxSizeOf(mime)) {

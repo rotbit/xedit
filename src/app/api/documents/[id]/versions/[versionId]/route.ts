@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { isResponse, requireOwnedDoc, requireUserId } from "@/lib/routeAuth";
 import { pruneVersions } from "@/lib/versions";
+import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ id: string; versionId: string }> };
 
@@ -18,7 +19,7 @@ export async function GET(_req: Request, { params }: Params) {
   const version = await prisma.documentVersion.findFirst({
     where: { id: versionId, documentId: id },
   });
-  if (!version) return NextResponse.json({ error: "版本不存在" }, { status: 404 });
+  if (!version) return NextResponse.json({ error: tk("版本不存在") }, { status: 404 });
   return NextResponse.json(version);
 }
 
@@ -41,7 +42,7 @@ export async function POST(_req: Request, { params }: Params) {
   const version = await prisma.documentVersion.findFirst({
     where: { id: versionId, documentId: id },
   });
-  if (!version) return NextResponse.json({ error: "版本不存在" }, { status: 404 });
+  if (!version) return NextResponse.json({ error: tk("版本不存在") }, { status: 404 });
 
   const [, updated] = await prisma.$transaction([
     prisma.documentVersion.create({
@@ -69,6 +70,6 @@ export async function DELETE(_req: Request, { params }: Params) {
   const result = await prisma.documentVersion.deleteMany({
     where: { id: versionId, documentId: id },
   });
-  if (result.count === 0) return NextResponse.json({ error: "版本不存在" }, { status: 404 });
+  if (result.count === 0) return NextResponse.json({ error: tk("版本不存在") }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { encryptSecret, decryptSecret, keyLast4 } from "@/lib/ai/crypto";
+import { tk } from "@/i18n/t";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,7 @@ async function buildView(userId: string) {
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   return NextResponse.json(await buildView(session.user.id));
 }
@@ -37,7 +38,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   const userId = session.user.id;
   const denied = await readOnlyGuard(userId);
@@ -46,7 +47,7 @@ export async function PUT(req: Request) {
   const body = await req.json().catch(() => ({}));
   const appId = typeof body.appId === "string" ? body.appId.trim().slice(0, 64) : "";
   if (!appId) {
-    return NextResponse.json({ error: "App ID 不能为空" }, { status: 400 });
+    return NextResponse.json({ error: tk("App ID 不能为空") }, { status: 400 });
   }
 
   const existing = await prisma.feishuConnection.findUnique({ where: { userId } });
@@ -83,7 +84,7 @@ export async function PUT(req: Request) {
 export async function DELETE() {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   // 清 token 也是写操作，只读封禁一样要拦（与 PUT 同一条守卫）
   const denied = await readOnlyGuard(session.user.id);

@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
+import { tk } from "@/i18n/t";
 
 /**
  * 分类批量操作（支持「父/子」多级路径，重命名/删除会级联到子分类）：
@@ -13,7 +14,7 @@ import { UNCATEGORIZED } from "@/lib/docDefaults";
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   const userId = session.user.id;
   const denied = await readOnlyGuard(userId);
@@ -25,10 +26,10 @@ export async function POST(req: Request) {
   const to: string = typeof body?.to === "string" ? body.to.trim().slice(0, 100) : "";
 
   if (action !== "rename" && action !== "remove") {
-    return NextResponse.json({ error: "不支持的操作" }, { status: 400 });
+    return NextResponse.json({ error: tk("不支持的操作") }, { status: 400 });
   }
   if (!from || (action === "rename" && !to)) {
-    return NextResponse.json({ error: "参数缺失" }, { status: 400 });
+    return NextResponse.json({ error: tk("参数缺失") }, { status: 400 });
   }
 
   // 命中该路径及其子孙的文章

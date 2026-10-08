@@ -35,14 +35,16 @@ import { useReview } from "@/features/review/useReview";
 import { REVIEW_MIN_WIDTH, useReviewLayout } from "@/features/review/useReviewLayout";
 import { ReviewToolbar } from "@/features/review/ReviewToolbar";
 import { ReviewCards, ReviewPopover } from "@/features/review/ReviewCards";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 
 const SAVE_LABEL: Record<string, string> = {
-  local: "已存本地",
-  saving: "保存中…",
-  saved: "已保存",
-  pending: "已存本地，联网后同步",
-  error: "保存失败",
-  "local-error": "本地保存失败",
+  local: tk("已存本地"),
+  saving: tk("保存中…"),
+  saved: tk("已保存"),
+  pending: tk("已存本地，联网后同步"),
+  error: tk("保存失败"),
+  "local-error": tk("本地保存失败"),
 };
 
 /**
@@ -77,6 +79,7 @@ export function ArticleReader({
 }) {
   // 装载 + 自动保存复用编辑页管线（本地/云端文档皆可）
   const { docVersion, loading, loggedIn, reload, refreshedHint } = useEditorDoc(docId);
+  const t = useT();
 
   const title = useStore((s) => s.title);
   const content = useStore((s) => s.content);
@@ -243,12 +246,12 @@ export function ArticleReader({
     if (c === (category || UNCATEGORIZED)) return;
     setCategory(c);
     onCategoryChange?.(c);
-    toast(`已移动到「${c}」`, "success");
+    toast(t("已移动到「{name}」", { name: c === UNCATEGORIZED ? t(c) : c }), "success");
   };
 
   const moveToNewCategory = async () => {
     const name = (
-      await askInput({ title: "新建分类并移入", placeholder: "分类名称，可用 / 建子分类" })
+      await askInput({ title: t("新建分类并移入"), placeholder: t("分类名称，可用 / 建子分类") })
     )?.trim();
     if (!name) return;
     moveToCategory(name.slice(0, 100));
@@ -257,10 +260,10 @@ export function ArticleReader({
   /** 分类几百个且层级深，弹带搜索的选择器（与文章列表右键菜单同款） */
   const pickCategory = async () => {
     const target = await askCategoryPick({
-      title: "移动到分类",
+      title: t("移动到分类"),
       categories: categories ?? [],
       current: category || UNCATEGORIZED,
-      createOption: "新建分类并移入…",
+      createOption: t("新建分类并移入…"),
     });
     if (target === CREATE_CATEGORY) return void moveToNewCategory();
     if (target) moveToCategory(target);
@@ -270,11 +273,11 @@ export function ArticleReader({
       下面这几个回调都裹 useCallback：ReaderActions 已 memo，回调引用一变 memo 就白做了 */
   const openShare = useCallback(() => {
     if (!loggedIn || isLocalId(docId)) {
-      toast("登录后才能分享文章", "error");
+      toast(t("登录后才能分享文章"), "error");
       return;
     }
     setShareOpen(true);
-  }, [loggedIn, docId]);
+  }, [loggedIn, docId, t]);
   const openOutline = useCallback(() => setOutlineOpen(true), []);
   const closeOutline = useCallback(() => setOutlineOpen(false), []);
   const openVersions = useCallback(() => setVersionsOpen(true), []);
@@ -300,7 +303,7 @@ export function ArticleReader({
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-[13px] text-[var(--ink-faint)]">
-        <Loader2 size={16} className="animate-spin" /> 加载中…
+        <Loader2 size={16} className="animate-spin" /> {t("加载中…")}
       </div>
     );
   }
@@ -395,8 +398,8 @@ export function ArticleReader({
               {!outlineOpen ? (
                 <button
                   type="button"
-                  title="目录"
-                  aria-label="展开目录"
+                  title={t("目录")}
+                  aria-label={t("展开目录")}
                   onClick={openOutline}
                   className={`absolute left-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${
                     reviewOn ? "top-[74px]" : "top-[38px]"
@@ -421,7 +424,7 @@ export function ArticleReader({
                     <input
                       className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
                       value={title}
-                      placeholder={UNTITLED_DOC}
+                      placeholder={t(UNTITLED_DOC)}
                       onChange={(e) => setTitle(e.target.value)}
                       onFocus={() => {
                         // 先记原样再清占位：清空后的 "" 不该被当成「改名前叫这个」
@@ -439,14 +442,14 @@ export function ArticleReader({
                           平时不带底色，和同行的保存状态、字数一种质感，悬停才浮出浅底提示可点 */}
                       <button
                         className="-ml-1 flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-                        title={`${category || UNCATEGORIZED}\n点击移动到分类`}
+                        title={`${t(category || UNCATEGORIZED)}\n${t("点击移动到分类")}`}
                         onClick={() => void pickCategory()}
                       >
                         <Folder size={12} className="shrink-0" />
                         <span className="truncate">
-                          {(category || UNCATEGORIZED).includes("/")
-                            ? `…/${(category || UNCATEGORIZED).split("/").pop()}`
-                            : category || UNCATEGORIZED}
+                          {category.includes("/")
+                            ? `…/${category.split("/").pop()}`
+                            : t(category || UNCATEGORIZED)}
                         </span>
                         <ChevronDown size={12} className="shrink-0 opacity-60" />
                       </button>
@@ -455,17 +458,17 @@ export function ArticleReader({
                       {refreshedHint ? (
                         <span className="sync-hint flex items-center gap-1 text-[var(--accent)]">
                           <RefreshCw size={12} />
-                          已更新到最新版本
+                          {t("已更新到最新版本")}
                         </span>
                       ) : (
-                        <span>{SAVE_LABEL[saveState] ?? saveState}</span>
+                        <span>{SAVE_LABEL[saveState] ? t(SAVE_LABEL[saveState]) : saveState}</span>
                       )}
                       <span>·</span>
-                      <span>{chars} 字</span>
+                      <span>{t("{n} 字", { n: chars, abs: chars })}</span>
                       {chars > 0 ? (
                         <>
                           <span>·</span>
-                          <span>约 {Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE))} 分钟读完</span>
+                          <span>{t("约 {n} 分钟读完", { n: Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE)) })}</span>
                         </>
                       ) : null}
                       <span>·</span>
@@ -518,7 +521,7 @@ export function ArticleReader({
             <div
               className="group relative z-10 w-[5px] shrink-0 cursor-col-resize border-l border-[var(--hairline-soft)] bg-[var(--panel)] hover:bg-[var(--accent-wash)]"
               onPointerDown={splitDrag.onPointerDown}
-              title="拖动调整源码/预览宽度"
+              title={t("拖动调整源码/预览宽度")}
             >
               <span className="absolute left-1/2 top-1/2 h-8 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--hairline-strong)] group-hover:bg-[var(--accent)]" />
             </div>

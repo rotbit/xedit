@@ -9,9 +9,10 @@
  */
 import type { ReviewRecordMeta, ReviewResult } from "./types";
 import { readAiConfig, type AiConfig } from "./aiConfig";
+import { t, tk } from "@/i18n/t";
 
 const REVIEW_API = "/api/ai/review";
-const OFFLINE = "现在连不上服务器，稍后再试";
+const OFFLINE = tk("现在连不上服务器，稍后再试");
 
 /** 带服务端错误码的失败，界面据此分流（no_key 说明后台还没配好） */
 export class AiReviewError extends Error {
@@ -72,10 +73,10 @@ export async function requestAiReview(
   if (!res.ok) {
     const message = typeof data?.message === "string" ? data.message : "";
     const code = typeof data?.error === "string" ? data.error : "failed";
-    throw new AiReviewError(message || `审核失败（${res.status}）`, code);
+    throw new AiReviewError(message || t("审核失败（{status}）", { status: res.status }), code);
   }
   if (!data || !Array.isArray(data.items) || !Array.isArray(data.categories)) {
-    throw new AiReviewError("服务返回的结果看不懂，请再试一次", "failed");
+    throw new AiReviewError(tk("服务返回的结果看不懂，请再试一次"), "failed");
   }
   return {
     result: {

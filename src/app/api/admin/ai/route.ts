@@ -13,6 +13,7 @@ import {
   setReviewGuide,
   setReviewModel,
 } from "@/lib/ai/siteSettings";
+import { tk } from "@/i18n/t";
 
 /**
  * 管理后台的「AI 设置」：全站 AI 审核用哪个模型、各家上游的 token、各类审核的提示词。
@@ -24,7 +25,7 @@ import {
 async function guard() {
   return adminSessionUserId(await auth());
 }
-const forbidden = () => NextResponse.json({ error: "无权访问" }, { status: 403 });
+const forbidden = () => NextResponse.json({ error: tk("无权访问") }, { status: 403 });
 
 async function snapshot() {
   const [review, keys, guides] = await Promise.all([
@@ -69,7 +70,7 @@ export async function PUT(req: Request) {
     if (body.keys && typeof body.keys === "object") {
       for (const [slot, value] of Object.entries(body.keys as Record<string, unknown>)) {
         if (!AI_KEY_SLOTS.includes(slot) || typeof value !== "string") {
-          return NextResponse.json({ error: "认不出这个 key 槽位" }, { status: 400 });
+          return NextResponse.json({ error: tk("认不出这个 key 槽位") }, { status: 400 });
         }
         await setAiKey(slot, value);
       }
@@ -77,14 +78,14 @@ export async function PUT(req: Request) {
     if (body.prompts && typeof body.prompts === "object") {
       for (const [kind, text] of Object.entries(body.prompts as Record<string, unknown>)) {
         if (typeof text !== "string") {
-          return NextResponse.json({ error: "提示词得是一段文字" }, { status: 400 });
+          return NextResponse.json({ error: tk("提示词得是一段文字") }, { status: 400 });
         }
         await setReviewGuide(kind, text);
       }
     }
     if (body.provider !== undefined) {
       const provider = aiProvider(body.provider);
-      if (!provider) return NextResponse.json({ error: "认不出这个 AI 供应商" }, { status: 400 });
+      if (!provider) return NextResponse.json({ error: tk("认不出这个 AI 供应商") }, { status: 400 });
       await setReviewModel(provider, body.model);
     }
   } catch (e) {
@@ -93,7 +94,7 @@ export async function PUT(req: Request) {
     }
     // 库的报错里可能带着整条写入语句，只报个名字进日志，不往浏览器吐
     console.error("保存 AI 设置失败", e instanceof Error ? e.name : "unknown");
-    return NextResponse.json({ error: "保存失败，稍后再试" }, { status: 500 });
+    return NextResponse.json({ error: tk("保存失败，稍后再试") }, { status: 500 });
   }
   return NextResponse.json(await snapshot());
 }

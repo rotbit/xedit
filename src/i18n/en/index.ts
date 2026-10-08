@@ -5,8 +5,12 @@
 import { common } from "./common";
 import { editor } from "./editor";
 import { workspace } from "./workspace";
+import { api } from "./api";
+import { components } from "./components";
+import { lib } from "./lib";
+import { review } from "./review";
 
-const namespaces: Record<string, Record<string, string>> = { common, workspace, editor };
+const namespaces: Record<string, Record<string, string>> = { common, workspace, editor, api, components, lib, review };
 
 function merge(): Record<string, string> {
   const out: Record<string, string> = {};

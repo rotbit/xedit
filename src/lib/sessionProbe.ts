@@ -15,6 +15,7 @@
 import { getSession } from "next-auth/react";
 import { toast } from "@/components/Toast";
 import { clearAuthSnapshot, readAuthSnapshot } from "./authSnapshot";
+import { t } from "@/i18n/t";
 
 export type ProbeState =
   /** 还没有结论（首探未回，或探到服务器不可达）：乐观当作仍然登录 */
@@ -169,7 +170,7 @@ async function probe(): Promise<void> {
     clearTimer();
     clearAuthSnapshot();
     setState("signed-out");
-    toast("登录已过期，请重新登录", "info");
+    toast(t("登录已过期，请重新登录"), "info");
   } catch {
     // 超时被 abort、网络层失败、响应不是 JSON：服务器够不着
     if (gen !== generation) return;
