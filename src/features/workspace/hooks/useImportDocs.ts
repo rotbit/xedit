@@ -227,7 +227,8 @@ export function useImportDocs({ auth, library, nav }: Params) {
     // 未登录（本地模式）与登录但离线，都先落本地：后者的改动由同步引擎联网后自动上云
     const offline = localMode || !online;
     const relist = localMode ? listLocalDocs : mergedCloudList;
-    const base: DocMeta[] = offline ? relist() : (library.docs ?? mergedCloudList());
+    // 去重看全库（含隐藏的待办清单那篇），不用侧栏可见列表
+    const base: DocMeta[] = offline ? relist() : (library.allDocs ?? mergedCloudList());
     const index = new Map<string, string>();
     for (const doc of base) {
       const k = idxKey(doc.category, doc.title);

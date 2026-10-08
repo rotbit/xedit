@@ -110,8 +110,11 @@ export async function deleteTask(item: TodoItem): Promise<void> {
   await writeDocContent(item.docId, next);
 }
 
-/** 建稿函数由界面层提供（要走本地 / 云端两条建稿路径，且不跳转打开），返回新文章 id */
-export type CreateDocQuietly = (title: string, content: string) => Promise<string>;
+/**
+ * 建稿函数由界面层提供（要走本地 / 云端两条建稿路径，且不跳转打开），返回新文章 id。
+ * opts.log 为 false 时不记「新建」到当日记录（建待办清单那篇这种用户看不见的实现细节）
+ */
+export type CreateDocQuietly = (title: string, content: string, opts?: { log?: boolean }) => Promise<string>;
 
 /**
  * 新建一篇文章，正文就是这一条待办；返回新文章 id，空文字不建。
@@ -127,11 +130,15 @@ export async function createDocWithTask(
   return createDoc(title, body);
 }
 
-/** 快速输入的默认目标：往待办清单那篇追加一行；还没有这篇就建一篇 */
+/**
+ * 快速输入的默认目标（独立待办）：往待办清单那篇追加一行；还没有这篇就建一篇。
+ * docs 要传全库：清单那篇不在侧栏可见列表里，传可见列表会每次都误建一篇。
+ */
 export async function addNoteTask(text: string, docs: DocMeta[], createDoc: CreateDocQuietly): Promise<void> {
   const body = appendTask("", text);
   if (!body) return;
   const notes = findNotesDoc(docs);
   if (notes) return addTaskToDoc(notes.id, text);
-  await createDoc(NOTES_TITLE, `---\ntype: todo\n---\n\n${body}`);
+  // 清单那篇对用户隐形，建它不算「新建了一篇文章」
+  await createDoc(NOTES_TITLE, `---\ntype: todo\n---\n\n${body}`, { log: false });
 }

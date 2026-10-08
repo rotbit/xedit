@@ -4,7 +4,7 @@
  * 「今天」页：日期标题 + 左「要做」右「做了」。
  * 数据全在客户端：待办从文库正文现算（collectTodos 自带缓存），记录读当日本地日志。
  * 不用 useMemo：算的东西都有缓存或只是读一个 localStorage 键，
- * 而触发重算的除了 docs 还有两个全局事件，挂在 memo 依赖里反而绕。
+ * 而触发重算的除了文库还有两个全局事件，挂在 memo 依赖里反而绕。
  */
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toast";
@@ -54,7 +54,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const t = useT();
   // 日期格式化显式传 context 里的语言：服务端渲染时模块变量是各请求共享的，不可靠
   const locale = useLocale();
-  const docs = library.docs;
+  // 待办汇总与写回看全库（含隐藏的待办清单那篇）；选择器的候选池只给用户看得见的文章
+  const { docs, allDocs } = library;
   const today = useTodaySignals();
   const [dayKey, setDayKey] = useState(today);
   // 跨过零点时，原本停在「今天」的人应该跟着到新的一天，而不是被留在「昨天」
@@ -72,7 +73,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const events = readDayEvents(dayKey);
   // 月统计跟着所看的那天走（看 9 月某天就是 9 月）；同上，每次渲染现算
   const stats = monthStats(monthOf(dayKey), today);
-  const buckets = isToday ? bucketTodos(collectTodos(docs ?? [], today), today) : null;
+  const buckets = isToday ? bucketTodos(collectTodos(allDocs ?? [], today), today) : null;
 
   /** 写回失败（存储写满）只提示不抛：勾选框由调用方据返回值回滚 */
   const toggle = async (item: TodoItem, checked: boolean): Promise<boolean> => {
@@ -87,7 +88,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   const add = async (text: string, target: AddTarget): Promise<boolean> => {
     try {
-      if (target.kind === "notes") await addNoteTask(text, docs ?? [], docActions.createDocQuietly);
+      if (target.kind === "notes") await addNoteTask(text, allDocs ?? [], docActions.createDocQuietly);
       else if (target.kind === "doc") await addTaskToDoc(target.id, text);
       else await createDocWithTask(target.title, text, docActions.createDocQuietly);
       return true;
@@ -137,7 +138,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
             <TodoColumn
               buckets={buckets}
               today={today}
-              docs={docs}
+              docs={docs ?? []}
+              ready={allDocs !== null}
               onToggle={toggle}
               onAdd={add}
               onRemove={remove}
