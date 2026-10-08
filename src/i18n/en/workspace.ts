@@ -78,6 +78,16 @@ export const workspace: Record<string, string> = {
   "保存失败：浏览器存储空间不足": "Couldn't save: browser storage is full",
   "没记上：存储空间不足或网络异常，稍后再试": "Couldn't add: storage is full or the network is down. Try again later",
   "删除失败：浏览器存储空间不足": "Couldn't delete: browser storage is full",
+  // 今天页「本月」统计
+  本月: "This Month",
+  完成待办: "To-dos completed",
+  新写字数: "Characters written",
+  新建的文章: "Articles created",
+  写作天数: "Active days",
+  "{n} 件": "{n} {abs, to-do, to-dos}",
+  "{n} 篇": "{n} {abs, article, articles}",
+  "{n} 天": "{n} {abs, day, days}",
+  "{date} · {chars} 字 · 完成 {n} 件": "{date} · {chars} {abs, char, chars} · {n} {n, to-do, to-dos} done",
 
   // 工作台外壳（Home）
   "浏览器本地存储不可用，无法离线写作，请登录后使用": "Browser storage is unavailable, so offline writing won't work. Please sign in",
@@ -124,7 +134,7 @@ export const workspace: Record<string, string> = {
 
   // 命令面板
   "用「{name}」新建": "New from “{name}”",
-  文章: "Article",
+  文章: "Articles",
   导航: "Navigate",
   快速切换文章: "Quick Switch Article",
   回到全部文章: "Go to All Articles",
