@@ -6,6 +6,9 @@
  * 过去某天换成 DoneColumn：列出那天在今天页勾掉的事。
  */
 import { useState } from "react";
+import type { Locale } from "@/i18n/locale";
+import type { TFn } from "@/i18n/t";
+import { useLocale, useT } from "@/i18n/useT";
 import { formatDue } from "@/lib/todos/dates";
 import type { TodoBuckets, TodoItem } from "@/lib/todos/collect";
 import type { DayEvent } from "@/lib/todos/events";
@@ -13,17 +16,17 @@ import type { DocMeta } from "../../types";
 import { ColumnHead, EmptyLine, RemoveButton, TodoBox } from "./parts";
 import { QuickAdd, type AddTarget } from "./QuickAdd";
 
-function secondaryOf(item: TodoItem): string | null {
-  if (item.source === "doc") return `文章里的待办 · 《${item.docTitle}》`;
-  if (item.source === "publish") return "已排期";
+function secondaryOf(item: TodoItem, t: TFn): string | null {
+  if (item.source === "doc") return t("文章里的待办 · 《{title}》", { title: item.docTitle });
+  if (item.source === "publish") return t("已排期");
   return null; // 待办清单里的就是「自己记的事」，不必再注明出处
 }
 
 /** 右侧日期列：今天到期的不标（整页都是今天，再写一遍「今天」是噪音） */
-function dueLabel(item: TodoItem, today: string): { text: string; late: boolean } | null {
+function dueLabel(item: TodoItem, today: string, t: TFn, locale: Locale): { text: string; late: boolean } | null {
   if (!item.due || item.due === today) return null;
-  const text = formatDue(item.due, today);
-  return item.due < today ? { text: `${text} 逾期`, late: true } : { text, late: false };
+  const date = formatDue(item.due, today, locale);
+  return item.due < today ? { text: t("{date} 逾期", { date }), late: true } : { text: date, late: false };
 }
 
 function TodoRow({
@@ -42,11 +45,13 @@ function TodoRow({
   /** 不给就没有删除按钮（发布排期不是正文里的一行，没东西可删） */
   onRemove: (() => void) | undefined;
 }) {
-  const due = done ? null : dueLabel(item, today);
-  const sub = secondaryOf(item);
+  const t = useT();
+  const locale = useLocale();
+  const due = done ? null : dueLabel(item, today, t, locale);
+  const sub = secondaryOf(item, t);
   return (
     <div className="group flex items-start gap-2.5 px-0.5 py-2">
-      <TodoBox done={done} onClick={onToggle} label={done ? "取消完成" : "标记完成"} />
+      <TodoBox done={done} onClick={onToggle} label={done ? t("取消完成") : t("标记完成")} />
       <div className="min-w-0 flex-1">
         {/* 点文字去看出处：待办常常要回到文章里才知道具体怎么做 */}
         <button
@@ -69,7 +74,7 @@ function TodoRow({
           {due.text}
         </span>
       ) : null}
-      {onRemove ? <RemoveButton label="删除这条待办" onClick={onRemove} /> : null}
+      {onRemove ? <RemoveButton label={t("删除这条待办")} onClick={onRemove} /> : null}
     </div>
   );
 }
@@ -99,6 +104,7 @@ export function TodoColumn({
   const [justDone, setJustDone] = useState<Map<string, TodoItem>>(() => new Map());
   /** 点了删除的：先从界面拿掉，写回失败再放回来 */
   const [removed, setRemoved] = useState<Map<string, TodoItem>>(() => new Map());
+  const t = useT();
 
   /**
    * key 里带行号，删掉一行后同一篇下面的待办行号全会前移，旧 key 会落到别的条目头上；
@@ -145,10 +151,10 @@ export function TodoColumn({
 
   return (
     <div className="min-w-0">
-      <ColumnHead title="要做" />
+      <ColumnHead title={t("要做")} />
       <QuickAdd disabled={docs === null} docs={docs ?? []} onSubmit={onAdd} />
       {rows.length === 0 ? (
-        <EmptyLine>今天没有要做的事</EmptyLine>
+        <EmptyLine>{t("今天没有要做的事")}</EmptyLine>
       ) : (
         <div className="divide-y divide-[var(--hairline-soft)]">
           {rows.map((item) => {
@@ -177,11 +183,12 @@ export function TodoColumn({
 /** 过去 / 将来某天的左栏：那天在今天页勾掉的事；不能取消勾选，但可以把记录删掉 */
 export function DoneColumn({ events, onRemove }: { events: DayEvent[]; onRemove: (e: DayEvent) => void }) {
   const tasks = events.filter((e) => e.kind === "task").sort((a, b) => a.ts - b.ts);
+  const t = useT();
   return (
     <div className="min-w-0">
-      <ColumnHead title="那天完成" />
+      <ColumnHead title={t("那天完成")} />
       {tasks.length === 0 ? (
-        <EmptyLine>那天没有完成记录</EmptyLine>
+        <EmptyLine>{t("那天没有完成记录")}</EmptyLine>
       ) : (
         <div className="divide-y divide-[var(--hairline-soft)]">
           {tasks.map((e, i) => (
@@ -190,7 +197,7 @@ export function DoneColumn({ events, onRemove }: { events: DayEvent[]; onRemove:
               <div className="min-w-0 flex-1 text-[14.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
                 {e.text}
               </div>
-              <RemoveButton label="删除这条记录" onClick={() => onRemove(e)} />
+              <RemoveButton label={t("删除这条记录")} onClick={() => onRemove(e)} />
             </div>
           ))}
         </div>

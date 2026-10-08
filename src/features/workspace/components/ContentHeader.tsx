@@ -5,6 +5,8 @@
  * 桌面壳里这条同时充当系统窗口标题栏（app-titlebar），高度和左侧留白牵扯到红绿灯位置，改动前先看下面的说明。
  */
 import { ChevronRight, CalendarDays, List, PanelLeftOpen, Trash2, X } from "lucide-react";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { ALL, ASSETS, TODAY } from "../constants";
 import { NewDocButton } from "./NewDocButton";
@@ -17,21 +19,23 @@ const crumbCls =
 const crumbNow = "truncate px-1.5 py-0.5 text-[13px] font-medium text-[var(--ink)]";
 const sep = <ChevronRight size={12} className="shrink-0 text-[var(--ink-faint)]" />;
 
+// 顶层只存 key（tk 标记），渲染时才 t()：模块加载时就翻译的话，切换语言后这里不会跟着变
 const VIEW_MODES: [DocView, typeof CalendarDays, string][] = [
-  ["card", CalendarDays, "时间流"],
-  ["list", List, "列表视图"],
+  ["card", CalendarDays, tk("时间流")],
+  ["list", List, tk("列表视图")],
 ];
 
 /** 面包屑：阅读态显示「全部文章 / 分类 / 标题」，列表态显示当前分类路径 */
 function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | null }) {
   const { nav } = ws;
   const { activeCat, readingId, isTrash, openCategory, setReadingId } = nav;
+  const t = useT();
 
   if (readingDoc) {
     return (
       <>
         <button className={crumbCls} onClick={() => openCategory(ALL)}>
-          全部文章
+          {t("全部文章")}
         </button>
         {readingDoc.category ? (
           <>
@@ -42,11 +46,11 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
           </>
         ) : null}
         {sep}
-        <span className={crumbNow}>{readingDoc.title || UNTITLED_DOC}</span>
+        <span className={crumbNow}>{readingDoc.title || t(UNTITLED_DOC)}</span>
         {/* 关闭文章：回到打开前所在的目录列表 */}
         <button
           className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-          title="关闭文章"
+          title={t("关闭文章")}
           onClick={() => setReadingId(null)}
         >
           <X size={14} />
@@ -54,18 +58,18 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
       </>
     );
   }
-  if (activeCat === ASSETS) return <span className={crumbNow}>图片库</span>;
-  if (activeCat === TODAY) return <span className={crumbNow}>今天</span>;
-  if (isTrash) return <span className={crumbNow}>回收站</span>;
+  if (activeCat === ASSETS) return <span className={crumbNow}>{t("图片库")}</span>;
+  if (activeCat === TODAY) return <span className={crumbNow}>{t("今天")}</span>;
+  if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
-  if (activeCat === ALL || readingId) return <span className={crumbNow}>全部文章</span>;
+  if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("全部文章")}</span>;
 
   // 分类路径按 / 拆成层级，除最后一层外都可点，点中间层就跳到那一层的列表
   const parts = activeCat.split("/");
   return (
     <>
       <button className={crumbCls} onClick={() => openCategory(ALL)}>
-        全部文章
+        {t("全部文章")}
       </button>
       {parts.map((p, i) => {
         const path = parts.slice(0, i + 1).join("/");
@@ -101,6 +105,7 @@ export function ContentHeader({
   onActionSlotRef: (el: HTMLDivElement | null) => void;
 }) {
   const { nav, prefs, docActions, auth, vault, library } = ws;
+  const t = useT();
   // 图片库、今天都不是文章列表：没有视图切换，也不在这里新建
   const inList = !nav.readingId && nav.activeCat !== ASSETS && nav.activeCat !== TODAY;
   // 清空回收站只对磁盘文库开放：云端回收站有 30 天自动清理，逐篇彻底删除就够了
@@ -120,14 +125,14 @@ export function ContentHeader({
           {/* 窄屏：抽屉式打开，不改动桌面记忆的折叠状态 */}
           <button
             className="mr-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] md:hidden"
-            title="打开侧栏"
+            title={t("打开侧栏")}
             onClick={() => prefs.setSidebarOpen(true)}
           >
             <PanelLeftOpen size={16} />
           </button>
           <button
             className="mr-1 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] md:flex"
-            title="展开侧栏"
+            title={t("展开侧栏")}
             onClick={prefs.toggleSidebar}
           >
             <PanelLeftOpen size={16} />
@@ -149,7 +154,7 @@ export function ContentHeader({
                     ? "bg-[var(--accent-wash)] text-[var(--accent)]"
                     : "text-[var(--ink-faint)] hover:text-[var(--ink)]"
                 }`}
-                title={label}
+                title={t(label)}
                 onClick={() => prefs.switchDocView(mode)}
               >
                 <Icon size={14} />
@@ -168,7 +173,7 @@ export function ContentHeader({
           disabled={!library.trashDocs?.length}
         >
           <Trash2 size={14} />
-          清空回收站
+          {t("清空回收站")}
         </button>
       ) : null}
 

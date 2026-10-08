@@ -5,6 +5,7 @@ import { CalendarCheck, Files, PanelLeftClose, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { useDragDivider } from "@/hooks/useDragDivider";
+import { useT } from "@/i18n/useT";
 import { actionableCount, bucketTodos, collectTodos } from "@/lib/todos/collect";
 import { todayKey } from "@/lib/todos/dates";
 import { ALL, TODAY, countCls, rowCls } from "../constants";
@@ -57,6 +58,7 @@ function NavRow({
 export function Sidebar({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, menus } = ws;
   const { docs } = library;
+  const t = useT();
   const allActive = nav.activeCat === ALL && !nav.readingId;
   const todayActive = nav.activeCat === TODAY && !nav.readingId;
   /** 「今天」右侧的数：逾期 + 今天到期 + 清单里没定日期的。
@@ -87,15 +89,15 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         <Link
           href="/about"
           className="sidebar-logo shrink-0 rounded-md transition-opacity hover:opacity-75"
-          title="产品介绍"
-          aria-label="查看 xEdit 产品介绍"
+          title={t("产品介绍")}
+          aria-label={t("查看 xEdit 产品介绍")}
         >
           <LogoMark className="h-7 w-auto text-[var(--ink)]" />
         </Link>
         <span className="flex-1" />
         <button
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]"
-          title="收起侧栏"
+          title={t("收起侧栏")}
           onClick={prefs.toggleSidebar}
         >
           <PanelLeftClose size={16} />
@@ -110,7 +112,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
           />
           <input
             className="h-8 w-full rounded-md border border-[var(--hairline)] bg-[var(--panel)] pl-8 pr-9 text-[12.5px] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--hairline-strong)]"
-            placeholder={nav.isTrash ? "搜索回收站…" : "搜索文章…"}
+            placeholder={nav.isTrash ? t("搜索回收站…") : t("搜索文章…")}
             value={nav.search}
             onChange={(e) => nav.onSearch(e.target.value)}
           />
@@ -128,14 +130,14 @@ export function Sidebar({ ws }: { ws: Workspace }) {
       <div className="mt-1 shrink-0 px-2">
         <NavRow
           icon={<CalendarCheck size={14} />}
-          label="今天"
+          label={t("今天")}
           active={todayActive}
           count={todoCount}
           onClick={() => nav.openCategory(TODAY)}
         />
         <NavRow
           icon={<Files size={14} />}
-          label="全部文章"
+          label={t("全部文章")}
           active={allActive}
           disabled={docs === null}
           onClick={() => nav.openCategory(ALL)}
@@ -149,7 +151,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
       {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}
       <div
         className="absolute inset-y-0 -right-px z-10 hidden w-[5px] cursor-col-resize hover:bg-[var(--accent)]/25 active:bg-[var(--accent)]/40 md:block"
-        title="拖动调整侧栏宽度，双击恢复默认"
+        title={t("拖动调整侧栏宽度，双击恢复默认")}
         onPointerDown={resize.onPointerDown}
         onDoubleClick={prefs.resetSidebarWidth}
       />

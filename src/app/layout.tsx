@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { cookies, headers } from "next/headers";
 import "./globals.css";
 import { auth } from "@/auth";
 import { Providers } from "@/components/Providers";
+import { detectLocale, htmlLang, LANG_COOKIE } from "@/i18n/locale";
 import {
   OG_IMAGE,
   SITE_DESCRIPTION,
@@ -78,13 +80,16 @@ export default async function RootLayout({
   // 服务端解好会话随 HTML 下发：SessionProvider 免掉客户端首帧的 /api/auth/session
   // 往返，login 态相关的数据请求（文档镜像、设置等）不再被它卡 ~1s
   const session = await auth();
+  // 界面语言：cookie 优先，首访按 Accept-Language。布局本来就因 auth() 是动态渲染，读请求头不多付代价
+  const [cookieStore, headerList] = await Promise.all([cookies(), headers()]);
+  const locale = detectLocale(cookieStore.get(LANG_COOKIE)?.value, headerList.get("accept-language"));
   return (
-    <html lang="zh-CN" className="h-full" suppressHydrationWarning>
+    <html lang={htmlLang(locale)} className="h-full" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="h-full overflow-hidden">
-        <Providers session={session}>{children}</Providers>
+        <Providers session={session} locale={locale}>{children}</Providers>
       </body>
     </html>
   );
