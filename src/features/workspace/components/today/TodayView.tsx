@@ -13,11 +13,9 @@ import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { bucketTodos, collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, relativeDayLabel, shiftDay, todayKey } from "@/lib/todos/dates";
 import { DAY_LOG_CHANGED_EVENT, readDayEvents, removeDayEvent, type DayEvent } from "@/lib/todos/events";
-import { monthOf, monthStats } from "@/lib/todos/stats";
 import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, setTaskChecked } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
 import { DayLog } from "./DayLog";
-import { MonthStats } from "./MonthStats";
 import type { AddTarget } from "./QuickAdd";
 import { DoneColumn, TodoColumn } from "./TodoColumn";
 
@@ -71,8 +69,6 @@ export function TodayView({ ws }: { ws: Workspace }) {
   // relativeDayLabel 只给语言无关的标识，叫法在这里翻译
   const subtitle = rel === "yesterday" ? t("昨天") : rel === "tomorrow" ? t("明天") : title.sub;
   const events = readDayEvents(dayKey);
-  // 月统计跟着所看的那天走（看 9 月某天就是 9 月）；同上，每次渲染现算
-  const stats = monthStats(monthOf(dayKey), today);
   const buckets = isToday ? bucketTodos(collectTodos(allDocs ?? [], today), today) : null;
 
   /** 写回失败（存储写满）只提示不抛：勾选框由调用方据返回值回滚 */
@@ -150,8 +146,6 @@ export function TodayView({ ws }: { ws: Workspace }) {
           )}
           <DayLog events={events} isToday={isToday} onRemove={removeEvent} />
         </div>
-
-        <MonthStats stats={stats} dayKey={dayKey} today={today} onPickDay={setDayKey} />
       </div>
     </div>
   );
