@@ -48,7 +48,8 @@ export type FormatCommand =
   | "table"
   | "hr";
 
-const errText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+// 服务端/上传层的消息是中文字典 key：命中就翻，没命中原样
+const errText = (e: unknown, fallback: string) => (e instanceof Error ? t(e.message) : fallback);
 
 async function uploadMedia(file: File, notify: Notify): Promise<string | null> {
   try {

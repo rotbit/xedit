@@ -184,7 +184,7 @@ export function CoverAiTab({
   if (service === "offline") return <p className={tip}>{t("现在连不上服务器，稍后再试")}</p>;
   if (service === "unconfigured") return <p className={tip}>{t("服务端还没有配置 AI 生成封面")}</p>;
   if (service === "forbidden")
-    return <p className={tip}>{denied || t("你的账号还没开通 AI 生成封面，找管理员开通")}</p>;
+    return <p className={tip}>{denied ? t(denied) : t("你的账号还没开通 AI 生成封面，找管理员开通")}</p>;
 
   return (
     <div className="flex flex-col gap-2 px-3 pb-2 pt-2">
@@ -256,7 +256,7 @@ export function CoverAiTab({
       ) : null}
 
       {error ? (
-        <p className="text-[12px] leading-5 text-[var(--danger,#d9534f)]">{error}</p>
+        <p className="text-[12px] leading-5 text-[var(--danger,#d9534f)]">{t(error)}</p>
       ) : null}
 
       <button

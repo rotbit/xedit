@@ -188,7 +188,8 @@ async function failReason(res: Response): Promise<string> {
 
 function reasonOf(err: unknown): string {
   if (err instanceof DOMException) return t("浏览器存储空间不足");
-  if (err instanceof Error && err.message) return err.message;
+  // 服务端原因（failReason 透传的 data.error）是中文字典 key：命中就翻
+  if (err instanceof Error && err.message) return t(err.message);
   return t("导入失败");
 }
 

@@ -91,7 +91,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
         docId: doc.id,
         docTitle,
         line: -1,
-        text: `发布《${docTitle}》`,
+        text: `发布《${docTitle}》`, // i18n-ignore 会原样记进当日记录（数据）；界面在 TodoColumn 按语言重拼
         due: row.publish.due,
         checked: false,
         source: "publish",

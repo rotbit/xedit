@@ -423,7 +423,7 @@ export function ArticleReader({
                   <div className={`w-full pt-8 ${titleCls}`}>
                     <input
                       className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
-                      value={title}
+                      value={title === UNTITLED_DOC ? t(UNTITLED_DOC) : title}
                       placeholder={t(UNTITLED_DOC)}
                       onChange={(e) => setTitle(e.target.value)}
                       onFocus={() => {

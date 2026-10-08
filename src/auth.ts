@@ -53,8 +53,9 @@ if (wechatConfigured && wechatId && wechatSecret) {
 providers.push(
   Credentials({
     credentials: {
+      // i18n-ignore 只用于 NextAuth 自带登录页（产品走自定义登录界面）
       email: { label: "邮箱", type: "email" },
-      password: { label: "密码", type: "password" },
+      password: { label: "密码", type: "password" }, // i18n-ignore
     },
     authorize: async (creds) => {
       const email = typeof creds?.email === "string" ? creds.email.trim().toLowerCase() : "";

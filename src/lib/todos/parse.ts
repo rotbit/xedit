@@ -82,11 +82,11 @@ function scalar(data: Record<string, string | string[]>, ...keys: string[]): str
 export function parsePublish(md: string): { due: string | null; published: boolean } {
   const fm = parseFrontmatter(md);
   if (!fm) return { due: null, published: false };
-  const raw = scalar(fm.data, "publish", "发布");
+  const raw = scalar(fm.data, "publish", "发布"); // i18n-ignore frontmatter key
   const m = raw ? /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(raw) : null;
   const due = m ? `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}` : null;
   const flag = scalar(fm.data, "published")?.toLowerCase();
-  return { due, published: flag === "true" || flag === "yes" || flag === "是" };
+  return { due, published: flag === "true" || flag === "yes" || flag === "是" }; // i18n-ignore frontmatter 值
 }
 
 /** 「待办清单」那篇：frontmatter `type: todo` */

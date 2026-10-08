@@ -206,7 +206,7 @@ export const ReaderActions = memo(function ReaderActions({
               {/* 复制出去的排版由主题决定，编辑态看不到；在这里点一下就能换，不必先切到预览 */}
               <div className="flex items-center gap-1 px-3.5 pb-1.5 pt-0.5 text-[11px] text-[var(--ink-faint)]">
                 <Palette size={12} className="shrink-0" />
-                <span className="min-w-0 truncate">{t("排版主题：{name}", { name: themeName })}</span>
+                <span className="min-w-0 truncate">{t("排版主题：{name}", { name: t(themeName) })}</span>
                 <button
                   className="ml-auto shrink-0 cursor-pointer text-[var(--ink-soft)] underline decoration-[var(--hairline-strong)] underline-offset-2 hover:text-[var(--ink)]"
                   onClick={() => {

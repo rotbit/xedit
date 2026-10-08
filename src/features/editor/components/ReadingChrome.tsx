@@ -24,7 +24,7 @@ export function ThemeTrigger({ themeName }: { themeName: string }) {
           title={t("切换排版主题")}
         >
           <Palette size={14} className="shrink-0" />
-          <span className="truncate">{themeName}</span>
+          <span className="truncate">{t(themeName)}</span>
         </button>
       }
     >

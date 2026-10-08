@@ -147,7 +147,7 @@ function CoverPanel({
       onPick(await saveImageSrc(file));
       close();
     } catch (e) {
-      toast(e instanceof Error ? e.message : t("保存封面失败"), "error");
+      toast(e instanceof Error ? t(e.message) : t("保存封面失败"), "error");
     }
   };
 
