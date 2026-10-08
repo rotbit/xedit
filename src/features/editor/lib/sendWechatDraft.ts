@@ -115,8 +115,8 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
       reply = await post(payload);
       // 同一篇已经存过（或上次结果不确定）：再发会多出一篇草稿，必须用户自己点头
       if (reply.status === 409 && reply.data.error === "duplicate") {
-        // reply.data.message 来自本机草稿服务（中文），原样展示
-        if (!window.confirm(`${reply.data.message ?? t("这篇内容可能已有草稿。")}\n\n${t("仍要再发送一次吗？")}`)) return;
+        // reply.data.message 来自本机草稿服务（中文）：命中字典就翻，否则原样
+        if (!window.confirm(`${reply.data.message ? t(reply.data.message) : t("这篇内容可能已有草稿。")}\n\n${t("仍要再发送一次吗？")}`)) return;
         reply = await post({ ...payload, force: true });
       }
     } catch {
@@ -124,7 +124,7 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
       return;
     }
     if (reply.status !== 202 || !reply.data.jobId) {
-      toast(reply.data.message ?? t("草稿服务拒绝了请求（{status}）", { status: reply.status }), "error");
+      toast(reply.data.message ? t(reply.data.message) : t("草稿服务拒绝了请求（{status}）", { status: reply.status }), "error");
       return;
     }
 

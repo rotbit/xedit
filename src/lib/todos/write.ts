@@ -18,7 +18,7 @@ import { parseDueTag, todayKey } from "./dates";
 import { logEvent } from "./events";
 import { appendTask, markPublished, parseTaskLines, removeTaskLine, toggleTaskLine } from "./parse";
 
-export const NOTES_TITLE = "待办清单";
+export const NOTES_TITLE = "待办清单"; // i18n-ignore 存储名，显示处 t()
 
 /** 关掉阅读器后 store.docId 不会清空，只认 store 会把改动写进没人落盘的 store 里；以编辑器挂载登记为准 */
 const isOpenInEditor = (docId: string) => isDocOpenInEditor(docId) && useStore.getState().docId === docId;

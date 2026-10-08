@@ -12,7 +12,7 @@ import { useT } from "@/i18n/useT";
 
 const SOURCE_LABEL: Record<string, string> = {
   upload: tk("上传"),
-  ai: tk("AI 生成"),
+  ai: tk("由 AI 生成"), // 来源标签；「AI 生成」已被封面面板当动词用，译法不同
   mcp: "MCP",
   feishu: tk("飞书"),
 };

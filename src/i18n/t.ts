@@ -19,6 +19,7 @@ export function missingKeys(): string[] {
 // 复数段写在字典值里：`{count, article, articles}`，count 为 1 取第二段，否则第三段
 const PLURAL_RE = /\{(\w+),\s*([^,{}]*?),\s*([^,{}]*?)\}/g;
 const VAR_RE = /\{(\w+)\}/g;
+const HAS_CJK = /[\u4e00-\u9fff]/;
 
 /**
  * 插值。vars 里没有的占位符原样保留——rich() 要靠留下来的 `{doc}` 把 JSX 节点插回去。
@@ -39,7 +40,8 @@ export function translate(zh: string, locale: Locale, vars?: TVars): string {
   // hasOwn：原文恰好是 "constructor" 之类时不能摸到原型链上的属性
   const hit = Object.hasOwn(en, zh) ? en[zh] : undefined;
   if (hit === undefined) {
-    if (isDev && !missing.has(zh)) {
+    // 不含中文的多半是已经译过、又经过一层 t() 的英文或服务端原文，不算缺词
+    if (isDev && HAS_CJK.test(zh) && !missing.has(zh)) {
       missing.add(zh);
       console.warn(`[i18n] missing en: ${JSON.stringify(zh)}`);
     }

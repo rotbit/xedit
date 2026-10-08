@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
 
 export const metadata: Metadata = {
-  title: "管理后台",
+  title: "管理后台", // i18n-ignore admin 后置，页面 metadata
   robots: { index: false, follow: false },
 };
 

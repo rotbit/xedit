@@ -19,7 +19,7 @@ import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { logEvent } from "@/lib/todos/events";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
-import { t } from "@/i18n/t";
+import { t, tk } from "@/i18n/t";
 import { askInput, askConfirm } from "@/components/PromptDialog";
 import { UNCATEGORIZED, isVirtualCat } from "../constants";
 import { displayCatPath } from "../lib/catPath";
@@ -398,7 +398,7 @@ export function useDocActions({ auth, library, nav }: Params) {
         return;
       }
       if (!res.ok) {
-        toast(data.error ?? t("推送失败"), "error");
+        toast(t(data.error ?? tk("推送失败")), "error");
         return;
       }
       const extra =

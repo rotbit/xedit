@@ -60,6 +60,7 @@ export const workspace: Record<string, string> = {
   目标文章: "Target article",
   "文章里的待办 · 《{title}》": "From article · “{title}”",
   已排期: "Scheduled",
+  "发布《{title}》": "Publish “{title}”",
   "{date} 逾期": "{date} · Overdue",
   标记完成: "Mark as done",
   取消完成: "Mark as not done",

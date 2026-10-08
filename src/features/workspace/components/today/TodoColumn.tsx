@@ -61,7 +61,8 @@ function TodoRow({
           }`}
           onClick={onOpen}
         >
-          {item.text}
+          {/* 发布排期的 text 是 lib 拼好的中文（也会原样记进当日记录），显示时按语言重拼 */}
+          {item.source === "publish" ? t("发布《{title}》", { title: t(item.docTitle) }) : item.text}
         </button>
         {sub ? <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{sub}</div> : null}
       </div>

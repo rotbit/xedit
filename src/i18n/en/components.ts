@@ -336,4 +336,5 @@ export const components: Record<string, string> = {
   "退出阅读模式（⌘⇧E）": "Exit Reading Mode (⌘⇧E)",
   "退出阅读": "Exit Reading",
   "公众号效果": "WeChat Preview",
+  "由 AI 生成": "AI Generated",
 };
