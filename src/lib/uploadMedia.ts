@@ -1,6 +1,7 @@
 "use client";
 
 import { isVideoMime } from "@/lib/media";
+import { t } from "@/i18n/t";
 
 /**
  * 媒体上传：优先浏览器直传 OSS，文件不经过本服务，省一次上下行带宽、大文件更快。
@@ -80,7 +81,7 @@ async function sign(file: File): Promise<Signed | null> {
   }
   if (res.status === 501 || res.status === 404) return null;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "上传失败");
+  if (!res.ok) throw new Error(data.error ? t(data.error) : t("上传失败"));
   return data as Signed;
 }
 
@@ -103,7 +104,7 @@ async function putDirect(signed: Signed, file: File, size: ImageSize): Promise<s
     body: JSON.stringify({ key: signed.key, width: size?.width, height: size?.height }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "文件登记失败");
+  if (!res.ok) throw new Error(data.error ? t(data.error) : t("文件登记失败"));
   return data.url as string;
 }
 
@@ -116,7 +117,7 @@ async function viaProxy(file: File, size: ImageSize): Promise<string> {
   }
   const res = await fetch("/api/upload", { method: "POST", body: formData });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "上传失败");
+  if (!res.ok) throw new Error(data.error ? t(data.error) : t("上传失败"));
   return data.url as string;
 }
 
@@ -130,10 +131,10 @@ export async function uploadMediaFile(file: File): Promise<string> {
     const url = await putDirect(signed, file, size);
     if (url) return url;
     if (video) {
-      throw new Error("视频直传失败：请检查 OSS Bucket 的跨域（CORS）配置是否放行本站 PUT");
+      throw new Error(t("视频直传失败：请检查 OSS Bucket 的跨域（CORS）配置是否放行本站 PUT"));
     }
   } else if (video) {
-    throw new Error("视频上传需要 OSS 直传，服务端未配置阿里云 OSS");
+    throw new Error(t("视频上传需要 OSS 直传，服务端未配置阿里云 OSS"));
   }
   return viaProxy(file, size);
 }

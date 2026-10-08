@@ -8,6 +8,7 @@ import { useOutline } from "@/hooks/useOutline";
 import { requestOpenWikiLink } from "@/lib/wikiLink";
 import { OutlineNav } from "@/components/OutlineNav";
 import { readLocal, writeLocal } from "@/features/workspace/lib/storage";
+import { useT } from "@/i18n/useT";
 import { ReadingMeta, ReadingTitle, ThemeTrigger } from "@/features/editor/components/ReadingChrome";
 
 /** 阅读模式大纲开合的记忆位（"1" 展开 / "0" 收起，缺省当展开） */
@@ -26,6 +27,7 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
   { onScroll, variant = "split", onExit },
   ref
 ) {
+  const t = useT();
   const reading = variant === "reading";
   // [[双向链接]] 的点击：渲染结果是整段注入的 HTML，没有 React 节点可挂事件，
   // 只能在容器上做委托。点击后只派事件，找文章的活在应用层
@@ -62,13 +64,13 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
           <button
             className="-ml-1.5 flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[12px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
             onClick={onExit}
-            title="退出阅读模式（⌘⇧E）"
+            title={t("退出阅读模式（⌘⇧E）")}
           >
             <ChevronLeft size={14} />
-            退出阅读
+            {t("退出阅读")}
           </button>
         ) : (
-          <span className="text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">公众号效果</span>
+          <span className="text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">{t("公众号效果")}</span>
         )}
         {/* 右侧：主题入口常驻，阅读模式再多一段字数/时长 */}
         <span className="flex min-w-0 items-center gap-2">
@@ -80,8 +82,8 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
       {hasOutline && !outlineOpen ? (
         <button
           type="button"
-          title="展开目录"
-          aria-label="展开目录"
+          title={t("展开目录")}
+          aria-label={t("展开目录")}
           onClick={() => setOutlineVisible(true)}
           className="absolute left-1.5 top-[48px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
         >

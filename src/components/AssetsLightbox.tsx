@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
 import type { Asset, UsageDoc } from "./assets/types";
 import { copyText, formatSize, isVideo } from "./assets/utils";
+import { useT } from "@/i18n/useT";
 
 /** 图片库的大图预览层：类型见 assets/types，小工具见 assets/utils，列表本体见 assets/AssetsGallery */
 
@@ -33,6 +34,7 @@ export function AssetsLightbox({
 }) {
   // index 由上层维护，删掉一张后可能指到越界位置；取不到就整层不渲染（下面的早退）
   const asset = assets[index];
+  const t = useT();
 
   useEscape(onClose);
 
@@ -65,21 +67,21 @@ export function AssetsLightbox({
         <span className="flex-1" />
         <button
           className="cursor-pointer rounded-md px-2.5 py-1.5 text-[12px] text-white/80 hover:bg-white/15"
-          onClick={() => copyText(asset.url, "链接")}
+          onClick={() => copyText(asset.url, t("链接已复制"))}
         >
-          复制链接
+          {t("复制链接")}
         </button>
         <button
           className="cursor-pointer rounded-md px-2.5 py-1.5 text-[12px] text-white/80 hover:bg-white/15"
-          onClick={() => copyText(`![](${asset.url})`, "Markdown ")}
+          onClick={() => copyText(`![](${asset.url})`, t("Markdown 已复制"))}
         >
-          复制 Markdown
+          {t("复制 Markdown")}
         </button>
         <button
           className="cursor-pointer rounded-md px-2.5 py-1.5 text-[12px] text-red-300 hover:bg-red-500/30"
           onClick={() => onDelete(asset)}
         >
-          删除
+          {t("删除")}
         </button>
         <button
           className="cursor-pointer rounded-md p-2 text-white/80 hover:bg-white/15"
@@ -136,30 +138,30 @@ export function AssetsLightbox({
         {(() => {
           const docs = usage[asset.id];
           if (!docs) {
-            return <p className="text-center text-[12px] text-white/40">正在查询引用…</p>;
+            return <p className="text-center text-[12px] text-white/40">{t("正在查询引用…")}</p>;
           }
           if (docs.length === 0) {
-            return <p className="text-center text-[12px] text-white/40">未被任何文章引用</p>;
+            return <p className="text-center text-[12px] text-white/40">{t("未被任何文章引用")}</p>;
           }
           return (
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <span className="text-[12px] text-white/50">用于 {docs.length} 篇文章：</span>
+              <span className="text-[12px] text-white/50">{t("用于 {n} 篇文章：", { n: docs.length })}</span>
               {docs.map((d) =>
                 d.deletedAt ? (
                   <span
                     key={d.id}
                     className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/50"
-                    title="在回收站中"
+                    title={t("在回收站中")}
                   >
                     <FileText size={12} className="shrink-0" />
                     <span className="truncate">{d.title}</span>
-                    <span className="shrink-0 text-white/40">回收站</span>
+                    <span className="shrink-0 text-white/40">{t("回收站")}</span>
                   </span>
                 ) : onOpenDoc ? (
                   <button
                     key={d.id}
                     className="flex max-w-[240px] cursor-pointer items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/85 transition-colors hover:bg-white/25 hover:text-white"
-                    title={`打开「${d.title}」`}
+                    title={t("打开「{title}」", { title: d.title })}
                     onClick={() => {
                       // 先关预览再跳文章：预览层是 fixed 全屏，留着会盖住刚打开的那篇
                       onClose();
@@ -174,7 +176,7 @@ export function AssetsLightbox({
                     key={d.id}
                     href={`/?doc=${d.id}`}
                     className="flex max-w-[240px] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white/85 transition-colors hover:bg-white/25 hover:text-white"
-                    title={`打开「${d.title}」`}
+                    title={t("打开「{title}」", { title: d.title })}
                   >
                     <FileText size={12} className="shrink-0" />
                     <span className="truncate">{d.title}</span>

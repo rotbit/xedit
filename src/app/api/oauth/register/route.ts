@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request): Promise<Response> {
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
-    return oauthError("invalid_client_metadata", "请求体需为 JSON");
+    return oauthError("invalid_client_metadata", "请求体需为 JSON"); // i18n-ignore
   }
 
   const rawUris = (body as { redirect_uris?: unknown }).redirect_uris;
@@ -18,14 +18,14 @@ export async function POST(req: Request): Promise<Response> {
     ? rawUris.filter((u): u is string => typeof u === "string")
     : [];
   if (redirectUris.length === 0) {
-    return oauthError("invalid_redirect_uri", "redirect_uris 必填且至少一项");
+    return oauthError("invalid_redirect_uri", "redirect_uris 必填且至少一项"); // i18n-ignore
   }
   for (const u of redirectUris) {
     let parsed: URL;
     try {
       parsed = new URL(u);
     } catch {
-      return oauthError("invalid_redirect_uri", `非法回调地址: ${u}`);
+      return oauthError("invalid_redirect_uri", `非法回调地址: ${u}`); // i18n-ignore
     }
     // http 回调仅允许本机回环；https 与自定义 scheme（cursor:// 等）放行
     if (
@@ -33,7 +33,7 @@ export async function POST(req: Request): Promise<Response> {
       parsed.hostname !== "localhost" &&
       parsed.hostname !== "127.0.0.1"
     ) {
-      return oauthError("invalid_redirect_uri", "http 回调仅允许 localhost / 127.0.0.1");
+      return oauthError("invalid_redirect_uri", "http 回调仅允许 localhost / 127.0.0.1"); // i18n-ignore
     }
   }
 

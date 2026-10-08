@@ -3,6 +3,8 @@
  * 优先使用选区 + execCommand 复制：该路径不会经过异步剪贴板 API 的
  * HTML 消毒（后者可能丢弃 data: URI 背景图等样式），对公众号粘贴最友好。
  */
+import { t } from "@/i18n/t";
+
 export async function copyRichHtml(html: string, plainText: string): Promise<void> {
   if (copyViaSelection(html)) return;
 
@@ -14,7 +16,7 @@ export async function copyRichHtml(html: string, plainText: string): Promise<voi
     await navigator.clipboard.write([item]);
     return;
   }
-  throw new Error("当前浏览器不支持复制");
+  throw new Error(t("当前浏览器不支持复制"));
 }
 
 function copyViaSelection(html: string): boolean {

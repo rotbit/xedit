@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createDialogHost } from "@/hooks/useDialogHost";
 import { PaperDialog } from "./Modal";
+import { useT } from "@/i18n/useT";
 
 export interface PromptOptions {
   title: string;
@@ -38,6 +39,7 @@ export const askConfirm = confirmHost.open;
 
 /** 输入弹窗宿主。挂在根布局，未打开时不渲染任何 DOM。 */
 export function PromptHost() {
+  const t = useT();
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   // 每次打开按本次的默认值重置输入框
@@ -46,12 +48,12 @@ export function PromptHost() {
   useEffect(() => {
     if (state) {
       // 弹出后聚焦并选中默认值，便于直接改写
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
       // 延后一小会儿再聚焦：元素刚挂载且正在走入场动画，同步调 focus/select 不一定生效
       }, 20);
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
   }, [state]);
 
@@ -74,7 +76,7 @@ export function PromptHost() {
           className="h-10 w-full rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[14px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
           value={value}
           maxLength={state.maxLength ?? 50}
-          placeholder={state.placeholder ?? "请输入…"}
+          placeholder={state.placeholder ?? t("请输入…")}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") submit();
@@ -87,14 +89,14 @@ export function PromptHost() {
           className="h-9 cursor-pointer rounded-lg px-4 text-[13px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
           onClick={() => close(null)}
         >
-          取消
+          {t("取消")}
         </button>
         <button
           className="h-9 cursor-pointer rounded-lg bg-[var(--accent)] px-5 text-[13px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] transition-colors hover:bg-[var(--accent-deep)] disabled:opacity-50"
           onClick={submit}
           disabled={!value.trim()}
         >
-          {state.confirmText ?? "确定"}
+          {state.confirmText ?? t("确定")}
         </button>
       </div>
     </PaperDialog>
@@ -104,6 +106,7 @@ export function PromptHost() {
 /** 确认弹窗宿主。没有内部状态，点任一按钮即 resolve 并关闭。 */
 export function ConfirmHost() {
   const { state, close } = confirmHost.useHost();
+  const t = useT();
 
   if (!state) return null;
 
@@ -122,7 +125,7 @@ export function ConfirmHost() {
           className="h-9 cursor-pointer rounded-lg px-4 text-[13px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
           onClick={() => close(false)}
         >
-          {state.cancelText ?? "取消"}
+          {state.cancelText ?? t("取消")}
         </button>
         <button
           className={`h-9 cursor-pointer rounded-lg px-5 text-[13px] font-medium shadow-[0_1px_4px_rgba(0,0,0,0.15)] transition-colors ${
@@ -132,7 +135,7 @@ export function ConfirmHost() {
           }`}
           onClick={() => close(true)}
         >
-          {state.confirmText ?? "确定"}
+          {state.confirmText ?? t("确定")}
         </button>
       </div>
     </PaperDialog>

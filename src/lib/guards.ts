@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatBytes } from "@/lib/format";
+import { tk } from "@/i18n/t";
 
 /**
  * 写操作守卫：只读封禁与存储配额（后台管理的执行端）。
@@ -16,8 +17,8 @@ export const DEFAULT_STORAGE_QUOTA = (() => {
 
 function readOnlyMsg(reason: string | null): string {
   return reason
-    ? `账号已被限制为只读（${reason}），仅可查看与导出`
-    : "账号已被限制为只读，仅可查看与导出";
+    ? `账号已被限制为只读（${reason}），仅可查看与导出` // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    : tk("账号已被限制为只读，仅可查看与导出");
 }
 
 /** 账号处于只读封禁时返回提示文案，否则 null */
@@ -52,13 +53,13 @@ export async function uploadBlocked(userId: string, incomingBytes: number): Prom
     where: { id: userId },
     select: { bannedAt: true, banReason: true, storageQuota: true },
   });
-  if (!user) return "账号不存在";
+  if (!user) return tk("账号不存在");
   if (user.bannedAt) return readOnlyMsg(user.banReason);
   const quota = quotaOf(user.storageQuota);
   if (quota <= 0) return null;
   const used = await storageUsed(userId);
   if (used + Math.max(0, incomingBytes) > quota) {
-    return `存储空间不足：已用 ${formatBytes(used)}，配额 ${formatBytes(quota)}，请清理素材或联系管理员`;
+    return `存储空间不足：已用 ${formatBytes(used)}，配额 ${formatBytes(quota)}，请清理素材或联系管理员`; // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
   return null;
 }

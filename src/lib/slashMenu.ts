@@ -31,10 +31,12 @@ import {
 import { caretInFencedCode } from "@/lib/livePreview/context";
 import { runFormatCommand, type FormatCommand, type Notify } from "@/lib/editor/commands";
 import { prefixLines } from "@/lib/editor/format";
+import { tk } from "@/i18n/t";
 
 export interface SlashItem {
   /** 唯一标识，同时当 React 列表的 key；有对应命令时就用命令名 */
   id: string;
+  /** 中文原文（tk 标记），渲染处 t(item.label) */
   label: string;
   /** 右侧灰字：对应的 Markdown 记号，顺带教会用户源码写法 */
   hint: string;
@@ -59,43 +61,43 @@ const byCommand =
 export const SLASH_ITEMS: SlashItem[] = [
   {
     id: "h1",
-    label: "一级标题",
+    label: tk("一级标题"),
     hint: "#",
     icon: Heading1,
-    keywords: ["一级标题", "yijibiaoti", "yjbt", "h1", "heading", "heading1", "title", "#"],
+    keywords: ["一级标题", "yijibiaoti", "yjbt", "h1", "heading", "heading1", "title", "#"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("h1"),
   },
   {
     id: "h2",
-    label: "二级标题",
+    label: tk("二级标题"),
     hint: "##",
     icon: Heading2,
-    keywords: ["二级标题", "erjibiaoti", "ejbt", "h2", "heading", "heading2", "title", "##"],
+    keywords: ["二级标题", "erjibiaoti", "ejbt", "h2", "heading", "heading2", "title", "##"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("h2"),
   },
   {
     id: "h3",
-    label: "三级标题",
+    label: tk("三级标题"),
     hint: "###",
     icon: Heading3,
-    keywords: ["三级标题", "sanjibiaoti", "sjbt", "h3", "heading", "heading3", "title", "###"],
+    keywords: ["三级标题", "sanjibiaoti", "sjbt", "h3", "heading", "heading3", "title", "###"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("h3"),
   },
   {
     id: "quote",
-    label: "引用",
+    label: tk("引用"),
     hint: ">",
     icon: Quote,
-    keywords: ["引用", "yinyong", "yy", "quote", "blockquote", ">"],
+    keywords: ["引用", "yinyong", "yy", "quote", "blockquote", ">"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("quote"),
   },
   {
     id: "callout",
-    label: "提示块",
+    label: tk("提示块"),
     hint: "> [!tip]",
     icon: Lightbulb,
     keywords: [
-      "提示块",
+      "提示块", // i18n-ignore 搜索关键词（中文全称），不随界面语言变
       "tishikuai",
       "tsk",
       "callout",
@@ -109,30 +111,30 @@ export const SLASH_ITEMS: SlashItem[] = [
   },
   {
     id: "codeblock",
-    label: "代码块",
+    label: tk("代码块"),
     hint: "```",
     icon: SquareCode,
-    keywords: ["代码块", "daimakuai", "dmk", "code", "codeblock", "```"],
+    keywords: ["代码块", "daimakuai", "dmk", "code", "codeblock", "```"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("codeblock"),
   },
   {
     id: "table",
-    label: "表格",
+    label: tk("表格"),
     hint: "|",
     icon: Table,
-    keywords: ["表格", "biaoge", "bg", "table", "grid", "|"],
+    keywords: ["表格", "biaoge", "bg", "table", "grid", "|"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("table"),
   },
   {
     id: "ul",
-    label: "无序列表",
+    label: tk("无序列表"),
     hint: "-",
     icon: List,
     keywords: [
-      "无序列表",
+      "无序列表", // i18n-ignore 搜索关键词（中文全称），不随界面语言变
       "wuxuliebiao",
       "wxlb",
-      "列表",
+      "列表", // i18n-ignore 搜索关键词（中文全称），不随界面语言变
       "liebiao",
       "lb",
       "list",
@@ -145,14 +147,14 @@ export const SLASH_ITEMS: SlashItem[] = [
   },
   {
     id: "ol",
-    label: "有序列表",
+    label: tk("有序列表"),
     hint: "1.",
     icon: ListOrdered,
     keywords: [
-      "有序列表",
+      "有序列表", // i18n-ignore 搜索关键词（中文全称），不随界面语言变
       "youxuliebiao",
       "yxlb",
-      "列表",
+      "列表", // i18n-ignore 搜索关键词（中文全称），不随界面语言变
       "liebiao",
       "lb",
       "list",
@@ -166,50 +168,50 @@ export const SLASH_ITEMS: SlashItem[] = [
   },
   {
     id: "tasklist",
-    label: "任务列表",
+    label: tk("任务列表"),
     hint: "- [ ]",
     icon: ListTodo,
-    keywords: ["任务列表", "renwuliebiao", "rwlb", "task", "tasklist", "todo", "checkbox", "- [ ]"],
+    keywords: ["任务列表", "renwuliebiao", "rwlb", "task", "tasklist", "todo", "checkbox", "- [ ]"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("tasklist"),
   },
   {
     id: "hr",
-    label: "分割线",
+    label: tk("分割线"),
     hint: "---",
     icon: Minus,
-    keywords: ["分割线", "fengexian", "fgx", "hr", "divider", "rule", "---"],
+    keywords: ["分割线", "fengexian", "fgx", "hr", "divider", "rule", "---"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("hr"),
   },
   {
     id: "image",
-    label: "图片",
+    label: tk("图片"),
     hint: "![]()",
     icon: ImageIcon,
-    keywords: ["图片", "tupian", "tp", "image", "img", "picture", "photo", "!["],
+    keywords: ["图片", "tupian", "tp", "image", "img", "picture", "photo", "!["], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("image"),
   },
   {
     id: "video",
-    label: "视频（上传）",
-    hint: "上传",
+    label: tk("视频（上传）"),
+    hint: tk("上传"),
     icon: Film,
-    keywords: ["视频", "shipin", "sp", "video", "movie", "mp4", "upload"],
+    keywords: ["视频", "shipin", "sp", "video", "movie", "mp4", "upload"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("video"),
   },
   {
     id: "link",
-    label: "链接",
+    label: tk("链接"),
     hint: "[]()",
     icon: LinkIcon,
-    keywords: ["链接", "lianjie", "lj", "超链接", "link", "url", "href", "[]("],
+    keywords: ["链接", "lianjie", "lj", "超链接", "link", "url", "href", "[]("], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("link"),
   },
   {
     id: "bold",
-    label: "加粗",
+    label: tk("加粗"),
     hint: "**",
     icon: Bold,
-    keywords: ["加粗", "jiacu", "jc", "粗体", "cuti", "ct", "bold", "strong", "**"],
+    keywords: ["加粗", "jiacu", "jc", "粗体", "cuti", "ct", "bold", "strong", "**"], // i18n-ignore 搜索关键词（中文全称），不随界面语言变
     run: byCommand("bold"),
   },
 ];

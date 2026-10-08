@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { adminSessionUserId } from "@/lib/admin";
 import { chinaDate } from "@/lib/active";
+import { tk } from "@/i18n/t";
 
 /** 活跃用户曲线数据：g=day 近 30 天 / g=week 近 12 周 / g=month 近 12 个月，缺口补零 */
 
@@ -21,7 +22,7 @@ function mondayOf(date: string): string {
 export async function GET(req: Request) {
   const session = await auth();
   if (!adminSessionUserId(session)) {
-    return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    return NextResponse.json({ error: tk("无权访问") }, { status: 403 });
   }
 
   const g = new URL(req.url).searchParams.get("g");

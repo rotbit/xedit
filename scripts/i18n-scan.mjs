@@ -30,6 +30,11 @@ const SKIP = [
   "src/app/changelog/",
   "src/app/themes/", // 主题样张落地页
   "src/app/s/", // 公开分享页
+  // 分享页给读者看（读者未必登录、也没有语言偏好），和 /s 路由一样保持中文；产品内的 ShareDialog 照常翻译
+  "src/features/share/components/",
+  "src/features/share/lib/",
+  "src/features/share/hooks/", // 分享页读者批注用的 hook，同属公开页
+  "src/features/share/SharedArticle.tsx",
   "src/app/gold/", // 内部小工具，与产品无关
   "src/app/layout.tsx", // 只有 metadata（SEO 保持中文）
   "src/app/robots.ts",
@@ -37,6 +42,7 @@ const SKIP = [
   "src/lib/site.ts", // 站点 SEO 文案
   "src/lib/welcomeDoc.ts", // 欢迎稿正文，属于内容，后置
   "src/lib/ai/reviewPrompt.ts", // AI 提示词，后置
+  "src/app/api/mcp/route.ts", // MCP 工具名/说明/报错是给 AI 客户端读的协议文案，不回网页界面
 ];
 
 const CJK = /[一-鿿　-〿＀-￯]/;

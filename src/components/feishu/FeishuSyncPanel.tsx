@@ -9,9 +9,11 @@
  */
 import { Loader2 } from "lucide-react";
 import type { FeishuSyncState } from "@/hooks/useFeishuSync";
+import { useT } from "@/i18n/useT";
 
 /** 同步进行中或已有进度/错误时展示的状态卡片；无内容可展示时不渲染 */
 export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
+  const t = useT();
   const syncing = sync.syncing;
   const progress = sync.progress;
 
@@ -23,7 +25,7 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
       {sync.scanning ? (
         <p className="flex items-center gap-2">
           <Loader2 size={14} className="shrink-0 animate-spin text-[var(--accent)]" />
-          正在扫描知识库目录、同步第一批文档…
+          {t("正在扫描知识库目录、同步第一批文档…")}
         </p>
       ) : progress ? (
         <>
@@ -49,15 +51,20 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
             </span>
           </div>
           <p>
-            新增 {progress.created} · 更新 {progress.updated} · 跳过 {progress.skipped}
-            {syncing ? ` · 待处理 ${progress.pending}` : ""}
+            {t("新增 {created} · 更新 {updated} · 跳过 {skipped}", {
+              created: progress.created,
+              updated: progress.updated,
+              skipped: progress.skipped,
+            })}
+            {syncing ? ` · ${t("待处理 {n}", { n: progress.pending })}` : ""}
           </p>
           {syncing && sync.current.length > 0 ? (
             <p className="mt-1 flex items-center gap-1.5 text-[var(--ink)]">
               <Loader2 size={12} className="shrink-0 animate-spin text-[var(--accent)]" />
               <span className="truncate">
-                正在同步：{sync.current[0]}
-                {sync.current.length > 1 ? ` 等 ${sync.current.length} 篇` : ""}
+                {sync.current.length > 1
+                  ? t("正在同步：{title} 等 {n} 篇", { title: sync.current[0], n: sync.current.length })
+                  : t("正在同步：{title}", { title: sync.current[0] })}
               </span>
             </p>
           ) : null}
@@ -65,7 +72,10 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
             <p className="mt-1 flex items-center gap-1.5 text-amber-600/90">
               <Loader2 size={12} className="shrink-0 animate-spin" />
               <span className="truncate">
-                连接失败，自动重试中（第 {sync.retry.attempt} 次）：{sync.retry.reason}
+                {t("连接失败，自动重试中（第 {n} 次）：{reason}", {
+                  n: sync.retry.attempt,
+                  reason: t(sync.retry.reason),
+                })}
               </span>
             </p>
           ) : null}
@@ -74,7 +84,9 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
               {/* 最近处理只留 4 条、失败只留 5 条：这块嵌在对话框里，再长会把底部按钮挤出可视区 */}
               {sync.recent.slice(0, 4).map((it, i) => (
                 <li key={i} className="truncate">
-                  {it.action === "created" ? "新增" : "更新"}：{it.title}
+                  {it.action === "created"
+                    ? t("新增：{title}", { title: it.title })
+                    : t("更新：{title}", { title: it.title })}
                 </li>
               ))}
             </ul>
@@ -83,11 +95,11 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
             <ul className="mt-1.5 space-y-0.5 text-red-600/90">
               {progress.failed.slice(0, 5).map((f, i) => (
                 <li key={i} className="truncate">
-                  失败：{f.title} — {f.reason}
+                  {t("失败：{title} — {reason}", { title: f.title, reason: t(f.reason) })}
                 </li>
               ))}
               {progress.failed.length > 5 ? (
-                <li>…另有 {progress.failed.length - 5} 篇失败</li>
+                <li>{t("…另有 {n} 篇失败", { n: progress.failed.length - 5 })}</li>
               ) : null}
             </ul>
           ) : null}
@@ -96,13 +108,15 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
       {/* 中断提示只在停下来之后显示：同步中的网络抖动会自动重试，那时候报错只会吓人 */}
       {!syncing && sync.error ? (
         <p className={`text-red-600/90 ${progress ? "mt-1.5" : ""}`}>
-          同步已中断：{sync.error}。已同步的内容都已保存，点「继续同步」从断点继续。
+          {t("同步已中断：{error}。已同步的内容都已保存，点「继续同步」从断点继续。", {
+            error: t(sync.error),
+          })}
         </p>
       ) : null}
       {syncing ? (
         <p className="mt-2 border-t border-[var(--hairline)] pt-2 text-[11px] text-[var(--ink-faint)]">
-          关闭本窗口不影响同步，网络波动会自动重试，完成后有提示；
-          关闭或刷新页面会中断，下次同步自动续传
+          {t("关闭本窗口不影响同步，网络波动会自动重试，完成后有提示；")}{" "}
+          {t("关闭或刷新页面会中断，下次同步自动续传")}
         </p>
       ) : null}
     </section>

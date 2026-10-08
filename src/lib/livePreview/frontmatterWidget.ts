@@ -2,6 +2,7 @@ import { EditorView, WidgetType } from "@codemirror/view";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import { editOnClick } from "@/lib/livePreview/widgetUtils";
 import { ATTACHMENTS_RESOLVED_EVENT, isAttachmentSrc, resolveAttachmentSrc } from "@/lib/localBackend/attachmentUrls";
+import { t } from "@/i18n/t";
 
 /**
  * 文首 YAML frontmatter 的即时渲染部件：一张只读的元信息卡片。
@@ -59,10 +60,10 @@ function coverBlock(src: string): HTMLElement {
   // 图上只压一枚小标签说明这是什么；怎么换放在悬停提示里，不占版面
   const frame = document.createElement("div");
   frame.className = "cm-lp-fm-cover-frame";
-  frame.title = "发送到公众号时自动设置；在标题下方的「封面」里更换";
+  frame.title = t("发送到公众号时自动设置；在标题下方的「封面」里更换");
   const badge = document.createElement("span");
   badge.className = "cm-lp-fm-cover-badge";
-  badge.textContent = "封面";
+  badge.textContent = t("封面");
   frame.append(img, badge);
   block.appendChild(frame);
   return block;
@@ -78,7 +79,7 @@ export class FrontmatterWidget extends WidgetType {
     // 所有键一视同仁：列表写法用顿号连起来，其余原样显示
     this.fields = Object.entries(parseFrontmatter(source)?.data ?? {}).map(([key, value]) => ({
       key,
-      value: Array.isArray(value) ? value.join("、") : value,
+      value: Array.isArray(value) ? value.join("、") : value, // i18n-ignore 列表值的连接符，显示的是用户数据
     }));
     this.lineCount = source.split("\n").length;
   }

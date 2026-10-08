@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { adminSessionUserId } from "@/lib/admin";
 import { ossConfigured, ossList, ossUrlOf } from "@/lib/oss";
 import { MIME_BY_EXT } from "@/lib/media";
+import { tk } from "@/i18n/t";
 
 /**
  * 素材列表。kind/q 是普通的 where 收窄，filter=unused 则不同：
@@ -22,7 +23,7 @@ const UNUSED_MAX_ITEMS = 500;
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   const userId = session.user.id;
   const { searchParams } = new URL(req.url);
@@ -86,10 +87,10 @@ export async function POST() {
   const session = await auth();
   const userId = adminSessionUserId(session);
   if (!userId) {
-    return NextResponse.json({ error: "仅管理员可同步 OSS 历史文件" }, { status: 403 });
+    return NextResponse.json({ error: tk("仅管理员可同步 OSS 历史文件") }, { status: 403 });
   }
   if (!ossConfigured()) {
-    return NextResponse.json({ error: "服务端未配置 OSS" }, { status: 501 });
+    return NextResponse.json({ error: tk("服务端未配置 OSS") }, { status: 501 });
   }
   const [objects, existing] = await Promise.all([
     ossList(),

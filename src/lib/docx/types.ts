@@ -11,8 +11,8 @@ import {
 
 /** 正文可用宽度（px @96dpi）：A4 减去默认页边距 */
 export const CONTENT_W = 600;
-export const BODY_FONT = { ascii: "Calibri", hAnsi: "Calibri", eastAsia: "微软雅黑" };
-export const MONO_FONT = { ascii: "Consolas", hAnsi: "Consolas", eastAsia: "微软雅黑" };
+export const BODY_FONT = { ascii: "Calibri", hAnsi: "Calibri", eastAsia: "微软雅黑" }; // i18n-ignore Word 东亚字体名，是数据
+export const MONO_FONT = { ascii: "Consolas", hAnsi: "Consolas", eastAsia: "微软雅黑" }; // i18n-ignore Word 东亚字体名，是数据
 export const INK = "1F2329";
 export const GRAY = "8A8F99";
 export const LINK_BLUE = "1155CC";

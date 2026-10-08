@@ -15,6 +15,7 @@ import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
 import { ReviewHistoryList } from "./ReviewHistory";
 import { ReviewSettingsFields, reviewPanel, useReviewKeyReady } from "./ReviewSettings";
+import { useT } from "@/i18n/useT";
 
 export function ReviewLaunchPopover({
   docId,
@@ -28,6 +29,7 @@ export function ReviewLaunchPopover({
   /** 不重新审，直接翻出历史里的某一趟 */
   onOpenRecord: (id: string) => void;
 }) {
+  const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
   const { ready, hint } = useReviewKeyReady();
   useDismissMenu(panelRef, onClose, true);
@@ -37,12 +39,12 @@ export function ReviewLaunchPopover({
     <div
       ref={panelRef}
       role="dialog"
-      aria-label="AI 审核"
+      aria-label={t("AI 审核")}
       className={`${reviewPanel} absolute right-0 top-[calc(100%+6px)] z-20 text-left`}
     >
       <div className="mb-2 flex items-center gap-1.5">
         <AiIcon size={14} className="shrink-0 text-[var(--accent)]" />
-        <span className="text-[12px] font-medium text-[var(--ink)]">AI 审核</span>
+        <span className="text-[12px] font-medium text-[var(--ink)]">{t("AI 审核")}</span>
       </div>
 
       <ReviewSettingsFields />
@@ -55,7 +57,7 @@ export function ReviewLaunchPopover({
           onStart();
         }}
       >
-        开始审核
+        {t("开始审核")}
       </button>
       {!ready ? (
         <p className="mt-1.5 text-[11px] leading-snug text-[var(--ink-faint)]">{hint}</p>

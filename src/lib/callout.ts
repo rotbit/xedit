@@ -18,16 +18,17 @@ export interface CalloutStyle {
  * 支持的类型表。色值写死而不用 CSS 变量：复制到公众号走的是样式内联
  * （见 lib/copy/inline.ts），内联那一刻 var() 取不到值，整条声明会被丢掉。
  */
+// 默认标题会写进预览与复制到公众号的正文，属于内容格式，本阶段保持中文
 export const CALLOUT_TYPES: Record<string, CalloutStyle> = {
-  note: { title: "备注", color: "#4a6a85", background: "#f3f6fa" },
-  tip: { title: "提示", color: "#2f8f5b", background: "#eef8f2" },
-  info: { title: "信息", color: "#2b7cd3", background: "#eef4fd" },
-  warning: { title: "注意", color: "#c77700", background: "#fff7e8" },
-  danger: { title: "危险", color: "#d0453b", background: "#fdf0ee" },
-  question: { title: "疑问", color: "#7b57c6", background: "#f4f0fb" },
-  quote: { title: "引用", color: "#6b6b6b", background: "#f5f5f5" },
-  example: { title: "示例", color: "#4f5bd5", background: "#eff0fc" },
-  success: { title: "完成", color: "#2f8f5b", background: "#eef8f2" },
+  note: { title: "备注", color: "#4a6a85", background: "#f3f6fa" }, // i18n-ignore
+  tip: { title: "提示", color: "#2f8f5b", background: "#eef8f2" }, // i18n-ignore
+  info: { title: "信息", color: "#2b7cd3", background: "#eef4fd" }, // i18n-ignore
+  warning: { title: "注意", color: "#c77700", background: "#fff7e8" }, // i18n-ignore
+  danger: { title: "危险", color: "#d0453b", background: "#fdf0ee" }, // i18n-ignore
+  question: { title: "疑问", color: "#7b57c6", background: "#f4f0fb" }, // i18n-ignore
+  quote: { title: "引用", color: "#6b6b6b", background: "#f5f5f5" }, // i18n-ignore
+  example: { title: "示例", color: "#4f5bd5", background: "#eff0fc" }, // i18n-ignore
+  success: { title: "完成", color: "#2f8f5b", background: "#eef8f2" }, // i18n-ignore
 };
 
 /** 别名 → 正式类型：与 Obsidian 的写法保持一致，用户从 Obsidian 粘过来不用改 */

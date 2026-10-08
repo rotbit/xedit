@@ -9,6 +9,7 @@ import { childBlocks } from "./docx/block";
 import { prepareMedia, stripSpaceAfterBreaks } from "./docx/media";
 import { BODY_FONT, INK, OL_REF } from "./docx/types";
 import type { Build } from "./docx/types";
+import { t } from "@/i18n/t";
 
 // 导出 Word（.docx）：把 Markdown 渲染成语义 HTML 后逐节点映射为 OOXML。
 // 目标是导入飞书/Word 后保留结构（标题层级、列表、表格、图片、代码块、公式），
@@ -77,9 +78,9 @@ export async function exportDocx(title: string, markdown: string): Promise<void>
       await Packer.toBlob(doc),
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
-    if (b.failed) toast(`已导出，但 ${b.failed} 个图片未能嵌入（获取失败）`, "error");
-    else toast("Word 文档已导出");
+    if (b.failed) toast(t("已导出，但 {n} 个图片未能嵌入（获取失败）", { n: b.failed }), "error");
+    else toast(t("Word 文档已导出"));
   } catch {
-    toast("Word 生成失败", "error");
+    toast(t("Word 生成失败"), "error");
   }
 }

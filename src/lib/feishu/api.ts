@@ -1,4 +1,5 @@
 import { FEISHU } from "./config";
+import { tk } from "@/i18n/t";
 
 /**
  * 飞书 OpenAPI 客户端（用户身份）。
@@ -37,7 +38,7 @@ async function apiGet<T>(
   });
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!body || body.code !== 0) {
-    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`);
+    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
   return body.data as T;
 }
@@ -59,7 +60,7 @@ async function apiSend<T>(
   });
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!body || body.code !== 0) {
-    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`);
+    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
   return body.data as T;
 }
@@ -193,7 +194,7 @@ export async function downloadFeishuMedia(
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(30000),
   });
-  if (!res.ok) throw new Error(`图片下载失败: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`图片下载失败: HTTP ${res.status}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim();
   return { buffer: Buffer.from(await res.arrayBuffer()), mime };
 }
@@ -223,7 +224,7 @@ export async function getWikiNode(token: string, nodeToken: string): Promise<Wik
     obj_type: "wiki",
   });
   const n = data.node;
-  if (!n) throw new Error("飞书侧找不到该节点");
+  if (!n) throw new Error(tk("飞书侧找不到该节点"));
   return {
     nodeToken: n.node_token,
     objToken: n.obj_token,
@@ -245,7 +246,7 @@ export async function createWikiDocNode(
     `/wiki/v2/spaces/${spaceId}/nodes`,
     { obj_type: "docx", node_type: "origin", title }
   );
-  if (!data.node) throw new Error("创建知识库节点失败");
+  if (!data.node) throw new Error(tk("创建知识库节点失败"));
   return { nodeToken: data.node.node_token, objToken: data.node.obj_token };
 }
 
@@ -324,7 +325,7 @@ export async function uploadFeishuMedia(
     file_token?: string;
   }> | null;
   if (!body || body.code !== 0 || !body.data?.file_token) {
-    throw new Error(`图片上传失败：${body?.msg ?? `HTTP ${res.status}`}`);
+    throw new Error(`图片上传失败：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
   return body.data.file_token;
 }

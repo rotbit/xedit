@@ -13,6 +13,7 @@
 import { REVIEW_KINDS } from "@/lib/ai/reviewKinds";
 import { useAppConfig } from "@/features/workspace/hooks/useAppConfig";
 import { useAiConfig } from "./aiConfig";
+import { useT } from "@/i18n/useT";
 
 const label = "mb-1 block text-[11px] text-[var(--ink-faint)]";
 
@@ -27,19 +28,21 @@ export const reviewPanel =
  * 让服务端的 401 / 403 带着自己的说法回来，比前端猜一个理由诚实。
  */
 export function useReviewKeyReady(): { ready: boolean; hint: string } {
+  const t = useT();
   const config = useAppConfig();
   return {
     ready: config?.aiReview === true,
-    hint: "AI 审核还没配置好：到管理后台的「AI 设置」里选模型、填 Key",
+    hint: t("AI 审核还没配置好：到管理后台的「AI 设置」里选模型、填 Key"),
   };
 }
 
 /** 审核类型：一类一行，可多选；名字底下一句话说清楚它看的是什么 */
 function KindRows() {
+  const t = useT();
   const [cfg, set] = useAiConfig();
   return (
     <div className="mb-2.5 flex flex-col gap-1">
-      <span className={label}>审核类型（可多选，一起审）</span>
+      <span className={label}>{t("审核类型（可多选，一起审）")}</span>
       {REVIEW_KINDS.map((k) => {
         const on = cfg.kinds.includes(k.id);
         // 至少留一类：最后那一个勾不掉
@@ -59,7 +62,7 @@ function KindRows() {
               className="mt-[3px] shrink-0 accent-[var(--accent)]"
               checked={on}
               disabled={last}
-              title={last ? "至少要审一类" : undefined}
+              title={last ? t("至少要审一类") : undefined}
               onChange={() =>
                 set({ kinds: on ? cfg.kinds.filter((id) => id !== k.id) : [...cfg.kinds, k.id] })
               }
@@ -68,10 +71,10 @@ function KindRows() {
               <span
                 className={`block text-[12px] ${on ? "text-[var(--accent)]" : "text-[var(--ink)]"}`}
               >
-                {k.label}
+                {t(k.label)}
               </span>
               <span className="mt-0.5 block text-[11px] leading-snug text-[var(--ink-faint)]">
-                {k.description}
+                {t(k.description)}
               </span>
             </span>
           </label>

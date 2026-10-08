@@ -5,6 +5,9 @@
 // 强调色只落在标题装饰、加粗、链接、行内代码上；引用、表格等大块面一律收敛，
 // 避免「换个颜色的同一套模板」与大色块 + 投影的旧式胶囊标题。
 // 装饰必须用真实元素或背景图（伪元素复制到公众号会丢）。
+// name / tag 存中文原文（tk 标记），界面上 t(theme.name) 显示；id 是存进文章的数据，不动。
+
+import { tk } from "@/i18n/t";
 
 export interface ThemePreset {
   id: string;
@@ -23,8 +26,8 @@ const quoteMark = (color: string) =>
 // 签名造型：双色下划线（标题下细灰线贯通、文字下压一段粗黑线）
 const classic: ThemePreset = {
   id: "classic",
-  tag: "技术 · 深度长文",
-  name: "经典黑",
+  tag: tk("技术 · 深度长文"),
+  name: tk("经典黑"),
   color: "#333333",
   css: `
 #nice { color: #2b2b2b; }
@@ -50,8 +53,8 @@ const classic: ThemePreset = {
 // 签名造型：荧光笔标记标题（正文黑标题压一道半透明绿），引用是无边圆角卡片
 const wechatGreen: ThemePreset = {
   id: "wechat-green",
-  tag: "职场 · 生活",
-  name: "微信绿",
+  tag: tk("职场 · 生活"),
+  name: tk("微信绿"),
   color: "#07c160",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #067f42; }
@@ -78,8 +81,8 @@ const wechatGreen: ThemePreset = {
 // 签名造型：左竖线 + 向右消失的浅蓝渐变洗底，h3 用小方框
 const techBlue: ThemePreset = {
   id: "tech-blue",
-  tag: "技术教程",
-  name: "科技蓝",
+  tag: tk("技术教程"),
+  name: tk("科技蓝"),
   color: "#1e6bb8",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #14508c; }
@@ -107,9 +110,9 @@ const techBlue: ThemePreset = {
 // 签名造型：通栏渐变横条标题（白字、缺一角的圆角），h3 渐变竖线
 const lanying: ThemePreset = {
   id: "lanying",
-  name: "蓝莹",
+  name: tk("蓝莹"),
   color: "#3aa1f0",
-  tag: "技术 · 科普",
+  tag: tk("技术 · 科普"),
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #0e6fd0; }
 #nice h2 { font-size: 18px; }
@@ -136,8 +139,8 @@ const lanying: ThemePreset = {
 // 签名造型：橙底白字标签式 h2 + 右侧折角（suffix 三角）+ 通栏橙色底线，引用为橙线暖底卡片
 const orangeHeart: ThemePreset = {
   id: "orange-heart",
-  tag: "情感 · 生活",
-  name: "橙心",
+  tag: tk("情感 · 生活"),
+  name: tk("橙心"),
   color: "#ef7060",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #e05442; }
@@ -165,8 +168,8 @@ const orangeHeart: ThemePreset = {
 // 签名造型：居中细字距标题、两侧小圆点 + 浅紫细下划线，引用描边圆卡
 const violet: ThemePreset = {
   id: "violet",
-  tag: "时尚 · 女性",
-  name: "蔷薇紫",
+  tag: tk("时尚 · 女性"),
+  name: tk("蔷薇紫"),
   color: "#8e44ad",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #7d3c98; }
@@ -195,8 +198,8 @@ const violet: ThemePreset = {
 // 签名造型：「」括角标题（prefix/suffix 各画两条边拼成引号角），引用只留一条细线
 const ink: ThemePreset = {
   id: "ink",
-  tag: "文化 · 散文",
-  name: "水墨",
+  tag: tk("文化 · 散文"),
+  name: tk("水墨"),
   color: "#576b95",
   css: `
 #nice { font-family: Optima, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", serif; color: #40464f; }
@@ -227,8 +230,8 @@ const ink: ThemePreset = {
 // 签名造型：印章式标题——正红方块字 + 右下角错位的浅色硬投影，h3 小方印
 const chineseRed: ThemePreset = {
   id: "chinese-red",
-  tag: "品牌 · 活动",
-  name: "绛红",
+  tag: tk("品牌 · 活动"),
+  name: tk("绛红"),
   color: "#c0392b",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #a93226; }
@@ -255,8 +258,8 @@ const chineseRed: ThemePreset = {
 // 签名造型：匾额式上下细线居中标题，h3 圆点 + 尾线
 const bambooTeal: ThemePreset = {
   id: "bamboo",
-  tag: "国风 · 读书",
-  name: "青竹",
+  tag: tk("国风 · 读书"),
+  name: tk("青竹"),
   color: "#0e9285",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #0b7268; letter-spacing: 0.1em; }
@@ -284,8 +287,8 @@ const bambooTeal: ThemePreset = {
 // 签名造型：杂志顶线——h2 上方一条通栏黑细线，衬线字，引用居中配金色引号
 const magazine: ThemePreset = {
   id: "magazine",
-  tag: "深度 · 评论",
-  name: "杂志风",
+  tag: tk("深度 · 评论"),
+  name: tk("杂志风"),
   color: "#1a1a1a",
   css: `
 #nice { font-family: Optima, Georgia, "Songti SC", "Noto Serif SC", serif; color: #2b2b2b; }
@@ -316,8 +319,8 @@ const magazine: ThemePreset = {
 // 签名造型：暗底 Tokyo Night 配色，h2 蓝紫渐变下划线
 const nightIndigo: ThemePreset = {
   id: "night",
-  tag: "程序员 · 夜读",
-  name: "靛夜",
+  tag: tk("程序员 · 夜读"),
+  name: tk("靛夜"),
   color: "#1a1b26",
   css: `
 #nice { background-color: #1a1b26; color: #c6cade; }
@@ -350,8 +353,8 @@ const nightIndigo: ThemePreset = {
 // 签名造型：居中荧光粉标记标题 + 花瓣 h3，引用是虚线描边的圆角卡片
 const sakura: ThemePreset = {
   id: "sakura",
-  tag: "女性 · 生活",
-  name: "樱粉",
+  tag: tk("女性 · 生活"),
+  name: tk("樱粉"),
   color: "#e8618c",
   css: `
 #nice h1 { font-size: 22px; text-align: center; color: #d8577f; }
@@ -378,8 +381,8 @@ const sakura: ThemePreset = {
 // 签名造型：没有造型——纯字重与灰阶分层，适合不想被主题抢戏的万字长文
 const minimalGray: ThemePreset = {
   id: "minimal",
-  tag: "万字长文",
-  name: "极简",
+  tag: tk("万字长文"),
+  name: tk("极简"),
   color: "#8c8c8c",
   css: `
 #nice { color: #3d3d3d; }

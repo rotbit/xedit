@@ -13,6 +13,7 @@
  * - 输出上限把思考的 token 也算在内，给少了正文会是空的（见 chat.ts 的 DEFAULT_MAX_TOKENS）；
  * - 思考强度能调的都调到 low：审稿要的是快和稳，不是解奥数题。
  */
+import { tk } from "@/i18n/t";
 
 /** 传输方式：决定 chat.ts 走哪条代码路径 */
 export type AiTransport = "openai" | "replicate";
@@ -72,7 +73,7 @@ const GPT_ON_REPLICATE = [
 export const AI_PROVIDERS: AiProvider[] = [
   {
     id: "deepseek",
-    label: "DeepSeek（官网）",
+    label: tk("DeepSeek（官网）"),
     transport: "openai",
     baseUrl: "https://api.deepseek.com/v1",
     envKey: "DEEPSEEK_API_KEY",
@@ -83,7 +84,7 @@ export const AI_PROVIDERS: AiProvider[] = [
   },
   {
     id: "replicate",
-    label: "Claude（Replicate）",
+    label: tk("Claude（Replicate）"),
     transport: "replicate",
     baseUrl: "https://api.replicate.com",
     envKey: "REPLICATE_API_TOKEN",
@@ -94,7 +95,7 @@ export const AI_PROVIDERS: AiProvider[] = [
   },
   {
     id: "replicate-gpt",
-    label: "GPT（Replicate）",
+    label: tk("GPT（Replicate）"),
     transport: "replicate",
     baseUrl: "https://api.replicate.com",
     envKey: "REPLICATE_API_TOKEN",
@@ -105,7 +106,7 @@ export const AI_PROVIDERS: AiProvider[] = [
   },
   {
     id: "openai",
-    label: "GPT（OpenAI 官网）",
+    label: tk("GPT（OpenAI 官网）"),
     transport: "openai",
     baseUrl: "https://api.openai.com/v1",
     envKey: "OPENAI_API_KEY",
@@ -116,7 +117,7 @@ export const AI_PROVIDERS: AiProvider[] = [
   },
   {
     id: "kimi",
-    label: "Kimi（月之暗面官网）",
+    label: tk("Kimi（月之暗面官网）"),
     transport: "openai",
     baseUrl: "https://api.moonshot.cn/v1",
     envKey: "MOONSHOT_API_KEY",
@@ -128,7 +129,7 @@ export const AI_PROVIDERS: AiProvider[] = [
   },
   {
     id: "glm",
-    label: "GLM（智谱官网）",
+    label: tk("GLM（智谱官网）"),
     transport: "openai",
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     envKey: "ZHIPU_API_KEY",

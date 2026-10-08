@@ -1,6 +1,7 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
+import { useT } from "@/i18n/useT";
 
 /**
  * 夜间偏好的 localStorage key。同一个 key 还写在两处首屏脚本里：
@@ -24,11 +25,12 @@ export function toggleDark() {
 
 /** 夜间模式开关按钮；图标显隐交给 CSS dark: 变体 */
 export function DarkToggle() {
+  const t = useT();
   return (
     <button
       className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
       onClick={toggleDark}
-      title="切换日间 / 夜间模式"
+      title={t("切换日间 / 夜间模式")}
     >
       <Moon size={16} className="dark:hidden" />
       <Sun size={16} className="hidden dark:block" />

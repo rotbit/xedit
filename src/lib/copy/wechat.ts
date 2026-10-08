@@ -57,7 +57,7 @@ function transformLinks(root: HTMLElement): void {
   section.className = "footnote-refs";
   const title = document.createElement("p");
   title.className = "refs-title";
-  title.textContent = "参考链接";
+  title.textContent = "参考链接"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
   section.appendChild(title);
   refs.forEach((r, i) => {
     const p = document.createElement("p");
@@ -102,10 +102,10 @@ function transformCodeBlocks(root: HTMLElement): void {
  * 两处共用这一份字面量，改文案不会走偏。
  * 注意：里面不能出现「封面」二字——那边把含「封面」的提示当成封面没设好的问题。
  */
-export const VIDEO_PLACEHOLDER_MARK = "⚠️ 此处有视频，还没有插入";
+export const VIDEO_PLACEHOLDER_MARK = "⚠️ 此处有视频，还没有插入"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
 
 /** 提示语第二行：告诉人这一整块该怎么换掉 */
-const VIDEO_PLACEHOLDER_HINT = "发表前请在公众号后台点「插入视频」，替换掉这一整块";
+const VIDEO_PLACEHOLDER_HINT = "发表前请在公众号后台点「插入视频」，替换掉这一整块"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
 
 /** 排好版的 HTML 里有几个视频占位块 */
 export function countVideoPlaceholders(html: string): number {
@@ -126,7 +126,7 @@ function transformVideos(root: HTMLElement): void {
     if (poster) {
       const img = document.createElement("img");
       img.src = poster;
-      img.alt = "视频封面";
+      img.alt = "视频封面"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
       section.appendChild(img);
     }
     const note = document.createElement("p");

@@ -16,6 +16,7 @@ import { CARD_COL_WIDTH, CARD_GAP } from "./useReviewLayout";
 import { useElapsedSeconds } from "./ReviewToolbar";
 import type { ReviewApi } from "./useReview";
 import type { ReviewItemView } from "./types";
+import { useT } from "@/i18n/useT";
 
 /** 总评卡也参与避让排版，给它一个不会跟意见撞车的位置 */
 const SUMMARY_ID = "\u0000summary";
@@ -42,6 +43,7 @@ function anchorY(view: EditorView, item: ReviewItemView, from: number | null): n
  * 260px 宽的小卡里读一两百字太憋屈；高度固定下来，下面的卡片也不用跟着它一收一放地挪。
  */
 function SummaryCard({ text, onOpen }: { text: string; onOpen: () => void }) {
+  const t = useT();
   if (!text) return null;
   return (
     <button
@@ -51,9 +53,9 @@ function SummaryCard({ text, onOpen }: { text: string; onOpen: () => void }) {
     >
       <span className="flex items-center gap-1.5 text-[11px] tracking-[0.1em] text-[var(--ink-faint)]">
         <AiIcon size={14} className="shrink-0 text-[var(--accent)]" />
-        总评
+        {t("总评")}
         <span className="ml-auto tracking-normal transition-colors group-hover:text-[var(--ink)]">
-          展开阅读
+          {t("展开阅读")}
         </span>
       </span>
       <span className="mt-1.5 line-clamp-3 block text-[12px] leading-relaxed text-[var(--ink-soft)]">
@@ -65,17 +67,18 @@ function SummaryCard({ text, onOpen }: { text: string; onOpen: () => void }) {
 
 /** 加载态：一张说明「AI 正在干活」的状态卡，底下三张骨架卡让人知道意见会摆在这儿 */
 function Skeletons() {
+  const t = useT();
   const elapsed = useElapsedSeconds(true);
   return (
     <div className="flex flex-col gap-2" role="status">
       <div className="rounded-lg border border-[var(--hairline)] bg-[var(--panel)] px-2.5 py-2.5">
         <div className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--ink)]">
           <AiIcon size={14} className="review-breathe shrink-0 text-[var(--accent)]" />
-          AI 正在审稿
-          <span className="ml-auto font-normal tabular-nums text-[var(--ink-faint)]">{elapsed} 秒</span>
+          {t("AI 正在审稿")}
+          <span className="ml-auto font-normal tabular-nums text-[var(--ink-faint)]">{t("{n} 秒", { n: elapsed })}</span>
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-[var(--ink-faint)]">
-          通读全文、逐句挑问题，一般要半分钟到一分钟。意见出来后会贴着对应的句子摆在这一栏。
+          {t("通读全文、逐句挑问题，一般要半分钟到一分钟。意见出来后会贴着对应的句子摆在这一栏。")}
         </p>
       </div>
       {[0, 1, 2].map((i) => (
@@ -109,6 +112,7 @@ export function ReviewCards({
   /** 点总评小卡：打开的是审核条底下那张阅读面板 */
   onOpenSummary: () => void;
 }) {
+  const t = useT();
   const { phase, cards, activeId, spanOf, editorView, tick } = api;
   const catOf = useMemo(() => new Map(api.categories.map((c) => [c.id, c])), [api.categories]);
 
@@ -176,7 +180,7 @@ export function ReviewCards({
         {/* 出错不能是条死路：服务端那句话照原样摆出来（没登录、站点没配这家、额度用完各有各的说法），
             再给一条去改设置的路和一颗重试 */}
         <div className={emptyBox}>
-          {api.error ?? "审核失败"}
+          {api.error ? t(api.error) : t("审核失败")}
           <div className="mt-2 flex items-center gap-3">
             <button
               data-menu-trigger
@@ -184,14 +188,14 @@ export function ReviewCards({
               onClick={onOpenSettings}
             >
               <Settings2 size={12} />
-              换个审核类型
+              {t("换个审核类型")}
             </button>
             <button
               className="flex cursor-pointer items-center gap-1 text-[var(--ink-soft)] hover:underline"
               onClick={api.rerun}
             >
               <RefreshCw size={12} />
-              重试
+              {t("重试")}
             </button>
           </div>
         </div>
@@ -212,9 +216,9 @@ export function ReviewCards({
       >
         <SummaryCard text={api.summary} onOpen={onOpenSummary} />
         {api.total === 0 ? (
-          <p className={`mt-2 ${emptyBox}`}>没发现需要改的地方，这篇可以直接发。</p>
+          <p className={`mt-2 ${emptyBox}`}>{t("没发现需要改的地方，这篇可以直接发。")}</p>
         ) : cards.length === 0 ? (
-          <p className={`mt-2 ${emptyBox}`}>这一类的意见都处理完了。</p>
+          <p className={`mt-2 ${emptyBox}`}>{t("这一类的意见都处理完了。")}</p>
         ) : null}
       </div>
 

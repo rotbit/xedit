@@ -12,6 +12,7 @@ import {
   findEnabledShare,
   hashGuestKey,
 } from "@/lib/share";
+import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ token: string }> };
 
@@ -19,7 +20,7 @@ type Params = { params: Promise<{ token: string }> };
 export async function GET(req: Request, { params }: Params) {
   const { token } = await params;
   const share = await findEnabledShare(token);
-  if (!share) return NextResponse.json({ error: "分享不存在或已关闭" }, { status: 404 });
+  if (!share) return NextResponse.json({ error: tk("分享不存在或已关闭") }, { status: 404 });
 
   const key = req.headers.get("x-guest-key") ?? "";
   const session = await auth();
@@ -38,22 +39,25 @@ export async function GET(req: Request, { params }: Params) {
 export async function POST(req: Request, { params }: Params) {
   const { token } = await params;
   const share = await findEnabledShare(token);
-  if (!share) return NextResponse.json({ error: "分享不存在或已关闭" }, { status: 404 });
+  if (!share) return NextResponse.json({ error: tk("分享不存在或已关闭") }, { status: 404 });
   if (!share.allowComment) {
-    return NextResponse.json({ error: "该分享未开放批注" }, { status: 403 });
+    return NextResponse.json({ error: tk("该分享未开放批注") }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
   const text = typeof body.body === "string" ? body.body.trim().slice(0, 2000) : "";
-  if (!text) return NextResponse.json({ error: "批注内容不能为空" }, { status: 400 });
+  if (!text) return NextResponse.json({ error: tk("批注内容不能为空") }, { status: 400 });
   // key 由前端生成并只存在本地，换浏览器就认不回自己的批注了；这是可接受的取舍——批注不是账号数据
   const key = typeof body.key === "string" ? body.key.slice(0, 64) : "";
   const parentId = typeof body.parentId === "string" ? body.parentId : null;
 
   const session = await auth();
   const isOwner = session?.user?.id === share.userId;
+  // 「作者」「访客」会存进批注的作者字段，是数据不是界面文案
   const author = isOwner
+    // i18n-ignore
     ? session?.user?.name?.trim() || "作者"
+    // i18n-ignore
     : (typeof body.author === "string" && body.author.trim().slice(0, 30)) || "访客";
 
   const anchorType = body.anchorType === "media" ? "media" : "text";
@@ -63,18 +67,18 @@ export async function POST(req: Request, { params }: Params) {
       where: { id: parentId, shareId: share.id, parentId: null },
       select: { id: true },
     });
-    if (!parent) return NextResponse.json({ error: "批注不存在" }, { status: 404 });
+    if (!parent) return NextResponse.json({ error: tk("批注不存在") }, { status: 404 });
   } else {
     const anchorText = typeof body.anchorText === "string" ? body.anchorText.slice(0, 2000) : "";
     if (!anchorText.trim()) {
-      return NextResponse.json({ error: "缺少批注锚点" }, { status: 400 });
+      return NextResponse.json({ error: tk("缺少批注锚点") }, { status: 400 });
     }
   }
 
   // 计数和写入不在一个事务里，并发下可能略微超过上限；这里只是挡灌水，不追求精确
   const total = await prisma.shareComment.count({ where: { shareId: share.id } });
   if (total >= SHARE_COMMENT_CAP) {
-    return NextResponse.json({ error: "该分享的批注数已达上限" }, { status: 429 });
+    return NextResponse.json({ error: tk("该分享的批注数已达上限") }, { status: 429 });
   }
 
   const created = await prisma.shareComment.create({

@@ -6,6 +6,7 @@
 
 import { MAX_DEPTH } from "@/features/workspace/constants";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { t } from "@/i18n/t";
 
 // TS 5.9 的 lib.dom 里还缺目录选择器、句柄权限查询、handle.move，
 // 目录异步迭代在 dom.asynciterable（未进 tsconfig.lib），这里按 Chromium 实际行为补最小声明
@@ -241,9 +242,9 @@ export async function moveFile(
 ): Promise<number> {
   if (fromRel === toRel) return await fileMtime(root, toRel);
   const fromDir = await getDirectory(root, parentPath(fromRel), false);
-  if (!fromDir) throw new Error(`找不到目录 ${parentPath(fromRel) || "/"}`);
+  if (!fromDir) throw new Error(t("找不到目录 {path}", { path: parentPath(fromRel) || "/" }));
   const toDir = await getDirectory(root, parentPath(toRel), true);
-  if (!toDir) throw new Error(`建不出目录 ${parentPath(toRel) || "/"}`);
+  if (!toDir) throw new Error(t("建不出目录 {path}", { path: parentPath(toRel) || "/" }));
   const fromName = baseName(fromRel);
   const toName = baseName(toRel);
   const fh = await fromDir.getFileHandle(fromName);
@@ -264,11 +265,11 @@ export async function moveDirectory(
   toRel: string
 ): Promise<void> {
   if (fromRel === toRel) return;
-  if (toRel.startsWith(`${fromRel}/`)) throw new Error("不能把文件夹搬进它自己里");
+  if (toRel.startsWith(`${fromRel}/`)) throw new Error(t("不能把文件夹搬进它自己里"));
   const from = await getDirectory(root, fromRel, false);
   if (!from) return; // 源目录压根不在磁盘上（只存在于索引里），不用搬
   const to = await getDirectory(root, toRel, true);
-  if (!to) throw new Error(`建不出目录 ${toRel}`);
+  if (!to) throw new Error(t("建不出目录 {path}", { path: toRel }));
   await copyDir(from, to);
   const fromParent = await getDirectory(root, parentPath(fromRel), false);
   await fromParent?.removeEntry(baseName(fromRel), { recursive: true });

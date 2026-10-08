@@ -14,6 +14,8 @@ import { useEscape } from "@/hooks/useEscape";
 import { deleteReviewRecord, formatRecordTime, listReviewHistory } from "./history";
 import { reviewPanel } from "./ReviewSettings";
 import type { ReviewRecordMeta } from "./types";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 
 export function ReviewHistoryList({
   docId,
@@ -28,6 +30,7 @@ export function ReviewHistoryList({
   /** 一条都没有时要不要说一声（启动面板里不说：第一次用的人不需要知道「还没有历史」） */
   emptyHint?: boolean;
 }) {
+  const t = useT();
   const [records, setRecords] = useState<ReviewRecordMeta[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +40,7 @@ export function ReviewHistoryList({
       .then(setRecords)
       .catch((e: unknown) => {
         if (abort.signal.aborted) return;
-        setError(e instanceof Error ? e.message : "历史记录读不出来");
+        setError(e instanceof Error ? e.message : tk("历史记录读不出来"));
       });
     return () => abort.abort();
   }, [docId]);
@@ -50,15 +53,15 @@ export function ReviewHistoryList({
   };
 
   if (error) {
-    return emptyHint ? <p className="text-[11.5px] text-[var(--ink-faint)]">{error}</p> : null;
+    return emptyHint ? <p className="text-[11.5px] text-[var(--ink-faint)]">{t(error)}</p> : null;
   }
   if (!records) {
-    return emptyHint ? <p className="text-[11.5px] text-[var(--ink-faint)]">正在读取…</p> : null;
+    return emptyHint ? <p className="text-[11.5px] text-[var(--ink-faint)]">{t("正在读取…")}</p> : null;
   }
   if (records.length === 0) {
     return emptyHint ? (
       <p className="text-[11.5px] leading-snug text-[var(--ink-faint)]">
-        这篇文章还没有审核记录。每审完一趟会自动存在这里。
+        {t("这篇文章还没有审核记录。每审完一趟会自动存在这里。")}
       </p>
     ) : null;
   }
@@ -67,7 +70,7 @@ export function ReviewHistoryList({
     <div>
       <div className="mb-1 flex items-center gap-1 text-[11px] text-[var(--ink-faint)]">
         <History size={12} />
-        历史记录（点开回看，不重新审）
+        {t("历史记录（点开回看，不重新审）")}
       </div>
       <ul className="-mx-1 max-h-[216px] overflow-y-auto">
         {records.map((r) => {
@@ -79,20 +82,20 @@ export function ReviewHistoryList({
                   on ? "bg-[var(--accent-wash)]" : ""
                 }`}
                 disabled={on}
-                title={r.model ? `模型：${r.model}` : undefined}
+                title={r.model ? t("模型：{model}", { model: r.model }) : undefined}
                 onClick={() => onOpen(r.id)}
               >
                 <span className="shrink-0 text-[12px] tabular-nums text-[var(--ink)]">
                   {formatRecordTime(r.createdAt)}
                 </span>
                 <span className="min-w-0 truncate text-[11px] text-[var(--ink-faint)]">
-                  {reviewKindsLabel(r.kinds)} · {r.total} 条{on ? " · 正在看" : ""}
+                  {reviewKindsLabel(r.kinds, t)} · {t("{n} 条", { n: r.total })}{on ? ` · ${t("正在看")}` : ""}
                 </span>
               </button>
               {on ? null : (
                 <button
                   className="ml-0.5 shrink-0 cursor-pointer rounded p-1 text-[var(--ink-faint)] opacity-0 transition-opacity hover:text-[var(--ink)] focus:opacity-100 group-hover:opacity-100"
-                  title="删掉这条记录"
+                  title={t("删掉这条记录")}
                   onClick={() => remove(r.id)}
                 >
                   <Trash2 size={12} />
@@ -118,6 +121,7 @@ export function ReviewHistoryPanel({
   onOpen: (id: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
   useDismissMenu(panelRef, onClose, true);
   useEscape(onClose);
@@ -125,7 +129,7 @@ export function ReviewHistoryPanel({
     <div
       ref={panelRef}
       role="dialog"
-      aria-label="审核历史"
+      aria-label={t("审核历史")}
       className={`${reviewPanel} review-pop absolute right-4 top-[42px] z-30 text-left`}
     >
       <ReviewHistoryList

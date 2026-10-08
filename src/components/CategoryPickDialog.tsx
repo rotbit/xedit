@@ -10,6 +10,7 @@ import { Folder, FolderPlus, FolderUp, Search } from "lucide-react";
 import { createDialogHost } from "@/hooks/useDialogHost";
 import { nameOf } from "@/features/workspace/lib/catPath";
 import { PaperDialog } from "./Modal";
+import { useT } from "@/i18n/useT";
 
 /** 选中「新建分类」入口时的返回哨兵（NUL 不可能出现在真实分类名里） */
 export const CREATE_CATEGORY = "\0create";
@@ -37,6 +38,7 @@ const indentOf = (depth: number) =>
 
 /** 弹窗宿主，在根布局挂一份即可；没有打开时返回 null，不占 DOM。 */
 export function CategoryPickHost() {
+  const t = useT();
   const [query, setQuery] = useState("");
   // 每次打开都从空搜索词开始
   const { state, close } = pickHost.useHost(() => setQuery(""));
@@ -66,7 +68,7 @@ export function CategoryPickHost() {
           <input
             autoFocus
             className="h-9 w-full rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] pl-8 pr-3 text-[13px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
-            placeholder="搜索分类…"
+            placeholder={t("搜索分类…")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -88,7 +90,7 @@ export function CategoryPickHost() {
         ) : null}
         {shown.length === 0 && !state.createOption ? (
           <p className="px-3 py-8 text-center text-[12.5px] text-[var(--ink-faint)]">
-            没有匹配的分类
+            {t("没有匹配的分类")}
           </p>
         ) : (
           shown.map((c) => {
@@ -117,7 +119,7 @@ export function CategoryPickHost() {
                 )}
                 {isCurrent ? (
                   <span className="ml-auto shrink-0 text-[11px] text-[var(--ink-faint)]">
-                    当前所在
+                    {t("当前所在")}
                   </span>
                 ) : null}
               </button>
@@ -139,7 +141,7 @@ export function CategoryPickHost() {
           className="h-8 cursor-pointer rounded-lg px-4 text-[13px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
           onClick={() => close(null)}
         >
-          取消
+          {t("取消")}
         </button>
       </div>
     </PaperDialog>

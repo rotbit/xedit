@@ -20,6 +20,7 @@ import {
 } from "./providers";
 import { MAX_GUIDE_CHARS, defaultReviewGuide } from "./reviewPrompt";
 import { REVIEW_KINDS, isReviewKind, type ReviewKind } from "./reviewKinds";
+import { tk } from "@/i18n/t";
 
 const REVIEW_KEY = "ai.review";
 const KEY_PREFIX = "ai.key.";
@@ -88,9 +89,9 @@ export class AiSettingError extends Error {}
 
 /** 写一个槽位的 token；传空串 = 清掉后台填的那份（环境变量里的不受影响） */
 export async function setAiKey(slot: string, plain: string): Promise<void> {
-  if (!AI_KEY_SLOTS.includes(slot)) throw new AiSettingError("认不出这个 key 槽位");
+  if (!AI_KEY_SLOTS.includes(slot)) throw new AiSettingError(tk("认不出这个 key 槽位"));
   const value = plain.trim();
-  if (value.length > MAX_TOKEN_CHARS) throw new AiSettingError("这串 token 太长了，检查一下是不是粘错了");
+  if (value.length > MAX_TOKEN_CHARS) throw new AiSettingError(tk("这串 token 太长了，检查一下是不是粘错了"));
   await put(KEY_PREFIX + slot, value ? encryptSecret(value) : null);
 }
 
@@ -129,10 +130,10 @@ export async function getReviewGuide(kind: ReviewKind): Promise<string> {
  * 这样以后默认文案改进了，没自己改过的站点自动跟上，不会被一份一模一样的旧拷贝钉住。
  */
 export async function setReviewGuide(kind: unknown, text: string): Promise<void> {
-  if (!isReviewKind(kind)) throw new AiSettingError("认不出这个审核类型");
+  if (!isReviewKind(kind)) throw new AiSettingError(tk("认不出这个审核类型"));
   const value = text.trim();
   if (value.length > MAX_GUIDE_CHARS) {
-    throw new AiSettingError(`提示词太长了，最多 ${MAX_GUIDE_CHARS} 字`);
+    throw new AiSettingError(`提示词太长了，最多 ${MAX_GUIDE_CHARS} 字`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
   const same = value === "" || value === defaultReviewGuide(kind).trim();
   await put(PROMPT_PREFIX + kind, same ? null : value);

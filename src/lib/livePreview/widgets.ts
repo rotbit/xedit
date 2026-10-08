@@ -1,6 +1,7 @@
 import { EditorView, WidgetType } from "@codemirror/view";
 import { deleteFencedBlock, fencedCodeAt } from "@/lib/livePreview/fenceKeys";
 import { editOnClick } from "@/lib/livePreview/widgetUtils";
+import { t } from "@/i18n/t";
 
 /** 即时渲染用到的替换部件（图片/视频/代码语言下拉/分割线/列表点/复选框），
  *  装饰构建逻辑见 livePreview/index.ts */
@@ -28,13 +29,13 @@ export class ImageWidget extends WidgetType {
     wrap.className = this.preview ? "cm-lp-image cm-lp-media-below" : "cm-lp-image";
     const img = document.createElement("img");
     img.src = this.src;
-    img.alt = this.alt || "图片";
-    if (!this.preview) img.title = "点击编辑图片地址";
+    img.alt = this.alt || t("图片");
+    if (!this.preview) img.title = t("点击编辑图片地址");
     // 加载失败时收起破图标，换成占位签（点击同样可编辑）
     img.addEventListener("error", () => wrap.classList.add("cm-lp-broken"));
     const fallback = document.createElement("span");
     fallback.className = "cm-lp-image-fallback";
-    fallback.textContent = this.alt ? `${this.alt}（图片未加载）` : "图片未加载";
+    fallback.textContent = this.alt ? t("{alt}（图片未加载）", { alt: this.alt }) : t("图片未加载");
     wrap.appendChild(img);
     wrap.appendChild(fallback);
     if (this.preview) {
@@ -89,8 +90,8 @@ export class VideoWidget extends WidgetType {
     // 播放条把点击都吃掉了，编辑入口放在下方说明栏
     const bar = document.createElement("span");
     bar.className = "cm-lp-video-bar";
-    bar.textContent = this.alt ? `▶ ${this.alt}` : "▶ 视频";
-    bar.title = "点击编辑视频源码";
+    bar.textContent = this.alt ? `▶ ${this.alt}` : t("▶ 视频");
+    bar.title = t("点击编辑视频源码");
     // 监听挂在说明栏上，位置按外层容器回查（播放条自己会吃掉点击）
     editOnClick(bar, view, 2, wrap);
     wrap.appendChild(bar);
@@ -167,8 +168,8 @@ export class CodeLangWidget extends WidgetType {
     const del = document.createElement("button");
     del.type = "button";
     del.className = "cm-lp-codefence-del";
-    del.title = "删除代码块";
-    del.setAttribute("aria-label", "删除代码块");
+    del.title = t("删除代码块");
+    del.setAttribute("aria-label", t("删除代码块"));
     del.appendChild(trashIcon());
     // mousedown 不能落到编辑器：否则焦点/光标先被抢走，click 时定位到的已不是这一块
     del.addEventListener("mousedown", (e) => {
@@ -186,15 +187,15 @@ export class CodeLangWidget extends WidgetType {
     // 否则 select 只有文字那么宽，点到箭头或留白就落进编辑器、光标跳到围栏行，标签当场变回源码
     const label = document.createElement("span");
     label.className = "cm-lp-codefence-label";
-    label.textContent = this.lang || "纯文本";
+    label.textContent = this.lang || t("纯文本");
     wrap.appendChild(label);
     const select = document.createElement("select");
-    select.title = "代码语言";
+    select.title = t("代码语言");
     const langs = FENCE_LANGS.includes(this.lang) ? FENCE_LANGS : [this.lang, ...FENCE_LANGS];
     for (const l of langs) {
       const opt = document.createElement("option");
       opt.value = l;
-      opt.textContent = l || "纯文本";
+      opt.textContent = l || t("纯文本");
       if (l === this.lang) opt.selected = true;
       select.appendChild(opt);
     }

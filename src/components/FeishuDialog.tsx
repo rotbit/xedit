@@ -12,6 +12,9 @@ import { Modal, btnPrimary, btnSecondary } from "./Modal";
 import { Guide } from "./feishu/FeishuGuide";
 import { FeishuSyncPanel } from "./feishu/FeishuSyncPanel";
 import { useFeishuConnection } from "./feishu/useFeishuConnection";
+import { htmlLang } from "@/i18n/locale";
+import { useLocale, useT } from "@/i18n/useT";
+import { rich } from "@/i18n/rich";
 
 // 两个输入框共用一份类名：凭证表单要看着是一组，别只改其中一处
 const fieldCls =
@@ -55,10 +58,12 @@ export function FeishuDialog({
     disconnect,
     runSync,
   } = useFeishuConnection(onSynced);
+  const t = useT();
+  const locale = useLocale();
 
   return (
     <Modal
-      title="飞书知识库导入"
+      title={t("飞书知识库导入")}
       icon={<BookDown size={16} className="text-[var(--accent)]" />}
       width={520}
       onClose={onClose}
@@ -71,9 +76,9 @@ export function FeishuDialog({
       ) : needLogin ? (
         <div className="flex flex-col items-center gap-4 px-8 py-14 text-center">
           <p className="text-[13px] leading-6 text-[var(--ink-soft)]">
-            导入的文章与应用凭证都保存在你的账号下，
+            {t("导入的文章与应用凭证都保存在你的账号下，")}
             <br />
-            请先登录后再连接飞书。
+            {t("请先登录后再连接飞书。")}
           </p>
           <button
             className={btnPrimary}
@@ -82,7 +87,7 @@ export function FeishuDialog({
               openAuth("login");
             }}
           >
-            去登录
+            {t("去登录")}
           </button>
         </div>
       ) : !conn || !connected ? (
@@ -90,8 +95,9 @@ export function FeishuDialog({
           {/* 第一步：账号自己的飞书应用凭证 */}
           <section>
             <p className="text-[12px] text-[var(--ink-soft)]">
-              ① 应用凭证（每个账号配置自己的，
-              <span className="text-[var(--ink-faint)]">创建方法见下方使用说明</span>）
+              {rich(t("① 应用凭证（每个账号配置自己的，{hint}）"), {
+                hint: <span className="text-[var(--ink-faint)]">{t("创建方法见下方使用说明")}</span>,
+              })}
             </p>
             <label className={labelCls}>App ID</label>
             <input
@@ -101,7 +107,7 @@ export function FeishuDialog({
                 setAppId(e.target.value);
                 markAppDirty();
               }}
-              placeholder="cli_ 开头的应用 ID"
+              placeholder={t("cli_ 开头的应用 ID")}
             />
             <label className={labelCls}>App Secret</label>
             <input
@@ -116,19 +122,19 @@ export function FeishuDialog({
               // secret 在服务端加密存放，取不回明文，所以只回显后四位；留空表示这一项不改
               placeholder={
                 conn?.secretLast4
-                  ? `已保存 ····${conn.secretLast4}（留空则不修改）`
-                  : "应用的 App Secret"
+                  ? t("已保存 ····{last4}（留空则不修改）", { last4: conn.secretLast4 })
+                  : t("应用的 App Secret")
               }
             />
             <div className="mt-3 flex items-center justify-between">
-              <p className="text-[11px] text-[var(--ink-faint)]">凭证加密保存在服务端，仅你的账号可用</p>
+              <p className="text-[11px] text-[var(--ink-faint)]">{t("凭证加密保存在服务端，仅你的账号可用")}</p>
               <button
                 className={btnPrimary}
                 onClick={() => void saveApp()}
                 disabled={savingApp || !appDirty}
               >
                 {savingApp ? <Loader2 size={14} className="animate-spin" /> : null}
-                {savingApp ? "保存中…" : "保存凭证"}
+                {savingApp ? t("保存中…") : t("保存凭证")}
               </button>
             </div>
           </section>
@@ -136,16 +142,16 @@ export function FeishuDialog({
           {/* 第二步：授权连接 */}
           <section className="flex flex-col items-center gap-2.5 rounded-md border border-dashed border-[var(--hairline-strong)] px-4 py-6 text-center">
             <p className="text-[12px] leading-5 text-[var(--ink-soft)]">
-              ② 连接后即可把你有权限的知识库整库导入为文章
+              {t("② 连接后即可把你有权限的知识库整库导入为文章")}
             </p>
             {/* 凭证有未保存的改动时禁掉连接：授权要跳出站外，飞书那边用的是服务端已存的凭证，会拿旧值去换 token */}
             <button className={btnPrimary} onClick={connect} disabled={!conn?.hasApp || appDirty}>
-              连接飞书
+              {t("连接飞书")}
             </button>
             {!conn?.hasApp ? (
-              <p className="text-[11px] text-[var(--ink-faint)]">先保存上方应用凭证</p>
+              <p className="text-[11px] text-[var(--ink-faint)]">{t("先保存上方应用凭证")}</p>
             ) : appDirty ? (
-              <p className="text-[11px] text-[var(--ink-faint)]">凭证有未保存的修改</p>
+              <p className="text-[11px] text-[var(--ink-faint)]">{t("凭证有未保存的修改")}</p>
             ) : null}
           </section>
 
@@ -157,11 +163,11 @@ export function FeishuDialog({
           <section className="flex items-center gap-3 rounded-md border border-[var(--hairline-strong)] px-3 py-2">
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] text-[var(--ink)]">
-                已连接飞书{conn.feishuName ? `：${conn.feishuName}` : ""}
+                {conn.feishuName ? t("已连接飞书：{name}", { name: conn.feishuName }) : t("已连接飞书")}
               </p>
               {conn.lastSyncAt ? (
                 <p className="text-[11px] text-[var(--ink-faint)]">
-                  上次同步 {new Date(conn.lastSyncAt).toLocaleString("zh-CN")}
+                  {t("上次同步 {time}", { time: new Date(conn.lastSyncAt).toLocaleString(htmlLang(locale)) })}
                 </p>
               ) : null}
             </div>
@@ -175,19 +181,19 @@ export function FeishuDialog({
               ) : (
                 <Unlink size={14} />
               )}
-              断开
+              {t("断开")}
             </button>
           </section>
 
           <section>
-            <p className="mb-1.5 text-[12px] text-[var(--ink-soft)]">选择知识库</p>
+            <p className="mb-1.5 text-[12px] text-[var(--ink-soft)]">{t("选择知识库")}</p>
             {spaces === null ? (
               <div className="flex h-9 items-center gap-2 text-[12px] text-[var(--ink-faint)]">
-                <Loader2 size={14} className="animate-spin" /> 加载知识空间…
+                <Loader2 size={14} className="animate-spin" /> {t("加载知识空间…")}
               </div>
             ) : spaces.length === 0 ? (
               <p className="rounded-md border border-dashed border-[var(--hairline-strong)] px-3 py-4 text-center text-[12px] text-[var(--ink-faint)]">
-                没有可访问的知识库
+                {t("没有可访问的知识库")}
               </p>
             ) : (
               <select
@@ -196,7 +202,7 @@ export function FeishuDialog({
                 onChange={(e) => setSpaceId(e.target.value)}
                 disabled={syncing}
               >
-                <option value="">请选择…</option>
+                <option value="">{t("请选择…")}</option>
                 {spaces.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -215,13 +221,13 @@ export function FeishuDialog({
                 onClick={cancelFeishuSync}
                 disabled={sync.cancelling}
               >
-                {sync.cancelling ? "停止中…" : "停止"}
+                {sync.cancelling ? t("停止中…") : t("停止")}
               </button>
             ) : null}
             <button className={btnPrimary} onClick={runSync} disabled={syncing}>
               {syncing ? <Loader2 size={14} className="animate-spin" /> : null}
               {/* 上次中断过（有错且留着进度）就改叫「继续同步」：同步是幂等的，接着跑不会重复导入 */}
-              {syncing ? "同步中…" : sync.error && progress ? "继续同步" : "开始同步"}
+              {syncing ? t("同步中…") : sync.error && progress ? t("继续同步") : t("开始同步")}
             </button>
           </div>
 

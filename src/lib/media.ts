@@ -3,6 +3,8 @@
  * 图片：直传 + /api/upload 中转兜底；视频：仅浏览器直传（中转会把整个文件读进内存）。
  */
 
+import { t } from "@/i18n/t";
+
 /** 允许上传的图片类型 → 扩展名 */
 export const IMAGE_EXT: Record<string, string> = {
   "image/png": "png",
@@ -49,9 +51,9 @@ export function maxSizeOf(mime: string): number {
   return isVideoMime(mime) ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
 }
 
-/** 超限提示：图片/视频各自的人话文案 */
+/** 超限提示：图片/视频各自的人话文案（服务端调用时 t() 落在中文，正好就是 API 文案的 key） */
 export function sizeLimitError(mime: string): string {
-  return isVideoMime(mime) ? "视频不能超过 100MB" : "图片不能超过 10MB";
+  return isVideoMime(mime) ? t("视频不能超过 100MB") : t("图片不能超过 10MB");
 }
 
 /** 由扩展名反推 mime（OSS 历史同步、直传登记时只有对象 key 可用） */

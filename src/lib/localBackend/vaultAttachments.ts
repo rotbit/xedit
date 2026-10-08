@@ -12,6 +12,7 @@ import {
   sanitizeFileName,
   writeBlobFile,
 } from "./vaultFs";
+import { t } from "@/i18n/t";
 
 export interface AttachmentOps {
   /** 把图片等二进制写进 attachments/，返回相对 vault 根的路径 */
@@ -31,7 +32,7 @@ export function createAttachments(root: FileSystemDirectoryHandle): AttachmentOp
       const base = sanitizeFileName(stripExt(baseName(suggestedName)));
       const name = `${base}-${randomSuffix()}${pickExt(suggestedName, file.type)}`;
       const dir = await getDirectory(root, ATTACHMENTS_DIR, true);
-      if (!dir) throw new Error(`建不出目录 ${ATTACHMENTS_DIR}`);
+      if (!dir) throw new Error(t("建不出目录 {path}", { path: ATTACHMENTS_DIR }));
       // 故意不走写队列：调用方要等文件真落了盘，才好往正文里插链接
       await writeBlobFile(dir, name, file);
       return `${ATTACHMENTS_DIR}/${name}`;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { tk } from "@/i18n/t";
 
 /**
  * API 路由的共用前置：登录校验、文档归属校验、500 兜底。
@@ -21,7 +22,7 @@ import { prisma } from "@/lib/prisma";
  */
 export async function requireUserId(): Promise<string | NextResponse> {
   const session = await auth();
-  return session?.user?.id ?? NextResponse.json({ error: "未登录" }, { status: 401 });
+  return session?.user?.id ?? NextResponse.json({ error: tk("未登录") }, { status: 401 });
 }
 
 /** require* 返回的是不是「照原样回给客户端」的响应（401/404），而不是要的数据 */
@@ -50,7 +51,7 @@ export async function requireOwnedDoc<S extends Prisma.DocumentSelect = typeof D
     where: { id, userId, ...(opts.liveOnly ? { deletedAt: null } : {}) },
     select,
   });
-  if (!doc) return NextResponse.json({ error: "文档不存在" }, { status: 404 });
+  if (!doc) return NextResponse.json({ error: tk("文档不存在") }, { status: 404 });
   return doc;
 }
 

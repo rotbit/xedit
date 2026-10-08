@@ -1,18 +1,21 @@
 // 时间戳的展示格式。相对时间与绝对时间是两种口径，别硬合成一个函数：
 // 列表里要「刚刚 / 3 分钟前」这种口语化的近期感，详情/版本里要能对得上的确切时刻。
 
+import { getLocale, type Locale } from "@/i18n/locale";
+import { translate } from "@/i18n/t";
+
 /** 无效日期统一显示成这个，比 "NaN/NaN" 好看 */
 const INVALID = "—";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /** 列表时间戳的口语化展示：一天内走相对时间，更早显示日期 */
-export function formatRelativeTime(iso: string): string {
+export function formatRelativeTime(iso: string, locale: Locale = getLocale()): string {
   const date = new Date(iso);
   const diff = Date.now() - date.getTime();
-  if (diff < 60_000) return "刚刚";
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`;
+  if (diff < 60_000) return translate("刚刚", locale);
+  if (diff < 3600_000) return translate("{n} 分钟前", locale, { n: Math.floor(diff / 60_000) });
+  if (diff < 86400_000) return translate("{n} 小时前", locale, { n: Math.floor(diff / 3600_000) });
   return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
 }
 

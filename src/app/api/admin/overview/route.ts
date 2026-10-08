@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { adminSessionUserId } from "@/lib/admin";
+import { tk } from "@/i18n/t";
 
 /** 后台首页的全站概览：用户/文档/存储的汇总数字 */
 export async function GET() {
   const session = await auth();
   if (!adminSessionUserId(session)) {
-    return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    return NextResponse.json({ error: tk("无权访问") }, { status: 403 });
   }
 
   const weekAgo = new Date(Date.now() - 7 * 86400_000);

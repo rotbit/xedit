@@ -41,9 +41,9 @@ export const CODE_LANG: Record<number, string> = {
 
 /** 无法转换的块类型 → 占位文案里的名称 */
 const UNSUPPORTED_NAME: Record<number, string> = {
-  18: "多维表格", 20: "群卡片", 21: "流程图", 23: "文件附件", 26: "内嵌网页",
-  28: "小组件", 29: "思维笔记", 30: "电子表格", 33: "视图", 35: "任务",
-  36: "OKR", 40: "文档小组件", 41: "Jira 卡片", 43: "画板", 48: "链接预览卡片",
+  18: "多维表格", 20: "群卡片", 21: "流程图", 23: "文件附件", 26: "内嵌网页", // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
+  28: "小组件", 29: "思维笔记", 30: "电子表格", 33: "视图", 35: "任务", // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
+  36: "OKR", 40: "文档小组件", 41: "Jira 卡片", 43: "画板", 48: "链接预览卡片", // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
 };
 
 interface TextElementStyle {
@@ -105,16 +105,16 @@ function inline(elements: TextElement[] | undefined): string {
         if (colorHex) core = `<span style="color:${colorHex}">${core}</span>`;
         piece = lead + core + tail;
       }
-      if (s.link?.url) piece = `[${piece || "链接"}](${decodeUrl(s.link.url)})`;
+      if (s.link?.url) piece = `[${piece || "链接"}](${decodeUrl(s.link.url)})`; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
       out += piece;
     } else if (el.equation) {
       const tex = (el.equation.content ?? "").replace(/\s+/g, " ").trim();
       if (tex) out += `$${tex}$`;
     } else if (el.mention_doc) {
       const url = decodeUrl(el.mention_doc.url ?? "");
-      out += url ? `[飞书文档](${url})` : "";
+      out += url ? `[飞书文档](${url})` : ""; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
     } else if (el.mention_user) {
-      out += "@成员";
+      out += "@成员"; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
     }
     // reminder / inline file 等其余行内元素没有可迁移的正文，跳过
   }
@@ -246,7 +246,7 @@ class Converter {
       if (!img?.token) return "";
       const url = await this.ctx.resolveImage(img.token);
       const alt = img.caption?.content?.trim() ?? "";
-      return url ? `![${alt}](${url})` : "> （图片转存失败，请在飞书原文查看）";
+      return url ? `![${alt}](${url})` : "> （图片转存失败，请在飞书原文查看）"; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
     }
 
     if (t === B.table) return this.renderTable(block, depth);
@@ -259,7 +259,7 @@ class Converter {
     if (t === B.page) return "";
 
     const name = UNSUPPORTED_NAME[t];
-    if (name) return `> （此处有暂不支持导入的飞书${name}，请在原文查看）`;
+    if (name) return `> （此处有暂不支持导入的飞书${name}，请在原文查看）`; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
     return ""; // 目录、同步块等纯导航/装饰块静默跳过
   }
 

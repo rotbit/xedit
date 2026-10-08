@@ -5,6 +5,7 @@ import { caretTouches, type LpContext } from "@/lib/livePreview/context";
 import { mathJaxReady, refreshWhenMathReady } from "@/lib/livePreview/mathReady";
 import { editOnClick } from "@/lib/livePreview/widgetUtils";
 import type { ScanGuards, ScanLine } from "@/lib/livePreview/lineScan";
+import { t } from "@/i18n/t";
 
 /**
  * 行内公式 `$…$` 的即时渲染。
@@ -64,7 +65,7 @@ class InlineMathWidget extends WidgetType {
   toDOM(view: EditorView) {
     const el = document.createElement("span");
     el.className = "cm-lp-imath";
-    el.title = "点击编辑公式";
+    el.title = t("点击编辑公式");
     // 建部件前已经确认渲染得出来（见 inlineMathLine），这里必然拿得到消毒过的 SVG
     setSvg(el, renderInlineTex(this.tex) ?? "");
     // +1 跳过开头的 `$`：光标落进区间内部，装饰随即让位给源码

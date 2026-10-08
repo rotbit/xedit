@@ -9,6 +9,7 @@ import type {
 } from "@/features/workspace/hooks/useImportDocs";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
 import { Modal, btnPrimary } from "./Modal";
+import { useT } from "@/i18n/useT";
 
 /** 失败清单最多列这么多条，再多只报总数——弹窗不该被一个坏文件夹撑成长卷 */
 const MAX_FAILED_SHOWN = 20;
@@ -29,6 +30,7 @@ export function ImportDialog({
   onClose: () => void;
   importer: DocImporter;
 }) {
+  const t = useT();
   const [mode, setMode] = useState<ImportMode>(initialMode);
   const [result, setResult] = useState<ImportResult | null>(null);
   // 自己也记一份「跑着呢」：importer.importing 落回 false 与结果到手之间隔着一次渲染，
@@ -62,7 +64,7 @@ export function ImportDialog({
   return (
     <Modal
       // 标题跟菜单条目同名，点哪条进来就看到哪条
-      title={mode === "folder" ? "导入文件夹" : "导入文件"}
+      title={mode === "folder" ? t("导入文件夹") : t("导入文件")}
       icon={<FileInput size={16} className="text-[var(--accent)]" />}
       width={520}
       locked={running}
@@ -103,29 +105,37 @@ function Pick({
   onSwitch: (mode: ImportMode) => void;
   onPick: () => void;
 }) {
+  const t = useT();
   const folder = mode === "folder";
+  // 「未分类」是存储名，显示时才翻；其余分类名是用户自己起的，原样显示
+  const cat = targetCat === UNCATEGORIZED ? t(UNCATEGORIZED) : targetCat;
   return (
     <div className="flex flex-col gap-4 px-5 py-6">
       <p className="text-[13px] leading-6 text-[var(--ink-soft)]">
         {folder
-          ? `选一个文件夹，${
-              picked && targetCat !== UNCATEGORIZED ? `整个目录会放进「${targetCat}」，` : ""
-            }子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。`
-          : `选一个或多个 .md 文件，导入到${picked ? "文件夹" : "当前分类"}「${targetCat}」。`}
+          ? picked && targetCat !== UNCATEGORIZED
+            ? t(
+                "选一个文件夹，整个目录会放进「{cat}」，子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。",
+                { cat }
+              )
+            : t("选一个文件夹，子文件夹会成为分类，文件名就是标题，正文里引用的本地图片会一并上传。")
+          : picked
+            ? t("选一个或多个 .md 文件，导入到文件夹「{cat}」。", { cat })
+            : t("选一个或多个 .md 文件，导入到当前分类「{cat}」。", { cat })}
       </p>
       <div className="flex items-center gap-3">
         <button className={btnPrimary} onClick={onPick}>
-          {folder ? "选择文件夹…" : "选择文件…"}
+          {folder ? t("选择文件夹…") : t("选择文件…")}
         </button>
         <button
           className="cursor-pointer text-[12px] text-[var(--ink-faint)] underline-offset-2 hover:text-[var(--ink)] hover:underline"
           onClick={() => onSwitch(folder ? "file" : "folder")}
         >
-          {folder ? "改为导入文件" : "改为导入文件夹"}
+          {folder ? t("改为导入文件") : t("改为导入文件夹")}
         </button>
       </div>
       <p className="text-[12px] leading-5 text-[var(--ink-faint)]">
-        重复导入不会产生重复文章：同分类同标题的会被更新。
+        {t("重复导入不会产生重复文章：同分类同标题的会被更新。")}
       </p>
     </div>
   );
@@ -133,11 +143,12 @@ function Pick({
 
 /** 第二阶段：进度 */
 function Running({ done, total }: { done: number; total: number }) {
+  const t = useT();
   return (
     <div className="flex h-56 flex-col items-center justify-center gap-3">
       <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
       <p className="text-[13px] text-[var(--ink-soft)]">
-        正在导入 {done} / {total}
+        {t("正在导入 {done} / {total}", { done, total })}
       </p>
     </div>
   );
@@ -147,36 +158,37 @@ function Running({ done, total }: { done: number; total: number }) {
 function Done({ result, onClose }: { result: ImportResult; onClose: () => void }) {
   const { created, updated, skipped, failed, imageFailed } = result;
   const nothing = created + updated + skipped + failed.length === 0;
+  const t = useT();
   return (
     <>
       <div className="flex flex-col gap-3 overflow-y-auto px-5 py-5">
         {nothing ? (
           <p className="text-[13px] leading-6 text-[var(--ink-soft)]">
-            没有可导入的文件：只认 .md / .markdown，以 . 开头的目录会跳过。
+            {t("没有可导入的文件：只认 .md / .markdown，以 . 开头的目录会跳过。")}
           </p>
         ) : (
           <p className="text-[13px] text-[var(--ink)]">
-            新建 {created} · 更新 {updated} · 跳过 {skipped}
+            {t("新建 {created} · 更新 {updated} · 跳过 {skipped}", { created, updated, skipped })}
             {failed.length > 0 ? (
-              <span className="text-red-600 dark:text-red-400"> · 失败 {failed.length}</span>
+              <span className="text-red-600 dark:text-red-400"> · {t("失败 {n}", { n: failed.length })}</span>
             ) : null}
           </p>
         )}
         {imageFailed > 0 ? (
           <p className="text-[12px] text-[var(--ink-faint)]">
-            {imageFailed} 张图片上传失败，正文里保留了原始链接。
+            {t("{n} 张图片上传失败，正文里保留了原始链接。", { n: imageFailed })}
           </p>
         ) : null}
         {failed.length > 0 ? (
           <ul className="flex flex-col gap-1 rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-3 py-2">
             {failed.slice(0, MAX_FAILED_SHOWN).map((f, i) => (
               <li key={`${f.title}-${i}`} className="text-[12px] leading-5 text-[var(--ink-soft)]">
-                <span className="text-[var(--ink)]">{f.title}</span> — {f.reason}
+                <span className="text-[var(--ink)]">{f.title}</span> — {t(f.reason)}
               </li>
             ))}
             {failed.length > MAX_FAILED_SHOWN ? (
               <li className="text-[12px] text-[var(--ink-faint)]">
-                还有 {failed.length - MAX_FAILED_SHOWN} 篇失败未列出
+                {t("还有 {n} 篇失败未列出", { n: failed.length - MAX_FAILED_SHOWN })}
               </li>
             ) : null}
           </ul>
@@ -184,7 +196,7 @@ function Done({ result, onClose }: { result: ImportResult; onClose: () => void }
       </div>
       <div className="flex shrink-0 justify-end border-t border-[var(--hairline)] px-5 py-3">
         <button className={btnPrimary} onClick={onClose}>
-          完成
+          {t("完成")}
         </button>
       </div>
     </>

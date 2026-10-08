@@ -14,6 +14,7 @@ export function formatSize(bytes: number): string {
 
 export const isVideo = (asset: Asset) => asset.mime.startsWith("video/");
 
-export function copyText(text: string, label: string) {
-  void navigator.clipboard.writeText(text).then(() => toast(`${label}已复制`, "success"));
+/** doneMsg 由调用方用 t() 翻好整句传进来：「链接」+「已复制」拼接在英文里语序不对 */
+export function copyText(text: string, doneMsg: string) {
+  void navigator.clipboard.writeText(text).then(() => toast(doneMsg, "success"));
 }

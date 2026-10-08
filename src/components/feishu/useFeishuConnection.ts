@@ -11,6 +11,7 @@ import {
   startFeishuSync,
   useFeishuSync,
 } from "@/hooks/useFeishuSync";
+import { t, tk } from "@/i18n/t";
 import { toast } from "../Toast";
 
 /** 回调地址随站点部署固定，订阅无需做任何事，故 subscribe 返回空清理函数 */
@@ -83,7 +84,7 @@ export function useFeishuConnection(onSynced: () => void) {
       }
       if (data.connected) setSpaceId((prev) => prev || data.spaceId);
     } catch {
-      toast("加载飞书连接状态失败", "error");
+      toast(t("加载飞书连接状态失败"), "error");
     } finally {
       setLoading(false);
     }
@@ -135,13 +136,14 @@ export function useFeishuConnection(onSynced: () => void) {
         if (cancelled) return;
         if (!res.ok) {
           if (data.needReconnect) handleReconnect();
-          throw new Error(data.error ?? "加载失败");
+          throw new Error(data.error ?? tk("加载失败"));
         }
         setSpaces(Array.isArray(data.spaces) ? data.spaces : []);
       } catch (e) {
         if (!cancelled) {
           setSpaces([]);
-          toast(e instanceof Error ? e.message : "加载知识空间失败", "error");
+          // 服务端的错误文案是中文原文，t() 命中字典就翻、没命中原样显示
+          toast(e instanceof Error ? t(e.message) : t("加载知识空间失败"), "error");
         }
       }
     })();
@@ -152,7 +154,7 @@ export function useFeishuConnection(onSynced: () => void) {
 
   const saveApp = async () => {
     if (!appId.trim()) {
-      toast("请填写 App ID", "error");
+      toast(t("请填写 App ID"), "error");
       return;
     }
     setSavingApp(true);
@@ -166,16 +168,16 @@ export function useFeishuConnection(onSynced: () => void) {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "保存失败");
+      if (!res.ok) throw new Error(data.error ?? tk("保存失败"));
       setConn(data);
       setAppId(data.appId);
       setAppSecret("");
       setSecretEdited(false);
       appDirtyRef.current = false;
       setAppDirty(false);
-      toast("应用凭证已保存", "success");
+      toast(t("应用凭证已保存"), "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "保存失败", "error");
+      toast(e instanceof Error ? t(e.message) : t("保存失败"), "error");
     } finally {
       setSavingApp(false);
     }
@@ -197,9 +199,9 @@ export function useFeishuConnection(onSynced: () => void) {
       setConn((c) => (c ? { ...c, connected: false, feishuName: "" } : c));
       setSpaces(null);
       clearFeishuSyncProgress();
-      toast("已断开授权（应用凭证、已导入文章与同步记录都保留）", "success");
+      toast(t("已断开授权（应用凭证、已导入文章与同步记录都保留）"), "success");
     } catch {
-      toast("断开失败", "error");
+      toast(t("断开失败"), "error");
     } finally {
       setDisconnecting(false);
     }
@@ -208,7 +210,7 @@ export function useFeishuConnection(onSynced: () => void) {
   const runSync = () => {
     const space = spaces?.find((s) => s.id === spaceId);
     if (!space) {
-      toast("请先选择要导入的知识库", "error");
+      toast(t("请先选择要导入的知识库"), "error");
       return;
     }
     // 完成回调即使对话框已关闭也有效：onSynced 属于外层工作台，loadConnection 卸载后是空操作

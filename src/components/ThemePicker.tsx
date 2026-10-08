@@ -16,6 +16,8 @@ import {
   CUSTOM_THEME_PREFIX,
   type ThemePreset,
 } from "@/lib/themes";
+import { useT } from "@/i18n/useT";
+import { rich } from "@/i18n/rich";
 
 /** 所有缩略图共用的作用域类：BASE_CSS 只按它注入一份（见 ThemePickerPanel） */
 const THUMB_SCOPE = "tp-thumb";
@@ -34,6 +36,7 @@ function ThemeThumb({ theme }: { theme: ThemePreset }) {
   // 自定义主题的 id 是带前缀的 UUID，可能含 CSS 类名里非法的字符，统一换成下划线
   const cls = `tp-${theme.id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
   const css = useMemo(() => theme.css.replaceAll("#nice", `.${cls}`), [theme, cls]);
+  const t = useT();
 
   return (
     <div className="light-lock pointer-events-none h-[88px] overflow-hidden rounded-[5px] bg-white">
@@ -49,14 +52,17 @@ function ThemeThumb({ theme }: { theme: ThemePreset }) {
       >
         <h2 style={{ marginTop: 0, marginBottom: 10 }}>
           <span className="prefix" />
-          <span className="content">标题样式</span>
+          <span className="content">{t("标题样式")}</span>
           <span className="suffix" />
         </h2>
         <p style={{ margin: "8px 0" }}>
-          正文文字，<strong>重点强调</strong>与<a>链接</a>的样子。
+          {rich(t("正文文字，{strong}与{a}的样子。"), {
+            strong: <strong>{t("重点强调")}</strong>,
+            a: <a>{t("链接")}</a>,
+          })}
         </p>
         <blockquote style={{ margin: "10px 0" }}>
-          <p style={{ margin: "6px 0" }}>引用内容的样式</p>
+          <p style={{ margin: "6px 0" }}>{t("引用内容的样式")}</p>
         </blockquote>
       </div>
     </div>
@@ -75,6 +81,7 @@ function ThemeCard({
   onSelect: () => void;
   onEdit?: () => void;
 }) {
+  const t = useT();
   return (
     <div className="group cursor-pointer text-left" onClick={onSelect}>
       <div
@@ -88,7 +95,7 @@ function ThemeCard({
         {onEdit ? (
           <button
             className="absolute right-1.5 top-1.5 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md bg-black/45 text-white opacity-0 transition-opacity hover:bg-black/65 group-hover:opacity-100"
-            title="编辑主题"
+            title={t("编辑主题")}
             onClick={(e) => {
               // 编辑按钮压在卡片上，必须拦住冒泡，否则点「编辑」会顺带把这套主题选中
               e.stopPropagation();
@@ -106,9 +113,9 @@ function ThemeCard({
           }`}
         >
           {active ? <Check size={12} /> : null}
-          {theme.name}
+          {t(theme.name)}
         </span>
-        <span className="text-[10.5px] text-[var(--ink-faint)]">{theme.tag}</span>
+        <span className="text-[10.5px] text-[var(--ink-faint)]">{t(theme.tag)}</span>
       </div>
     </div>
   );
@@ -159,14 +166,15 @@ function TypographyTuner() {
   const tuneLineHeight = useStore((s) => s.tuneLineHeight);
   const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
   const setTune = useStore((s) => s.setTune);
+  const t = useT();
 
   return (
     <>
       <p className="px-3.5 pb-0.5 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
-        排版微调
+        {t("排版微调")}
       </p>
       <SliderRow
-        label="字号"
+        label={t("字号")}
         value={tuneFontSize}
         // 三档的取值范围是刻意收窄的：超出这个区间，在公众号正文里就不像正常排版了
         min={14}
@@ -176,7 +184,7 @@ function TypographyTuner() {
         onChange={(v) => setTune({ tuneFontSize: v })}
       />
       <SliderRow
-        label="行高"
+        label={t("行高")}
         value={tuneLineHeight}
         min={1.5}
         max={2.2}
@@ -185,7 +193,7 @@ function TypographyTuner() {
         onChange={(v) => setTune({ tuneLineHeight: v })}
       />
       <SliderRow
-        label="段距"
+        label={t("段距")}
         value={tuneParaSpacing}
         min={8}
         max={28}
@@ -200,7 +208,7 @@ function TypographyTuner() {
           setTune({ ...DEFAULT_TUNE });
         }}
       >
-        重置排版微调
+        {t("重置排版微调")}
       </button>
     </>
   );
@@ -213,6 +221,7 @@ export function ThemePickerPanel() {
   const customThemes = useStore((s) => s.customThemes);
   const setThemeStudio = useStore((s) => s.setThemeStudio);
   const setCssDialogOpen = useStore((s) => s.setCssDialogOpen);
+  const t = useT();
 
   const footBtn =
     "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--hairline-strong)] px-3 py-2 text-[12.5px] text-[var(--ink)] hover:bg-[var(--paper)]";
@@ -225,7 +234,7 @@ export function ThemePickerPanel() {
       {customThemes.length > 0 ? (
         <>
           <p className="px-3.5 pb-1.5 pt-1.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
-            我的主题
+            {t("我的主题")}
           </p>
           <div className="grid grid-cols-2 gap-2.5 px-3 pb-2">
             {customThemes.map((spec) => {
@@ -245,15 +254,15 @@ export function ThemePickerPanel() {
       ) : null}
 
       <p className="px-3.5 pb-1.5 pt-1.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
-        排版主题
+        {t("排版主题")}
       </p>
       <div className="grid grid-cols-2 gap-2.5 px-3 pb-2">
-        {THEME_PRESETS.map((t) => (
+        {THEME_PRESETS.map((th) => (
           <ThemeCard
-            key={t.id}
-            theme={t}
-            active={t.id === themeId}
-            onSelect={() => setThemeId(t.id)}
+            key={th.id}
+            theme={th}
+            active={th.id === themeId}
+            onSelect={() => setThemeId(th.id)}
           />
         ))}
       </div>
@@ -266,11 +275,11 @@ export function ThemePickerPanel() {
       <div className="sticky bottom-0 flex gap-2 border-t border-[var(--hairline-soft)] bg-[var(--panel)] px-3 py-2.5">
         <button className={footBtn} onClick={() => setThemeStudio("new")}>
           <Plus size={14} />
-          新建主题
+          {t("新建主题")}
         </button>
         <button className={footBtn} onClick={() => setCssDialogOpen(true)}>
           <Code2 size={14} />
-          自定义 CSS
+          {t("自定义 CSS")}
         </button>
       </div>
     </div>

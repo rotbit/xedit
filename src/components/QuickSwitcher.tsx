@@ -12,6 +12,7 @@ import { matchRanges, searchDocs, splitQuery } from "@/lib/docSearch";
 import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { formatRelativeTime } from "@/lib/format";
 import type { DocMeta } from "@/features/workspace/types";
+import { useT } from "@/i18n/useT";
 
 /** 一次最多列 30 条：再多也翻不动，键盘选择反而变慢 */
 const LIMIT = 30;
@@ -29,6 +30,7 @@ export function QuickSwitcher({
   onClose: () => void;
   onOpen: (id: string) => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
 
@@ -63,25 +65,25 @@ export function QuickSwitcher({
     <PaletteShell
       open={open}
       icon={<Search size={16} className="shrink-0 text-[var(--ink-faint)]" />}
-      placeholder="搜索文章标题或正文…"
-      hint="↑↓ 选择 · ↵ 打开 · esc 关闭"
+      placeholder={t("搜索文章标题或正文…")}
+      hint={t("↑↓ 选择 · ↵ 打开 · esc 关闭")}
       query={query}
       onQueryChange={setQuery}
       resetKey={debounced}
       items={hits}
       keyOf={(hit) => hit.doc.id}
       itemAlign="start"
-      emptyText={q ? `没有找到「${q}」` : "还没有文章"}
+      emptyText={q ? t("没有找到「{q}」", { q }) : t("还没有文章")}
       listTop={
         q ? null : (
-          <p className="px-2.5 pb-1 pt-1 text-[11px] text-[var(--ink-faint)]">最近编辑</p>
+          <p className="px-2.5 pb-1 pt-1 text-[11px] text-[var(--ink-faint)]">{t("最近编辑")}</p>
         )
       }
       onPick={(hit) => onOpen(hit.doc.id)}
       onClose={onClose}
       renderItem={(hit) => {
         const { doc } = hit;
-        const title = doc.title || UNTITLED_DOC;
+        const title = doc.title || t(UNTITLED_DOC);
         return (
           <>
             <FileText size={14} className="mt-[3px] shrink-0 text-[var(--ink-faint)]" />
@@ -91,7 +93,7 @@ export function QuickSwitcher({
                   <MatchHighlight text={title} ranges={matchRanges(title, terms)} />
                 </span>
                 <span className="max-w-[9rem] shrink-0 truncate text-[11px] text-[var(--ink-faint)]">
-                  {doc.category || UNCATEGORIZED}
+                  {doc.category || t(UNCATEGORIZED)}
                 </span>
                 <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">
                   {formatRelativeTime(doc.updatedAt)}

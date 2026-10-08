@@ -49,30 +49,30 @@ export async function POST(req: Request): Promise<Response> {
   const clientId = form.get("client_id") ?? "";
 
   // 客户端身份相关的错误按规范回 401，其余参数类错误走 oauthError 默认的 400
-  if (!clientId) return oauthError("invalid_client", "缺少 client_id", 401);
+  if (!clientId) return oauthError("invalid_client", "缺少 client_id", 401); // i18n-ignore
   const client = await getClient(clientId);
-  if (!client) return oauthError("invalid_client", "客户端不存在", 401);
+  if (!client) return oauthError("invalid_client", "客户端不存在", 401); // i18n-ignore
 
   if (grantType === "authorization_code") {
     const code = form.get("code") ?? "";
     const redirectUri = form.get("redirect_uri") ?? "";
     const codeVerifier = form.get("code_verifier") ?? "";
     if (!code || !redirectUri || !codeVerifier) {
-      return oauthError("invalid_request", "缺少 code / redirect_uri / code_verifier");
+      return oauthError("invalid_request", "缺少 code / redirect_uri / code_verifier"); // i18n-ignore
     }
     const consumed = await consumeAuthCode(code, clientId, redirectUri);
-    if (!consumed) return oauthError("invalid_grant", "授权码无效、已过期或已被使用");
+    if (!consumed) return oauthError("invalid_grant", "授权码无效、已过期或已被使用"); // i18n-ignore
     if (consumed.codeMethod !== "S256" || !verifyPkceS256(codeVerifier, consumed.codeChallenge)) {
-      return oauthError("invalid_grant", "PKCE 校验失败");
+      return oauthError("invalid_grant", "PKCE 校验失败"); // i18n-ignore
     }
     return issueTokens(origin, clientId, consumed.userId, consumed.scope, consumed.resource);
   }
 
   if (grantType === "refresh_token") {
     const refreshToken = form.get("refresh_token") ?? "";
-    if (!refreshToken) return oauthError("invalid_request", "缺少 refresh_token");
+    if (!refreshToken) return oauthError("invalid_request", "缺少 refresh_token"); // i18n-ignore
     const rotated = await rotateRefreshToken(refreshToken, clientId);
-    if (!rotated) return oauthError("invalid_grant", "刷新令牌无效或已失效");
+    if (!rotated) return oauthError("invalid_grant", "刷新令牌无效或已失效"); // i18n-ignore
     return issueTokens(
       origin,
       clientId,
@@ -83,7 +83,7 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  return oauthError("unsupported_grant_type", `不支持的 grant_type: ${grantType}`);
+  return oauthError("unsupported_grant_type", `不支持的 grant_type: ${grantType}`); // i18n-ignore
 }
 
 /** 跨源预检。少了它，浏览器里的 MCP 客户端连令牌都换不到。 */

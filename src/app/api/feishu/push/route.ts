@@ -4,6 +4,7 @@ import { readOnlyGuard } from "@/lib/guards";
 import { serverError } from "@/lib/routeAuth";
 import { FeishuReconnectError } from "@/lib/feishu/oauth";
 import { pushDocumentToFeishu } from "@/lib/feishu/push";
+import { tk } from "@/i18n/t";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+    return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
   const userId = session.user.id;
   const denied = await readOnlyGuard(userId);
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const documentId = typeof body.documentId === "string" ? body.documentId : "";
   if (!documentId) {
-    return NextResponse.json({ error: "缺少文章 id" }, { status: 400 });
+    return NextResponse.json({ error: tk("缺少文章 id") }, { status: 400 });
   }
 
   try {
@@ -37,6 +38,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: e.message, needReconnect: true }, { status: 400 });
     }
     // 飞书接口的原始报文可能带内部 id 与凭证片段，只留一句给用户
-    return serverError(e, "推送失败");
+    return serverError(e, tk("推送失败"));
   }
 }

@@ -10,6 +10,7 @@
  * - replicate：先创建 prediction，Prefer: wait 常常一次就回来，没回来就轮询
  */
 import { type AiProvider } from "./providers";
+import { tk } from "@/i18n/t";
 
 const DEFAULT_TIMEOUT_SEC = 180;
 const POLL_MS = 1200;
@@ -73,17 +74,17 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** HTTP 状态 → 统一错误码。各家状态码用法基本一致，差别都在报文里，那部分只做截断 */
 function httpError(provider: AiProvider, status: number, detail: string): AiError {
   if (status === 401 || status === 403)
-    return new AiError("bad_key", `${provider.label} 拒绝了这个 API Key，检查一下是不是填错或过期了`);
+    return new AiError("bad_key", `${provider.label} 拒绝了这个 API Key，检查一下是不是填错或过期了`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   if (status === 402)
-    return new AiError("billing", `${provider.label} 账户余额不足（或没开通这个模型）`);
+    return new AiError("billing", `${provider.label} 账户余额不足（或没开通这个模型）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   if (status === 404)
-    return new AiError("bad_input", `${provider.label} 没有这个模型，换一个再试：${clip(detail, 120)}`);
+    return new AiError("bad_input", `${provider.label} 没有这个模型，换一个再试：${clip(detail, 120)}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   if (status === 429)
-    return new AiError("rate_limited", `${provider.label} 限流了（也可能是额度用完），过一会儿再试`);
+    return new AiError("rate_limited", `${provider.label} 限流了（也可能是额度用完），过一会儿再试`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   if (status === 400 || status === 422)
-    return new AiError("bad_input", `${provider.label} 说请求不对：${clip(detail, 200)}`);
-  if (status >= 500) return new AiError("failed", `${provider.label} 服务端出错（HTTP ${status}）`);
-  return new AiError("failed", `${provider.label} 返回 HTTP ${status}`);
+    return new AiError("bad_input", `${provider.label} 说请求不对：${clip(detail, 200)}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+  if (status >= 500) return new AiError("failed", `${provider.label} 服务端出错（HTTP ${status}）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+  return new AiError("failed", `${provider.label} 返回 HTTP ${status}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
 }
 
 /** 从各家的错误报文里挑一句人能看的。字段名各不相同，挨个试一遍 */
@@ -111,7 +112,7 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
   const { provider, model, apiKey } = req;
   const { fetchImpl = fetch, signal = null, pollMs = POLL_MS } = deps;
   const key = apiKey.trim();
-  if (!key) throw new AiError("no_key", `还没有配置 ${provider.label} 的 API Key`);
+  if (!key) throw new AiError("no_key", `还没有配置 ${provider.label} 的 API Key`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   const timeoutSec = deps.timeoutSec && deps.timeoutSec > 0 ? deps.timeoutSec : DEFAULT_TIMEOUT_SEC;
   const deadline = Date.now() + timeoutSec * 1000;
 
@@ -119,7 +120,7 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     const text =
       provider.transport === "replicate" ? await viaReplicate() : await viaOpenAiCompatible();
     const out = text.trim();
-    if (!out) throw new AiError("failed", `${provider.label} 返回了空回复`);
+    if (!out) throw new AiError("failed", `${provider.label} 返回了空回复`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
     return out.length > MAX_REPLY_CHARS ? out.slice(0, MAX_REPLY_CHARS) : out;
   } catch (e) {
     // 兜底：key 绝不能出现在错误文案里
@@ -166,7 +167,7 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
         )
         .join("");
     }
-    throw new AiError("failed", `${provider.label} 的回复解析不出内容`);
+    throw new AiError("failed", `${provider.label} 的回复解析不出内容`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
 
   /**
@@ -200,25 +201,25 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
         try {
           await callReplicate(pred.urls?.cancel, { method: "POST" });
         } catch {}
-        throw new AiError("timeout", `${provider.label} 超时了（超过 ${timeoutSec} 秒）`);
+        throw new AiError("timeout", `${provider.label} 超时了（超过 ${timeoutSec} 秒）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
       }
       await sleep(pollMs);
       pred = await callReplicate(pred.urls?.get);
     }
     if (pred.status !== "succeeded") {
-      if (pred.status === "canceled") throw new AiError("aborted", "已取消");
-      throw new AiError("failed", `${provider.label} 调用失败：${clip(pred.error, 200) || "未知原因"}`);
+      if (pred.status === "canceled") throw new AiError("aborted", tk("已取消"));
+      throw new AiError("failed", `${provider.label} 调用失败：${clip(pred.error, 200) || "未知原因"}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
     }
     const out = pred.output;
     if (typeof out === "string") return out;
     if (Array.isArray(out)) return out.map((chunk) => String(chunk ?? "")).join("");
-    throw new AiError("failed", `${provider.label} 没有返回内容`);
+    throw new AiError("failed", `${provider.label} 没有返回内容`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
 
   /** 带 key 的请求只许发给 Replicate：轮询/取消地址是上游给的，先核对前缀再决定带不带 key */
   async function callReplicate(url: string | undefined, init: RequestInit = {}): Promise<Prediction> {
     if (typeof url !== "string" || !url.startsWith(`${provider.baseUrl}/`)) {
-      throw new AiError("failed", "Replicate 返回了异常的接口地址，已中止");
+      throw new AiError("failed", tk("Replicate 返回了异常的接口地址，已中止"));
     }
     const res = await request(url, {
       ...init,
@@ -248,9 +249,9 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     } catch (e) {
       const name = e instanceof Error ? e.name : "";
       if (name === "TimeoutError")
-        throw new AiError("timeout", `${provider.label} 超时了（超过 ${timeoutSec} 秒）`);
-      if (name === "AbortError") throw new AiError("aborted", "已取消");
-      throw new AiError("network", `连不上 ${provider.label}，检查下网络或代理`);
+        throw new AiError("timeout", `${provider.label} 超时了（超过 ${timeoutSec} 秒）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+      if (name === "AbortError") throw new AiError("aborted", tk("已取消"));
+      throw new AiError("network", `连不上 ${provider.label}，检查下网络或代理`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
     }
   }
 }

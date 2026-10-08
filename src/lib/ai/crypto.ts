@@ -16,7 +16,7 @@ function encKey(): Buffer {
   if (cachedKey) return cachedKey;
   const secret = process.env.AI_ENCRYPTION_KEY || process.env.AUTH_SECRET;
   if (!secret) {
-    throw new Error("缺少 AI_ENCRYPTION_KEY 或 AUTH_SECRET，无法加密 AI 密钥");
+    throw new Error("缺少 AI_ENCRYPTION_KEY 或 AUTH_SECRET，无法加密 AI 密钥"); // i18n-ignore 部署配置错误，给运维看的
   }
   // 固定 salt：同一部署内密钥稳定，重启后仍能解出旧密文
   cachedKey = scryptSync(secret, "xedit-ai-key-v1", 32);

@@ -2,6 +2,7 @@
 // 颜色只填一个主色，深浅底色/边框/斑马纹全部从主色派生，
 // 保证怎么调都不会出「满屏荧光色」的翻车配色。
 
+import { t, tk } from "@/i18n/t";
 import { THEME_PRESETS, type ThemePreset } from "./presets";
 
 export interface CustomThemeSpec {
@@ -29,28 +30,29 @@ export interface CustomThemeSpec {
 export const CUSTOM_THEME_PREFIX = "custom:";
 
 export const HEADING_STYLE_OPTIONS: { value: CustomThemeSpec["headingStyle"]; label: string }[] = [
-  { value: "underline", label: "短下划线" },
-  { value: "bar", label: "左竖线" },
-  { value: "chip", label: "色块章节" },
-  { value: "wings", label: "两侧翼线" },
-  { value: "plain", label: "纯色简约" },
+  { value: "underline", label: tk("短下划线") },
+  { value: "bar", label: tk("左竖线") },
+  { value: "chip", label: tk("色块章节") },
+  { value: "wings", label: tk("两侧翼线") },
+  { value: "plain", label: tk("纯色简约") },
 ];
 
 export const QUOTE_STYLE_OPTIONS: { value: CustomThemeSpec["quoteStyle"]; label: string }[] = [
-  { value: "bar", label: "左线浅底" },
-  { value: "card", label: "描边卡片" },
-  { value: "plain", label: "极简灰线" },
+  { value: "bar", label: tk("左线浅底") },
+  { value: "card", label: tk("描边卡片") },
+  { value: "plain", label: tk("极简灰线") },
 ];
 
 export const LINK_STYLE_OPTIONS: { value: CustomThemeSpec["linkStyle"]; label: string }[] = [
-  { value: "underline", label: "实线下划" },
-  { value: "dashed", label: "虚线下划" },
-  { value: "plain", label: "仅颜色" },
+  { value: "underline", label: tk("实线下划") },
+  { value: "dashed", label: tk("虚线下划") },
+  { value: "plain", label: tk("仅颜色") },
 ];
 
 export function defaultCustomSpec(): Omit<CustomThemeSpec, "id"> {
   return {
-    name: "我的主题",
+    // 新建那一刻按当前语言起默认名：存下来的是用户自己的主题名，之后不再跟着语言变
+    name: t("我的主题"),
     accent: "#1e6bb8",
     headingStyle: "underline",
     headingAlign: "left",
@@ -199,9 +201,9 @@ export function buildCustomThemeCss(spec: CustomThemeSpec): string {
 export function customThemeToPreset(spec: CustomThemeSpec): ThemePreset {
   return {
     id: CUSTOM_THEME_PREFIX + spec.id,
-    name: spec.name || "未命名主题",
+    name: spec.name || tk("未命名主题"),
     color: spec.accent,
-    tag: "我的主题",
+    tag: tk("我的主题"),
     css: buildCustomThemeCss(spec),
   };
 }

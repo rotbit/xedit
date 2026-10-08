@@ -3,6 +3,7 @@
  * Token 只在这里用，返回、日志、错误文案都不会带上它（末尾还有一道兜底擦除，防止上游把它回显出来）。
  * 图片不落盘：封面最终跟着文章走（存进文库或传 OSS），服务端再留一份只会攒出没人清理的临时文件。
  */
+import { tk } from "@/i18n/t";
 const API_BASE = "https://api.replicate.com/";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const POLL_MS = 1500;
@@ -18,13 +19,13 @@ export type CoverColor = (typeof COVER_COLORS)[number];
 
 /** 色号 → 提示词里写的那句话。网页那边另有一份 CSS 色值，只管色点长什么样 */
 const COLOR_PHRASE: Record<CoverColor, string> = {
-  blue: "蓝色",
-  orange: "暖橙 / 陶土色",
-  green: "绿色",
-  purple: "紫色",
-  red: "红色",
-  teal: "青色",
-  gray: "深灰",
+  blue: "蓝色", // i18n-ignore 写进生图提示词的颜色描述，属于提示词
+  orange: "暖橙 / 陶土色", // i18n-ignore 写进生图提示词的颜色描述，属于提示词
+  green: "绿色", // i18n-ignore 写进生图提示词的颜色描述，属于提示词
+  purple: "紫色", // i18n-ignore 写进生图提示词的颜色描述，属于提示词
+  red: "红色", // i18n-ignore 写进生图提示词的颜色描述，属于提示词
+  teal: "青色", // i18n-ignore 写进生图提示词的颜色描述，属于提示词
+  gray: "深灰", // i18n-ignore 写进生图提示词的颜色描述，属于提示词
 };
 
 /** 各个填空的字数上限：再长也只是把模型带偏，还会把模板里别的话挤没 */
@@ -126,7 +127,7 @@ function cleanProduct(value: unknown): CoverProduct | null {
  */
 export function coverFields(req: CoverRequest): CoverFields {
   const title = cleanSlot(req.title, MAX_TITLE);
-  if (!title) throw new CoverError("bad_input", "标题是空的，先给文章起个标题");
+  if (!title) throw new CoverError("bad_input", tk("标题是空的，先给文章起个标题"));
   const accent = coverColor(((req.left ?? {}) as { color?: unknown }).color);
   let left = cleanProduct(req.left);
   let right = cleanProduct(req.right);
@@ -153,63 +154,63 @@ export function buildPrompt(fields: CoverFields, aspect = DEFAULT_ASPECT): strin
   const { title, highlights, accent, left, right } = fields;
   const colorOf = (p: CoverProduct) => COLOR_PHRASE[p.color];
   return [
-    `设计一张微信公众号文章封面，比例 ${aspect}，整体风格为：极简、干净、高级、科技感、产品评测感。`,
-    "背景以纯白 / 极浅灰白为主，带非常轻微的柔和渐变，不要深色背景，不要花哨，不要复杂插画。整体大量留白，画面清爽。",
-    "版式采用左右结构：",
-    `左侧约占 45%，放标题文字；右侧约占 45%，${
-      left
-        ? `放产品 / 模型${right ? "对比视觉" : "视觉"}`
-        : "放抽象的科技感几何视觉（淡色圆弧、圆形色块、柔和光晕），不放产品卡片，不放 Logo"
-    }；中间保留适当呼吸空间。`,
-    "标题区域要有明显层次：",
-    ...(left
-      ? ["- 第一行放品牌或模型名称，字号中等偏大", "- 第二、第三行放核心标题，字号更大、更粗"]
-      : ["- 前两三行放核心标题，字号大、粗"]),
-    "- 最重要的关键词用品牌主题色突出",
-    "- 其余文字使用接近黑色的深灰",
-    "- 行距宽松，不要把文字挤在一起",
-    "- 不要塞很多小字，不要参数列表，不要功能清单",
-    // 零产品：右侧不放卡片和 Logo，卡片那几行整段不要
-    ...(left
-      ? [
-          right
-            ? "右侧使用两个圆角卡片 / 产品卡片形成对比关系。"
-            : "右侧使用一张圆角产品卡片作为视觉主体。",
-          "卡片背景为白色，有非常轻微的阴影和淡淡的品牌色光晕。",
-          right ? "每张卡片只保留：" : "卡片只保留：",
-          "Logo + 品牌名 / 模型名。",
-        ]
-      : []),
-    "不要加入功能列表、勾选项、参数、评分等信息。",
-    ...(right ? ["两张卡片中间可以放一个简洁的 VS，略带手写笔刷感，但不要太夸张。"] : []),
-    "色彩控制在 2～3 个主色以内。",
-    !left
-      ? `关键词与几何装饰使用${COLOR_PHRASE[accent]}，其他文字使用深灰。`
-      : right
-        ? `${left.name} 使用${colorOf(left)}，${right.name} 使用${colorOf(right)}，其他文字使用深灰。`
-        : `${left.name} 使用${colorOf(left)}，其他文字使用深灰。`,
-    "不要高饱和霓虹色，不要五颜六色。",
-    "可以在背景角落加入非常淡的几何圆弧、圆形色块或浅色渐变作为层次，但透明度很低，不能抢主体。",
-    "整体参考：AI 产品发布页 + 科技媒体封面 + 极简 SaaS 官网视觉。",
-    "要有“专业评测”的感觉，而不是广告海报。",
-    "特别要求：",
-    "- 不要拥挤",
-    "- 不要大量小字",
-    "- 不要底部功能列表",
-    "- 不要复杂 UI",
-    "- 不要卡通插画",
-    "- 不要人物",
-    "- 不要过度装饰",
-    left ? "- 保证公众号裁切后核心文字和 Logo 不被挡住" : "- 保证公众号裁切后核心文字不被挡住",
-    "当前标题：",
-    `「${title}」`,
-    // 一个重点词都没填就把这件事交回给模型，别留一行空的「」
-    ...(highlights.length > 0
-      ? ["重点突出：", ...highlights.map((one) => `「${one}」`)]
-      : ["重点突出：从标题里挑 1～2 个最关键的词"]),
-    ...(left ? ["右侧展示：", right ? `${left.name} vs ${right.name}` : left.name] : []),
-    "最终效果要像一张高级、简洁、有明确视觉重点的公众号科技评测封面。",
-    "字体不要太大，画面至少保留 30% 留白，标题最多 3 行，视觉重点只允许 1～2 个。",
+    `设计一张微信公众号文章封面，比例 ${aspect}，整体风格为：极简、干净、高级、科技感、产品评测感。`, // i18n-ignore 生图提示词模板
+    "背景以纯白 / 极浅灰白为主，带非常轻微的柔和渐变，不要深色背景，不要花哨，不要复杂插画。整体大量留白，画面清爽。", // i18n-ignore 生图提示词模板
+    "版式采用左右结构：", // i18n-ignore 生图提示词模板
+    `左侧约占 45%，放标题文字；右侧约占 45%，${ // i18n-ignore 生图提示词模板
+      left // i18n-ignore 生图提示词模板
+        ? `放产品 / 模型${right ? "对比视觉" : "视觉"}` // i18n-ignore 生图提示词模板
+        : "放抽象的科技感几何视觉（淡色圆弧、圆形色块、柔和光晕），不放产品卡片，不放 Logo" // i18n-ignore 生图提示词模板
+    }；中间保留适当呼吸空间。`, // i18n-ignore 生图提示词模板
+    "标题区域要有明显层次：", // i18n-ignore 生图提示词模板
+    ...(left // i18n-ignore 生图提示词模板
+      ? ["- 第一行放品牌或模型名称，字号中等偏大", "- 第二、第三行放核心标题，字号更大、更粗"] // i18n-ignore 生图提示词模板
+      : ["- 前两三行放核心标题，字号大、粗"]), // i18n-ignore 生图提示词模板
+    "- 最重要的关键词用品牌主题色突出", // i18n-ignore 生图提示词模板
+    "- 其余文字使用接近黑色的深灰", // i18n-ignore 生图提示词模板
+    "- 行距宽松，不要把文字挤在一起", // i18n-ignore 生图提示词模板
+    "- 不要塞很多小字，不要参数列表，不要功能清单", // i18n-ignore 生图提示词模板
+    // 零产品：右侧不放卡片和 Logo，卡片那几行整段不要 // i18n-ignore 生图提示词模板
+    ...(left // i18n-ignore 生图提示词模板
+      ? [ // i18n-ignore 生图提示词模板
+          right // i18n-ignore 生图提示词模板
+            ? "右侧使用两个圆角卡片 / 产品卡片形成对比关系。" // i18n-ignore 生图提示词模板
+            : "右侧使用一张圆角产品卡片作为视觉主体。", // i18n-ignore 生图提示词模板
+          "卡片背景为白色，有非常轻微的阴影和淡淡的品牌色光晕。", // i18n-ignore 生图提示词模板
+          right ? "每张卡片只保留：" : "卡片只保留：", // i18n-ignore 生图提示词模板
+          "Logo + 品牌名 / 模型名。", // i18n-ignore 生图提示词模板
+        ] // i18n-ignore 生图提示词模板
+      : []), // i18n-ignore 生图提示词模板
+    "不要加入功能列表、勾选项、参数、评分等信息。", // i18n-ignore 生图提示词模板
+    ...(right ? ["两张卡片中间可以放一个简洁的 VS，略带手写笔刷感，但不要太夸张。"] : []), // i18n-ignore 生图提示词模板
+    "色彩控制在 2～3 个主色以内。", // i18n-ignore 生图提示词模板
+    !left // i18n-ignore 生图提示词模板
+      ? `关键词与几何装饰使用${COLOR_PHRASE[accent]}，其他文字使用深灰。` // i18n-ignore 生图提示词模板
+      : right // i18n-ignore 生图提示词模板
+        ? `${left.name} 使用${colorOf(left)}，${right.name} 使用${colorOf(right)}，其他文字使用深灰。` // i18n-ignore 生图提示词模板
+        : `${left.name} 使用${colorOf(left)}，其他文字使用深灰。`, // i18n-ignore 生图提示词模板
+    "不要高饱和霓虹色，不要五颜六色。", // i18n-ignore 生图提示词模板
+    "可以在背景角落加入非常淡的几何圆弧、圆形色块或浅色渐变作为层次，但透明度很低，不能抢主体。", // i18n-ignore 生图提示词模板
+    "整体参考：AI 产品发布页 + 科技媒体封面 + 极简 SaaS 官网视觉。", // i18n-ignore 生图提示词模板
+    "要有“专业评测”的感觉，而不是广告海报。", // i18n-ignore 生图提示词模板
+    "特别要求：", // i18n-ignore 生图提示词模板
+    "- 不要拥挤", // i18n-ignore 生图提示词模板
+    "- 不要大量小字", // i18n-ignore 生图提示词模板
+    "- 不要底部功能列表", // i18n-ignore 生图提示词模板
+    "- 不要复杂 UI", // i18n-ignore 生图提示词模板
+    "- 不要卡通插画", // i18n-ignore 生图提示词模板
+    "- 不要人物", // i18n-ignore 生图提示词模板
+    "- 不要过度装饰", // i18n-ignore 生图提示词模板
+    left ? "- 保证公众号裁切后核心文字和 Logo 不被挡住" : "- 保证公众号裁切后核心文字不被挡住", // i18n-ignore 生图提示词模板
+    "当前标题：", // i18n-ignore 生图提示词模板
+    `「${title}」`, // i18n-ignore 生图提示词模板
+    // 一个重点词都没填就把这件事交回给模型，别留一行空的「」 // i18n-ignore 生图提示词模板
+    ...(highlights.length > 0 // i18n-ignore 生图提示词模板
+      ? ["重点突出：", ...highlights.map((one) => `「${one}」`)] // i18n-ignore 生图提示词模板
+      : ["重点突出：从标题里挑 1～2 个最关键的词"]), // i18n-ignore 生图提示词模板
+    ...(left ? ["右侧展示：", right ? `${left.name} vs ${right.name}` : left.name] : []), // i18n-ignore 生图提示词模板
+    "最终效果要像一张高级、简洁、有明确视觉重点的公众号科技评测封面。", // i18n-ignore 生图提示词模板
+    "字体不要太大，画面至少保留 30% 留白，标题最多 3 行，视觉重点只允许 1～2 个。", // i18n-ignore 生图提示词模板
   ].join("\n");
 }
 
@@ -234,12 +235,12 @@ function widestAspect(detail: string, tried: Set<string>): string | null {
 // HTTP 状态 → 统一的错误码与中文说法
 function httpError(status: number, body: { detail?: unknown } | null): CoverError {
   if (status === 401 || status === 403)
-    return new CoverError("bad_token", "Replicate 拒绝了站点的 Token，请检查服务端配置");
-  if (status === 402) return new CoverError("billing", "站点的 Replicate 账户余额不足");
+    return new CoverError("bad_token", tk("Replicate 拒绝了站点的 Token，请检查服务端配置"));
+  if (status === 402) return new CoverError("billing", tk("站点的 Replicate 账户余额不足"));
   if (status === 422)
-    return new CoverError("bad_input", `Replicate 说提示词或参数不对：${clip(body?.detail, 200)}`);
-  if (status === 429) return new CoverError("rate_limited", "生图服务正忙，稍后再试");
-  return new CoverError("failed", `Replicate 返回 HTTP ${status}`);
+    return new CoverError("bad_input", `Replicate 说提示词或参数不对：${clip(body?.detail, 200)}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+  if (status === 429) return new CoverError("rate_limited", tk("生图服务正忙，稍后再试"));
+  return new CoverError("failed", `Replicate 返回 HTTP ${status}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
 }
 
 /** Replicate 的 prediction，只挑用得上的字段 */
@@ -293,7 +294,7 @@ export async function generateCovers(
   { fetchImpl = fetch, signal = null, pollMs = POLL_MS }: CoverDeps = {}
 ): Promise<string[]> {
   const token = process.env.REPLICATE_API_TOKEN?.trim() ?? "";
-  if (!token) throw new CoverError("no_token", "服务端还没有配置 AI 生成封面");
+  if (!token) throw new CoverError("no_token", tk("服务端还没有配置 AI 生成封面"));
   // 路由那边已经洗过一遍了，这里再洗一遍：洗过的再洗结果不变，而这条路不该信任何调用方
   const fields = coverFields(req);
   const model = process.env.REPLICATE_MODEL?.trim() || DEFAULT_MODEL;
@@ -385,36 +386,36 @@ export async function generateCovers(
         try {
           await callApi(pred.urls?.cancel, { method: "POST" });
         } catch {}
-        throw new CoverError("timeout", `生成超时了（超过 ${timeoutSec} 秒），稍后再试`);
+        throw new CoverError("timeout", `生成超时了（超过 ${timeoutSec} 秒），稍后再试`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
       }
       await sleep(pollMs);
       pred = await callApi(pred.urls?.get);
     }
     if (pred.status !== "succeeded") {
-      if (pred.status === "canceled") throw new CoverError("failed", "生成被取消了");
+      if (pred.status === "canceled") throw new CoverError("failed", tk("生成被取消了"));
       const why = String(pred.error ?? "");
       if (/nsfw|safety|sensitive/i.test(why))
-        throw new CoverError("failed", "提示词被内容安全策略拦下了，换个说法试试");
-      throw new CoverError("failed", `生成失败：${clip(why, 200) || "未知原因"}`);
+        throw new CoverError("failed", tk("提示词被内容安全策略拦下了，换个说法试试"));
+      throw new CoverError("failed", `生成失败：${clip(why, 200) || "未知原因"}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
     }
     const outputs = (Array.isArray(pred.output) ? pred.output : [pred.output]).filter(
       (u): u is string => typeof u === "string" && u !== ""
     );
-    if (outputs.length === 0) throw new CoverError("failed", "生成完了却没拿到图片");
+    if (outputs.length === 0) throw new CoverError("failed", tk("生成完了却没拿到图片"));
     return download(outputs[0]);
   }
 
   /** 重试前的一道闸：时间用完了、或者用户已经把面板关了，就别再往上游发请求 */
   function alive(): void {
     if (Date.now() >= deadline)
-      throw new CoverError("timeout", `生成超时了（超过 ${timeoutSec} 秒），稍后再试`);
-    if (signal?.aborted) throw new CoverError("aborted", "已取消");
+      throw new CoverError("timeout", `生成超时了（超过 ${timeoutSec} 秒），稍后再试`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    if (signal?.aborted) throw new CoverError("aborted", tk("已取消"));
   }
 
   // 带 Token 的请求只许发给 Replicate：轮询/取消地址是上游给的，先核对域名再决定要不要带 Token 过去
   async function callApi(url: string | undefined, init: RequestInit = {}): Promise<Prediction> {
     if (typeof url !== "string" || !url.startsWith(API_BASE)) {
-      throw new CoverError("failed", "Replicate 返回了异常的接口地址，已中止");
+      throw new CoverError("failed", tk("Replicate 返回了异常的接口地址，已中止"));
     }
     const res = await request(url, {
       ...init,
@@ -438,18 +439,18 @@ export async function generateCovers(
     try {
       target = new URL(url);
     } catch {
-      throw new CoverError("failed", "图片地址不合法");
+      throw new CoverError("failed", tk("图片地址不合法"));
     }
-    if (target.protocol !== "https:") throw new CoverError("failed", "图片地址不是 https，已中止");
+    if (target.protocol !== "https:") throw new CoverError("failed", tk("图片地址不是 https，已中止"));
     const res = await request(target.href, {});
-    if (!res.ok) throw new CoverError("failed", `图片下载失败（HTTP ${res.status}）`);
+    if (!res.ok) throw new CoverError("failed", `图片下载失败（HTTP ${res.status}）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
     const header = (name: string) => String(res.headers?.get(name) ?? "");
     const type = header("content-type").split(";")[0].trim().toLowerCase();
-    if (!type.startsWith("image/")) throw new CoverError("failed", "下载到的不是图片");
+    if (!type.startsWith("image/")) throw new CoverError("failed", tk("下载到的不是图片"));
     if (Number(header("content-length")) > MAX_IMAGE_BYTES)
-      throw new CoverError("failed", "生成的图片太大（超过 8MB）");
+      throw new CoverError("failed", tk("生成的图片太大（超过 8MB）"));
     const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > MAX_IMAGE_BYTES) throw new CoverError("failed", "生成的图片太大（超过 8MB）");
+    if (buf.length > MAX_IMAGE_BYTES) throw new CoverError("failed", tk("生成的图片太大（超过 8MB）"));
     return `data:${type};base64,${buf.toString("base64")}`;
   }
 
@@ -464,9 +465,9 @@ export async function generateCovers(
     } catch (e) {
       const name = e instanceof Error ? e.name : "";
       if (name === "TimeoutError")
-        throw new CoverError("timeout", `生成超时了（超过 ${timeoutSec} 秒），稍后再试`);
-      if (name === "AbortError") throw new CoverError("aborted", "已取消");
-      throw new CoverError("network", "连不上生图服务，请稍后再试");
+        throw new CoverError("timeout", `生成超时了（超过 ${timeoutSec} 秒），稍后再试`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+      if (name === "AbortError") throw new CoverError("aborted", tk("已取消"));
+      throw new CoverError("network", tk("连不上生图服务，请稍后再试"));
     }
   }
 }

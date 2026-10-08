@@ -7,19 +7,21 @@ import { createPortal } from "react-dom";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
 import { menuItemCls } from "./menuStyles";
+import { tk } from "@/i18n/t";
+import { useT } from "@/i18n/useT";
 
 /** 字体颜色色板：常用的正文强调色，深浅主题下都够醒目 */
 const TEXT_COLORS = [
-  { value: "#e11d48", label: "玫红" },
-  { value: "#ea580c", label: "橙" },
-  { value: "#d97706", label: "琥珀" },
-  { value: "#16a34a", label: "绿" },
-  { value: "#0d9488", label: "青" },
-  { value: "#2563eb", label: "蓝" },
-  { value: "#7c3aed", label: "紫" },
-  { value: "#db2777", label: "粉" },
-  { value: "#64748b", label: "灰" },
-  { value: "#92400e", label: "棕" },
+  { value: "#e11d48", label: tk("玫红") },
+  { value: "#ea580c", label: tk("橙") },
+  { value: "#d97706", label: tk("琥珀") },
+  { value: "#16a34a", label: tk("绿") },
+  { value: "#0d9488", label: tk("青") },
+  { value: "#2563eb", label: tk("蓝") },
+  { value: "#7c3aed", label: tk("紫") },
+  { value: "#db2777", label: tk("粉") },
+  { value: "#64748b", label: tk("灰") },
+  { value: "#92400e", label: tk("棕") },
 ];
 
 const PANEL_W = 190;
@@ -41,6 +43,7 @@ export function ColorPicker({
    *  会进 effect 依赖，宿主请传稳定引用 */
   onOpenChange?: (open: boolean) => void;
 }) {
+  const t = useT();
   const [last, setLast] = useState(TEXT_COLORS[0].value);
   const [panel, setPanel] = useState<{ left: number; top: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -78,7 +81,7 @@ export function ColorPicker({
         ref={btnRef}
         data-menu-trigger
         className={className}
-        title="字体颜色"
+        title={t("字体颜色")}
         onClick={toggle}
       >
         <span className="flex flex-col items-center leading-none">
@@ -106,7 +109,7 @@ export function ColorPicker({
                     key={c.value}
                     className="h-6 w-6 cursor-pointer rounded-full border border-black/10 transition-transform duration-100 hover:scale-110"
                     style={{ background: c.value }}
-                    title={c.label}
+                    title={t(c.label)}
                     onClick={() => {
                       pick(c.value);
                       setPanel(null);
@@ -117,7 +120,7 @@ export function ColorPicker({
               {/* 自定义取色要连续调色，选色期间面板保持展开 */}
               <div className="border-t border-[var(--hairline-soft)] px-3.5 py-1.5">
                 <label className="flex cursor-pointer items-center justify-between gap-2 text-[13px] text-[var(--ink)]">
-                  自定义
+                  {t("自定义")}
                   <input
                     type="color"
                     className="h-6 w-9 cursor-pointer rounded border border-[var(--hairline)] bg-transparent p-0"
@@ -133,7 +136,7 @@ export function ColorPicker({
                   setPanel(null);
                 }}
               >
-                清除颜色
+                {t("清除颜色")}
               </button>
             </div>,
             document.body

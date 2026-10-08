@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { encryptSecret, decryptSecret } from "@/lib/ai/crypto";
 import { FEISHU } from "./config";
+import { tk } from "@/i18n/t";
 
 /**
  * 飞书用户身份 OAuth 的 token 生命周期管理。
@@ -10,7 +11,7 @@ import { FEISHU } from "./config";
 
 /** 连接失效（未配置应用 / refresh_token 过期或被撤销）时抛出，路由层转成「请重新连接」 */
 export class FeishuReconnectError extends Error {
-  constructor(msg = "飞书授权已失效，请重新连接") {
+  constructor(msg = tk("飞书授权已失效，请重新连接")) {
     super(msg);
   }
 }
@@ -38,7 +39,7 @@ async function requestToken(
   });
   const data = (await res.json().catch(() => ({}))) as TokenResponse;
   if (!res.ok && typeof data.code !== "number") {
-    throw new Error(`飞书 token 接口异常: HTTP ${res.status}`);
+    throw new Error(`飞书 token 接口异常: HTTP ${res.status}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
   return data;
 }
@@ -65,7 +66,7 @@ export async function exchangeFeishuCode(
   requestedScope = ""
 ): Promise<string | null> {
   const cred = await appCredentials(userId);
-  if (!cred) return "请先在对话框里保存你的飞书应用凭证";
+  if (!cred) return tk("请先在对话框里保存你的飞书应用凭证");
 
   const data = await requestToken(cred.appId, cred.appSecret, {
     grant_type: "authorization_code",
@@ -73,7 +74,7 @@ export async function exchangeFeishuCode(
     redirect_uri: redirectUri,
   });
   if (data.code !== 0 || !data.access_token) {
-    return `飞书授权失败：${data.error_description ?? `错误码 ${data.code}`}`;
+    return `飞书授权失败：${data.error_description ?? `错误码 ${data.code}`}`; // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
 
   // 拿到 token 后顺手取一次用户信息用于回显；失败不阻断连接

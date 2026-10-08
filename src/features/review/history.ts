@@ -1,13 +1,15 @@
 /**
  * 审核历史的那几个请求：列表、取一条、记动作、删一条（接口见 /api/ai/review/history）。
  *
- * 和 aiReview.ts 一个脾气：纯函数，不认识 React，也不弹提示；出错就抛，message 能直接给用户看。
+ * 和 aiReview.ts 一个脾气：纯函数，不认识 React，也不弹提示；出错就抛，message 能直接给用户看（显示处再 t() 一遍，OFFLINE 这类常量才跟得上语言）。
  */
+import { getLocale, htmlLang, type Locale } from "@/i18n/locale";
+import { t, tk, translate } from "@/i18n/t";
 import { asRecordMeta, type ReviewRun } from "./aiReview";
 import type { ReviewAction, ReviewRecordMeta, ReviewResult } from "./types";
 
 const API = "/api/ai/review/history";
-const OFFLINE = "现在连不上服务器，稍后再试";
+const OFFLINE = tk("现在连不上服务器，稍后再试");
 
 async function call(url: string, init?: RequestInit): Promise<unknown> {
   let res: Response;
@@ -19,7 +21,7 @@ async function call(url: string, init?: RequestInit): Promise<unknown> {
   }
   const data = (await res.json().catch(() => null)) as { message?: unknown } | null;
   if (!res.ok) {
-    throw new Error(typeof data?.message === "string" ? data.message : `请求失败（${res.status}）`);
+    throw new Error(typeof data?.message === "string" ? data.message : t("请求失败（{status}）", { status: res.status }));
   }
   return data;
 }
@@ -48,7 +50,7 @@ export async function loadReviewRecord(
   const record = asRecordMeta(data);
   const result = data?.result;
   if (!record || !result || !Array.isArray(result.items) || !Array.isArray(result.categories)) {
-    throw new Error("这条审核记录读不出来");
+    throw new Error(tk("这条审核记录读不出来"));
   }
   return {
     record,
@@ -78,11 +80,21 @@ export async function deleteReviewRecord(id: string): Promise<void> {
 }
 
 /** 列表里的时间：今天的只说几点，今年的不带年份 */
-export function formatRecordTime(iso: string, now = new Date()): string {
+export function formatRecordTime(iso: string, now = new Date(), locale: Locale = getLocale()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  if (d.toDateString() === now.toDateString()) return `今天 ${hm}`;
-  const md = `${d.getMonth() + 1}月${d.getDate()}日`;
-  return d.getFullYear() === now.getFullYear() ? `${md} ${hm}` : `${d.getFullYear()}年${md}`;
+  if (d.toDateString() === now.toDateString()) return translate("今天 {time}", locale, { time: hm });
+  const sameYear = d.getFullYear() === now.getFullYear();
+  if (locale === "en") {
+    // 英文月份名交给 Intl：同年 "Aug 3 14:30"，跨年 "Dec 31, 2025"
+    const fmt = new Intl.DateTimeFormat(htmlLang(locale), {
+      month: "short",
+      day: "numeric",
+      ...(sameYear ? {} : { year: "numeric" }),
+    });
+    return sameYear ? `${fmt.format(d)} ${hm}` : fmt.format(d);
+  }
+  const md = `${d.getMonth() + 1}月${d.getDate()}日`; // i18n-ignore 中文日期格式，英文走上面的 Intl
+  return sameYear ? `${md} ${hm}` : `${d.getFullYear()}年${md}`; // i18n-ignore
 }

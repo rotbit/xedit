@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, Play } from "lucide-react";
 import type { Asset } from "./types";
 import { formatSize, isVideo } from "./utils";
+import { useT } from "@/i18n/useT";
 
 /** 图片库网格：分列瀑布流，单击选中、双击开大图 */
 
@@ -72,6 +73,7 @@ export function AssetsGrid({
   hasMore: boolean;
   sentinelRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const t = useT();
   return (
     <>
       {/* 分列用固定的「序号 % 列数」轮转而不是 CSS columns：追加下一页时已有图片不换列不跳动，
@@ -120,7 +122,7 @@ export function AssetsGrid({
           ref={sentinelRef}
           className="flex items-center justify-center gap-2 py-8 text-[12px] text-[var(--ink-faint)]"
         >
-          <Loader2 size={14} className="animate-spin" /> 加载更多…
+          <Loader2 size={14} className="animate-spin" /> {t("加载更多…")}
         </div>
       ) : null}
     </>

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readOnlyGuard } from "@/lib/guards";
 import { isResponse, requireOwnedDoc, requireUserId } from "@/lib/routeAuth";
+import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -101,6 +102,6 @@ export async function PATCH(req: Request, { params }: Params) {
   const share = await prisma.docShare
     .update({ where: { documentId: id }, data })
     .catch(() => null);
-  if (!share) return NextResponse.json({ error: "尚未创建分享" }, { status: 404 });
+  if (!share) return NextResponse.json({ error: tk("尚未创建分享") }, { status: 404 });
   return NextResponse.json(shareJson(share, await countThreads(share.id)));
 }

@@ -14,10 +14,12 @@ import {
   subscribeCommands,
   type Command,
 } from "@/lib/commandRegistry";
+import { useT } from "@/i18n/useT";
 
 const NONE: Command[] = [];
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   const [query, setQuery] = useState("");
 
   // 注册表是模块级可变状态，订阅它拿快照（引用在注册表不变时稳定，不会触发无限重渲染）
@@ -55,14 +57,14 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     <PaletteShell
       open={open}
       icon={<CommandIcon size={16} className="shrink-0 text-[var(--ink-faint)]" />}
-      placeholder="搜索命令…"
-      hint="↑↓ 选择 · ↵ 执行 · esc 关闭"
+      placeholder={t("搜索命令…")}
+      hint={t("↑↓ 选择 · ↵ 执行 · esc 关闭")}
       query={query}
       onQueryChange={setQuery}
       resetKey={query}
       items={hits}
       keyOf={(cmd) => cmd.id}
-      emptyText="没有匹配的命令"
+      emptyText={t("没有匹配的命令")}
       onPick={run}
       onClose={onClose}
       renderItem={(cmd) => (

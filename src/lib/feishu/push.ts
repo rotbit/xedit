@@ -20,6 +20,7 @@ import {
   type MdBuild,
   type OutBlock,
 } from "./mdToBlocks";
+import { tk } from "@/i18n/t";
 
 /**
  * xedit 文章 → 飞书知识库（推送/写回）。
@@ -68,7 +69,7 @@ function degradeImage(build: MdBuild, blockId: string, url: string, alt: string)
     elements: [
       {
         text_run: {
-          content: alt || "图片",
+          content: alt || "图片", // i18n-ignore 推到飞书的图片替代文字，属于内容
           text_element_style: { link: { url: encodeURIComponent(url) } },
         },
       },
@@ -143,16 +144,16 @@ export async function pushDocumentToFeishu(
   force: boolean
 ): Promise<PushResult> {
   const conn = await prisma.feishuConnection.findUnique({ where: { userId } });
-  if (!conn || !conn.accessTokenEnc) return { error: "请先在「飞书知识库导入」里连接飞书" };
+  if (!conn || !conn.accessTokenEnc) return { error: tk("请先在「飞书知识库导入」里连接飞书") };
   if (!hasFeishuWriteScopes(conn.scopes)) return { needWriteAuth: true };
 
   const doc = await getDocument(userId, documentId);
-  if (!doc) return { error: "文章不存在" };
+  if (!doc) return { error: tk("文章不存在") };
   const title = doc.title.trim() || UNTITLED_DOC;
 
   const build = markdownToFeishuBlocks(doc.content);
   if (build.blocks.size > MAX_BLOCKS) {
-    return { error: `文章过长（超过 ${MAX_BLOCKS} 个内容块），暂不支持推送` };
+    return { error: `文章过长（超过 ${MAX_BLOCKS} 个内容块），暂不支持推送` }; // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
   }
   // 图片先全部预下载：拉不到的在建块前降级成链接，不会在飞书里留下空图
   const media = new Map<string, { buffer: Buffer; mime: string }>();
@@ -176,7 +177,7 @@ export async function pushDocumentToFeishu(
   if (link) {
     const node = await getWikiNode(token, link.nodeToken).catch(() => null);
     if (!node) {
-      return { error: "飞书侧找不到原文档（可能已被删除或移出知识库）" };
+      return { error: tk("飞书侧找不到原文档（可能已被删除或移出知识库）") };
     }
     if (!force && node.objEditTime !== link.objEditTime) return { conflict: true };
     nodeToken = link.nodeToken;
@@ -187,7 +188,7 @@ export async function pushDocumentToFeishu(
     }
   } else {
     if (!conn.spaceId) {
-      return { error: "还没选过目标知识库：请先在「飞书知识库导入」里选择知识库（同步一次即可记住）" };
+      return { error: tk("还没选过目标知识库：请先在「飞书知识库导入」里选择知识库（同步一次即可记住）") };
     }
     const created = await createWikiDocNode(token, conn.spaceId, title);
     nodeToken = created.nodeToken;
@@ -198,7 +199,7 @@ export async function pushDocumentToFeishu(
   // 整篇覆盖：清空现有正文再写入
   const existing = await listDocBlocks(token, feishuDocId);
   const page = existing.find((b) => b.block_type === 1);
-  if (!page) return { error: "读取飞书文档结构失败" };
+  if (!page) return { error: tk("读取飞书文档结构失败") };
   const childCount = page.children?.length ?? 0;
   if (childCount > 0) await deleteDocChildren(token, feishuDocId, page.block_id, childCount);
   await writeBlocks(token, feishuDocId, page.block_id, build);
