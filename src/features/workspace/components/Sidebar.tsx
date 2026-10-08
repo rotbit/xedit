@@ -72,12 +72,14 @@ export function Sidebar({ ws }: { ws: Workspace }) {
   const allActive = nav.activeCat === ALL && !nav.readingId;
   const todayActive = nav.activeCat === TODAY && !nav.readingId;
   /** 「今天」右侧的数：逾期 + 今天到期 + 清单里没定日期的。
-   *  docs 每次自动保存都换引用，collectTodos 按 updatedAt 缓存解析结果，重算只是遍历一遍 */
+   *  文库每次自动保存都换引用，collectTodos 按 updatedAt 缓存解析结果，重算只是遍历一遍 */
+  const { allDocs } = library;
   const todoCount = useMemo(() => {
-    if (!docs) return 0;
+    // 要连待办清单那篇一起看（它不在可见列表 docs 里）
+    if (!allDocs) return 0;
     const today = todayKey();
-    return actionableCount(bucketTodos(collectTodos(docs, today), today));
-  }, [docs]);
+    return actionableCount(bucketTodos(collectTodos(allDocs, today), today));
+  }, [allDocs]);
 
   /** 右缘手柄拖拽调宽：过程中只用本地值，松手才落盘（与阅读器分隔条同一套 hook） */
   const resize = useDragDivider<{ x: number; w: number }>({

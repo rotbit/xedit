@@ -41,7 +41,8 @@ function TodoRow({
   done: boolean;
   today: string;
   onToggle: (() => void) | undefined;
-  onOpen: () => void;
+  /** 不给就不可点：待办清单里的事没有「出处」可去（那篇对用户隐形） */
+  onOpen: (() => void) | undefined;
   /** 不给就没有删除按钮（发布排期不是正文里的一行，没东西可删） */
   onRemove: (() => void) | undefined;
 }) {
@@ -49,21 +50,27 @@ function TodoRow({
   const locale = useLocale();
   const due = done ? null : dueLabel(item, today, t, locale);
   const sub = secondaryOf(item, t);
+  const textCls = `text-left text-[14.5px] leading-[1.45] ${
+    done ? "text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]" : ""
+  }`;
+  // 发布排期的 text 是 lib 拼好的中文（也会原样记进当日记录），显示时按语言重拼
+  const label = item.source === "publish" ? t("发布《{title}》", { title: t(item.docTitle) }) : item.text;
   return (
     <div className="group flex items-start gap-2.5 px-0.5 py-2">
       <TodoBox done={done} onClick={onToggle} label={done ? t("取消完成") : t("标记完成")} />
       <div className="min-w-0 flex-1">
         {/* 点文字去看出处：待办常常要回到文章里才知道具体怎么做 */}
-        <button
-          type="button"
-          className={`cursor-pointer text-left text-[14.5px] leading-[1.45] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)] ${
-            done ? "text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]" : ""
-          }`}
-          onClick={onOpen}
-        >
-          {/* 发布排期的 text 是 lib 拼好的中文（也会原样记进当日记录），显示时按语言重拼 */}
-          {item.source === "publish" ? t("发布《{title}》", { title: t(item.docTitle) }) : item.text}
-        </button>
+        {onOpen ? (
+          <button
+            type="button"
+            className={`cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)] ${textCls}`}
+            onClick={onOpen}
+          >
+            {label}
+          </button>
+        ) : (
+          <span className={textCls}>{label}</span>
+        )}
         {sub ? <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{sub}</div> : null}
       </div>
       {due ? (
@@ -84,6 +91,7 @@ export function TodoColumn({
   buckets,
   today,
   docs,
+  ready,
   onToggle,
   onAdd,
   onRemove,
@@ -91,8 +99,10 @@ export function TodoColumn({
 }: {
   buckets: TodoBuckets;
   today: string;
-  /** 文库还没载完时为 null：此时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
-  docs: DocMeta[] | null;
+  /** 「记到文章」的候选池：用户看得见的文章（不含待办清单那篇） */
+  docs: DocMeta[];
+  /** 全库是否载完：没载完时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
+  ready: boolean;
   onToggle: (item: TodoItem, checked: boolean) => Promise<boolean>;
   onAdd: (text: string, target: AddTarget) => Promise<boolean>;
   onRemove: (item: TodoItem) => Promise<boolean>;
@@ -153,7 +163,7 @@ export function TodoColumn({
   return (
     <div className="min-w-0">
       <ColumnHead title={t("要做")} />
-      <QuickAdd disabled={docs === null} docs={docs ?? []} onSubmit={onAdd} />
+      <QuickAdd disabled={!ready} docs={docs} onSubmit={onAdd} />
       {rows.length === 0 ? (
         <EmptyLine>{t("今天没有要做的事")}</EmptyLine>
       ) : (
@@ -170,7 +180,7 @@ export function TodoColumn({
                 done={done}
                 today={today}
                 onToggle={locked ? undefined : () => void toggle(item, !done)}
-                onOpen={() => onOpenDoc(item.docId)}
+                onOpen={item.source === "notes" ? undefined : () => onOpenDoc(item.docId)}
                 onRemove={item.source === "publish" ? undefined : () => void remove(item)}
               />
             );

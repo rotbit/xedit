@@ -60,7 +60,7 @@ describe("追加待办", () => {
   it("addNoteTask：没有清单就建一篇，有就追加进去", async () => {
     const create = vi.fn(async (title: string, content: string) => createLocalDoc({ title, content }).id);
     await addNoteTask("一", listLocalDocs(), create);
-    expect(create).toHaveBeenCalledWith(NOTES_TITLE, "---\ntype: todo\n---\n\n- [ ] 一\n");
+    expect(create).toHaveBeenCalledWith(NOTES_TITLE, "---\ntype: todo\n---\n\n- [ ] 一\n", { log: false });
 
     await addNoteTask("二", listLocalDocs(), create);
     expect(create).toHaveBeenCalledTimes(1);

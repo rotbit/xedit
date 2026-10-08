@@ -111,11 +111,13 @@ export function useWorkspace() {
   // 文库一变就把已不在库里的文章清出 docIndex 缓存：缓存按 id 长住，
   // 不清就会把删掉的、退出登录换库之后的正文一直攥在内存里
   // 待办缓存同理（侧栏「今天」计数与今天页共用）
+  // 用全库 allDocs：可见列表里没有待办清单那篇，按它清会把清单的缓存每次清掉又重读正文
+  const { allDocs } = library;
   useEffect(() => {
-    const ids = (docs ?? []).map((doc) => doc.id);
+    const ids = (allDocs ?? []).map((doc) => doc.id);
     pruneIndex(ids);
     pruneTodoCache(ids);
-  }, [docs]);
+  }, [allDocs]);
 
   /**
    * 侧栏搜索的命中集合：标题之外还搜正文（正文在 localStorage，纯客户端算）。

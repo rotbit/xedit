@@ -120,12 +120,19 @@ export function useDocActions({ auth, library, nav }: Params) {
    * 静默建稿：建好只刷新列表，不跳转打开。给「今天」页的快速输入用——
    * 记一件事时自动建出待办清单那篇，用户人还该留在今天页。
    * 失败直接抛（存储写满 / 接口报错），由调用方决定怎么提示。返回新文章 id。
+   * opts.log 为 false 时不记「新建」到当日记录：待办清单那篇是实现细节，
+   * 不该出现在「做了」和月统计的「新建的文章」里。
    */
-  const createDocQuietly = async (title: string, content: string): Promise<string> => {
+  const createDocQuietly = async (
+    title: string,
+    content: string,
+    opts?: { log?: boolean }
+  ): Promise<string> => {
+    const log = opts?.log !== false;
     const local = localMode || !online;
     if (local) {
       const doc = createLocalDoc({ category: UNCATEGORIZED, title, content });
-      logEvent({ kind: "create", docId: doc.id, title: doc.title });
+      if (log) logEvent({ kind: "create", docId: doc.id, title: doc.title });
       setDocs(localMode ? listLocalDocs() : mergedCloudList());
       return doc.id;
     }
@@ -137,7 +144,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     if (!res.ok) throw new Error(`create failed: ${res.status}`);
     const doc = await res.json();
     applyServerDoc(doc);
-    logEvent({ kind: "create", docId: doc.id, title: doc.title });
+    if (log) logEvent({ kind: "create", docId: doc.id, title: doc.title });
     setDocs(mergedCloudList());
     return doc.id as string;
   };

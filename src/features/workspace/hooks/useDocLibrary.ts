@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore, DEFAULT_MARKDOWN } from "@/store/useStore";
 import {
   queueSettingsWrite,
@@ -12,6 +12,7 @@ import { getBrowserBackend, LOCAL_BACKEND_CHANGED_EVENT } from "@/lib/localBacke
 import { getActiveVault } from "@/lib/localBackend/vaultSession";
 import { listMirrorDocs } from "@/lib/docStore";
 import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
+import { findNotesDoc } from "@/lib/todos/collect";
 import { toast } from "@/components/Toast";
 import { t } from "@/i18n/t";
 import { TRASH } from "../constants";
@@ -50,6 +51,17 @@ function sameDocList(a: DocMeta[], b: DocMeta[]): boolean {
       d.updatedAt === e.updatedAt
     );
   });
+}
+
+/**
+ * 拿掉待办清单那篇：它只是今天页独立待办的存储载体（借文章走同步，跨设备免费），
+ * 对用户是实现细节，不该出现在分类树、文章数、搜索、最近列表里。
+ * findNotesDoc 按 updatedAt 缓存解析结果（侧栏计数本就每次遍历同一批），这里不另付读正文的开销。
+ * 没有清单那篇时原样返回同一引用，免得白换引用打穿下游的 useMemo。
+ */
+function hideNotesDoc(list: DocMeta[]): DocMeta[] {
+  const notes = findNotesDoc(list);
+  return notes ? list.filter((d) => d !== notes) : list;
 }
 
 /**
@@ -218,7 +230,21 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     };
   }, [activeCat, loggedIn]);
 
-  return { docs, setDocs, customCats, setCustomCats, trashDocs, setTrashDocs, order, updateOrder };
+  const visibleDocs = useMemo(() => docs && hideNotesDoc(docs), [docs]);
+
+  return {
+    /** 用户看得见的文章：不含待办清单那篇。侧栏、计数、搜索、列表一律用它 */
+    docs: visibleDocs,
+    /** 全库（含待办清单那篇）：待办汇总 / 写回、导入去重、缓存清理这类要看全库的地方用 */
+    allDocs: docs,
+    setDocs,
+    customCats,
+    setCustomCats,
+    trashDocs,
+    setTrashDocs,
+    order,
+    updateOrder,
+  };
 }
 
 export type DocLibrary = ReturnType<typeof useDocLibrary>;
