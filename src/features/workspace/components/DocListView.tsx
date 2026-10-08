@@ -3,12 +3,15 @@
 import { FileText, MoreHorizontal } from "lucide-react";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { formatRelativeTime } from "@/lib/format";
+import { useT } from "@/i18n/useT";
 import { UNCATEGORIZED } from "../constants";
+import { displayCatPath } from "../lib/catPath";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /** 紧凑列表视图：一行一篇，右侧依次为分类、字数、时间 */
 export function DocListView({ ws }: { ws: Workspace }) {
   const { nav, menus, drag, filtered } = ws;
+  const t = useT();
 
   return (
     <div className="rise mt-4 overflow-hidden rounded-xl bg-[var(--panel)] shadow-[0_1px_3px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.05] dark:ring-white/10">
@@ -26,14 +29,14 @@ export function DocListView({ ws }: { ws: Workspace }) {
           >
             <FileText size={14} className="shrink-0 text-[var(--ink-faint)]" />
             <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-[var(--ink)]">
-              {doc.title || UNTITLED_DOC}
+              {doc.title || t(UNTITLED_DOC)}
             </span>
             <span className="hidden max-w-[160px] truncate text-[11.5px] text-[var(--ink-soft)] sm:block">
-              {cat}
+              {displayCatPath(cat, t)}
             </span>
             <span className="hidden w-16 shrink-0 text-right text-[11.5px] text-[var(--ink-faint)] sm:block">
               {typeof doc.chars === "number" && doc.chars > 0
-                ? `${doc.chars.toLocaleString()} 字`
+                ? t("{n} 字", { n: doc.chars.toLocaleString(), abs: doc.chars })
                 : ""}
             </span>
             <span className="w-[76px] shrink-0 text-right text-[11.5px] text-[var(--ink-faint)]">

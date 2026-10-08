@@ -10,6 +10,8 @@ import {
   rowInset,
   treeIndent,
 } from "../constants";
+import { useT } from "@/i18n/useT";
+import { displayCatName } from "../lib/catPath";
 import { DocRow } from "./DocRow";
 import type { CatNode } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -52,6 +54,8 @@ export function CategoryRow({
   depth: number;
 }) {
   const { nav, prefs, menus, drag } = ws;
+  const t = useT();
+  const name = displayCatName(node.name, t);
   const isOpen = prefs.expanded.has(node.path);
   const active = nav.activeCat === node.path && !nav.readingId;
   const hasChildren = node.children.length > 0 || node.docs.length > 0;
@@ -82,7 +86,7 @@ export function CategoryRow({
           }}
           onClick={() => nav.openCategory(node.path)}
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
-          title={node.name}
+          title={name}
         >
           <span
             className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] hover:bg-[var(--hairline)]"
@@ -102,7 +106,7 @@ export function CategoryRow({
             {isOpen ? <FolderOpen size={14} /> : <Folder size={14} />}
           </span>
           {/* 不显示篇数：目录树只管导航，总数在顶部统计行，数字挂在每行右侧只是噪音 */}
-          <span className="ml-1 min-w-0 flex-1 truncate">{node.name}</span>
+          <span className="ml-1 min-w-0 flex-1 truncate">{name}</span>
         </div>
         {/* 新建文章/子文件夹都收进「⋯」菜单：悬停快捷图标会压住长标题 */}
         {canManage ? (
@@ -111,7 +115,7 @@ export function CategoryRow({
               className={`${actionBtn} hover:text-[var(--ink)]`}
               // 标记成菜单触发器：菜单的外部关闭逻辑放它一马，再点一次由这里 toggle 关掉
               data-menu-trigger
-              title="管理文件夹"
+              title={t("管理文件夹")}
               onClick={(e) => menus.toggleCatMenuAt(e, node.path)}
             >
               <MoreHorizontal size={14} />

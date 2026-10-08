@@ -3,13 +3,14 @@ import { buildWechatHtml } from "@/lib/copy/wechat";
 import { buildZhihuHtml } from "@/lib/copy/zhihu";
 import { copyRichHtml } from "@/lib/copy/clipboard";
 import { toast } from "@/components/Toast";
+import { t, tk } from "@/i18n/t";
 import { buildRenderOptions } from "./renderOptions";
 
 export type CopyTarget = "wechat" | "zhihu";
 
 const DONE: Record<CopyTarget, string> = {
-  wechat: "已复制！打开公众号后台编辑器直接粘贴",
-  zhihu: "已复制！打开知乎编辑器直接粘贴",
+  wechat: tk("已复制！打开公众号后台编辑器直接粘贴"),
+  zhihu: tk("已复制！打开知乎编辑器直接粘贴"),
 };
 
 /**
@@ -26,8 +27,8 @@ export async function copyDoc(target: CopyTarget): Promise<void> {
         ? await buildWechatHtml(s.content, await buildRenderOptions())
         : await buildZhihuHtml(s.content);
     await copyRichHtml(html, s.content);
-    toast(DONE[target], "success");
+    toast(t(DONE[target]), "success");
   } catch (e) {
-    toast(`复制失败：${e instanceof Error ? e.message : String(e)}`, "error");
+    toast(t("复制失败：{error}", { error: e instanceof Error ? e.message : String(e) }), "error");
   }
 }

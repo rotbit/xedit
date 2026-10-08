@@ -1,7 +1,9 @@
 "use client";
 
 import { Inbox } from "lucide-react";
+import { useT } from "@/i18n/useT";
 import { ALL } from "../constants";
+import { displayCatPath } from "../lib/catPath";
 
 /** 首次装载时的时间流骨架：一个日期组 + 四行标题/摘要占位，形状对齐真实列表 */
 export function DocListSkeleton() {
@@ -30,13 +32,14 @@ export function DocListEmpty({
   isTrash: boolean;
   activeCat: string;
 }) {
+  const t = useT();
   const message = search
-    ? "没有匹配的文章"
+    ? t("没有匹配的文章")
     : isTrash
-      ? "回收站是空的"
+      ? t("回收站是空的")
       : activeCat === ALL
-        ? "还没有文章，点「新建文章」开始"
-        : `「${activeCat}」还没有文章`;
+        ? t("还没有文章，点「新建文章」开始")
+        : t("「{name}」还没有文章", { name: displayCatPath(activeCat, t) });
 
   return (
     <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--hairline-strong)] py-16">

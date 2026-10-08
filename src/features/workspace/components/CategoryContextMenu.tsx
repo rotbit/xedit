@@ -21,6 +21,7 @@ import {
 import { askCategoryPick } from "@/components/CategoryPickDialog";
 import { useEscape } from "@/hooks/useEscape";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
+import { useT } from "@/i18n/useT";
 import {
   ALL,
   MAX_DEPTH,
@@ -38,6 +39,7 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   const { menus, dialogs, docActions, catActions, library, auth } = ws;
   const anchor = menus.catMenu;
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
   useEscape(menus.closeCatMenu, anchor !== null);
   useDismissMenu(panelRef, menus.closeCatMenu, anchor !== null);
   if (!anchor) return null;
@@ -59,10 +61,10 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
     const all = allCategories(library.customCats, library.docs);
     const name = nameOf(path);
     const target = await askCategoryPick({
-      title: `移动「${name}」到文件夹`,
+      title: t("移动「{name}」到文件夹", { name }),
       categories: all.filter((c) => canNestCategory(path, c, all)),
       // 本来就在顶级的文件夹不给「移出」，否则是个点了什么都不会发生的选项
-      topOption: path.includes("/") ? "顶级（移出所有文件夹）" : undefined,
+      topOption: path.includes("/") ? t("顶级（移出所有文件夹）") : undefined,
     });
     if (target === null) return;
     void catActions.moveCategory(path, target);
@@ -79,23 +81,23 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
         onClick={run(() => void docActions.createDoc(isRoot ? UNCATEGORIZED : path))}
       >
         <FilePlus2 size={14} className="text-[var(--ink-faint)]" />
-        新建文章
+        {t("新建文章")}
       </button>
       {isRoot ? (
         <button className={menuItemCls} onClick={run(() => void catActions.createCategory())}>
           <FolderPlus size={14} className="text-[var(--ink-faint)]" />
-          新建文件夹
+          {t("新建文件夹")}
         </button>
       ) : canAddChild ? (
         <button className={menuItemCls} onClick={run(() => void catActions.createCategory(path))}>
           <FolderPlus size={14} className="text-[var(--ink-faint)]" />
-          新建子文件夹
+          {t("新建子文件夹")}
         </button>
       ) : null}
       {isRoot ? (
         <button className={menuItemCls} onClick={run(() => void docActions.refreshDocs())}>
           <RotateCw size={14} className="text-[var(--ink-faint)]" />
-          刷新列表
+          {t("刷新列表")}
         </button>
       ) : null}
 
@@ -106,20 +108,20 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
         onClick={run(() => dialogs.openImport("file", isRoot ? undefined : path))}
       >
         <FileInput size={14} className="text-[var(--ink-faint)]" />
-        导入文件
+        {t("导入文件")}
       </button>
       <button
         className={menuItemCls}
         onClick={run(() => dialogs.openImport("folder", isRoot ? undefined : path))}
       >
         <FolderInput size={14} className="text-[var(--ink-faint)]" />
-        导入文件夹
+        {t("导入文件夹")}
       </button>
       {/* 飞书导入整库拉取、落点由镜像前缀决定，所以只挂在根级；它走服务端，未登录时给不出来 */}
       {isRoot && auth.loggedIn ? (
         <button className={menuItemCls} onClick={run(dialogs.openFeishu)}>
           <BookDown size={14} className="text-[var(--ink-faint)]" />
-          飞书知识库导入
+          {t("飞书知识库导入")}
         </button>
       ) : null}
 
@@ -129,18 +131,18 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
           {/* 图标用「移出」而非 FolderInput：同一个菜单里 FolderInput 已经是「导入文件夹」了 */}
           <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
             <FolderOutput size={14} className="text-[var(--ink-faint)]" />
-            移动到文件夹
+            {t("移动到文件夹")}
           </button>
           <button className={menuItemCls} onClick={run(() => void catActions.renameCategory(path))}>
             <PenLine size={14} className="text-[var(--ink-faint)]" />
-            重命名
+            {t("重命名")}
           </button>
           <button
             className={menuDangerCls}
             onClick={run(() => void catActions.removeCategory(path))}
           >
             <Trash2 size={14} />
-            删除文件夹
+            {t("删除文件夹")}
           </button>
         </>
       ) : null}

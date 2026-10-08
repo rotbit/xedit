@@ -1,6 +1,7 @@
 "use client";
 
 import { FolderOpen, Loader2 } from "lucide-react";
+import { useT } from "@/i18n/useT";
 import { closeVault, resumeVault, type VaultState } from "@/lib/localBackend/vaultSession";
 
 /**
@@ -9,6 +10,7 @@ import { closeVault, resumeVault, type VaultState } from "@/lib/localBackend/vau
  */
 export function VaultGate({ vault }: { vault: VaultState }) {
   const opening = vault.status === "opening";
+  const t = useT();
 
   return (
     <div className="flex h-full items-center justify-center bg-[var(--paper)] px-6">
@@ -17,10 +19,10 @@ export function VaultGate({ vault }: { vault: VaultState }) {
           {opening ? <Loader2 size={20} className="animate-spin" /> : <FolderOpen size={20} />}
         </span>
         <h2 className="mt-3.5 break-all text-[15px] font-semibold text-[var(--ink)] [font-family:var(--serif)]">
-          上次打开的文件夹「{vault.name}」
+          {t("上次打开的文件夹「{name}」", { name: vault.name ?? "" })}
         </h2>
         <p className="mt-2 text-[13px] leading-6 text-[var(--ink-soft)]">
-          {opening ? "正在打开…" : "浏览器需要你再次授权才能读写这个文件夹"}
+          {opening ? t("正在打开…") : t("浏览器需要你再次授权才能读写这个文件夹")}
         </p>
         {vault.error ? (
           <p className="mt-1.5 text-[12px] leading-5 text-red-600 dark:text-red-400">
@@ -32,13 +34,13 @@ export function VaultGate({ vault }: { vault: VaultState }) {
           disabled={opening}
           onClick={() => void resumeVault()}
         >
-          恢复访问
+          {t("恢复访问")}
         </button>
         <button
           className="mt-1.5 h-8 w-full cursor-pointer rounded-lg text-[12.5px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
           onClick={() => void closeVault()}
         >
-          改用浏览器存储
+          {t("改用浏览器存储")}
         </button>
       </div>
     </div>

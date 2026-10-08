@@ -1,4 +1,4 @@
-/** 工作区：侧栏、顶栏面包屑、账户菜单、今天页 */
+/** 工作区：侧栏、顶栏面包屑、账户菜单、今天页、文章列表与各类文章/分类操作 */
 export const workspace: Record<string, string> = {
   // 侧栏
   产品介绍: "About xEdit",
@@ -77,4 +77,139 @@ export const workspace: Record<string, string> = {
   "保存失败：浏览器存储空间不足": "Couldn't save: browser storage is full",
   "没记上：存储空间不足或网络异常，稍后再试": "Couldn't add: storage is full or the network is down. Try again later",
   "删除失败：浏览器存储空间不足": "Couldn't delete: browser storage is full",
+
+  // 工作台外壳（Home）
+  "浏览器本地存储不可用，无法离线写作，请登录后使用": "Browser storage is unavailable, so offline writing won't work. Please sign in",
+  "已离线 · 改动保存在本地，联网后自动同步": "Offline · Changes are saved locally and sync when you're back online",
+  飞书同步重试中: "Retrying Feishu sync",
+  飞书同步中: "Syncing with Feishu",
+  "飞书同步已中断，点击查看": "Feishu sync stopped. Click for details",
+  "登录状态已失效，重新开始吧": "Your session has expired. Let's start again",
+  开始写作: "Start Writing",
+  "登录 / 注册": "Sign In / Sign Up",
+
+  // 本地文库授权页
+  "上次打开的文件夹「{name}」": "Last opened folder “{name}”",
+  浏览器需要你再次授权才能读写这个文件夹: "Your browser needs permission again to read and write this folder",
+  恢复访问: "Reconnect",
+  改用浏览器存储: "Use Browser Storage Instead",
+
+  // 文章列表与菜单
+  新建文章: "New Article",
+  导入文件: "Import Files",
+  导入文件夹: "Import Folder",
+  飞书知识库导入: "Import from Feishu Wiki",
+  推送到飞书: "Push to Feishu",
+  管理文件夹: "Manage folder",
+  新建文件夹: "New Folder",
+  新建子文件夹: "New Subfolder",
+  刷新列表: "Refresh",
+  移动到文件夹: "Move to Folder",
+  移动到分类: "Move to Folder",
+  删除文件夹: "Delete Folder",
+  删除文章: "Delete Article",
+  彻底删除: "Delete Permanently",
+  "移动「{name}」到文件夹": "Move “{name}” to folder",
+  "移动「{name}」到分类": "Move “{name}” to folder",
+  "顶级（移出所有文件夹）": "Top level (out of all folders)",
+  "把「{name}」移入回收站": "Move “{name}” to Trash",
+  没有匹配的文章: "No matching articles",
+  回收站是空的: "Trash is empty",
+  "还没有文章，点「新建文章」开始": "No articles yet. Click “New Article” to get started",
+  "「{name}」还没有文章": "No articles in “{name}” yet",
+  尚无内容: "No content yet",
+  // 「模板」既是保留分类名（存储保持中文、显示时翻译），也是命令面板分组
+  模板: "Templates",
+
+  // 命令面板
+  "用「{name}」新建": "New from “{name}”",
+  文章: "Article",
+  导航: "Navigate",
+  快速切换文章: "Quick Switch Article",
+  回到全部文章: "Go to All Articles",
+  打开今天: "Open Today",
+  打开回收站: "Open Trash",
+  视图: "View",
+  "折叠 / 展开侧栏": "Toggle Sidebar",
+
+  // 账号与同步
+  "上一账号有未同步草稿，本次未清理本地缓存": "The previous account has unsynced drafts, so local data was kept",
+  "找回 {n} 篇上次未同步的草稿，将自动同步": "Recovered {n} unsynced {n, draft, drafts}. Syncing now",
+  本地文稿已同步到云端: "Local drafts synced to the cloud",
+  "本地文章还没上云，登录并同步后才能推送到飞书": "This article is only stored locally. Sign in and sync before pushing to Feishu",
+
+  // 导入
+  "登录已失效，请重新登录": "Your session has expired. Please sign in again",
+  "保存失败（{status}）": "Couldn't save ({status})",
+  浏览器存储空间不足: "Browser storage is full",
+  导入失败: "Import failed",
+
+  // 本地文库监听
+  文件已在外部删除: "The file was deleted outside xEdit",
+  "文件在外部被修改，已保留你当前的编辑": "The file changed outside xEdit. Your current edits were kept",
+
+  // 分类操作
+  "离线时分类操作暂不可用，联网后再试": "Folders can't be changed while offline. Try again when you're online",
+  分类名不能为空: "Folder name can't be empty",
+  "最多支持 {n} 级分类": "Folders can be nested up to {n} levels",
+  分类已存在: "Folder already exists",
+  "在「{name}」下新建子文件夹": "New subfolder in “{name}”",
+  子文件夹名称: "Subfolder name",
+  "文件夹名称，可用 / 建子文件夹": "Folder name (use / for subfolders)",
+  "重命名「{name}」": "Rename “{name}”",
+  已重命名: "Renamed",
+  重命名失败: "Couldn't rename",
+  "不能与「{name}」同名": "Name can't be “{name}”",
+  "已移动到「{name}」": "Moved to “{name}”",
+  已设为顶级分类: "Moved to top level",
+  移动失败: "Couldn't move",
+  "删除文件夹「{name}」及其子文件夹？其中的文章会移入「{target}」。":
+    "Delete folder “{name}” and its subfolders? Their articles will move to “{target}”.",
+  删除失败: "Couldn't delete",
+  已删除文件夹: "Folder deleted",
+
+  // 文章操作
+  已刷新: "Refreshed",
+  "新建失败：浏览器存储空间不足": "Couldn't create: browser storage is full",
+  新建失败: "Couldn't create article",
+  用模板新建: "New from Template",
+  文章标题: "Article title",
+  "删除「{name}」？移入回收站，可在回收站恢复。": "Delete “{name}”? It will move to Trash, where you can restore it.",
+  "删除「{name}」？本地文章删除后无法找回。": "Delete “{name}”? Local articles can't be recovered once deleted.",
+  移入回收站: "Move to Trash",
+  已移入回收站: "Moved to Trash",
+  已删除: "Deleted",
+  "离线时无法删除云端文章，联网后再试": "Can't delete cloud articles while offline. Try again when you're online",
+  "把「{name}」移入回收站？可随时恢复。": "Move “{name}” to Trash? You can restore it anytime.",
+  "恢复失败：回收站里找不到这个文件": "Couldn't restore: file not found in Trash",
+  已恢复: "Restored",
+  恢复失败: "Couldn't restore",
+  "彻底删除「{name}」？彻底删除后无法找回。": "Permanently delete “{name}”? This can't be undone.",
+  "彻底删除「{name}」？包括全部版本历史，无法找回。":
+    "Permanently delete “{name}” and its entire version history? This can't be undone.",
+  已彻底删除: "Permanently deleted",
+  "删除回收站里的 {n} 篇文章？彻底删除后无法找回。":
+    "Delete {n} {n, article, articles} in Trash? This can't be undone.",
+  清空: "Empty",
+  回收站已清空: "Trash emptied",
+  重命名文章: "Rename Article",
+  新建文件夹并移入: "Move to New Folder",
+
+  // 推送到飞书
+  "离线时无法推送，联网后再试": "Can't push while offline. Try again when you're online",
+  "正在推送到飞书，篇幅长或图片多时需要一点时间…": "Pushing to Feishu. Long articles or many images may take a moment…",
+  飞书侧有更新: "Changed in Feishu",
+  "「{name}」在飞书里自上次同步后有改动，继续推送会用 xedit 的内容覆盖飞书侧。要覆盖吗？":
+    "“{name}” has changed in Feishu since the last sync. Pushing will overwrite it with the xEdit version. Overwrite?",
+  覆盖推送: "Overwrite",
+  "正在覆盖推送…": "Overwriting…",
+  需要开通写入权限: "Write Permission Required",
+  "推送需在你的飞书应用「权限管理」里再开通 3 个免审权限：wiki:wiki、docx:document、docs:document.media:upload。开通后点「重新授权」完成升级，再推送一次即可。":
+    "To push, enable 3 more permissions (no review needed) under “Permissions” in your Feishu app: wiki:wiki, docx:document, docs:document.media:upload. Then click “Reauthorize” and push again.",
+  重新授权: "Reauthorize",
+  推送失败: "Push failed",
+  "（{n} 张图片转存失败）": " ({n} {n, image, images} failed to upload)",
+  "已推送到飞书知识库{extra}": "Pushed to Feishu Wiki{extra}",
+  "已写回飞书原文档{extra}": "Updated the original Feishu doc{extra}",
+  "推送失败：网络异常": "Push failed: network error",
 };

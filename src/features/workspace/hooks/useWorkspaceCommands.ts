@@ -4,6 +4,7 @@
 // 单独成 hook 是为了不再往 Home 里堆表格——它已经是首页的总装配点。
 
 import { useRegisterCommands } from "@/hooks/useRegisterCommands";
+import { useT } from "@/i18n/useT";
 import type { Command } from "@/lib/commandRegistry";
 import { listTemplates } from "@/lib/templates";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
@@ -19,13 +20,15 @@ interface Params {
 
 export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
   const { nav, prefs, docActions, library } = ws;
+  // 命令表按 deps 注册一次就不再变：t 随语言换引用，放进 deps 让切换语言后整批重注册
+  const t = useT();
 
   // 「模板」分类里每篇文章一条命令：⌘⇧P 敲模板名就能建稿，不必去侧栏找那个小箭头
   const templates = listTemplates(library.docs);
   const templateCmds: Command[] = templates.map((tpl) => ({
     id: `template.${tpl.id}`,
-    group: "模板",
-    label: `用「${tpl.title || UNTITLED_DOC}」新建`,
+    group: t("模板"),
+    label: t("用「{name}」新建", { name: tpl.title || t(UNTITLED_DOC) }),
     run: () => docActions.createFromTemplate(tpl),
   }));
 
@@ -33,39 +36,39 @@ export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
     ? [
         {
           id: "workspace.new",
-          group: "文章",
-          label: "新建文章",
+          group: t("文章"),
+          label: t("新建文章"),
           run: () => docActions.createDoc(),
         },
         {
           id: "workspace.switch",
-          group: "导航",
-          label: "快速切换文章",
+          group: t("导航"),
+          label: t("快速切换文章"),
           keys: "⌘O",
           run: onQuickSwitch,
         },
         {
           id: "workspace.all",
-          group: "导航",
-          label: "回到全部文章",
+          group: t("导航"),
+          label: t("回到全部文章"),
           run: () => nav.openCategory(ALL),
         },
         {
           id: "workspace.today",
-          group: "导航",
-          label: "打开今天",
+          group: t("导航"),
+          label: t("打开今天"),
           run: () => nav.openCategory(TODAY),
         },
         {
           id: "workspace.trash",
-          group: "导航",
-          label: "打开回收站",
+          group: t("导航"),
+          label: t("打开回收站"),
           run: () => nav.openCategory(TRASH),
         },
         {
           id: "view.sidebar",
-          group: "视图",
-          label: "折叠 / 展开侧栏",
+          group: t("视图"),
+          label: t("折叠 / 展开侧栏"),
           run: prefs.toggleSidebar,
         },
         ...templateCmds,
@@ -75,6 +78,6 @@ export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
   // 命令表只在「有没有工作台」翻转、或模板集合增删/改名时真的变，其余闭包
   // （nav 每次渲染都是新的）由 useRegisterCommands 的 ref 兜新鲜度；
   // 否则每次击键都要注销重注册一轮
-  const templateKey = templates.map((t) => `${t.id}:${t.title}`).join("\n");
-  useRegisterCommands(cmds, [enabled, templateKey]);
+  const templateKey = templates.map((tpl) => `${tpl.id}:${tpl.title}`).join("\n");
+  useRegisterCommands(cmds, [enabled, templateKey, t]);
 }

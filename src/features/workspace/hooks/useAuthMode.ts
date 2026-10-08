@@ -14,6 +14,7 @@ import { resolveAccountSwitch } from "@/lib/orphanDrafts";
 import { bumpSessionEpoch } from "@/lib/sessionEpoch";
 import { notifyDocsChanged } from "@/lib/localDocs";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 import {
   getProbeServerState,
   getProbeState,
@@ -70,12 +71,12 @@ export function useAuthMode() {
     if (status !== "authenticated" || !user) return;
     const r = resolveAccountSwitch(user);
     if (r.stashFailed) {
-      toast("上一账号有未同步草稿，本次未清理本地缓存", "info");
+      toast(t("上一账号有未同步草稿，本次未清理本地缓存"), "info");
       return;
     }
     // 同步派事件时 useDocLibrary 的监听还没挂上（同一轮 effect 里它在后面），推到微任务
     if (r.cleared || r.reclaimed > 0) queueMicrotask(() => notifyDocsChanged());
-    if (r.reclaimed > 0) toast(`找回 ${r.reclaimed} 篇上次未同步的草稿，将自动同步`, "success");
+    if (r.reclaimed > 0) toast(t("找回 {n} 篇上次未同步的草稿，将自动同步", { n: r.reclaimed }), "success");
   }, [status, user]);
 
   // 别的标签页登出或换了账号：本标签的 localStorage 已经被改过了，但 React 这边还一无所知。

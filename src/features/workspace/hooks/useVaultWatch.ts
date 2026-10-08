@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 import { hasPendingContent, rememberSavedDocument } from "@/lib/editor/persistence";
 import {
   getLocalDocContent,
@@ -49,7 +50,7 @@ export function useVaultWatch({ enabled, nav }: { enabled: boolean; nav: Workspa
         if (!openId) return;
         if (removed.includes(openId)) {
           navRef.current.setReadingId(null);
-          toast("文件已在外部删除", "error");
+          toast(t("文件已在外部删除"), "error");
           return;
         }
         if (changed.includes(openId)) applyExternalChange(openId);
@@ -95,7 +96,7 @@ function applyExternalChange(id: string) {
     return;
   }
   if (hasPendingContent(id, s.content)) {
-    toast("文件在外部被修改，已保留你当前的编辑");
+    toast(t("文件在外部被修改，已保留你当前的编辑"));
     return;
   }
   const title = meta?.title ?? s.title;

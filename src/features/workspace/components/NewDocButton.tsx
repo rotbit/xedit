@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { BookDown, ChevronDown, FileInput, FilePlus2, FolderInput, Loader2 } from "lucide-react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
+import { useT } from "@/i18n/useT";
 import { menuItemCls, menuPanelCls } from "../constants";
 import type { ImportMode } from "../hooks/useImportDocs";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -29,6 +30,7 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
   const { auth, docActions, dialogs } = ws;
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
   const close = () => setAnchor(null);
   useEscape(close, anchor !== null);
   useDismissMenu(panelRef, close, anchor !== null);
@@ -63,12 +65,12 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
           ) : (
             <FilePlus2 size={14} className="text-[var(--ink-faint)]" />
           )}
-          新建文章
+          {t("新建文章")}
         </button>
         <button
           className={`flex h-7 w-6 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${anchor ? "bg-[var(--accent-wash)] text-[var(--ink)]" : ""}`}
           data-menu-trigger
-          title="导入"
+          title={t("导入")}
           onClick={toggle}
         >
           <ChevronDown size={14} />
@@ -84,11 +86,11 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
             >
               <button className={menuItemCls} onClick={openImport("file")}>
                 <FileInput size={14} className="text-[var(--ink-faint)]" />
-                导入文件
+                {t("导入文件")}
               </button>
               <button className={menuItemCls} onClick={openImport("folder")}>
                 <FolderInput size={14} className="text-[var(--ink-faint)]" />
-                导入文件夹
+                {t("导入文件夹")}
               </button>
               {/* 飞书导入走服务端，未登录（本地模式）时没有这条路 */}
               {auth.loggedIn ? (
@@ -96,7 +98,7 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
                   <div className="my-1 border-t border-[var(--hairline)]" />
                   <button className={menuItemCls} onClick={run(dialogs.openFeishu)}>
                     <BookDown size={14} className="text-[var(--ink-faint)]" />
-                    飞书知识库导入
+                    {t("飞书知识库导入")}
                   </button>
                 </>
               ) : null}

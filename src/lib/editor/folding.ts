@@ -41,6 +41,7 @@ import {
   type KeyBinding,
   type ViewUpdate,
 } from "@codemirror/view";
+import { t } from "@/i18n/t";
 
 /** 只给 H1–H4 挂把手：H5/H6 在版式里已经退回正文字号（见 live-preview.css 的 cm-lp-h4），
     再多一个把手只是噪点；它们仍然能用快捷键折叠，foldable() 对六级标题一视同仁 */
@@ -113,9 +114,9 @@ class FoldChevron extends WidgetType {
   toDOM(): HTMLElement {
     const button = document.createElement("span");
     button.className = "cm-fold-chevron";
-    button.title = "折叠";
+    button.title = t("折叠");
     button.setAttribute("role", "button");
-    button.setAttribute("aria-label", "折叠这一节");
+    button.setAttribute("aria-label", t("折叠这一节"));
 
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("viewBox", "0 0 16 16");
@@ -213,9 +214,9 @@ const foldedPlaceholder = codeFolding({
     const pill = document.createElement("span");
     pill.className = "cm-fold-pill";
     pill.textContent = "…";
-    pill.title = "点击展开";
+    pill.title = t("点击展开");
     pill.setAttribute("role", "button");
-    pill.setAttribute("aria-label", "已折叠，点击展开");
+    pill.setAttribute("aria-label", t("已折叠，点击展开"));
     // 先按下去的话光标会落到折叠区边界、版面跟着跳一下，截掉只留 click
     pill.addEventListener("mousedown", (event) => event.preventDefault());
     pill.addEventListener("click", onclick);

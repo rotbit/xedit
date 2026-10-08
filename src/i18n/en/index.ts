@@ -3,9 +3,10 @@
  * 运行时 key 全局唯一——同一句中文到处都该是同一个译法，重复了说明有一处是多余的。
  */
 import { common } from "./common";
+import { editor } from "./editor";
 import { workspace } from "./workspace";
 
-const namespaces: Record<string, Record<string, string>> = { common, workspace };
+const namespaces: Record<string, Record<string, string>> = { common, workspace, editor };
 
 function merge(): Record<string, string> {
   const out: Record<string, string> = {};

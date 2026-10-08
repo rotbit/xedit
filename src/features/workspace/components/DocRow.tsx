@@ -2,6 +2,7 @@
 
 import { FileText, Trash2 } from "lucide-react";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { useT } from "@/i18n/useT";
 import { DROP_LINE_BOTTOM, DROP_LINE_TOP, rowCls, rowInset } from "../constants";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -10,7 +11,8 @@ import type { Workspace } from "../hooks/useWorkspace";
 export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth: number }) {
   const { nav, menus, drag, docActions } = ws;
   const active = nav.readingId === doc.id;
-  const label = doc.title || UNTITLED_DOC;
+  const t = useT();
+  const label = doc.title || t(UNTITLED_DOC);
   const spot = drag.dropSpot;
   const zone = spot?.kind === "doc" && spot.key === doc.id ? spot.zone : null;
   const dropCls = zone === "before" ? DROP_LINE_TOP : zone === "after" ? DROP_LINE_BOTTOM : "";
@@ -43,7 +45,7 @@ export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth:
       </button>
       <button
         className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-red-50 hover:text-red-600 group-hover/doc:block dark:hover:bg-red-950/40 dark:hover:text-red-400"
-        title={`把「${label}」移入回收站`}
+        title={t("把「{name}」移入回收站", { name: label })}
         onClick={() => void docActions.removeDoc(doc)}
       >
         <Trash2 size={12} />

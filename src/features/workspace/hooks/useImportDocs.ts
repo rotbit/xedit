@@ -13,6 +13,7 @@ import { applyServerDoc, getMirrorRev, markMirrorSynced, saveMirrorLocal } from 
 import { syncNow } from "@/lib/sync";
 import { uploadMediaFile } from "@/lib/uploadMedia";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { t } from "@/i18n/t";
 import { MAX_DEPTH, UNCATEGORIZED, isVirtualCat } from "../constants";
 import { mergedCloudList } from "../lib/docSource";
 import type { DocMeta } from "../types";
@@ -181,14 +182,14 @@ async function failReason(res: Response): Promise<string> {
   const data: unknown = await res.json().catch(() => null);
   const error = (data as { error?: unknown } | null)?.error;
   if (typeof error === "string" && error) return error;
-  if (res.status === 401) return "登录已失效，请重新登录";
-  return `保存失败（${res.status}）`;
+  if (res.status === 401) return t("登录已失效，请重新登录");
+  return t("保存失败（{status}）", { status: res.status });
 }
 
 function reasonOf(err: unknown): string {
-  if (err instanceof DOMException) return "浏览器存储空间不足";
+  if (err instanceof DOMException) return t("浏览器存储空间不足");
   if (err instanceof Error && err.message) return err.message;
-  return "导入失败";
+  return t("导入失败");
 }
 
 /**

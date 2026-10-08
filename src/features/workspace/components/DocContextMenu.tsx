@@ -7,6 +7,7 @@ import { askCategoryPick } from "@/components/CategoryPickDialog";
 import { useEscape } from "@/hooks/useEscape";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
+import { useT } from "@/i18n/useT";
 import { UNCATEGORIZED, menuDangerCls, menuItemCls } from "../constants";
 import { allCategories } from "../lib/catTree";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -24,6 +25,7 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
   const { menus, nav, library, docActions, auth } = ws;
   const anchor = menus.docMenu;
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
   // Esc 关菜单：和弹窗、斜杠菜单一致，别让用户去找空白处点
   useEscape(menus.closeDocMenu, anchor !== null);
   useDismissMenu(panelRef, menus.closeDocMenu, anchor !== null);
@@ -40,7 +42,7 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
   /** 分类可能有几百个且层级很深，弹带搜索的选择器而不是在菜单里平铺 */
   const moveViaPicker = async () => {
     const target = await askCategoryPick({
-      title: `移动「${doc.title || UNTITLED_DOC}」到分类`,
+      title: t("移动「{name}」到分类", { name: doc.title || t(UNTITLED_DOC) }),
       categories: allCategories(library.customCats, library.docs),
       current: cat,
     });
@@ -60,19 +62,19 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
     >
       <button className={menuItemCls} onClick={run(() => nav.openDoc(doc.id))}>
         <PenLine size={14} className="text-[var(--ink-faint)]" />
-        编辑
+        {t("编辑")}
       </button>
       <button className={menuItemCls} onClick={run(() => void docActions.renameDoc(doc))}>
         <TextCursorInput size={14} className="text-[var(--ink-faint)]" />
-        重命名
+        {t("重命名")}
       </button>
       <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
         <FolderInput size={14} className="text-[var(--ink-faint)]" />
-        移动到分类
+        {t("移动到分类")}
       </button>
       <button className={menuItemCls} onClick={run(() => void docActions.moveToNewCategory(doc))}>
         <FolderPlus size={14} className="text-[var(--ink-faint)]" />
-        新建文件夹
+        {t("新建文件夹")}
       </button>
       {!auth.localMode ? (
         <>
@@ -83,14 +85,14 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
             disabled={docActions.pushingFeishu}
           >
             <BookUp size={14} className="text-[var(--ink-faint)]" />
-            推送到飞书
+            {t("推送到飞书")}
           </button>
         </>
       ) : null}
       <div className="my-1 border-t border-[var(--hairline)]" />
       <button className={menuDangerCls} onClick={run(() => void docActions.removeDoc(doc))}>
         <Trash2 size={14} />
-        删除文章
+        {t("删除文章")}
       </button>
     </div>,
     document.body

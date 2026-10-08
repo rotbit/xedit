@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { AiIcon } from "@/components/AiIcon";
 import { useCan } from "@/hooks/usePermissions";
+import { useT } from "@/i18n/useT";
 import { useStore } from "@/store/useStore";
 import {
   COVER_COLORS,
@@ -75,12 +76,13 @@ function writeSaved(saved: Saved): void {
 
 /** 一排小圆色点，选中的那个套一圈环 */
 function Swatches({ value, onPick }: { value: CoverColor; onPick: (color: CoverColor) => void }) {
+  const t = useT();
   return (
     <div className="flex shrink-0 items-center gap-1">
       {COVER_COLORS.map((c) => (
         <button
           key={c.id}
-          title={c.label}
+          title={t(c.label)}
           className={`h-3 w-3 cursor-pointer rounded-full transition-shadow ${
             value === c.id ? "shadow-[0_0_0_1px_var(--paper),0_0_0_2px_var(--accent)]" : ""
           }`}
@@ -98,6 +100,7 @@ export function CoverAiTab({
 }: {
   onUse: (file: File) => Promise<void>;
 }) {
+  const t = useT();
   const canCover = useCan("ai_cover");
   const [service, setService] = useState<CoverServiceState | "checking">("checking");
   /** forbidden 那一屏上显示的话：接口回过就用服务端的说法，没有就用默认那句 */
@@ -154,7 +157,7 @@ export function CoverAiTab({
         setService("forbidden");
         return;
       }
-      setError(e instanceof Error ? e.message : "生成失败");
+      setError(e instanceof Error ? e.message : t("生成失败"));
     } finally {
       if (!ctrl.signal.aborted) setBusy(false);
     }
@@ -165,7 +168,7 @@ export function CoverAiTab({
     try {
       await onUse(dataUrlToFile(image));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败");
+      setError(e instanceof Error ? e.message : t("保存失败"));
     } finally {
       setSaving(false);
     }
@@ -175,19 +178,19 @@ export function CoverAiTab({
     return (
       <p className={`${tip} flex items-center gap-1.5`}>
         <Loader2 size={14} className="animate-spin" />
-        正在检查…
+        {t("正在检查…")}
       </p>
     );
-  if (service === "offline") return <p className={tip}>现在连不上服务器，稍后再试</p>;
-  if (service === "unconfigured") return <p className={tip}>服务端还没有配置 AI 生成封面</p>;
+  if (service === "offline") return <p className={tip}>{t("现在连不上服务器，稍后再试")}</p>;
+  if (service === "unconfigured") return <p className={tip}>{t("服务端还没有配置 AI 生成封面")}</p>;
   if (service === "forbidden")
-    return <p className={tip}>{denied || "你的账号还没开通 AI 生成封面，找管理员开通"}</p>;
+    return <p className={tip}>{denied || t("你的账号还没开通 AI 生成封面，找管理员开通")}</p>;
 
   return (
     <div className="flex flex-col gap-2 px-3 pb-2 pt-2">
       <input
         className={inputCls}
-        placeholder="封面上的标题"
+        placeholder={t("封面上的标题")}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
       />
@@ -196,7 +199,7 @@ export function CoverAiTab({
           <input
             key={i}
             className={inputCls}
-            placeholder="重点词（可不填）"
+            placeholder={t("重点词（可不填）")}
             value={highlights[i]}
             onChange={(e) =>
               setHighlights((prev) => {
@@ -211,7 +214,7 @@ export function CoverAiTab({
       <div className="flex items-center gap-2">
         <input
           className={inputCls}
-          placeholder="产品 / 模型名称（可不填）"
+          placeholder={t("产品 / 模型名称（可不填）")}
           value={saved.leftName}
           onChange={(e) => setSaved({ ...saved, leftName: e.target.value })}
         />
@@ -220,7 +223,7 @@ export function CoverAiTab({
       <div className="flex items-center gap-2">
         <input
           className={inputCls}
-          placeholder="对比的另一方（可不填）"
+          placeholder={t("对比的另一方（可不填）")}
           value={saved.rightName}
           onChange={(e) => setSaved({ ...saved, rightName: e.target.value })}
         />
@@ -230,7 +233,7 @@ export function CoverAiTab({
       {busy ? (
         <>
           <div className="animate-pulse rounded-md bg-[var(--accent-wash)]" style={COVER_RATIO} />
-          <p className="text-[12px] text-[var(--ink-faint)]">正在生成，大约需要十几秒…</p>
+          <p className="text-[12px] text-[var(--ink-faint)]">{t("正在生成，大约需要十几秒…")}</p>
         </>
       ) : null}
 
@@ -238,7 +241,7 @@ export function CoverAiTab({
         <button
           className={coverTileCls}
           style={COVER_RATIO}
-          title="设为封面"
+          title={t("设为封面")}
           disabled={saving}
           onClick={() => void pick()}
         >
@@ -262,7 +265,7 @@ export function CoverAiTab({
         onClick={() => void run()}
       >
         {busy ? <Loader2 size={14} className="animate-spin" /> : <AiIcon size={14} />}
-        {busy ? "正在生成…" : image ? "再来一次" : "生成"}
+        {busy ? t("正在生成…") : image ? t("再来一次") : t("生成")}
       </button>
     </div>
   );

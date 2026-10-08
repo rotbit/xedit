@@ -13,6 +13,7 @@ import { getActiveVault } from "@/lib/localBackend/vaultSession";
 import { listMirrorDocs } from "@/lib/docStore";
 import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
 import { toast } from "@/components/Toast";
+import { t } from "@/i18n/t";
 import { TRASH } from "../constants";
 import { mergedCloudList } from "../lib/docSource";
 import {
@@ -172,7 +173,7 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
         })
           .then((res) => {
             if (res.ok) {
-              toast("本地文稿已同步到云端", "success");
+              toast(t("本地文稿已同步到云端"), "success");
               void syncNow();
             }
           })
