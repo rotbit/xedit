@@ -1,7 +1,7 @@
 "use client";
 
-/** 今天页两栏共用的小零件：栏头、空态、圆形复选框 */
-import { Check } from "lucide-react";
+/** 今天页两栏共用的小零件：栏头、空态、圆形复选框、行尾删除按钮 */
+import { Check, X } from "lucide-react";
 
 export function ColumnHead({ title }: { title: string }) {
   return (
@@ -47,6 +47,24 @@ export function TodoBox({
       onClick={onClick}
     >
       {mark}
+    </button>
+  );
+}
+
+/**
+ * 行尾的删除按钮：平时透明、悬停整行（外层带 group）时才露出来，免得每行都顶着一个叉。
+ * 用透明度而不是 hidden：位置一直占着，悬停时右侧日期不会被挤得跳一下；键盘聚焦时也看得见。
+ */
+export function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="mt-[3px] shrink-0 cursor-pointer rounded text-[var(--ink-faint)] opacity-0 hover:text-[var(--seal)] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--ink-soft)] group-hover:opacity-100"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <X size={13} />
     </button>
   );
 }

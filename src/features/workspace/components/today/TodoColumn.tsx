@@ -1,14 +1,17 @@
 "use client";
 
 /**
- * 「要做」一栏：快速输入 + 逾期 / 今天 / 清单里没定日期的待办，其余折叠成一行。
- * 过去某天换成 DoneColumn：只读列出那天在今天页勾掉的事。
+ * 「要做」一栏：快速输入 + 逾期 / 今天 / 清单里没定日期的待办。
+ * 文章里没定日期的、日期在以后的（later 桶）不在这里出现：今天页只放今天该处理的事。
+ * 过去某天换成 DoneColumn：列出那天在今天页勾掉的事。
  */
 import { useState } from "react";
 import { formatDue } from "@/lib/todos/dates";
 import type { TodoBuckets, TodoItem } from "@/lib/todos/collect";
 import type { DayEvent } from "@/lib/todos/events";
-import { ColumnHead, EmptyLine, TodoBox } from "./parts";
+import type { DocMeta } from "../../types";
+import { ColumnHead, EmptyLine, RemoveButton, TodoBox } from "./parts";
+import { QuickAdd, type AddTarget } from "./QuickAdd";
 
 function secondaryOf(item: TodoItem): string | null {
   if (item.source === "doc") return `文章里的待办 · 《${item.docTitle}》`;
@@ -29,12 +32,15 @@ function TodoRow({
   today,
   onToggle,
   onOpen,
+  onRemove,
 }: {
   item: TodoItem;
   done: boolean;
   today: string;
   onToggle: (() => void) | undefined;
   onOpen: () => void;
+  /** 不给就没有删除按钮（发布排期不是正文里的一行，没东西可删） */
+  onRemove: (() => void) | undefined;
 }) {
   const due = done ? null : dueLabel(item, today);
   const sub = secondaryOf(item);
@@ -63,37 +69,7 @@ function TodoRow({
           {due.text}
         </span>
       ) : null}
-    </div>
-  );
-}
-
-/** 快速输入：回车追加到待办清单；输入法组字时的回车是选词，不能当提交 */
-function QuickAdd({ disabled, onAdd }: { disabled: boolean; onAdd: (text: string) => Promise<boolean> }) {
-  const [text, setText] = useState("");
-  const [pending, setPending] = useState(false);
-  const submit = async () => {
-    if (!text.trim() || pending) return;
-    // 提交中锁住输入：清单那篇还没建好时连敲两次回车会建出两篇「待办清单」
-    setPending(true);
-    const ok = await onAdd(text);
-    setPending(false);
-    if (ok) setText("");
-  };
-  return (
-    <div className="mb-1.5 flex items-center gap-2.5 border-b border-[var(--hairline-soft)] px-0.5 py-2">
-      <span className="h-4 w-4 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--hairline-strong)]" />
-      <input
-        className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[var(--ink-faint)] disabled:opacity-60"
-        placeholder="记一件事…"
-        value={text}
-        disabled={disabled || pending}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
-          e.preventDefault();
-          void submit();
-        }}
-      />
+      {onRemove ? <RemoveButton label="删除这条待办" onClick={onRemove} /> : null}
     </div>
   );
 }
@@ -101,31 +77,38 @@ function QuickAdd({ disabled, onAdd }: { disabled: boolean; onAdd: (text: string
 export function TodoColumn({
   buckets,
   today,
-  docsReady,
+  docs,
   onToggle,
   onAdd,
+  onRemove,
   onOpenDoc,
 }: {
   buckets: TodoBuckets;
   today: string;
-  /** 文库还没载完：此时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
-  docsReady: boolean;
+  /** 文库还没载完时为 null：此时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
+  docs: DocMeta[] | null;
   onToggle: (item: TodoItem, checked: boolean) => Promise<boolean>;
-  onAdd: (text: string) => Promise<boolean>;
+  onAdd: (text: string, target: AddTarget) => Promise<boolean>;
+  onRemove: (item: TodoItem) => Promise<boolean>;
   onOpenDoc: (id: string) => void;
 }) {
-  const [showLater, setShowLater] = useState(false);
   /**
    * 这次在页面上勾掉的：勾完那条就不再属于任何「要做」桶了，直接消失会让人以为没点上，
    * 也没法撤回。先留在原地画成已完成，离开页面再清。
    */
   const [justDone, setJustDone] = useState<Map<string, TodoItem>>(() => new Map());
+  /** 点了删除的：先从界面拿掉，写回失败再放回来 */
+  const [removed, setRemoved] = useState<Map<string, TodoItem>>(() => new Map());
+
+  /**
+   * key 里带行号，删掉一行后同一篇下面的待办行号全会前移，旧 key 会落到别的条目头上；
+   * 所以按 key 认的同时还要文字一致，才算「同一条」。
+   */
+  const sameIn = (map: Map<string, TodoItem>, item: TodoItem) => map.get(item.key)?.text === item.text;
 
   const active = [...buckets.overdue, ...buckets.today, ...buckets.undated];
-  const later = showLater ? buckets.later : [];
-  const shownKeys = new Set([...active, ...later].map((i) => i.key));
-  const doneOnly = [...justDone.values()].filter((i) => !shownKeys.has(i.key));
-  const rows = [...active, ...later, ...doneOnly];
+  const doneOnly = [...justDone.values()].filter((i) => !active.some((a) => a.key === i.key && a.text === i.text));
+  const rows = [...active, ...doneOnly].filter((i) => !sameIn(removed, i));
 
   const setDone = (item: TodoItem, on: boolean) =>
     setJustDone((prev) => {
@@ -141,49 +124,58 @@ export function TodoColumn({
     if (!ok) setDone(item, !checked);
   };
 
+  const setGone = (item: TodoItem, on: boolean) =>
+    setRemoved((prev) => {
+      const next = new Map(prev);
+      if (on) next.set(item.key, item);
+      else next.delete(item.key);
+      return next;
+    });
+
+  /**
+   * 删除不弹确认：删的只是正文里的一行，代价小。成功后也不急着清掉这条标记——
+   * 编辑器正开着那篇时，改动先进 store、要等自动保存才落盘，期间汇总读到的还是旧正文，
+   * 清早了那条会闪回来；靠「key + 文字」认条目，留着也不会误伤别的行。
+   */
+  const remove = async (item: TodoItem) => {
+    setGone(item, true);
+    const ok = await onRemove(item);
+    if (!ok) setGone(item, false);
+  };
+
   return (
     <div className="min-w-0">
       <ColumnHead title="要做" />
-      <QuickAdd disabled={!docsReady} onAdd={onAdd} />
+      <QuickAdd disabled={docs === null} docs={docs ?? []} onSubmit={onAdd} />
       {rows.length === 0 ? (
         <EmptyLine>今天没有要做的事</EmptyLine>
       ) : (
         <div className="divide-y divide-[var(--hairline-soft)]">
           {rows.map((item) => {
-            const done = justDone.has(item.key);
+            const done = sameIn(justDone, item);
             // 发布排期勾上就写进了 published: true，没有「取消发布」这回事
             const locked = done && item.source === "publish";
             return (
               <TodoRow
-                key={item.key}
+                // 刚勾掉的可能和行号前移后的另一条撞 key，带上文字才唯一
+                key={`${item.key}|${item.text}`}
                 item={item}
                 done={done}
                 today={today}
                 onToggle={locked ? undefined : () => void toggle(item, !done)}
                 onOpen={() => onOpenDoc(item.docId)}
+                onRemove={item.source === "publish" ? undefined : () => void remove(item)}
               />
             );
           })}
         </div>
       )}
-      {buckets.later.length > 0 ? (
-        <div className="mt-3.5 text-[13px] text-[var(--ink-faint)]">
-          {showLater ? null : `另有 ${buckets.later.length} 件没定日期或在以后 · `}
-          <button
-            type="button"
-            className="cursor-pointer text-[var(--ink-soft)] hover:text-[var(--ink)]"
-            onClick={() => setShowLater((v) => !v)}
-          >
-            {showLater ? "收起" : "展开"}
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }
 
-/** 过去 / 将来某天的左栏：那天在今天页勾掉的事，只读 */
-export function DoneColumn({ events }: { events: DayEvent[] }) {
+/** 过去 / 将来某天的左栏：那天在今天页勾掉的事；不能取消勾选，但可以把记录删掉 */
+export function DoneColumn({ events, onRemove }: { events: DayEvent[]; onRemove: (e: DayEvent) => void }) {
   const tasks = events.filter((e) => e.kind === "task").sort((a, b) => a.ts - b.ts);
   return (
     <div className="min-w-0">
@@ -193,11 +185,12 @@ export function DoneColumn({ events }: { events: DayEvent[] }) {
       ) : (
         <div className="divide-y divide-[var(--hairline-soft)]">
           {tasks.map((e, i) => (
-            <div key={`${e.ts}-${i}`} className="flex items-start gap-2.5 px-0.5 py-2">
+            <div key={`${e.ts}-${i}`} className="group flex items-start gap-2.5 px-0.5 py-2">
               <TodoBox done />
               <div className="min-w-0 flex-1 text-[14.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
                 {e.text}
               </div>
+              <RemoveButton label="删除这条记录" onClick={() => onRemove(e)} />
             </div>
           ))}
         </div>

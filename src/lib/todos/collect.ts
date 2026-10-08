@@ -31,7 +31,7 @@ export interface TodoBuckets {
   today: TodoItem[];
   /** 只放 notes 来源的无日期待办：那篇清单就是专门记「要做」的，不该被折叠 */
   undated: TodoItem[];
-  /** 文章正文里没定日期的、以及日期在以后的：折叠成一行 */
+  /** 文章正文里没定日期的、以及日期在以后的：今天页不展示，也不计入侧栏计数 */
   later: TodoItem[];
   done: TodoItem[];
 }

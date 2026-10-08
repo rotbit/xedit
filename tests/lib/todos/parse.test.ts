@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { appendTask, isNotesDoc, markPublished, parsePublish, parseTasks, toggleTaskLine } from "@/lib/todos/parse";
+import {
+  appendTask,
+  isNotesDoc,
+  markPublished,
+  parsePublish,
+  parseTasks,
+  removeTaskLine,
+  toggleTaskLine,
+} from "@/lib/todos/parse";
 
 const T = "2026-10-08";
 
@@ -63,6 +71,16 @@ describe("改写", () => {
     expect(appendTask("- [ ] a", "b")).toBe("- [ ] a\n- [ ] b\n");
     expect(appendTask("x\r\n", "b")).toBe("x\r\n- [ ] b\r\n");
     expect(appendTask("x\n", "  ")).toBe("x\n");
+  });
+
+  it("removeTaskLine 连同换行删掉那一行，保留 \\r\\n；不是任务行不动", () => {
+    expect(removeTaskLine("a\n- [ ] b\nc\n", 1)).toBe("a\nc\n");
+    expect(removeTaskLine("a\r\n- [x] b\r\nc\r\n", 1)).toBe("a\r\nc\r\n");
+    expect(removeTaskLine("a\n- [ ] b\n", 1)).toBe("a\n");
+    expect(removeTaskLine("a\n- [ ] b", 1)).toBe("a");
+    expect(removeTaskLine("- [ ] b", 0)).toBe("");
+    expect(removeTaskLine("a\n- [ ] b\n", 0)).toBe("a\n- [ ] b\n");
+    expect(removeTaskLine("a\n", 9)).toBe("a\n");
   });
 
   it("markPublished 插到收尾 --- 之前；没有 frontmatter 不动", () => {
