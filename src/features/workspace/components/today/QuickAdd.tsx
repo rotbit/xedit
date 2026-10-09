@@ -98,7 +98,7 @@ function InputRow({
     <div ref={rowRef} className="relative">
       <div
         role="group"
-        aria-label={t("记一件事")}
+        aria-label={t("添加待办")}
         className="flex items-center gap-2.5 border-b border-[var(--hairline)] px-0.5 py-2"
       >
         <span className="h-4 w-4 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--hairline-strong)]" />
@@ -177,7 +177,7 @@ export function QuickAdd({
           onClick={() => setOpen(true)}
         >
           <span className="h-4 w-4 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--hairline-strong)]" />
-          {t("记一件事…")}
+          {t("添加待办…")}
         </button>
       )}
     </div>

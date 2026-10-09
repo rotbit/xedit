@@ -226,7 +226,7 @@ export function TodayMain({
       <QuickAdd disabled={!ready} docs={docs} onSubmit={onAdd} />
       {rows.length === 0 ? (
         allEmpty ? (
-          <EmptyGuide text={t("记一件今天要做的事，或在右侧排到某一天")} />
+          <EmptyGuide text={t("添加一件今天要做的事，或在右侧排到某一天")} />
         ) : (
           <EmptyLine>{t("今天没有安排")}</EmptyLine>
         )

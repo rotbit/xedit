@@ -110,7 +110,7 @@ function UpcomingItem({
   );
 }
 
-/** 每天末尾的「＋ 记到明天」：悬停那一天才露出来，回车提交后清空、焦点留着方便连记 */
+/** 每天末尾的「＋ 添加到明天」：悬停那一天才露出来，回车提交后清空、焦点留着方便连记 */
 function DayAdd({
   label,
   disabled,
@@ -247,7 +247,7 @@ export function UpcomingColumn({
                 <UpcomingItem key={rowId(item)} item={item} today={today} actions={actions} showDate={false} t={t} />
               ))}
               <DayAdd
-                label={t("＋ 记到{day}", { day: name })}
+                label={t("＋ 添加到{day}", { day: name })}
                 disabled={!ready}
                 onSubmit={(text) => onAddOnDay(text, day)}
               />
