@@ -16,6 +16,11 @@ export function itemLabel(item: TodoItem, t: TFn): string {
   return item.source === "publish" ? t("发布《{title}》", { title: t(item.docTitle) }) : item.text;
 }
 
+/** 日志里记的是任务原文；发布排期的原文是 lib 拼好的中文，同 itemLabel 一样按语言重拼 */
+export function eventLabel(text: string, title: string | undefined, t: TFn): string {
+  return title !== undefined && text === `发布《${title}》` ? t("发布《{title}》", { title: t(title) }) : text; // i18n-ignore 比对数据原文
+}
+
 /** 来源副文本；待办清单里的就是「自己记的事」，不必再注明出处 */
 export function secondaryOf(item: TodoItem, t: TFn): string | null {
   if (item.source === "doc") return t("文章里的待办 · 《{title}》", { title: item.docTitle });
@@ -43,12 +48,12 @@ export function EmptyLine({ children }: { children: React.ReactNode }) {
  */
 export function EmptyGuide({ text }: { text: string }) {
   return (
-    <div className="flex flex-col items-start gap-4 px-0.5 pb-4 pt-8 text-[var(--ink-faint)]">
+    <div className="flex flex-col items-start gap-5 px-0.5 pb-4 pt-10 text-[var(--ink-faint)]">
       <span
         aria-hidden
-        className="block h-[90px] w-[160px] bg-current opacity-60 [mask:url(/today-empty.png)_center/contain_no-repeat] [-webkit-mask:url(/today-empty.png)_center/contain_no-repeat]"
+        className="block h-[124px] w-[220px] bg-current opacity-60 [mask:url(/today-empty.png)_center/contain_no-repeat] [-webkit-mask:url(/today-empty.png)_center/contain_no-repeat]"
       />
-      <p className="text-[13px] leading-relaxed">{text}</p>
+      <p className="text-[13.5px] leading-relaxed">{text}</p>
     </div>
   );
 }
