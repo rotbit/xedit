@@ -50,7 +50,7 @@ export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
         {
           id: "workspace.all",
           group: t("导航"),
-          label: t("回到最近"),
+          label: t("回到最近打开"),
           run: () => nav.openCategory(ALL),
         },
         {

@@ -132,7 +132,7 @@ function TimelineRow({ ws, doc, showTime }: { ws: Workspace; doc: DocMeta; showT
   );
 }
 
-/** 「最近」默认只铺 30 天内的文章；不足这个篇数就按倒序补够，免得久不写作的人看到一片空 */
+/** 「最近打开」默认只铺 30 天内的文章；不足这个篇数就按倒序补够，免得久不写作的人看到一片空 */
 const RECENT_DAYS = 30;
 const RECENT_MIN = 30;
 
@@ -147,14 +147,14 @@ function recentCount(docs: DocMeta[], now: number): number {
 /**
  * 时间流视图：左栏宋体大字（日号，或「上周」「九月」这类文字标签），右栏该组的文档。
  * 组之间只用一条细线分隔，越往前粒度越粗，免得一天一篇时整页变成流水账。
- * 「最近」入口只铺最近一段，底部按钮一次展开全部；文件夹 / 搜索 / 回收站照旧全量。
+ * 「最近打开」入口只铺最近一段，底部按钮一次展开全部；文件夹 / 搜索 / 回收站照旧全量。
  */
 export function DocTimeline({ ws }: { ws: Workspace }) {
   const locale = useLocale();
   const t = useT();
   const { nav } = ws;
   // 展开状态记住是在哪个视图点的：key 只挂在内层 div，组件本身不随切分类重挂，
-  // 所以不能用裸布尔，否则在「最近」展开后去别的文件夹再回来还是全量
+  // 所以不能用裸布尔，否则在「最近打开」展开后去别的文件夹再回来还是全量
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const expanded = expandedFor === nav.activeCat;
   // 30 天窗口的基准取挂载那一刻：渲染里直接 Date.now() 不纯；一次会话里差几分钟无关紧要

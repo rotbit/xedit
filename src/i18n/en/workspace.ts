@@ -8,7 +8,7 @@ export const workspace: Record<string, string> = {
   展开侧栏: "Expand sidebar",
   "搜索文章…": "Search articles…",
   "搜索回收站…": "Search trash…",
-  最近: "Recent",
+  最近打开: "Recently Opened",
   "拖动调整侧栏宽度，双击恢复默认": "Drag to resize, double-click to reset",
   图片库: "Images",
   回收站: "Trash",
@@ -139,7 +139,7 @@ export const workspace: Record<string, string> = {
   文章: "Articles",
   导航: "Navigate",
   快速切换文章: "Quick Switch Article",
-  回到最近: "Go to Recent",
+  回到最近打开: "Go to Recently Opened",
   打开今天: "Open Today",
   我的待办: "My todos",
   打开回收站: "Open Trash",
@@ -226,6 +226,6 @@ export const workspace: Record<string, string> = {
   "已推送到飞书知识库{extra}": "Pushed to Feishu Wiki{extra}",
   "已写回飞书原文档{extra}": "Updated the original Feishu doc{extra}",
   "推送失败：网络异常": "Push failed: network error",
-  // 「最近」时间流底部的展开按钮
+  // 「最近打开」时间流底部的展开按钮
   "更早的文章 · 还有 {n} 篇": "Older articles · {n} more",
 };

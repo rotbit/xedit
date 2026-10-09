@@ -26,7 +26,7 @@ const VIEW_MODES: [DocView, typeof CalendarDays, string][] = [
   ["list", List, tk("列表视图")],
 ];
 
-/** 面包屑：阅读态显示「分类 / 标题」，列表态显示当前分类路径；「最近」视图本身只显示自己，不作其他路径的根 */
+/** 面包屑：阅读态显示「分类 / 标题」，列表态显示当前分类路径；「最近打开」视图本身只显示自己，不作其他路径的根 */
 function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | null }) {
   const { nav } = ws;
   const { activeCat, readingId, isTrash, openCategory, setReadingId } = nav;
@@ -59,7 +59,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
   if (activeCat === TODAY) return <span className={crumbNow}>{t("我的待办")}</span>;
   if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
-  if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("最近")}</span>;
+  if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("最近打开")}</span>;
 
   // 分类路径按 / 拆成层级，除最后一层外都可点，点中间层就跳到那一层的列表
   const parts = activeCat.split("/");

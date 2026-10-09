@@ -21,7 +21,7 @@ import type { Workspace } from "../hooks/useWorkspace";
 
 /**
  * 工作区侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕。
- * 结构自上而下——工作区头 / 全局搜索 / 我的待办 · 最近 / 「文件夹」小标题 + 分类树 / 工具与账户。
+ * 结构自上而下——工作区头 / 全局搜索 / 我的待办 · 最近打开 / 「文件夹」小标题 + 分类树 / 工具与账户。
  * 全部行共用一套网格（左内边距 8px + 14px 图标位 + 8px 间距 + 文字），图标、文字各自对齐成一条线。
  */
 export function Sidebar({ ws }: { ws: Workspace }) {
@@ -106,11 +106,11 @@ export function Sidebar({ ws }: { ws: Workspace }) {
           count={todoCount}
           onClick={() => nav.openCategory(TODAY)}
         />
-        {/* 「最近」：全库文章按时间混排的时间流，也是搜索结果页与各处的兜底视图；
+        {/* 「最近打开」：全库文章按时间混排的时间流，也是搜索结果页与各处的兜底视图；
             右键兼作根级菜单（新建文章 / 新建文件夹 / 刷新 / 导入） */}
         <NavRow
           icon={<History size={14} />}
-          label={t("最近")}
+          label={t("最近打开")}
           active={allActive}
           disabled={docs === null}
           onClick={() => nav.openCategory(ALL)}
