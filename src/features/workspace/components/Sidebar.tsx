@@ -30,7 +30,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
   const t = useT();
   const allActive = nav.activeCat === ALL && !nav.readingId;
   const todayActive = nav.activeCat === TODAY && !nav.readingId;
-  /** 「今天」右侧的数：逾期 + 今天到期 + 清单里没定日期的。
+  /** 「今天」右侧的数：逾期 + 今天到期，含清单里没定日期的。
    *  文库每次自动保存都换引用，collectTodos 按 updatedAt 缓存解析结果，重算只是遍历一遍 */
   const { allDocs } = library;
   const todoCount = useMemo(() => {

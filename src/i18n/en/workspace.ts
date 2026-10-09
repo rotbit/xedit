@@ -74,11 +74,10 @@ export const workspace: Record<string, string> = {
   移到别的日期: "Move to another date",
   下周一: "Next Monday",
   其它日期: "Other date",
-  不定日期: "Remove date",
   删除这条: "Delete",
   接下来: "Coming Up",
   "＋ 记到{day}": "+ Add to {day}",
-  之后: "Later",
+  "还有 {n} 件": "{n} more",
   没定日期: "No date",
   // 今天页「本月」统计
   本月: "This Month",

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 「今天」页：左栏今天（逾期 + 今天），右栏接下来六天与再往后、没定日期的。
+ * 「今天」页：左栏今天（逾期 + 今天，含清单里没定日期的），右栏接下来六天与再往后的。
  * 数据全在客户端：待办从文库正文现算（collectTodos 自带缓存）。
  * 不用 useMemo：汇总有缓存，而触发重算的除了文库还有两个全局事件，挂在 memo 依赖里反而绕。
  */
@@ -103,12 +103,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
   // 日志变化由 useTodaySignals 触发重渲染，这里每次渲染现读即可
   const done = doneToday(today, rows);
-  // 右栏展示的是 later 里带日期的 + 没定日期的；两边都空、今天也没做完过事才算整页全空
-  const allEmpty =
-    rows.length === 0 &&
-    done.length === 0 &&
-    buckets.undated.length === 0 &&
-    !buckets.later.some((i) => i.due !== null);
+  // 右栏展示的是 later 里带日期的；两边都空、今天也没做完过事才算整页全空
+  const allEmpty = rows.length === 0 && done.length === 0 && !buckets.later.some((i) => i.due !== null);
 
   const actions: RowActions = {
     onOpenDoc: nav.openDoc,
@@ -118,7 +114,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
     setMenuId,
   };
 
-  // 左栏的输入框是「今天」的，记下的事带上今天的日期标签，才会留在左栏（不带日期的归右栏「没定日期」）
+  // 左栏的输入框是「今天」的，记下的事带上今天的日期标签，才会留在左栏（不带日期的记进文章正文时归 later，今天页不展示）
   const addToday = (text: string, target: AddTarget) => add(`${text} @${today}`, target);
   // 往某一天记：带绝对日期标签写进待办清单那篇（parseDueTag 认 @YYYY-MM-DD）
   const addOnDay = (text: string, day: string) => add(`${text} @${day}`, { kind: "notes" });
@@ -141,7 +137,6 @@ export function TodayView({ ws }: { ws: Workspace }) {
         <UpcomingColumn
           today={today}
           later={buckets.later}
-          undated={buckets.undated}
           ready={allDocs !== null}
           actions={actions}
           onAddOnDay={addOnDay}

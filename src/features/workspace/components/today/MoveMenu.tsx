@@ -2,8 +2,8 @@
 
 /**
  * 移日期菜单：今天 / 明天 / 下周一三个常用落点，其它日期走原生日期框，
- * 再加「不定日期」和删除。左右两栏共用，绝对定位在触发行的右下方（触发行要带 relative）。
- * 发布排期不给「不定日期」和删除：前者等于取消排期，后者没有正文行可删。
+ * 再加删除。左右两栏共用，绝对定位在触发行的右下方（触发行要带 relative）。
+ * 发布排期不给删除：没有正文行可删。
  */
 import { useRef } from "react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
@@ -38,7 +38,7 @@ export function MoveMenu({
   const locale = useLocale();
   const isPublish = item.source === "publish";
 
-  const pick = (due: string | null) => {
+  const pick = (due: string) => {
     onClose();
     if (due !== item.due) onMove(due);
   };
@@ -91,16 +91,6 @@ export function MoveMenu({
       </label>
       {isPublish ? null : (
         <>
-          <div className="mx-1 my-1 border-t border-[var(--hairline-soft)]" />
-          <button
-            type="button"
-            role="menuitem"
-            className={`${itemCls} ${item.due ? "" : "text-[var(--ink-faint)]"}`}
-            disabled={!item.due}
-            onClick={() => pick(null)}
-          >
-            {t("不定日期")}
-          </button>
           <div className="mx-1 my-1 border-t border-[var(--hairline-soft)]" />
           <button
             type="button"
