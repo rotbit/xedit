@@ -15,6 +15,7 @@ import { DAY_LOG_CHANGED_EVENT } from "@/lib/todos/events";
 import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, setTaskChecked, setTaskDue } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { RowActions } from "./parts";
+import { doneToday } from "./doneToday";
 import type { AddTarget } from "./QuickAdd";
 import { TodayMain } from "./TodayMain";
 import { UpcomingColumn } from "./UpcomingColumn";
@@ -100,9 +101,14 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const opt = useTodoOptimism(collectTodos(allDocs ?? [], today), today, { toggle, remove, move });
   const { buckets } = opt;
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
-  // 右栏展示的是 later 里带日期的 + 没定日期的；两边都空才算整页全空
+  // 日志变化由 useTodaySignals 触发重渲染，这里每次渲染现读即可
+  const done = doneToday(today, rows);
+  // 右栏展示的是 later 里带日期的 + 没定日期的；两边都空、今天也没做完过事才算整页全空
   const allEmpty =
-    rows.length === 0 && buckets.undated.length === 0 && !buckets.later.some((i) => i.due !== null);
+    rows.length === 0 &&
+    done.length === 0 &&
+    buckets.undated.length === 0 &&
+    !buckets.later.some((i) => i.due !== null);
 
   const actions: RowActions = {
     onOpenDoc: nav.openDoc,
@@ -123,6 +129,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
         <TodayMain
           today={today}
           rows={rows}
+          done={done}
           isDone={opt.isDone}
           docs={docs ?? []}
           allEmpty={allEmpty}

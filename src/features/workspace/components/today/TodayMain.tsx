@@ -3,14 +3,16 @@
 /**
  * 今天页左栏：日期标题 + 快速输入 + 逾期与今天的待办。
  * 没定日期的、明天以后的都在右栏「接下来」，这里只放今天该处理的事。
+ * 列表下面是「做完了」：今天勾掉的事（当日日志），刷新后从列表消失的也还留在这里。
  */
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, formatDue } from "@/lib/todos/dates";
+import { removeDayEvent, type DayEvent } from "@/lib/todos/events";
 import type { DocMeta } from "../../types";
 import { MoveMenu } from "./MoveMenu";
-import { EmptyGuide, EmptyLine, itemLabel, RemoveButton, rowId, secondaryOf, TodoBox, type RowActions } from "./parts";
+import { EmptyGuide, EmptyLine, eventLabel, itemLabel, RemoveButton, rowId, secondaryOf, TodoBox, type RowActions } from "./parts";
 import { QuickAdd, type AddTarget } from "./QuickAdd";
 
 function TodoRow({
@@ -92,9 +94,41 @@ function TodoRow({
   );
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+function clock(ts: number): string {
+  const d = new Date(ts);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 「做完了」：只读回顾，不跳转；误记的可以删掉这条记录（只删日志，不动正文） */
+function DoneSection({ today, done, t }: { today: string; done: DayEvent[]; t: TFn }) {
+  if (done.length === 0) return null;
+  return (
+    <div className="mt-8">
+      <h2 className="border-b border-[var(--hairline)] pb-2 text-[11.5px] tracking-[.14em] text-[var(--ink-faint)]">
+        {t("做完了")}
+      </h2>
+      <div className="divide-y divide-[var(--hairline-soft)]">
+        {done.map((e) => (
+          <div key={`${e.ts}|${e.docId ?? ""}|${e.text ?? ""}`} className="group flex items-start gap-2.5 px-0.5 py-2">
+            <TodoBox done />
+            <span className="min-w-0 flex-1 text-[14.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
+              {eventLabel(e.text ?? "", e.title, t)}
+            </span>
+            <span className="mt-[3px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>
+            <RemoveButton label={t("删除这条记录")} onClick={() => removeDayEvent(today, e.ts, "task")} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function TodayMain({
   today,
   rows,
+  done,
   isDone,
   docs,
   allEmpty,
@@ -106,10 +140,12 @@ export function TodayMain({
   today: string;
   /** 逾期 + 今天 + 这次刚勾掉的 */
   rows: TodoItem[];
+  /** 今天勾掉、且已不在 rows 里的事（doneToday 算好传进来） */
+  done: DayEvent[];
   isDone: (item: TodoItem) => boolean;
   /** 「记到文章」的候选池：用户看得见的文章（不含待办清单那篇） */
   docs: DocMeta[];
-  /** 右栏也一件没有：整页全空，左栏换成带插画的引导空态 */
+  /** 右栏也一件没有、今天也没做完过事：整页全空，左栏换成带插画的引导空态 */
   allEmpty: boolean;
   /** 全库是否载完：没载完时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
   ready: boolean;
@@ -154,6 +190,7 @@ export function TodayMain({
           })}
         </div>
       )}
+      <DoneSection today={today} done={done} t={t} />
     </div>
   );
 }
