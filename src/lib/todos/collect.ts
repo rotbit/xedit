@@ -28,9 +28,8 @@ export interface TodoItem {
 
 export interface TodoBuckets {
   overdue: TodoItem[];
+  /** 今天到期的，加上 notes 来源的无日期待办：那篇清单就是专门记「要做」的，没排期就默认今天处理 */
   today: TodoItem[];
-  /** 只放 notes 来源的无日期待办：那篇清单就是专门记「要做」的，不该被折叠 */
-  undated: TodoItem[];
   /** 文章正文里没定日期的（今天页不展示）、以及日期在以后的（右栏「接下来」）；都不计入侧栏计数 */
   later: TodoItem[];
   done: TodoItem[];
@@ -110,12 +109,11 @@ function byDue(a: TodoItem, b: TodoItem): number {
 }
 
 export function bucketTodos(items: TodoItem[], today: string): TodoBuckets {
-  const b: TodoBuckets = { overdue: [], today: [], undated: [], later: [], done: [] };
+  const b: TodoBuckets = { overdue: [], today: [], later: [], done: [] };
   for (const item of items) {
     if (item.checked) b.done.push(item);
     else if (item.due && item.due < today) b.overdue.push(item);
-    else if (item.due === today) b.today.push(item);
-    else if (!item.due && item.source === "notes") b.undated.push(item);
+    else if (item.due === today || (!item.due && item.source === "notes")) b.today.push(item);
     else b.later.push(item);
   }
   b.overdue.sort(byDue);
@@ -123,7 +121,7 @@ export function bucketTodos(items: TodoItem[], today: string): TodoBuckets {
   return b;
 }
 
-/** 侧栏「今天」的计数：和今天页左栏一致（逾期 + 今天）；没定日期的折在右栏，不算催办 */
+/** 侧栏「今天」的计数：和今天页左栏一致（逾期 + 今天，含清单里没定日期的） */
 export function actionableCount(b: TodoBuckets): number {
   return b.overdue.length + b.today.length;
 }

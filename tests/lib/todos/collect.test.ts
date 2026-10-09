@@ -19,7 +19,7 @@ const item = (over: Partial<TodoItem>): TodoItem => ({
 });
 
 describe("bucketTodos", () => {
-  it("逾期 / 今天 / 无日期 notes / 其余折叠 / 已完成", () => {
+  it("逾期 / 今天（含无日期 notes） / 其余折叠 / 已完成", () => {
     const items = [
       item({ key: "a", due: "2026-10-06" }),
       item({ key: "b", due: "2026-10-01", source: "notes" }),
@@ -32,11 +32,10 @@ describe("bucketTodos", () => {
     ];
     const b = bucketTodos(items, T);
     expect(b.overdue.map((i) => i.key)).toEqual(["b", "a"]);
-    expect(b.today.map((i) => i.key)).toEqual(["c"]);
-    expect(b.undated.map((i) => i.key)).toEqual(["d"]);
+    expect(b.today.map((i) => i.key)).toEqual(["c", "d"]);
     expect(b.later.map((i) => i.key)).toEqual(["g", "f", "e"]);
     expect(b.done.map((i) => i.key)).toEqual(["h"]);
-    expect(actionableCount(b)).toBe(3);
+    expect(actionableCount(b)).toBe(4);
   });
 });
 

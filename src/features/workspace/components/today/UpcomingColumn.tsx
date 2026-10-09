@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 今天页右栏「接下来」：明天起六天，一天一行；再往后的和没定日期的折在底部两个入口里。
+ * 今天页右栏「接下来」：明天起六天，一天一行；再往后的折在底部「还有 N 件」里。
  * 这里只排期不打勾——要做的那天它自然会到左栏；每天末尾可以直接往那天记一件事。
  */
 import { useRef, useState } from "react";
@@ -28,7 +28,7 @@ function UpcomingItem({
   item: TodoItem;
   today: string;
   actions: RowActions;
-  /** 「之后」列表里每条右侧带日期；按天排的六行里日期已经在左边了 */
+  /** 底部折叠列表里每条右侧带日期；按天排的六行里日期已经在左边了 */
   showDate: boolean;
   t: TFn;
 }) {
@@ -141,41 +141,36 @@ function DayAdd({
   );
 }
 
-/** 底部的折叠入口：之后 / 没定日期 */
+/** 底部的折叠入口：六天之后的事收成一行「还有 N 件 ›」，没有就整行不出 */
 function Fold({
-  title,
   items,
   today,
   actions,
-  showDate,
   t,
 }: {
-  title: string;
   items: TodoItem[];
   today: string;
   actions: RowActions;
-  showDate: boolean;
   t: TFn;
 }) {
   const [open, setOpen] = useState(false);
+  if (items.length === 0) return null;
+  const n = items.length;
   return (
     <div className="border-b border-[var(--hairline-soft)]">
       <button
         type="button"
         aria-expanded={open}
-        className="flex w-full cursor-pointer items-center justify-between py-2.5 text-[12.5px] text-[var(--ink-soft)] hover:text-[var(--ink)]"
+        className="flex w-full cursor-pointer items-center gap-1 py-2.5 text-left text-[12.5px] tabular-nums text-[var(--ink-soft)] hover:text-[var(--ink)]"
         onClick={() => setOpen((v) => !v)}
       >
-        <span>{title}</span>
-        <span className="tabular-nums text-[var(--ink-faint)]">
-          {t("{n} 件", { n: items.length, abs: items.length })}{" "}
-          <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>›</span>
-        </span>
+        <span>{t("还有 {n} 件", { n, abs: n })}</span>
+        <span className={`inline-block text-[var(--ink-faint)] transition-transform ${open ? "rotate-90" : ""}`}>›</span>
       </button>
-      {open && items.length > 0 ? (
+      {open ? (
         <div className="pb-2">
           {items.map((item) => (
-            <UpcomingItem key={rowId(item)} item={item} today={today} actions={actions} showDate={showDate} t={t} />
+            <UpcomingItem key={rowId(item)} item={item} today={today} actions={actions} showDate t={t} />
           ))}
         </div>
       ) : null}
@@ -186,7 +181,6 @@ function Fold({
 export function UpcomingColumn({
   today,
   later,
-  undated,
   ready,
   actions,
   onAddOnDay,
@@ -194,7 +188,6 @@ export function UpcomingColumn({
   today: string;
   /** later 桶：已按日期升序 */
   later: TodoItem[];
-  undated: TodoItem[];
   ready: boolean;
   actions: RowActions;
   onAddOnDay: (text: string, day: string) => Promise<boolean>;
@@ -253,8 +246,7 @@ export function UpcomingColumn({
           </div>
         );
       })}
-      <Fold title={t("之后")} items={beyond} today={today} actions={actions} showDate t={t} />
-      <Fold title={t("没定日期")} items={undated} today={today} actions={actions} showDate={false} t={t} />
+      <Fold items={beyond} today={today} actions={actions} t={t} />
     </aside>
   );
 }
