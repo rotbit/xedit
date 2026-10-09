@@ -20,9 +20,11 @@ import {
   appendTask,
   markPublished,
   parseTaskLines,
+  parseTaskRaw,
   removeTaskLine,
   setPublishDate,
   setTaskLineDue,
+  setTaskLineLink,
   toggleTaskLine,
 } from "./parse";
 
@@ -72,7 +74,9 @@ export async function writeDocContent(docId: string, next: string): Promise<void
 function locateTask(md: string, item: TodoItem, notChecked: boolean | null): number {
   const today = todayKey();
   const tasks = parseTaskLines(md);
-  const same = (raw: string) => parseDueTag(raw, today).text === item.text;
+  // 口径同 collectTodos：清单行要连关联标记一起剥掉再比，正文行只剥日期标签
+  const same = (raw: string) =>
+    (item.source === "notes" ? parseTaskRaw(raw, today) : parseDueTag(raw, today)).text === item.text;
   const exact = tasks.find((t) => t.line === item.line);
   if (exact && same(exact.raw)) return exact.line;
   return tasks.find((t) => (notChecked === null || t.checked !== notChecked) && same(t.raw))?.line ?? -1;
@@ -96,7 +100,7 @@ export async function setTaskChecked(item: TodoItem, checked: boolean): Promise<
   if (checked) logEvent({ kind: "task", text: item.text, docId: item.docId, title: item.docTitle });
 }
 
-/** 往指定文章末尾追加一条待办 */
+/** 往指定文章末尾追加一条待办（addNoteTask 往清单那篇追加时用） */
 export async function addTaskToDoc(docId: string, text: string): Promise<void> {
   const md = readDocContent(docId);
   const next = appendTask(md, text);
@@ -138,24 +142,24 @@ export async function setTaskDue(item: TodoItem, due: string | null): Promise<vo
 }
 
 /**
+ * 关联 / 更换 / 取消关联文章（link 为 null）：改清单行尾的 `[[docId]]`。
+ * 发布排期本身就是某篇文章的，没有关联可改，直接忽略。
+ */
+export async function setTaskLink(item: TodoItem, link: string | null): Promise<void> {
+  if (item.source === "publish") return;
+  const md = readDocContent(item.docId);
+  const line = locateTask(md, item, null);
+  if (line < 0) return;
+  const next = setTaskLineLink(md, line, link);
+  if (next === md) return;
+  await writeDocContent(item.docId, next);
+}
+
+/**
  * 建稿函数由界面层提供（要走本地 / 云端两条建稿路径，且不跳转打开），返回新文章 id。
  * opts.log 为 false 时不记「新建」到当日记录（建待办清单那篇这种用户看不见的实现细节）
  */
 export type CreateDocQuietly = (title: string, content: string, opts?: { log?: boolean }) => Promise<string>;
-
-/**
- * 新建一篇文章，正文就是这一条待办；返回新文章 id，空文字不建。
- * 建稿时直接把任务写进正文，省得建完再读写一轮。
- */
-export async function createDocWithTask(
-  title: string,
-  text: string,
-  createDoc: CreateDocQuietly
-): Promise<string | null> {
-  const body = appendTask("", text);
-  if (!body) return null;
-  return createDoc(title, body);
-}
 
 /**
  * 快速输入的默认目标（独立待办）：往待办清单那篇追加一行；还没有这篇就建一篇。

@@ -65,6 +65,22 @@ export function parseTaskLines(md: string): RawTask[] {
   return out;
 }
 
+/** 行尾的关联标记 `[[docId]]`：只认一个，且在日期标签之前（日期标签先剥） */
+const LINK_RE = /\s*\[\[([^\[\]\s]+)\]\]$/;
+
+/**
+ * 解析一条任务的原文：先剥行尾日期标签，再剥紧挨着的关联标记 `[[docId]]`。
+ * 格式是 `文字 [[docId]] @日期`；句中的 `[[x]]` 不算，剥完没字了也不剥（同 parseDueTag 的口径）。
+ */
+export function parseTaskRaw(raw: string, today: string): { text: string; due: string | null; link: string | null } {
+  const { text, due } = parseDueTag(raw, today);
+  const m = LINK_RE.exec(text);
+  if (!m) return { text, due, link: null };
+  const rest = text.slice(0, m.index).trimEnd();
+  if (!rest) return { text, due, link: null };
+  return { text: rest, due, link: m[1] };
+}
+
 export function parseTasks(md: string, today: string): ParsedTask[] {
   return parseTaskLines(md).map(({ line, checked, raw }) => ({ line, checked, ...parseDueTag(raw, today) }));
 }
@@ -192,4 +208,38 @@ export function setPublishDate(md: string, due: string): string {
     }
   }
   return md;
+}
+
+/**
+ * 改第 line 行待办关联的文章：剥掉旧的 `[[…]]`，link 非空就在文字之后、日期标签之前插 ` [[link]]`；
+ * link 为 null 即取消关联。缩进、`- [ ]` 前缀、日期标签与行尾 \r 原样保留；不是任务项就原样返回。
+ */
+export function setTaskLineLink(md: string, line: number, link: string | null, today: string = todayKey()): string {
+  const lines = md.split("\n");
+  const target = lines[line];
+  if (target === undefined) return md;
+  const cr = target.endsWith("\r") ? "\r" : "";
+  const m = /^(\s*[-*+]\s+\[(?: |x|X)\]\s+)(.+)$/.exec(cr ? target.slice(0, -1) : target);
+  if (!m) return md;
+  let text = m[2].trimEnd();
+  // 日期标签先拆下来，改完关联再原样接回去（认法同 setTaskLineDue）
+  let tail = "";
+  const tag = /(^|\s)@(\S+)$/.exec(text);
+  if (tag && isDueTag(tag[2], today)) {
+    const rest = text.slice(0, tag.index).trimEnd();
+    if (rest) {
+      tail = text.slice(tag.index + tag[1].length);
+      text = rest;
+    }
+  }
+  const old = LINK_RE.exec(text);
+  if (old) {
+    const rest = text.slice(0, old.index).trimEnd();
+    if (rest) text = rest;
+  }
+  const body = [text, link ? `[[${link}]]` : "", tail].filter(Boolean).join(" ");
+  const next = `${m[1]}${body}${cr}`;
+  if (next === target) return md;
+  lines[line] = next;
+  return lines.join("\n");
 }
