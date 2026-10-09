@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { isDocumentSaved, persistEditorDocument } from "@/lib/editor/persistence";
 import { useStore } from "@/store/useStore";
 import { ALL, ASSETS, TODAY, TRASH, isVirtualCat } from "../constants";
+import { markOpened } from "../lib/recentOpens";
 import { removeLocal } from "../lib/storage";
 import type { SidebarPrefs } from "./useSidebarPrefs";
 
@@ -61,6 +62,11 @@ export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
   useEffect(() => {
     if (urlDoc) window.history.replaceState(null, "", "/");
   }, [urlDoc]);
+
+  // 记「最近打开」：侧栏点开、?doc= 直达、编辑路由重定向最终都落到 readingId，在这一处记就全覆盖
+  useEffect(() => {
+    if (readingId) markOpened(readingId);
+  }, [readingId]);
 
   // 标签栏已下线，把老版本留在本地的那份记忆清一次
   useEffect(() => {

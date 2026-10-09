@@ -103,7 +103,8 @@ function bucketOf(date: Date, now: Date, locale: Locale): Omit<DayGroup, "docs">
 }
 
 /**
- * 按 updatedAt 的远近归组。列表已按更新时间倒序，所以只把**连续**同组的文档
+ * 按时间远近归组（默认 updatedAt，「最近打开」视图传入 max(打开, 编辑)）。
+ * 列表已按同一套时间倒序，所以只把**连续**同组的文档
  * 收进一组即可，不重排、不跨段合并，顺序与传入完全一致。
  * now 可注入，便于测试今天 / 昨天 / 周界 / 跨年；locale 由组件从 useLocale() 传入，
  * 切换语言后组件重渲染、标签跟着重算。
@@ -111,12 +112,13 @@ function bucketOf(date: Date, now: Date, locale: Locale): Omit<DayGroup, "docs">
 export function groupByRecency(
   docs: DocMeta[],
   now: Date = new Date(),
-  locale: Locale = getLocale()
+  locale: Locale = getLocale(),
+  timeOf: (doc: DocMeta) => string = (d) => d.updatedAt
 ): DayGroup[] {
   const groups: DayGroup[] = [];
   for (const doc of docs) {
-    const parsed = new Date(doc.updatedAt);
-    // updatedAt 脏数据会解析成 Invalid Date，退回当下，免得整组渲染成 NaN
+    const parsed = new Date(timeOf(doc));
+    // 时间脏数据会解析成 Invalid Date，退回当下，免得整组渲染成 NaN
     const date = Number.isNaN(parsed.getTime()) ? now : parsed;
     const bucket = bucketOf(date, now, locale);
     const last = groups[groups.length - 1];
