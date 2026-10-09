@@ -55,8 +55,19 @@ function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
 
 /** 时间流里的一篇：左边标题 + 单行摘要，右边浅字文件夹与字数，无边框只靠留白分隔。
  *  showTime：只有今天 / 昨天两组在字数前带相对时间，更早的组左栏已经说清了时间。
+ *  at：这一行的时间（「最近打开」视图是 max(打开, 编辑)，其它视图是 updatedAt），由 ws.timeOf 给出
  *  名字别再叫 DocRow——侧栏树里那个同名组件是另一套布局（components/DocRow.tsx） */
-function TimelineRow({ ws, doc, showTime }: { ws: Workspace; doc: DocMeta; showTime: boolean }) {
+function TimelineRow({
+  ws,
+  doc,
+  showTime,
+  at,
+}: {
+  ws: Workspace;
+  doc: DocMeta;
+  showTime: boolean;
+  at: string;
+}) {
   const { nav, menus, drag } = ws;
   const { isTrash } = nav;
   const t = useT();
@@ -109,7 +120,7 @@ function TimelineRow({ ws, doc, showTime }: { ws: Workspace; doc: DocMeta; showT
             </button>
             <span className="block tabular-nums text-[var(--ink-faint)]">
               {[
-                showTime ? formatRelativeTime(doc.updatedAt) : "",
+                showTime ? formatRelativeTime(at) : "",
                 chars > 0 ? t("{n} 字", { n: chars.toLocaleString(), abs: chars }) : "",
               ]
                 .filter(Boolean)
@@ -136,11 +147,11 @@ function TimelineRow({ ws, doc, showTime }: { ws: Workspace; doc: DocMeta; showT
 const RECENT_DAYS = 30;
 const RECENT_MIN = 30;
 
-/** 窗口内显示几篇：30 天内的篇数与 30 篇取大。列表已按 updatedAt 倒序，取前 n 篇即可 */
-function recentCount(docs: DocMeta[], now: number): number {
+/** 窗口内显示几篇：30 天内的篇数与 30 篇取大。列表已按 timeOf 倒序，取前 n 篇即可 */
+function recentCount(docs: DocMeta[], now: number, timeOf: (d: DocMeta) => string): number {
   const cutoff = now - RECENT_DAYS * 24 * 60 * 60 * 1000;
-  // 脏 updatedAt 解析成 NaN，比较恒为 false，自然不计入「30 天内」
-  const within = docs.filter((d) => new Date(d.updatedAt).getTime() >= cutoff).length;
+  // 脏时间解析成 NaN，比较恒为 false，自然不计入「30 天内」
+  const within = docs.filter((d) => new Date(timeOf(d)).getTime() >= cutoff).length;
   return Math.max(within, RECENT_MIN);
 }
 
@@ -152,7 +163,7 @@ function recentCount(docs: DocMeta[], now: number): number {
 export function DocTimeline({ ws }: { ws: Workspace }) {
   const locale = useLocale();
   const t = useT();
-  const { nav } = ws;
+  const { nav, timeOf } = ws;
   // 展开状态记住是在哪个视图点的：key 只挂在内层 div，组件本身不随切分类重挂，
   // 所以不能用裸布尔，否则在「最近打开」展开后去别的文件夹再回来还是全量
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
@@ -161,9 +172,9 @@ export function DocTimeline({ ws }: { ws: Workspace }) {
   const [mountedAt] = useState(() => Date.now());
   const windowed = nav.activeCat === ALL && !nav.search.trim() && !nav.isTrash && !expanded;
   const all = ws.filtered;
-  const shown = windowed ? all.slice(0, recentCount(all, mountedAt)) : all;
+  const shown = windowed ? all.slice(0, recentCount(all, mountedAt, timeOf)) : all;
   const rest = all.length - shown.length;
-  const groups = groupByRecency(shown, undefined, locale);
+  const groups = groupByRecency(shown, undefined, locale, timeOf);
 
   return (
     // 切换分类时整个列表一次短淡入就够了（key 一换就重挂），行不各自上浮：
@@ -194,7 +205,13 @@ export function DocTimeline({ ws }: { ws: Workspace }) {
           </div>
           <div className="min-w-0">
             {group.docs.map((doc) => (
-              <TimelineRow key={doc.id} ws={ws} doc={doc} showTime={showsRelativeTime(group.key)} />
+              <TimelineRow
+                key={doc.id}
+                ws={ws}
+                doc={doc}
+                showTime={showsRelativeTime(group.key)}
+                at={timeOf(doc)}
+              />
             ))}
           </div>
         </div>

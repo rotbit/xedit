@@ -7,8 +7,9 @@ import { pruneTodoCache } from "@/lib/todos/collect";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { nameOf, parentOf } from "../lib/catPath";
 import { buildTree, findNode } from "../lib/catTree";
+import { pruneOpens, recencyOf, useRecentOpens } from "../lib/recentOpens";
 import { catKey, docKey, reorderList } from "../lib/sidebarOrder";
-import type { CatNode, DragItem } from "../types";
+import type { CatNode, DocMeta, DragItem } from "../types";
 import { useAppConfig } from "./useAppConfig";
 import { useAuthMode } from "./useAuthMode";
 import { useCategoryActions } from "./useCategoryActions";
@@ -117,6 +118,9 @@ export function useWorkspace() {
     const ids = (allDocs ?? []).map((doc) => doc.id);
     pruneIndex(ids);
     pruneTodoCache(ids);
+    // 打开记录落在 localStorage 里跨会话长住：文库还没装载（null）时 ids 是空的，
+    // 这时清会把记录在每次刷新时全部抹掉，必须等装载完再按真实列表清
+    if (allDocs) pruneOpens(ids);
   }, [allDocs]);
 
   /**
@@ -131,10 +135,19 @@ export function useWorkspace() {
     return searchDocIds(docs ?? [], search);
   }, [docs, search, isTrash]);
 
+  // 「最近打开」视图按 max(打开, 编辑) 排；文件夹 / 搜索 / 回收站仍按 updatedAt
+  const opens = useRecentOpens();
+  const byRecentOpen = !isTrash && activeCat === ALL && !search.trim();
+  /** 当前视图下每篇文章该显示 / 分组用的时间，视图组件统一从这里取 */
+  const timeOf = useMemo(
+    () => (byRecentOpen ? (d: DocMeta) => recencyOf(d, opens) : (d: DocMeta) => d.updatedAt),
+    [byRecentOpen, opens]
+  );
+
   /** 当前视图下要展示的文章：按分类过滤（含子分类），再按搜索词过滤 */
   const filtered = useMemo(() => {
     const source = isTrash ? trashDocs : docs;
-    return (source ?? []).filter((d) => {
+    const list = (source ?? []).filter((d) => {
       const cat = d.category || UNCATEGORIZED;
       if (!isTrash && activeCat !== ALL && cat !== activeCat && !cat.startsWith(`${activeCat}/`))
         return false;
@@ -145,7 +158,11 @@ export function useWorkspace() {
       }
       return true;
     });
-  }, [docs, trashDocs, isTrash, activeCat, search, searchHitIds]);
+    if (!byRecentOpen) return list;
+    // filter 已是新数组，就地排序不影响源；Array.prototype.sort 是稳定排序，相等保持原顺序
+    const at = new Map(list.map((d) => [d.id, Date.parse(recencyOf(d, opens)) || 0]));
+    return list.sort((a, b) => at.get(b.id)! - at.get(a.id)!);
+  }, [docs, trashDocs, isTrash, activeCat, search, searchHitIds, byRecentOpen, opens]);
 
   return {
     auth,
@@ -162,6 +179,7 @@ export function useWorkspace() {
     drag,
     tree,
     filtered,
+    timeOf,
     totalChars,
   };
 }

@@ -95,4 +95,15 @@ describe("groupByRecency：粒度随时间递减", () => {
     ];
     expect(shape(docs, FRI)).toEqual([{ key: "today", heading: "9", sub: "十月 · 今天", ids: ["x", "a"] }]);
   });
+
+  it("传入 timeOf 时按它取时间分组", () => {
+    // updatedAt 都是上个月，timeOf 把 a 提到今天
+    const docs = [doc("a", 2026, 9, 1), doc("b", 2026, 9, 2)];
+    const at: Record<string, string> = { a: new Date(2026, 9, 9, 10).toISOString() };
+    const groups = groupByRecency(docs, FRI, "zh", (d) => at[d.id] ?? d.updatedAt);
+    expect(groups.map((g) => [g.key, g.docs.map((x) => x.id)])).toEqual([
+      ["today", ["a"]],
+      ["month:2026-9", ["b"]],
+    ]);
+  });
 });

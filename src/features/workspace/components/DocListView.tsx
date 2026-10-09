@@ -8,9 +8,9 @@ import { UNCATEGORIZED } from "../constants";
 import { displayCatPath } from "../lib/catPath";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 紧凑列表视图：一行一篇，右侧依次为分类、字数、时间 */
+/** 紧凑列表视图：一行一篇，右侧依次为分类、字数、时间（「最近打开」视图里是 max(打开, 编辑)） */
 export function DocListView({ ws }: { ws: Workspace }) {
-  const { nav, menus, drag, filtered } = ws;
+  const { nav, menus, drag, filtered, timeOf } = ws;
   const t = useT();
 
   return (
@@ -40,7 +40,7 @@ export function DocListView({ ws }: { ws: Workspace }) {
                 : ""}
             </span>
             <span className="w-[76px] shrink-0 text-right text-[11.5px] text-[var(--ink-faint)]">
-              {formatRelativeTime(doc.updatedAt)}
+              {formatRelativeTime(timeOf(doc))}
             </span>
             <button
               className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)] group-hover:visible [@media(hover:none)]:visible"
