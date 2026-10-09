@@ -16,7 +16,15 @@ import type { DocMeta } from "@/features/workspace/types";
 import { findNotesDoc, type TodoItem } from "./collect";
 import { parseDueTag, todayKey } from "./dates";
 import { logEvent } from "./events";
-import { appendTask, markPublished, parseTaskLines, removeTaskLine, toggleTaskLine } from "./parse";
+import {
+  appendTask,
+  markPublished,
+  parseTaskLines,
+  removeTaskLine,
+  setPublishDate,
+  setTaskLineDue,
+  toggleTaskLine,
+} from "./parse";
 
 export const NOTES_TITLE = "待办清单"; // i18n-ignore 存储名，显示处 t()
 
@@ -106,6 +114,25 @@ export async function deleteTask(item: TodoItem): Promise<void> {
   const line = locateTask(md, item, null);
   if (line < 0) return;
   const next = removeTaskLine(md, line);
+  if (next === md) return;
+  await writeDocContent(item.docId, next);
+}
+
+/**
+ * 把一条待办挪到 due 那天（null = 不定日期）：正文里的改行尾日期标签，发布排期改 frontmatter。
+ * 发布排期没有「不定日期」——去掉 publish 键等于取消排期，界面上不给这个入口，这里也忽略。
+ */
+export async function setTaskDue(item: TodoItem, due: string | null): Promise<void> {
+  const md = readDocContent(item.docId);
+  let next = md;
+  if (item.source === "publish") {
+    if (!due) return;
+    next = setPublishDate(md, due);
+  } else {
+    const line = locateTask(md, item, null);
+    if (line < 0) return;
+    next = setTaskLineDue(md, line, due);
+  }
   if (next === md) return;
   await writeDocContent(item.docId, next);
 }

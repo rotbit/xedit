@@ -1,14 +1,36 @@
 "use client";
 
-/** 今天页两栏共用的小零件：栏头、空态、圆形复选框、行尾删除按钮 */
+/** 今天页两栏共用的小零件：条目文案、空态、圆形复选框、行尾删除按钮 */
 import { Check, X } from "lucide-react";
+import type { TFn } from "@/i18n/t";
+import type { TodoItem } from "@/lib/todos/collect";
 
-export function ColumnHead({ title }: { title: string }) {
-  return (
-    <div className="mb-3.5 flex items-baseline border-b border-[var(--hairline)] pb-2">
-      <h2 className="text-[13px] font-semibold tracking-[0.04em] text-[var(--ink-soft)]">{title}</h2>
-    </div>
-  );
+/**
+ * 一条待办在界面上的身份：key 里带行号，删掉一行后同一篇下面的行号会前移，
+ * 旧 key 会落到别的条目头上，所以带上文字才唯一（菜单开关、React key 都用它）。
+ */
+export const rowId = (item: TodoItem) => `${item.key}|${item.text}`;
+
+/** 发布排期的 text 是 lib 拼好的中文（也会原样记进当日记录），显示时按语言重拼 */
+export function itemLabel(item: TodoItem, t: TFn): string {
+  return item.source === "publish" ? t("发布《{title}》", { title: t(item.docTitle) }) : item.text;
+}
+
+/** 来源副文本；待办清单里的就是「自己记的事」，不必再注明出处 */
+export function secondaryOf(item: TodoItem, t: TFn): string | null {
+  if (item.source === "doc") return t("文章里的待办 · 《{title}》", { title: item.docTitle });
+  if (item.source === "publish") return t("已排期");
+  return null;
+}
+
+/** 两栏都要的行操作：打开出处、挪日期、删除；菜单同一时刻只开一个，开关状态由页面统一管 */
+export interface RowActions {
+  onOpenDoc: (id: string) => void;
+  onMove: (item: TodoItem, due: string | null) => void;
+  onRemove: (item: TodoItem) => void;
+  /** 当前开着移日期菜单的那一行（rowId），没有为 null */
+  menuId: string | null;
+  setMenuId: (id: string | null) => void;
 }
 
 export function EmptyLine({ children }: { children: React.ReactNode }) {

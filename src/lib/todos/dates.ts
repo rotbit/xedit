@@ -95,6 +95,19 @@ function resolveTag(tag: string, today: string): string | null {
   return null;
 }
 
+/** 这个 `@xxx`（不含 @）是不是 parseDueTag 认得的日期标签；改日期时据此决定剥不剥 */
+export function isDueTag(tag: string, today: string): boolean {
+  return resolveTag(tag, today) !== null;
+}
+
+/** 下周一：今天之后的第一个周一（今天就是周一则是七天后） */
+export function nextMonday(today: string): string {
+  const d = parseKey(today);
+  if (!d) return today;
+  const ahead = ((8 - d.getDay()) % 7) || 7;
+  return shiftDay(today, ahead);
+}
+
 /**
  * 剥掉任务文字末尾的日期标签。只认行尾一个、且前面有空白的 `@xxx`：
  * 句中的 `@某人` 或邮箱不是日期，不该被吃掉；不认识的 `@xxx` 原样留在文字里。
@@ -130,9 +143,17 @@ function fmt(locale: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFor
 export function formatDue(due: string, today: string, locale: Locale = getLocale()): string {
   if (due === today) return translate("今天", locale);
   if (due === shiftDay(today, 1)) return translate("明天", locale);
-  const d = parseKey(due);
-  if (!d) return due;
-  const sameYear = due.slice(0, 4) === today.slice(0, 4);
+  return formatMonthDay(due, today, locale);
+}
+
+/**
+ * 永远显示数字的月日（formatDue 对今天 / 明天会换成文字，菜单右侧的提示要数字）。
+ * zh：`10/12`、跨年 `2027/1/3`；en：`Oct 12`、`Jan 3, 2027`。
+ */
+export function formatMonthDay(key: string, today: string, locale: Locale = getLocale()): string {
+  const d = parseKey(key);
+  if (!d) return key;
+  const sameYear = key.slice(0, 4) === today.slice(0, 4);
   if (locale === "en") {
     const opts: Intl.DateTimeFormatOptions = sameYear
       ? { month: "short", day: "numeric" }
@@ -141,6 +162,18 @@ export function formatDue(due: string, today: string, locale: Locale = getLocale
   }
   const md = `${d.getMonth() + 1}/${d.getDate()}`;
   return sameYear ? md : `${d.getFullYear()}/${md}`;
+}
+
+/** 短星期：zh `周三`，en `Wed`（窄日期列放不下 Wednesday） */
+export function formatWeekday(key: string, locale: Locale = getLocale()): string {
+  const d = parseKey(key);
+  if (!d) return "";
+  return locale === "en" ? fmt("en-US", { weekday: "short" }).format(d) : fmt("zh-CN", { weekday: "short" }).format(d);
+}
+
+/** 日数字（日期列的大号宋体那个） */
+export function dayOfMonth(key: string): number {
+  return parseKey(key)?.getDate() ?? 0;
 }
 
 /** 页面标题：zh `10 月 8 日` + `周四`；en `October 8` + `Thursday` */

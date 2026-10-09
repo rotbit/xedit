@@ -1,26 +1,24 @@
 "use client";
 
 /**
- * 「今天」页：日期标题 + 左「要做」右「做了」。
- * 数据全在客户端：待办从文库正文现算（collectTodos 自带缓存），记录读当日本地日志。
- * 不用 useMemo：算的东西都有缓存或只是读一个 localStorage 键，
- * 而触发重算的除了文库还有两个全局事件，挂在 memo 依赖里反而绕。
+ * 「今天」页：左栏今天（逾期 + 今天），右栏接下来六天与再往后、没定日期的。
+ * 数据全在客户端：待办从文库正文现算（collectTodos 自带缓存）。
+ * 不用 useMemo：汇总有缓存，而触发重算的除了文库还有两个全局事件，挂在 memo 依赖里反而绕。
  */
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toast";
-import { useLocale, useT } from "@/i18n/useT";
+import { useT } from "@/i18n/useT";
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
-import { bucketTodos, collectTodos, type TodoItem } from "@/lib/todos/collect";
-import { formatDayTitle, relativeDayLabel, shiftDay, todayKey } from "@/lib/todos/dates";
-import { DAY_LOG_CHANGED_EVENT, readDayEvents, removeDayEvent, type DayEvent } from "@/lib/todos/events";
-import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, setTaskChecked } from "@/lib/todos/write";
+import { collectTodos, type TodoItem } from "@/lib/todos/collect";
+import { todayKey } from "@/lib/todos/dates";
+import { DAY_LOG_CHANGED_EVENT } from "@/lib/todos/events";
+import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, setTaskChecked, setTaskDue } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
-import { DayLog } from "./DayLog";
+import type { RowActions } from "./parts";
 import type { AddTarget } from "./QuickAdd";
-import { DoneColumn, TodoColumn } from "./TodoColumn";
-
-const navBtnCls =
-  "cursor-pointer rounded-md px-2 py-0.5 text-[12.5px] text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
+import { TodayMain } from "./TodayMain";
+import { UpcomingColumn } from "./UpcomingColumn";
+import { useTodoOptimism } from "./useTodoOptimism";
 
 /**
  * 订阅「文库变了 / 日志变了」两个事件，返回一个递增的版本号逼组件重渲染；
@@ -50,28 +48,12 @@ function useTodaySignals(): string {
 export function TodayView({ ws }: { ws: Workspace }) {
   const { library, nav, docActions } = ws;
   const t = useT();
-  // 日期格式化显式传 context 里的语言：服务端渲染时模块变量是各请求共享的，不可靠
-  const locale = useLocale();
   // 待办汇总与写回看全库（含隐藏的待办清单那篇）；选择器的候选池只给用户看得见的文章
   const { docs, allDocs } = library;
   const today = useTodaySignals();
-  const [dayKey, setDayKey] = useState(today);
-  // 跨过零点时，原本停在「今天」的人应该跟着到新的一天，而不是被留在「昨天」
-  const [seenToday, setSeenToday] = useState(today);
-  if (today !== seenToday) {
-    setSeenToday(today);
-    if (dayKey === seenToday) setDayKey(today);
-  }
+  const [menuId, setMenuId] = useState<string | null>(null);
 
-  const isToday = dayKey === today;
-  const title = formatDayTitle(dayKey, locale);
-  const rel = isToday ? null : relativeDayLabel(dayKey, today);
-  // relativeDayLabel 只给语言无关的标识，叫法在这里翻译
-  const subtitle = rel === "yesterday" ? t("昨天") : rel === "tomorrow" ? t("明天") : title.sub;
-  const events = readDayEvents(dayKey);
-  const buckets = isToday ? bucketTodos(collectTodos(allDocs ?? [], today), today) : null;
-
-  /** 写回失败（存储写满）只提示不抛：勾选框由调用方据返回值回滚 */
+  /** 写回失败（存储写满）只提示不抛：界面由 useTodoOptimism 据返回值回滚 */
   const toggle = async (item: TodoItem, checked: boolean): Promise<boolean> => {
     try {
       await setTaskChecked(item, checked);
@@ -95,7 +77,6 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
-  /** 同 toggle：失败只提示，由调用方把那一行放回来 */
   const remove = async (item: TodoItem): Promise<boolean> => {
     try {
       await deleteTask(item);
@@ -106,46 +87,54 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
-  // 日志删条目只会让存储变小，不会写满失败；删完 removeDayEvent 自己派发事件触发重渲染
-  const removeEvent = (e: DayEvent) => removeDayEvent(dayKey, e.ts, e.kind);
+  const move = async (item: TodoItem, due: string | null): Promise<boolean> => {
+    try {
+      await setTaskDue(item, due);
+      return true;
+    } catch {
+      toast(t("没移成：浏览器存储空间不足"), "error");
+      return false;
+    }
+  };
+
+  const opt = useTodoOptimism(collectTodos(allDocs ?? [], today), today, { toggle, remove, move });
+  const { buckets } = opt;
+  const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
+
+  const actions: RowActions = {
+    onOpenDoc: nav.openDoc,
+    onMove: (item, due) => void opt.move(item, due),
+    onRemove: (item) => void opt.remove(item),
+    menuId,
+    setMenuId,
+  };
+
+  // 左栏的输入框是「今天」的，记下的事带上今天的日期标签，才会留在左栏（不带日期的归右栏「没定日期」）
+  const addToday = (text: string, target: AddTarget) => add(`${text} @${today}`, target);
+  // 往某一天记：带绝对日期标签写进待办清单那篇（parseDueTag 认 @YYYY-MM-DD）
+  const addOnDay = (text: string, day: string) => add(`${text} @${day}`, { kind: "notes" });
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[960px] px-6 pb-16 pt-9 sm:px-10">
-        <div className="flex items-center gap-3">
-          <h1 className="min-w-0 flex-1 text-[22px] font-semibold leading-[1.15] tracking-tight sm:text-[26px]">
-            {title.main}
-            <small className="ml-2.5 text-[14px] font-normal tracking-normal text-[var(--ink-faint)]">
-              {subtitle}
-            </small>
-          </h1>
-          <div className="flex shrink-0 items-center gap-1">
-            <button type="button" className={navBtnCls} onClick={() => setDayKey((k) => shiftDay(k, -1))}>
-              ‹ {t("前一天")}
-            </button>
-            <button type="button" className={navBtnCls} onClick={() => setDayKey((k) => shiftDay(k, 1))}>
-              {t("后一天")} ›
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-9 grid gap-8 md:grid-cols-2 md:gap-14">
-          {buckets ? (
-            <TodoColumn
-              buckets={buckets}
-              today={today}
-              docs={docs ?? []}
-              ready={allDocs !== null}
-              onToggle={toggle}
-              onAdd={add}
-              onRemove={remove}
-              onOpenDoc={nav.openDoc}
-            />
-          ) : (
-            <DoneColumn events={events} onRemove={removeEvent} />
-          )}
-          <DayLog events={events} isToday={isToday} onRemove={removeEvent} />
-        </div>
+      <div className="mx-auto grid w-full max-w-[1000px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-14">
+        <TodayMain
+          today={today}
+          rows={rows}
+          isDone={opt.isDone}
+          docs={docs ?? []}
+          ready={allDocs !== null}
+          actions={actions}
+          onToggle={(item, checked) => void opt.toggle(item, checked)}
+          onAdd={addToday}
+        />
+        <UpcomingColumn
+          today={today}
+          later={buckets.later}
+          undated={buckets.undated}
+          ready={allDocs !== null}
+          actions={actions}
+          onAddOnDay={addOnDay}
+        />
       </div>
     </div>
   );

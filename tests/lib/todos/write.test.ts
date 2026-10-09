@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { getDocContent } from "@/lib/docContent";
 import { createLocalDoc, listLocalDocs } from "@/lib/localDocs";
 import type { TodoItem } from "@/lib/todos/collect";
-import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, NOTES_TITLE } from "@/lib/todos/write";
+import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, NOTES_TITLE, setTaskDue } from "@/lib/todos/write";
 
 const item = (docId: string, line: number, text: string, source: TodoItem["source"] = "doc"): TodoItem => ({
   key: `${docId}:${line}`,
@@ -66,5 +66,21 @@ describe("追加待办", () => {
     expect(create).toHaveBeenCalledTimes(1);
     const notes = listLocalDocs().find((d) => d.title === NOTES_TITLE)!;
     expect(getDocContent(notes.id)).toBe("---\ntype: todo\n---\n\n- [ ] 一\n- [ ] 二\n");
+  });
+});
+
+describe("setTaskDue", () => {
+  it("改正文行尾日期，去掉日期；发布排期改 frontmatter、不给去掉", async () => {
+    const doc = createLocalDoc({ title: "A", content: "# A\n- [ ] 一 @明天\n" });
+    await setTaskDue(item(doc.id, 1, "一"), "2026-10-20");
+    expect(getDocContent(doc.id)).toBe("# A\n- [ ] 一 @2026-10-20\n");
+    await setTaskDue(item(doc.id, 1, "一"), null);
+    expect(getDocContent(doc.id)).toBe("# A\n- [ ] 一\n");
+
+    const pub = createLocalDoc({ title: "B", content: "---\npublish: 2026-10-12\n---\n正文" });
+    await setTaskDue(item(pub.id, -1, "发布《B》", "publish"), "2026-10-15");
+    expect(getDocContent(pub.id)).toBe("---\npublish: 2026-10-15\n---\n正文");
+    await setTaskDue(item(pub.id, -1, "发布《B》", "publish"), null);
+    expect(getDocContent(pub.id)).toBe("---\npublish: 2026-10-15\n---\n正文");
   });
 });
