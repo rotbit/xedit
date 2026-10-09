@@ -8,11 +8,12 @@
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toast";
 import { useT } from "@/i18n/useT";
+import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { todayKey } from "@/lib/todos/dates";
 import { DAY_LOG_CHANGED_EVENT } from "@/lib/todos/events";
-import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, setTaskChecked, setTaskDue } from "@/lib/todos/write";
+import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { RowActions } from "./parts";
 import { doneToday } from "./doneToday";
@@ -65,11 +66,15 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
-  const add = async (text: string, target: AddTarget): Promise<boolean> => {
+  /**
+   * 记一件事：一律记进待办清单那篇。行的拼法集中在这里，顺序固定为 `文字 [[docId]] @日期`——
+   * 日期标签只认行尾，关联标记要在它前面。目标是「新建《…》」就先静默建好那篇，再关联上。
+   */
+  const add = async (text: string, target: AddTarget, due: string): Promise<boolean> => {
     try {
-      if (target.kind === "notes") await addNoteTask(text, allDocs ?? [], docActions.createDocQuietly);
-      else if (target.kind === "doc") await addTaskToDoc(target.id, text);
-      else await createDocWithTask(target.title, text, docActions.createDocQuietly);
+      const link = target.kind === "new" ? await docActions.createDocQuietly(target.title, "") : target.link;
+      const line = `${text.trim()}${link ? ` [[${link}]]` : ""} @${due}`;
+      await addNoteTask(line, allDocs ?? [], docActions.createDocQuietly);
       return true;
     } catch {
       // 本地写满或云端建稿失败都落到这里；面板不关、字不清，方便重试
@@ -98,6 +103,28 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
+  /** 写完文库会换引用、触发重算，不必乐观更新 */
+  const link = async (item: TodoItem, id: string | null): Promise<void> => {
+    try {
+      await setTaskLink(item, id);
+    } catch {
+      toast(t("没关联上：浏览器存储空间不足"), "error");
+    }
+  };
+
+  const linkNew = async (item: TodoItem, title: string): Promise<void> => {
+    let id: string;
+    try {
+      id = await docActions.createDocQuietly(title, "");
+    } catch {
+      toast(t("没记上：存储空间不足或网络异常，稍后再试"), "error");
+      return;
+    }
+    await link(item, id);
+  };
+
+  const titles = new Map((docs ?? []).map((d) => [d.id, d.title || t(UNTITLED_DOC)]));
+
   const opt = useTodoOptimism(collectTodos(allDocs ?? [], today), today, { toggle, remove, move });
   const { buckets } = opt;
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
@@ -110,14 +137,17 @@ export function TodayView({ ws }: { ws: Workspace }) {
     onOpenDoc: nav.openDoc,
     onMove: (item, due) => void opt.move(item, due),
     onRemove: (item) => void opt.remove(item),
+    onLink: (item, id) => void link(item, id),
+    onLinkNew: (item, title) => void linkNew(item, title),
+    docTitleOf: (id) => titles.get(id) ?? null,
     menuId,
     setMenuId,
   };
 
-  // 左栏的输入框是「今天」的，记下的事带上今天的日期标签，才会留在左栏（不带日期的记进文章正文时归 later，今天页不展示）
-  const addToday = (text: string, target: AddTarget) => add(`${text} @${today}`, target);
+  // 左栏的输入框是「今天」的，记下的事带上今天的日期标签，过了今天就成逾期、不会悄悄消失
+  const addToday = (text: string, target: AddTarget) => add(text, target, today);
   // 往某一天记：带绝对日期标签写进待办清单那篇（parseDueTag 认 @YYYY-MM-DD）
-  const addOnDay = (text: string, day: string) => add(`${text} @${day}`, { kind: "notes" });
+  const addOnDay = (text: string, day: string) => add(text, { kind: "notes" }, day);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">

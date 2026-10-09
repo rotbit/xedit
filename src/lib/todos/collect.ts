@@ -12,7 +12,7 @@ import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { isTemplateDoc } from "@/lib/templates";
 import type { DocMeta } from "@/features/workspace/types";
 import { parseDueTag } from "./dates";
-import { isNotesDoc, parsePublish, parseTaskLines, type RawTask } from "./parse";
+import { isNotesDoc, parsePublish, parseTaskLines, parseTaskRaw, type RawTask } from "./parse";
 
 export interface TodoItem {
   /** `${docId}:${line}`，publish 来源的 line 为 -1 */
@@ -24,6 +24,8 @@ export interface TodoItem {
   due: string | null;
   checked: boolean;
   source: "doc" | "notes" | "publish";
+  /** 关联文章的 docId（清单行尾的 `[[docId]]`）；只有 notes 来源会有，其它来源一律 null */
+  link: string | null;
 }
 
 export interface TodoBuckets {
@@ -81,8 +83,9 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
     const docTitle = doc.title || UNTITLED_DOC;
     const source = row.isNotes ? "notes" : "doc";
     for (const t of row.tasks) {
-      const { text, due } = parseDueTag(t.raw, today);
-      out.push({ key: `${doc.id}:${t.line}`, docId: doc.id, docTitle, line: t.line, text, due, checked: t.checked, source });
+      // 关联标记只在清单里认：文章正文里的 `[[…]]` 是用户自己写的字，原样显示
+      const { text, due, link } = row.isNotes ? parseTaskRaw(t.raw, today) : { ...parseDueTag(t.raw, today), link: null };
+      out.push({ key: `${doc.id}:${t.line}`, docId: doc.id, docTitle, line: t.line, text, due, checked: t.checked, source, link });
     }
     if (row.publish.due && !row.publish.published) {
       out.push({
@@ -94,6 +97,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
         due: row.publish.due,
         checked: false,
         source: "publish",
+        link: null,
       });
     }
   }

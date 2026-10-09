@@ -15,6 +15,7 @@ const item = (over: Partial<TodoItem>): TodoItem => ({
   due: null,
   checked: false,
   source: "doc",
+  link: null,
   ...over,
 });
 
@@ -44,16 +45,18 @@ describe("collectTodos", () => {
 
   it("三种来源、跳过模板、published 不再生成", () => {
     saveMirrorLocal("a", { title: "长文", content: "- [ ] 改标题 @今天\n- [x] 配图\n" });
-    saveMirrorLocal("n", { title: "待办清单", content: "---\ntype: todo\n---\n\n- [ ] 买书\n" });
+    saveMirrorLocal("n", { title: "待办清单", content: "---\ntype: todo\n---\n\n- [ ] 买书\n- [ ] 补数据 [[a]] @今天\n" });
     saveMirrorLocal("p", { title: "新品", content: "---\npublish: 2026-10-12\n---\n正文" });
     saveMirrorLocal("q", { title: "旧闻", content: "---\npublish: 2026-10-01\npublished: true\n---\n" });
     saveMirrorLocal("t", { title: "模板", category: "模板", content: "- [ ] 检查错别字\n" });
     const items = collectTodos(docs(), T);
     const byKey = Object.fromEntries(items.map((i) => [i.key, i]));
-    expect(Object.keys(byKey).sort()).toEqual(["a:0", "a:1", "n:4", "p:-1"]);
+    expect(Object.keys(byKey).sort()).toEqual(["a:0", "a:1", "n:4", "n:5", "p:-1"]);
     expect(byKey["a:0"]).toMatchObject({ source: "doc", text: "改标题", due: T, docTitle: "长文" });
     expect(byKey["a:1"].checked).toBe(true);
-    expect(byKey["n:4"]).toMatchObject({ source: "notes", text: "买书" });
+    expect(byKey["n:4"]).toMatchObject({ source: "notes", text: "买书", link: null });
+    expect(byKey["n:5"]).toMatchObject({ source: "notes", text: "补数据", link: "a", due: T });
+    expect(byKey["a:0"].link).toBeNull();
     expect(byKey["p:-1"]).toMatchObject({ source: "publish", text: "发布《新品》", due: "2026-10-12", line: -1 });
     expect(findNotesDoc(docs())?.id).toBe("n");
   });

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 移日期菜单：今天 / 明天 / 下周一三个常用落点，其它日期走原生日期框，
+ * 变更日期菜单：表头注明当前日期，下面是今天 / 明天 / 下周一三个常用落点，其它日期走原生日期框，
  * 再加删除。左右两栏共用，绝对定位在触发行的右下方（触发行要带 relative）。
  * 发布排期不给删除：没有正文行可删。
  */
@@ -56,8 +56,9 @@ export function MoveMenu({
       role="menu"
       className="absolute right-0 top-full z-10 mt-1 min-w-[200px] rounded-[8px] border border-[var(--hairline)] bg-[var(--panel)] p-[5px] text-[var(--ink)] shadow-[0_10px_36px_rgba(0,0,0,.14)]"
     >
-      <div className="px-2 pb-1.5 pt-1 text-[11.5px] tracking-[.06em] text-[var(--ink-faint)]">
-        {t("移到")} <span className="font-medium text-[var(--ink-soft)]">{current}</span> →
+      <div className="flex items-baseline justify-between gap-4 px-2 pb-1.5 pt-1 text-[11.5px] tracking-[.06em] text-[var(--ink-faint)]">
+        <span className="text-[var(--ink-soft)]">{t("变更日期")}</span>
+        <span className="tabular-nums">{current}</span>
       </div>
       {presets.map((p) => {
         const same = p.due === item.due;

@@ -11,14 +11,44 @@ import type { TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, formatDue } from "@/lib/todos/dates";
 import { removeDayEvent, type DayEvent } from "@/lib/todos/events";
 import type { DocMeta } from "../../types";
+import { LinkMenu } from "./LinkMenu";
 import { MoveMenu } from "./MoveMenu";
-import { EmptyGuide, EmptyLine, eventLabel, itemLabel, RemoveButton, rowId, secondaryOf, TodoBox, type RowActions } from "./parts";
+import {
+  EmptyGuide,
+  EmptyLine,
+  eventLabel,
+  itemLabel,
+  linkedDoc,
+  RemoveButton,
+  rowId,
+  secondaryOf,
+  TodoBox,
+  type RowActions,
+} from "./parts";
 import { QuickAdd, type AddTarget } from "./QuickAdd";
+
+/** 行尾 hover 才露出来的小按钮（关联文章 / 变更日期）：标成菜单触发器，开关由按钮自己 toggle */
+function MenuTrigger({ open, onClick, children }: { open: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      data-menu-trigger
+      aria-expanded={open}
+      className={`mt-[2px] shrink-0 cursor-pointer rounded px-1.5 py-px text-[11.5px] text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--ink-soft)] group-hover:opacity-100 ${
+        open ? "opacity-100" : "opacity-0"
+      }`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
 
 function TodoRow({
   item,
   done,
   today,
+  docs,
   actions,
   onToggle,
   t,
@@ -26,6 +56,7 @@ function TodoRow({
   item: TodoItem;
   done: boolean;
   today: string;
+  docs: DocMeta[];
   actions: RowActions;
   onToggle: (() => void) | undefined;
   t: TFn;
@@ -33,14 +64,18 @@ function TodoRow({
   const locale = useLocale();
   const id = rowId(item);
   const menuOpen = actions.menuId === id;
+  const linkId = `${id}|link`;
+  const linkOpen = actions.menuId === linkId;
   const late = !done && item.due !== null && item.due < today;
-  const sub = secondaryOf(item, t);
+  const sub = secondaryOf(item, t, actions.docTitleOf);
+  const linked = linkedDoc(item, actions.docTitleOf);
   const label = itemLabel(item, t);
   const textCls = `text-left text-[14.5px] leading-[1.45] ${
     done ? "text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]" : ""
   }`;
-  // 待办清单里的事没有「出处」可去（那篇对用户隐形）
-  const canOpen = item.source !== "notes";
+  // 点文字去哪：正文里的待办回那篇；清单里的事那篇对用户隐形，关联了文章才可点、去关联的那篇
+  const openId = item.source === "notes" ? (linked?.id ?? null) : item.docId;
+  const canLink = !done && item.source === "notes";
   // 发布排期不是正文里的一行，没东西可删
   const canRemove = !done && item.source !== "publish";
   return (
@@ -48,11 +83,11 @@ function TodoRow({
       <TodoBox done={done} onClick={onToggle} label={done ? t("取消完成") : t("标记完成")} />
       <div className="min-w-0 flex-1">
         {/* 点文字去看出处：待办常常要回到文章里才知道具体怎么做 */}
-        {canOpen ? (
+        {openId ? (
           <button
             type="button"
             className={`cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)] ${textCls}`}
-            onClick={() => actions.onOpenDoc(item.docId)}
+            onClick={() => actions.onOpenDoc(openId)}
           >
             {label}
           </button>
@@ -66,19 +101,15 @@ function TodoRow({
           {t("{date} 逾期", { date: formatDue(item.due, today, locale) })}
         </span>
       ) : null}
+      {canLink ? (
+        <MenuTrigger open={linkOpen} onClick={() => actions.setMenuId(linkOpen ? null : linkId)}>
+          {t("关联文章")} ▾
+        </MenuTrigger>
+      ) : null}
       {done ? null : (
-        <button
-          type="button"
-          // 标成菜单触发器：外部关闭逻辑放它一马，开关由这里自己 toggle
-          data-menu-trigger
-          aria-expanded={menuOpen}
-          className={`mt-[2px] shrink-0 cursor-pointer rounded px-1.5 py-px text-[11.5px] text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--ink-soft)] group-hover:opacity-100 ${
-            menuOpen ? "opacity-100" : "opacity-0"
-          }`}
-          onClick={() => actions.setMenuId(menuOpen ? null : id)}
-        >
-          {t("移到")} ▾
-        </button>
+        <MenuTrigger open={menuOpen} onClick={() => actions.setMenuId(menuOpen ? null : id)}>
+          {t("变更日期")} ▾
+        </MenuTrigger>
       )}
       {canRemove ? <RemoveButton label={t("删除这条待办")} onClick={() => actions.onRemove(item)} /> : null}
       {menuOpen ? (
@@ -87,6 +118,15 @@ function TodoRow({
           today={today}
           onMove={(due) => actions.onMove(item, due)}
           onRemove={() => actions.onRemove(item)}
+          onClose={() => actions.setMenuId(null)}
+        />
+      ) : null}
+      {linkOpen ? (
+        <LinkMenu
+          item={item}
+          docs={docs}
+          onLink={(link) => actions.onLink(item, link)}
+          onLinkNew={(title) => actions.onLinkNew(item, title)}
           onClose={() => actions.setMenuId(null)}
         />
       ) : null}
@@ -143,7 +183,7 @@ export function TodayMain({
   /** 今天勾掉、且已不在 rows 里的事（doneToday 算好传进来） */
   done: DayEvent[];
   isDone: (item: TodoItem) => boolean;
-  /** 「记到文章」的候选池：用户看得见的文章（不含待办清单那篇） */
+  /** 「关联文章」的候选池：用户看得见的文章（不含待办清单那篇） */
   docs: DocMeta[];
   /** 右栏也一件没有、今天也没做完过事：整页全空，左栏换成带插画的引导空态 */
   allEmpty: boolean;
@@ -182,6 +222,7 @@ export function TodayMain({
                 item={item}
                 done={done}
                 today={today}
+                docs={docs}
                 actions={actions}
                 onToggle={locked ? undefined : () => onToggle(item, !done)}
                 t={t}

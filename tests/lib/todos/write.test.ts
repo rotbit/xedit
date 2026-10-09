@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { getDocContent } from "@/lib/docContent";
 import { createLocalDoc, listLocalDocs } from "@/lib/localDocs";
 import type { TodoItem } from "@/lib/todos/collect";
-import { addNoteTask, addTaskToDoc, createDocWithTask, deleteTask, NOTES_TITLE, setTaskDue } from "@/lib/todos/write";
+import { addNoteTask, addTaskToDoc, deleteTask, NOTES_TITLE, setTaskDue, setTaskLink } from "@/lib/todos/write";
 
 const item = (docId: string, line: number, text: string, source: TodoItem["source"] = "doc"): TodoItem => ({
   key: `${docId}:${line}`,
@@ -17,6 +17,7 @@ const item = (docId: string, line: number, text: string, source: TodoItem["sourc
   due: null,
   checked: false,
   source,
+  link: null,
 });
 
 describe("deleteTask", () => {
@@ -49,14 +50,6 @@ describe("追加待办", () => {
     expect(getDocContent(doc.id)).toBe("正文\n- [ ] 补数据 @明天\n");
   });
 
-  it("createDocWithTask 正文就是这一条，返回新 id；空文字不建", async () => {
-    const create = vi.fn(async () => "new-id");
-    expect(await createDocWithTask("周报", "写\n周报", create)).toBe("new-id");
-    expect(create).toHaveBeenCalledWith("周报", "- [ ] 写 周报\n");
-    expect(await createDocWithTask("周报", " ", create)).toBeNull();
-    expect(create).toHaveBeenCalledTimes(1);
-  });
-
   it("addNoteTask：没有清单就建一篇，有就追加进去", async () => {
     const create = vi.fn(async (title: string, content: string) => createLocalDoc({ title, content }).id);
     await addNoteTask("一", listLocalDocs(), create);
@@ -82,5 +75,17 @@ describe("setTaskDue", () => {
     expect(getDocContent(pub.id)).toBe("---\npublish: 2026-10-15\n---\n正文");
     await setTaskDue(item(pub.id, -1, "发布《B》", "publish"), null);
     expect(getDocContent(pub.id)).toBe("---\npublish: 2026-10-15\n---\n正文");
+  });
+});
+
+describe("setTaskLink", () => {
+  it("清单行加 / 换 / 去关联，行号对不上也按去掉标记的文字找到", async () => {
+    const doc = createLocalDoc({ title: "清单", content: "---\ntype: todo\n---\n- [ ] 补数据 @2026-10-20\n" });
+    await setTaskLink(item(doc.id, 3, "补数据", "notes"), "x1");
+    expect(getDocContent(doc.id)).toBe("---\ntype: todo\n---\n- [ ] 补数据 [[x1]] @2026-10-20\n");
+    await setTaskLink(item(doc.id, 9, "补数据", "notes"), "x2");
+    expect(getDocContent(doc.id)).toBe("---\ntype: todo\n---\n- [ ] 补数据 [[x2]] @2026-10-20\n");
+    await setTaskLink(item(doc.id, 3, "补数据", "notes"), null);
+    expect(getDocContent(doc.id)).toBe("---\ntype: todo\n---\n- [ ] 补数据 @2026-10-20\n");
   });
 });

@@ -21,19 +21,38 @@ export function eventLabel(text: string, title: string | undefined, t: TFn): str
   return title !== undefined && text === `发布《${title}》` ? t("发布《{title}》", { title: t(title) }) : text; // i18n-ignore 比对数据原文
 }
 
-/** 来源副文本；待办清单里的就是「自己记的事」，不必再注明出处 */
-export function secondaryOf(item: TodoItem, t: TFn): string | null {
-  if (item.source === "doc") return t("文章里的待办 · 《{title}》", { title: item.docTitle });
-  if (item.source === "publish") return t("已排期");
-  return null;
+/**
+ * 清单里的事关联的那篇：返回 { id, title }。没关联、或关联的文章已删（解析不到标题）都按无关联处理。
+ */
+export function linkedDoc(
+  item: TodoItem,
+  titleOf: (id: string) => string | null
+): { id: string; title: string } | null {
+  if (item.source !== "notes" || !item.link) return null;
+  const title = titleOf(item.link);
+  return title === null ? null : { id: item.link, title };
 }
 
-/** 两栏都要的行操作：打开出处、挪日期、删除；菜单同一时刻只开一个，开关状态由页面统一管 */
+/** 来源副文本；待办清单里的就是「自己记的事」，不必再注明出处，关联了文章才注一句 */
+export function secondaryOf(item: TodoItem, t: TFn, titleOf: (id: string) => string | null): string | null {
+  if (item.source === "doc") return t("文章里的待办 · 《{title}》", { title: item.docTitle });
+  if (item.source === "publish") return t("已排期");
+  const linked = linkedDoc(item, titleOf);
+  return linked ? t("关联 · 《{title}》", { title: linked.title }) : null;
+}
+
+/** 两栏都要的行操作：打开出处、挪日期、关联文章、删除；菜单同一时刻只开一个，开关状态由页面统一管 */
 export interface RowActions {
   onOpenDoc: (id: string) => void;
   onMove: (item: TodoItem, due: string | null) => void;
   onRemove: (item: TodoItem) => void;
-  /** 当前开着移日期菜单的那一行（rowId），没有为 null */
+  /** 关联 / 更换 / 取消关联（null）文章 */
+  onLink: (item: TodoItem, link: string | null) => void;
+  /** 选择器里点了「新建《…》」：建好那篇再关联上 */
+  onLinkNew: (item: TodoItem, title: string) => void;
+  /** 文章 id → 显示标题；找不到（已删、不在文库里）返回 null */
+  docTitleOf: (id: string) => string | null;
+  /** 当前开着的菜单：日期菜单是 rowId，关联菜单是 `${rowId}|link`；没有为 null */
   menuId: string | null;
   setMenuId: (id: string | null) => void;
 }

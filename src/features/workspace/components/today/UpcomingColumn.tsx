@@ -11,7 +11,7 @@ import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
 import { dayOfMonth, formatDue, formatWeekday, shiftDay } from "@/lib/todos/dates";
 import { MoveMenu } from "./MoveMenu";
-import { itemLabel, rowId, type RowActions } from "./parts";
+import { itemLabel, linkedDoc, rowId, type RowActions } from "./parts";
 
 const DAYS_AHEAD = 6;
 
@@ -37,6 +37,8 @@ function UpcomingItem({
   const menuOpen = actions.menuId === id;
   const label = itemLabel(item, t);
   const textCls = "min-w-0 flex-1 truncate text-left";
+  // 清单里的事那篇对用户隐形，关联了文章才可点、去关联的那篇
+  const openId = item.source === "notes" ? (linkedDoc(item, actions.docTitleOf)?.id ?? null) : item.docId;
   return (
     <div
       className={`group relative -mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-[3px] text-[13px] text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] ${
@@ -48,19 +50,19 @@ function UpcomingItem({
           item.source === "publish" ? "bg-[var(--ink-soft)]" : "bg-[var(--hairline-strong)]"
         }`}
       />
-      {item.source === "notes" ? (
-        <span className={textCls} title={label}>
-          {label}
-        </span>
-      ) : (
+      {openId ? (
         <button
           type="button"
           className={`${textCls} cursor-pointer hover:text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-[var(--ink-soft)]`}
           title={label}
-          onClick={() => actions.onOpenDoc(item.docId)}
+          onClick={() => actions.onOpenDoc(openId)}
         >
           {label}
         </button>
+      ) : (
+        <span className={textCls} title={label}>
+          {label}
+        </span>
       )}
       {showDate && item.due ? (
         <span className="shrink-0 text-[11.5px] tabular-nums text-[var(--ink-faint)]">
@@ -70,8 +72,8 @@ function UpcomingItem({
       <button
         type="button"
         data-menu-trigger
-        aria-label={t("移到别的日期")}
-        title={t("移到别的日期")}
+        aria-label={t("变更日期")}
+        title={t("变更日期")}
         aria-expanded={menuOpen}
         className={`${miniBtnCls} ${menuOpen ? "opacity-100" : "opacity-0"}`}
         onClick={() => actions.setMenuId(menuOpen ? null : id)}

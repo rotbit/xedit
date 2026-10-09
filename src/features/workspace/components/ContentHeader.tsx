@@ -60,7 +60,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
     );
   }
   if (activeCat === ASSETS) return <span className={crumbNow}>{t("图片库")}</span>;
-  if (activeCat === TODAY) return <span className={crumbNow}>{t("今天")}</span>;
+  if (activeCat === TODAY) return <span className={crumbNow}>{t("我的待办")}</span>;
   if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
   if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("全部文章")}</span>;

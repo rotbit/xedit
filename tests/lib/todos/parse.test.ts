@@ -4,10 +4,12 @@ import {
   isNotesDoc,
   markPublished,
   parsePublish,
+  parseTaskRaw,
   parseTasks,
   removeTaskLine,
   setPublishDate,
   setTaskLineDue,
+  setTaskLineLink,
   toggleTaskLine,
 } from "@/lib/todos/parse";
 
@@ -136,5 +138,28 @@ describe("改日期", () => {
       "---\ntitle: a\n---\npublish: 2026-10-12\n"
     );
     expect(setPublishDate("正文", "2026-10-15")).toBe("正文");
+  });
+});
+
+describe("关联文章", () => {
+  it("parseTaskRaw 剥行尾的 [[id]]（在日期标签之前）", () => {
+    expect(parseTaskRaw("补数据 [[abc]] @2026-10-09", T)).toEqual({ text: "补数据", due: "2026-10-09", link: "abc" });
+    expect(parseTaskRaw("补数据 [[abc]]", T)).toEqual({ text: "补数据", due: null, link: "abc" });
+    expect(parseTaskRaw("补数据 @明天", T)).toEqual({ text: "补数据", due: "2026-10-09", link: null });
+    expect(parseTaskRaw("[[abc]] @明天", T)).toEqual({ text: "[[abc]]", due: "2026-10-09", link: null });
+    expect(parseTaskRaw("看 [[x]] 那篇", T)).toEqual({ text: "看 [[x]] 那篇", due: null, link: null });
+  });
+
+  it("setTaskLineLink 加：插在文字之后、日期标签之前", () => {
+    expect(setTaskLineLink("- [ ] 补数据 @2026-10-09", 0, "a", T)).toBe("- [ ] 补数据 [[a]] @2026-10-09");
+    expect(setTaskLineLink("- [ ] 补数据", 0, "a", T)).toBe("- [ ] 补数据 [[a]]");
+  });
+
+  it("setTaskLineLink 换与去；保留缩进与 \\r\\n，只动那一行", () => {
+    const md = "# A\r\n  - [ ] 补数据 [[a]] @明天\r\n- [ ] 别动 [[a]]\r\n";
+    expect(setTaskLineLink(md, 1, "b", T)).toBe("# A\r\n  - [ ] 补数据 [[b]] @明天\r\n- [ ] 别动 [[a]]\r\n");
+    expect(setTaskLineLink(md, 1, null, T)).toBe("# A\r\n  - [ ] 补数据 @明天\r\n- [ ] 别动 [[a]]\r\n");
+    expect(setTaskLineLink("- [x] 写 [[a]]", 0, null, T)).toBe("- [x] 写");
+    expect(setTaskLineLink("正文 [[a]]", 0, null, T)).toBe("正文 [[a]]");
   });
 });

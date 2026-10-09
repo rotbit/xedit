@@ -101,7 +101,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
       <div className="flex shrink-0 flex-col gap-0.5 px-2">
         <NavRow
           icon={<CalendarCheck size={14} />}
-          label={t("今天")}
+          label={t("我的待办")}
           active={todayActive}
           count={todoCount}
           onClick={() => nav.openCategory(TODAY)}
