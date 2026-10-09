@@ -355,7 +355,7 @@ export function Landing() {
               {/* 分类和文章列表都是写死的示意数据，只为让人看懂桌面窗口长什么样，不要接真实接口 */}
               <div className="grid grid-cols-[104px_1fr]">
                 <div className="space-y-1.5 border-r border-[var(--hairline)] bg-[var(--sidebar)] p-3">
-                  {["最近", "技术", "职场", "随笔", "图片素材"].map((c, i) => (
+                  {["最近打开", "技术", "职场", "随笔", "图片素材"].map((c, i) => (
                     <p
                       key={c}
                       className={`truncate rounded px-2 py-1 text-[11px] ${
