@@ -9,7 +9,7 @@ import { X } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
-import { dayOfMonth, formatDue, formatWeekday, shiftDay } from "@/lib/todos/dates";
+import { dayOfMonth, formatDue, formatMonthDay, formatWeekday, shiftDay } from "@/lib/todos/dates";
 import { MoveMenu } from "./MoveMenu";
 import { itemLabel, linkedDoc, rowId, type RowActions } from "./parts";
 
@@ -67,6 +67,12 @@ function UpcomingItem({
       {showDate && item.due ? (
         <span className="shrink-0 text-[11.5px] tabular-nums text-[var(--ink-faint)]">
           {formatDue(item.due, today, locale)}
+        </span>
+      ) : null}
+      {/* 时间段注结束日；折叠列表里紧跟在开始日后面，读作「10/9 → 10/12」 */}
+      {item.end ? (
+        <span className="shrink-0 text-[11px] tabular-nums text-[var(--ink-faint)]">
+          → {formatMonthDay(item.end, today, locale)}
         </span>
       ) : null}
       <button
@@ -202,6 +208,7 @@ export function UpcomingColumn({
   const beyond: TodoItem[] = [];
   for (const item of later) {
     if (!item.due) continue; // later 里没日期的是文章正文里没排期的，今天页不展示
+    // 时间段按开始日归到那一天，只出现一次（后面注「→ 结束日」）
     if (item.due > last) beyond.push(item);
     else byDay.get(item.due)?.push(item);
   }

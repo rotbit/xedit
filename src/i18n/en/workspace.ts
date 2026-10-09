@@ -75,6 +75,8 @@ export const workspace: Record<string, string> = {
   变更日期: "Change date",
   下周一: "Next Monday",
   其它日期: "Other date",
+  "持续到…": "Until…",
+  "第 {n} 天": "Day {n}",
   删除这条: "Delete",
   接下来: "Coming Up",
   "＋ 记到{day}": "+ Add to {day}",

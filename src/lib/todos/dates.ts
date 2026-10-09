@@ -42,9 +42,16 @@ export function shiftDay(key: string, delta: number): string {
   return dayKeyOf(date);
 }
 
-/** 两个日期键相差几天（b - a），按本地零点算，夏令时那一小时用四舍五入抹平 */
+/** 两个日期相差几天（b - a），按本地零点算，夏令时那一小时用四舍五入抹平 */
 function diffDays(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+}
+
+/** 两个日期键相差几天（b - a）；任一个键不合法返回 0 */
+export function daysBetween(a: string, b: string): number {
+  const da = parseKey(a);
+  const db = parseKey(b);
+  return da && db ? diffDays(da, db) : 0;
 }
 
 /**
@@ -95,9 +102,25 @@ function resolveTag(tag: string, today: string): string | null {
   return null;
 }
 
-/** 这个 `@xxx`（不含 @）是不是 parseDueTag 认得的日期标签；改日期时据此决定剥不剥 */
+/**
+ * 标签（不含 @）→ 开始日 + 结束日。`a~b` 是时间段，两边各按 resolveTag 认；
+ * 结束早于开始、或任一边不认识，整个标签都不认（返回 null）。单个日期的 end 为 null。
+ */
+function resolveRange(tag: string, today: string): { due: string; end: string | null } | null {
+  const i = tag.indexOf("~");
+  if (i < 0) {
+    const due = resolveTag(tag, today);
+    return due ? { due, end: null } : null;
+  }
+  const due = resolveTag(tag.slice(0, i), today);
+  const end = resolveTag(tag.slice(i + 1), today);
+  if (!due || !end || end < due) return null;
+  return { due, end };
+}
+
+/** 这个 `@xxx`（不含 @）是不是 parseDueTag 认得的日期标签（含 `a~b` 时间段）；改日期时据此决定剥不剥 */
 export function isDueTag(tag: string, today: string): boolean {
-  return resolveTag(tag, today) !== null;
+  return resolveRange(tag, today) !== null;
 }
 
 /** 下周一：今天之后的第一个周一（今天就是周一则是七天后） */
@@ -109,19 +132,22 @@ export function nextMonday(today: string): string {
 }
 
 /**
- * 剥掉任务文字末尾的日期标签。只认行尾一个、且前面有空白的 `@xxx`：
+ * 剥掉任务文字末尾的日期标签。只认行尾一个、且前面有空白的 `@xxx`（或时间段 `@开始~结束`）：
  * 句中的 `@某人` 或邮箱不是日期，不该被吃掉；不认识的 `@xxx` 原样留在文字里。
+ * end 是时间段的结束日，单个日期为 null。
  */
-export function parseDueTag(text: string, today: string): { text: string; due: string | null } {
+export function parseDueTag(
+  text: string,
+  today: string
+): { text: string; due: string | null; end: string | null } {
   const trimmed = text.trimEnd();
   const m = /(^|\s)@(\S+)$/.exec(trimmed);
-  if (!m) return { text: trimmed, due: null };
-  const due = resolveTag(m[2], today);
-  if (!due) return { text: trimmed, due: null };
+  if (!m) return { text: trimmed, due: null, end: null };
+  const range = resolveRange(m[2], today);
+  if (!range) return { text: trimmed, due: null, end: null };
   const rest = trimmed.slice(0, m.index).trimEnd();
   // 整行只有一个标签时剥完就空了：保留原文，免得出现一条看不见文字的待办
-  if (!rest) return { text: trimmed, due };
-  return { text: rest, due };
+  return { text: rest || trimmed, due: range.due, end: range.end };
 }
 
 /** Intl 格式化器按语言缓存：今天页每行待办都要格式化一次，别反复 new */

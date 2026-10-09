@@ -22,6 +22,7 @@ import {
   parseTaskLines,
   parseTaskRaw,
   removeTaskLine,
+  type DueRange,
   setPublishDate,
   setTaskLineDue,
   setTaskLineLink,
@@ -123,19 +124,20 @@ export async function deleteTask(item: TodoItem): Promise<void> {
 }
 
 /**
- * 把一条待办挪到 due 那天（null = 不定日期）：正文里的改行尾日期标签，发布排期改 frontmatter。
+ * 把一条待办挪到 range（开始日 + 可选结束日；null = 不定日期）：正文里的改行尾日期标签，
+ * 发布排期改 frontmatter，且只取开始日（发布是某一天的事，没有时间段）。
  * 发布排期没有「不定日期」——去掉 publish 键等于取消排期，界面上不给这个入口，这里也忽略。
  */
-export async function setTaskDue(item: TodoItem, due: string | null): Promise<void> {
+export async function setTaskDue(item: TodoItem, range: DueRange | null): Promise<void> {
   const md = readDocContent(item.docId);
   let next = md;
   if (item.source === "publish") {
-    if (!due) return;
-    next = setPublishDate(md, due);
+    if (!range) return;
+    next = setPublishDate(md, range.due);
   } else {
     const line = locateTask(md, item, null);
     if (line < 0) return;
-    next = setTaskLineDue(md, line, due);
+    next = setTaskLineDue(md, line, range);
   }
   if (next === md) return;
   await writeDocContent(item.docId, next);

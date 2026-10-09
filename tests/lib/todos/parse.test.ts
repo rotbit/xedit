@@ -35,13 +35,13 @@ describe("parseTasks", () => {
       "- [] 不是任务",
     ].join("\n");
     expect(parseTasks(md, T)).toEqual([
-      { line: 3, checked: false, text: "第一件", due: "2026-10-09" },
-      { line: 12, checked: true, text: "第二件", due: null },
+      { line: 3, checked: false, text: "第一件", due: "2026-10-09", end: null },
+      { line: 12, checked: true, text: "第二件", due: null, end: null },
     ]);
   });
 
   it("\\r\\n 换行同样能认", () => {
-    expect(parseTasks("a\r\n- [ ] 事\r\n", T)).toEqual([{ line: 1, checked: false, text: "事", due: null }]);
+    expect(parseTasks("a\r\n- [ ] 事\r\n", T)).toEqual([{ line: 1, checked: false, text: "事", due: null, end: null }]);
   });
 });
 
@@ -102,14 +102,14 @@ describe("改写", () => {
 
 describe("改日期", () => {
   it("setTaskLineDue 把已有的相对标签换成绝对日期", () => {
-    expect(setTaskLineDue("# A\n- [ ] 写稿 @明天\n", 1, "2026-10-12", T)).toBe("# A\n- [ ] 写稿 @2026-10-12\n");
-    expect(setTaskLineDue("  * [x] 写稿 @10/9", 0, "2026-10-12", T)).toBe("  * [x] 写稿 @2026-10-12");
-    expect(setTaskLineDue("- [ ] 写稿", 0, "2026-10-12", T)).toBe("- [ ] 写稿 @2026-10-12");
+    expect(setTaskLineDue("# A\n- [ ] 写稿 @明天\n", 1, { due: "2026-10-12", end: null }, T)).toBe("# A\n- [ ] 写稿 @2026-10-12\n");
+    expect(setTaskLineDue("  * [x] 写稿 @10/9", 0, { due: "2026-10-12", end: null }, T)).toBe("  * [x] 写稿 @2026-10-12");
+    expect(setTaskLineDue("- [ ] 写稿", 0, { due: "2026-10-12", end: null }, T)).toBe("- [ ] 写稿 @2026-10-12");
   });
 
   it("setTaskLineDue 不认识的 @xxx 保留并追加日期", () => {
-    expect(setTaskLineDue("- [ ] 问 @老王", 0, "2026-10-12", T)).toBe("- [ ] 问 @老王 @2026-10-12");
-    expect(parseTasks(setTaskLineDue("- [ ] 问 @老王", 0, "2026-10-12", T), T)[0]).toMatchObject({
+    expect(setTaskLineDue("- [ ] 问 @老王", 0, { due: "2026-10-12", end: null }, T)).toBe("- [ ] 问 @老王 @2026-10-12");
+    expect(parseTasks(setTaskLineDue("- [ ] 问 @老王", 0, { due: "2026-10-12", end: null }, T), T)[0]).toMatchObject({
       text: "问 @老王",
       due: "2026-10-12",
     });
@@ -118,14 +118,30 @@ describe("改日期", () => {
   it("setTaskLineDue 传 null 去掉日期；不是任务行不动", () => {
     expect(setTaskLineDue("- [ ] 写稿 @2026-10-12", 0, null, T)).toBe("- [ ] 写稿");
     expect(setTaskLineDue("- [ ] 写稿", 0, null, T)).toBe("- [ ] 写稿");
-    expect(setTaskLineDue("正文 @明天", 0, "2026-10-12", T)).toBe("正文 @明天");
-    expect(setTaskLineDue("a", 5, "2026-10-12", T)).toBe("a");
+    expect(setTaskLineDue("正文 @明天", 0, { due: "2026-10-12", end: null }, T)).toBe("正文 @明天");
+    expect(setTaskLineDue("a", 5, { due: "2026-10-12", end: null }, T)).toBe("a");
   });
 
   it("setTaskLineDue 保留 \\r\\n，只动那一行", () => {
     const md = "# A\r\n- [ ] 写稿 @明天\r\n- [ ] 别动 @明天\r\n";
-    expect(setTaskLineDue(md, 1, "2026-10-12", T)).toBe("# A\r\n- [ ] 写稿 @2026-10-12\r\n- [ ] 别动 @明天\r\n");
+    expect(setTaskLineDue(md, 1, { due: "2026-10-12", end: null }, T)).toBe("# A\r\n- [ ] 写稿 @2026-10-12\r\n- [ ] 别动 @明天\r\n");
     expect(setTaskLineDue(md, 1, null, T)).toBe("# A\r\n- [ ] 写稿\r\n- [ ] 别动 @明天\r\n");
+  });
+
+  it("setTaskLineDue 写时间段（补零的绝对日期），读回来是同一段", () => {
+    const range = { due: "2026-10-09", end: "2026-10-12" };
+    expect(setTaskLineDue("- [ ] 写书 @明天", 0, range, T)).toBe("- [ ] 写书 @2026-10-09~2026-10-12");
+    expect(setTaskLineDue("- [ ] 写书 [[abc]]", 0, range, T)).toBe("- [ ] 写书 [[abc]] @2026-10-09~2026-10-12");
+    expect(parseTaskRaw("写书 [[abc]] @2026-10-09~2026-10-12", T)).toEqual({ text: "写书", ...range, link: "abc" });
+  });
+
+  it("setTaskLineDue 把时间段改回单日、换一段、或去掉", () => {
+    const md = "- [ ] 写书 @今天~10/12";
+    expect(setTaskLineDue(md, 0, { due: "2026-10-10", end: null }, T)).toBe("- [ ] 写书 @2026-10-10");
+    expect(setTaskLineDue(md, 0, { due: "2026-10-08", end: "2026-10-20" }, T)).toBe("- [ ] 写书 @2026-10-08~2026-10-20");
+    expect(setTaskLineDue(md, 0, null, T)).toBe("- [ ] 写书");
+    // 不认识的段（结束早于开始）是文字，不剥
+    expect(setTaskLineDue("- [ ] 写书 @10/12~10/9", 0, null, T)).toBe("- [ ] 写书 @10/12~10/9");
   });
 
   it("setPublishDate 只改 publish 那一行的值", () => {
@@ -143,11 +159,11 @@ describe("改日期", () => {
 
 describe("关联文章", () => {
   it("parseTaskRaw 剥行尾的 [[id]]（在日期标签之前）", () => {
-    expect(parseTaskRaw("补数据 [[abc]] @2026-10-09", T)).toEqual({ text: "补数据", due: "2026-10-09", link: "abc" });
-    expect(parseTaskRaw("补数据 [[abc]]", T)).toEqual({ text: "补数据", due: null, link: "abc" });
-    expect(parseTaskRaw("补数据 @明天", T)).toEqual({ text: "补数据", due: "2026-10-09", link: null });
-    expect(parseTaskRaw("[[abc]] @明天", T)).toEqual({ text: "[[abc]]", due: "2026-10-09", link: null });
-    expect(parseTaskRaw("看 [[x]] 那篇", T)).toEqual({ text: "看 [[x]] 那篇", due: null, link: null });
+    expect(parseTaskRaw("补数据 [[abc]] @2026-10-09", T)).toEqual({ text: "补数据", due: "2026-10-09", end: null, link: "abc" });
+    expect(parseTaskRaw("补数据 [[abc]]", T)).toEqual({ text: "补数据", due: null, end: null, link: "abc" });
+    expect(parseTaskRaw("补数据 @明天", T)).toEqual({ text: "补数据", due: "2026-10-09", end: null, link: null });
+    expect(parseTaskRaw("[[abc]] @明天", T)).toEqual({ text: "[[abc]]", due: "2026-10-09", end: null, link: null });
+    expect(parseTaskRaw("看 [[x]] 那篇", T)).toEqual({ text: "看 [[x]] 那篇", due: null, end: null, link: null });
   });
 
   it("setTaskLineLink 加：插在文字之后、日期标签之前", () => {
