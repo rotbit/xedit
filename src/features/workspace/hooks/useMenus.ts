@@ -54,7 +54,7 @@ export function useMenus() {
     });
   }, []);
 
-  /** 右键唤出分类菜单（含根节点「全部文章」）；靠近屏幕底部时上移，避免菜单溢出 */
+  /** 右键唤出分类菜单（含根节点「最近」）；靠近屏幕底部时上移，避免菜单溢出 */
   const openCatMenuAt = useCallback((e: React.MouseEvent, path: string) => {
     e.preventDefault();
     e.stopPropagation();
