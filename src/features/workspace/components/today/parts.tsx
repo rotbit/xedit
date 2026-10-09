@@ -34,12 +34,15 @@ export function linkedDoc(
   return title === null ? null : { id: item.link, title };
 }
 
-/** 来源副文本；待办清单里的就是「自己记的事」，不必再注明出处，关联了文章才注一句 */
+/**
+ * 来源副文本；待办清单里的就是「自己记的事」，不必再注明出处，关联了文章才注一句。
+ * 关联的那篇只给书名号里的标题，前面配一个文章图标，不再写「关联」二字。
+ */
 export function secondaryOf(item: TodoItem, t: TFn, titleOf: (id: string) => string | null): string | null {
   if (item.source === "doc") return t("文章里的待办 · 《{title}》", { title: item.docTitle });
   if (item.source === "publish") return t("已排期");
   const linked = linkedDoc(item, titleOf);
-  return linked ? t("关联 · 《{title}》", { title: linked.title }) : null;
+  return linked ? t("《{title}》", { title: linked.title }) : null;
 }
 
 /** 两栏都要的行操作：打开出处、挪日期、关联文章、删除；菜单同一时刻只开一个，开关状态由页面统一管 */
