@@ -26,7 +26,7 @@ const VIEW_MODES: [DocView, typeof CalendarDays, string][] = [
   ["list", List, tk("列表视图")],
 ];
 
-/** 面包屑：阅读态显示「全部文章 / 分类 / 标题」，列表态显示当前分类路径 */
+/** 面包屑：阅读态显示「分类 / 标题」，列表态显示当前分类路径；「最近」视图本身只显示自己，不作其他路径的根 */
 function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | null }) {
   const { nav } = ws;
   const { activeCat, readingId, isTrash, openCategory, setReadingId } = nav;
@@ -35,18 +35,14 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
   if (readingDoc) {
     return (
       <>
-        <button className={crumbCls} onClick={() => openCategory(ALL)}>
-          {t("全部文章")}
-        </button>
         {readingDoc.category ? (
           <>
-            {sep}
             <button className={crumbCls} onClick={() => openCategory(readingDoc.category!)}>
               {displayCatPath(readingDoc.category, t)}
             </button>
+            {sep}
           </>
         ) : null}
-        {sep}
         <span className={crumbNow}>{readingDoc.title || t(UNTITLED_DOC)}</span>
         {/* 关闭文章：回到打开前所在的目录列表 */}
         <button
@@ -63,21 +59,18 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
   if (activeCat === TODAY) return <span className={crumbNow}>{t("我的待办")}</span>;
   if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
-  if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("全部文章")}</span>;
+  if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("最近")}</span>;
 
   // 分类路径按 / 拆成层级，除最后一层外都可点，点中间层就跳到那一层的列表
   const parts = activeCat.split("/");
   return (
     <>
-      <button className={crumbCls} onClick={() => openCategory(ALL)}>
-        {t("全部文章")}
-      </button>
       {parts.map((p, i) => {
         const path = parts.slice(0, i + 1).join("/");
         const last = i === parts.length - 1;
         return (
           <span key={path} className="flex min-w-0 items-center gap-1">
-            {sep}
+            {i > 0 ? sep : null}
             {last ? (
               <span className={crumbNow}>{displayCatName(p, t)}</span>
             ) : (
