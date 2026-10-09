@@ -6,6 +6,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { syntaxHighlighting } from "@codemirror/language";
+import { styleTags, tags } from "@lezer/highlight";
 import { searchKeymap } from "@codemirror/search";
 import { editorSearch } from "@/lib/editor/searchPanel";
 import { t } from "@/i18n/t";
@@ -62,7 +63,14 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
       // 关掉 Setext 下划线标题：在一行文字下面刚敲出 "-" 准备列列表时，
       // CommonMark 会把上一行瞬间判成 H2，看起来像编辑器抽风。公众号写作只用 #。
       // 预览渲染（renderer.ts）与飞书导出同步关闭，保证三处解析一致。
-      extensions: [{ remove: ["SetextHeading"] }, wikiLinkExtension],
+      extensions: [
+        { remove: ["SetextHeading"] },
+        // @lezer/markdown 把围栏里的 CodeText 和行内 InlineCode 一起标成 monospace，
+        // 于是无语言的代码块每一行都套上行内代码的紫字小胶囊。改标成普通内容：
+        // 代码块的底色、等宽字由 livePreview 的行级类负责，行内代码不受影响。
+        { props: [styleTags({ CodeText: tags.content })] },
+        wikiLinkExtension,
+      ],
     }),
     syntaxHighlighting(mdHighlight),
     syntaxHighlighting(codeHighlight),
