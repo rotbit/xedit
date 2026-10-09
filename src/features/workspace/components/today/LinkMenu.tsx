@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * 关联文章弹层：今天页左栏清单行的「关联文章 ▾」点开，绝对定位在触发行右下方（触发行要带 relative）。
+ * 关联文章弹层：今天页左栏清单行的「关联文章 ▾」点开，横向占满触发行（触发行要带 relative）；
+ * 宽度跟着行走，不随长文件夹路径撑开，路径在行内截断。
  * 里面就是 DocPicker；已关联的在列表顶部多一行「取消关联」。
  */
 import { useRef } from "react";
@@ -56,7 +57,7 @@ export function LinkMenu({
       ref={ref}
       role="dialog"
       aria-label={t("关联文章")}
-      className="absolute right-0 top-full z-10 mt-1 min-w-[240px] rounded-[8px] border border-[var(--hairline)] bg-[var(--panel)] p-[5px] text-[13px] text-[var(--ink)] shadow-[0_10px_36px_rgba(0,0,0,.14)]"
+      className="absolute inset-x-0 top-full z-10 mt-1 rounded-[8px] border border-[var(--hairline)] bg-[var(--panel)] p-[5px] text-[13px] text-[var(--ink)] shadow-[0_10px_36px_rgba(0,0,0,.14)]"
     >
       <DocPicker docs={docs} onPick={pick} top={detach} />
     </div>
