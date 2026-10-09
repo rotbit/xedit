@@ -226,4 +226,6 @@ export const workspace: Record<string, string> = {
   "已推送到飞书知识库{extra}": "Pushed to Feishu Wiki{extra}",
   "已写回飞书原文档{extra}": "Updated the original Feishu doc{extra}",
   "推送失败：网络异常": "Push failed: network error",
+  // 「最近」时间流底部的展开按钮
+  "更早的文章 · 还有 {n} 篇": "Older articles · {n} more",
 };
