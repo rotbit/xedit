@@ -30,6 +30,7 @@ export const common: Record<string, string> = {
   今天: "Today",
   昨天: "Yesterday",
   明天: "Tomorrow",
+  上周: "Last week",
 
   // 时长与字数：英文按数量挑单复数（{name, 单数, 复数}）
   "{m} 分钟": "{m} min",

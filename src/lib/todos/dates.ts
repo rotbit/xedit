@@ -2,7 +2,7 @@
  * 「今天」视图的日期口径：一律本地时区的 `YYYY-MM-DD`。
  *
  * 不用 toISOString：它折回 UTC，东八区凌晨写的待办会被算到前一天
- * （同 features/workspace/lib/dayGroups.ts 的 dayKey）。这里比 dayKey 多补了零，
+ * （同 features/workspace/lib/recencyGroups.ts 的 dayKey）。这里比 dayKey 多补了零，
  * 因为日期键要拿来直接做字符串比较（逾期 = due < today），不补零 "2026-10-9" 会大于 "2026-10-10"。
  */
 
