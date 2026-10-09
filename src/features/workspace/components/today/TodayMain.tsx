@@ -5,6 +5,7 @@
  * 明天以后的都在右栏「接下来」，这里只放今天该处理的事（清单里没定日期的也算今天）。
  * 列表下面是「做完了」：今天勾掉的事（当日日志），刷新后从列表消失的也还留在这里。
  */
+import { FileText } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
@@ -104,7 +105,12 @@ function TodoRow({
         ) : (
           <span className={textCls}>{label}</span>
         )}
-        {sub ? <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{sub}</div> : null}
+        {sub ? (
+          <div className="mt-px flex items-center gap-1 truncate text-[12.5px] text-[var(--ink-faint)]">
+            {item.source === "notes" && linked ? <FileText size={12} className="shrink-0" aria-hidden /> : null}
+            <span className="truncate">{sub}</span>
+          </div>
+        ) : null}
       </div>
       {late && last ? (
         <span className="mt-[3px] shrink-0 rounded-[4px] bg-[var(--seal-wash)] px-1.5 py-px text-[11px] tabular-nums text-[var(--seal)]">
