@@ -38,6 +38,22 @@ export function EmptyLine({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * 整页全空时的引导：一张单色线稿 + 一句话。线稿只提供透明度（PNG 的 alpha），
+ * 颜色用 mask 从 currentColor 取，明暗主题各自跟着 --ink-faint 走，不用备两张图。
+ */
+export function EmptyGuide({ text }: { text: string }) {
+  return (
+    <div className="flex flex-col items-start gap-4 px-0.5 pb-4 pt-8 text-[var(--ink-faint)]">
+      <span
+        aria-hidden
+        className="block h-[90px] w-[160px] bg-current opacity-60 [mask:url(/today-empty.png)_center/contain_no-repeat] [-webkit-mask:url(/today-empty.png)_center/contain_no-repeat]"
+      />
+      <p className="text-[13px] leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
+/**
  * 圆形复选框：勾上后墨色填满 + 反白对勾。
  * 不给 onClick 即只读（过去某天的完成记录），仍画成已勾的样子但不可点。
  */

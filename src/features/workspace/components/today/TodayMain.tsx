@@ -10,7 +10,7 @@ import type { TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, formatDue } from "@/lib/todos/dates";
 import type { DocMeta } from "../../types";
 import { MoveMenu } from "./MoveMenu";
-import { EmptyLine, itemLabel, RemoveButton, rowId, secondaryOf, TodoBox, type RowActions } from "./parts";
+import { EmptyGuide, EmptyLine, itemLabel, RemoveButton, rowId, secondaryOf, TodoBox, type RowActions } from "./parts";
 import { QuickAdd, type AddTarget } from "./QuickAdd";
 
 function TodoRow({
@@ -97,6 +97,7 @@ export function TodayMain({
   rows,
   isDone,
   docs,
+  allEmpty,
   ready,
   actions,
   onToggle,
@@ -108,6 +109,8 @@ export function TodayMain({
   isDone: (item: TodoItem) => boolean;
   /** 「记到文章」的候选池：用户看得见的文章（不含待办清单那篇） */
   docs: DocMeta[];
+  /** 右栏也一件没有：整页全空，左栏换成带插画的引导空态 */
+  allEmpty: boolean;
   /** 全库是否载完：没载完时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
   ready: boolean;
   actions: RowActions;
@@ -126,7 +129,11 @@ export function TodayMain({
       </div>
       <QuickAdd disabled={!ready} docs={docs} onSubmit={onAdd} />
       {rows.length === 0 ? (
-        <EmptyLine>{t("今天没有安排")}</EmptyLine>
+        allEmpty ? (
+          <EmptyGuide text={t("记一件今天要做的事，或在右侧排到某一天")} />
+        ) : (
+          <EmptyLine>{t("今天没有安排")}</EmptyLine>
+        )
       ) : (
         <div className="divide-y divide-[var(--hairline-soft)]">
           {rows.map((item) => {
