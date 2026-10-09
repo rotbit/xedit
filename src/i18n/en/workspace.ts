@@ -67,6 +67,7 @@ export const workspace: Record<string, string> = {
   "删除失败：浏览器存储空间不足": "Couldn't delete: browser storage is full",
   "没移成：浏览器存储空间不足": "Couldn't move: browser storage is full",
   今天没有安排: "Nothing planned for today",
+  "记一件今天要做的事，或在右侧排到某一天": "Jot down something for today, or schedule it on a day to the right",
   移到: "Move",
   移到别的日期: "Move to another date",
   下周一: "Next Monday",

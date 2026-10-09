@@ -100,6 +100,9 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const opt = useTodoOptimism(collectTodos(allDocs ?? [], today), today, { toggle, remove, move });
   const { buckets } = opt;
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
+  // 右栏展示的是 later 里带日期的 + 没定日期的；两边都空才算整页全空
+  const allEmpty =
+    rows.length === 0 && buckets.undated.length === 0 && !buckets.later.some((i) => i.due !== null);
 
   const actions: RowActions = {
     onOpenDoc: nav.openDoc,
@@ -122,6 +125,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
           rows={rows}
           isDone={opt.isDone}
           docs={docs ?? []}
+          allEmpty={allEmpty}
           ready={allDocs !== null}
           actions={actions}
           onToggle={(item, checked) => void opt.toggle(item, checked)}
