@@ -48,8 +48,8 @@ export const workspace: Record<string, string> = {
   "有未同步草稿，本次未清理本地缓存": "Some drafts haven't synced, so local data was kept",
 
   // 今天页
-  "记一件事…": "Add a to-do…",
-  记一件事: "Add a to-do",
+  "添加待办…": "Add a to-do…",
+  添加待办: "Add a to-do",
   "要做什么…": "What needs doing?",
   关联文章: "Link to article",
   取消关联: "Detach",
@@ -70,7 +70,7 @@ export const workspace: Record<string, string> = {
   "没移成：浏览器存储空间不足": "Couldn't move: browser storage is full",
   "没关联上：浏览器存储空间不足": "Couldn't link: browser storage is full",
   今天没有安排: "Nothing planned for today",
-  "记一件今天要做的事，或在右侧排到某一天": "Jot down something for today, or schedule it on a day to the right",
+  "添加一件今天要做的事，或在右侧排到某一天": "Add something for today, or schedule it on a day to the right",
   变更日期: "Change date",
   下周一: "Next Monday",
   其它日期: "Other date",
@@ -78,7 +78,7 @@ export const workspace: Record<string, string> = {
   "第 {n} 天": "Day {n}",
   删除这条: "Delete",
   接下来: "Coming Up",
-  "＋ 记到{day}": "+ Add to {day}",
+  "＋ 添加到{day}": "+ Add to {day}",
   "还有 {n} 件": "{n} more",
   没定日期: "No date",
   // 今天页「本月」统计
