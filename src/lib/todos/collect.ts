@@ -31,7 +31,7 @@ export interface TodoBuckets {
   today: TodoItem[];
   /** 只放 notes 来源的无日期待办：那篇清单就是专门记「要做」的，不该被折叠 */
   undated: TodoItem[];
-  /** 文章正文里没定日期的、以及日期在以后的：今天页不展示，也不计入侧栏计数 */
+  /** 文章正文里没定日期的（今天页不展示）、以及日期在以后的（右栏「接下来」）；都不计入侧栏计数 */
   later: TodoItem[];
   done: TodoItem[];
 }
@@ -91,7 +91,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
         docId: doc.id,
         docTitle,
         line: -1,
-        text: `发布《${docTitle}》`, // i18n-ignore 会原样记进当日记录（数据）；界面在 TodoColumn 按语言重拼
+        text: `发布《${docTitle}》`, // i18n-ignore 会原样记进当日记录（数据）；界面在 today/parts.tsx 的 itemLabel 按语言重拼
         due: row.publish.due,
         checked: false,
         source: "publish",
@@ -123,9 +123,9 @@ export function bucketTodos(items: TodoItem[], today: string): TodoBuckets {
   return b;
 }
 
-/** 侧栏「今天」的计数：真正需要现在处理的那些 */
+/** 侧栏「今天」的计数：和今天页左栏一致（逾期 + 今天）；没定日期的折在右栏，不算催办 */
 export function actionableCount(b: TodoBuckets): number {
-  return b.overdue.length + b.today.length + b.undated.length;
+  return b.overdue.length + b.today.length;
 }
 
 /** 待办清单那篇；有好几篇时取列表里的第一篇（文库按更新时间倒序，即最近动过的） */

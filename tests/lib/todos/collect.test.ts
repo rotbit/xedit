@@ -36,7 +36,7 @@ describe("bucketTodos", () => {
     expect(b.undated.map((i) => i.key)).toEqual(["d"]);
     expect(b.later.map((i) => i.key)).toEqual(["g", "f", "e"]);
     expect(b.done.map((i) => i.key)).toEqual(["h"]);
-    expect(actionableCount(b)).toBe(4);
+    expect(actionableCount(b)).toBe(3);
   });
 });
 

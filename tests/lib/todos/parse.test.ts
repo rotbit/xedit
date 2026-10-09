@@ -6,6 +6,8 @@ import {
   parsePublish,
   parseTasks,
   removeTaskLine,
+  setPublishDate,
+  setTaskLineDue,
   toggleTaskLine,
 } from "@/lib/todos/parse";
 
@@ -93,5 +95,46 @@ describe("改写", () => {
     expect(markPublished("---\npublish: 2026-10-12\n---")).toBe("---\npublish: 2026-10-12\npublished: true\n---");
     expect(parsePublish(markPublished("---\npublished: false\n---\n")).published).toBe(true);
     expect(markPublished("正文")).toBe("正文");
+  });
+});
+
+describe("改日期", () => {
+  it("setTaskLineDue 把已有的相对标签换成绝对日期", () => {
+    expect(setTaskLineDue("# A\n- [ ] 写稿 @明天\n", 1, "2026-10-12", T)).toBe("# A\n- [ ] 写稿 @2026-10-12\n");
+    expect(setTaskLineDue("  * [x] 写稿 @10/9", 0, "2026-10-12", T)).toBe("  * [x] 写稿 @2026-10-12");
+    expect(setTaskLineDue("- [ ] 写稿", 0, "2026-10-12", T)).toBe("- [ ] 写稿 @2026-10-12");
+  });
+
+  it("setTaskLineDue 不认识的 @xxx 保留并追加日期", () => {
+    expect(setTaskLineDue("- [ ] 问 @老王", 0, "2026-10-12", T)).toBe("- [ ] 问 @老王 @2026-10-12");
+    expect(parseTasks(setTaskLineDue("- [ ] 问 @老王", 0, "2026-10-12", T), T)[0]).toMatchObject({
+      text: "问 @老王",
+      due: "2026-10-12",
+    });
+  });
+
+  it("setTaskLineDue 传 null 去掉日期；不是任务行不动", () => {
+    expect(setTaskLineDue("- [ ] 写稿 @2026-10-12", 0, null, T)).toBe("- [ ] 写稿");
+    expect(setTaskLineDue("- [ ] 写稿", 0, null, T)).toBe("- [ ] 写稿");
+    expect(setTaskLineDue("正文 @明天", 0, "2026-10-12", T)).toBe("正文 @明天");
+    expect(setTaskLineDue("a", 5, "2026-10-12", T)).toBe("a");
+  });
+
+  it("setTaskLineDue 保留 \\r\\n，只动那一行", () => {
+    const md = "# A\r\n- [ ] 写稿 @明天\r\n- [ ] 别动 @明天\r\n";
+    expect(setTaskLineDue(md, 1, "2026-10-12", T)).toBe("# A\r\n- [ ] 写稿 @2026-10-12\r\n- [ ] 别动 @明天\r\n");
+    expect(setTaskLineDue(md, 1, null, T)).toBe("# A\r\n- [ ] 写稿\r\n- [ ] 别动 @明天\r\n");
+  });
+
+  it("setPublishDate 只改 publish 那一行的值", () => {
+    expect(setPublishDate("---\ntitle: a\npublish: 2026-10-12\n---\n正文", "2026-10-15")).toBe(
+      "---\ntitle: a\npublish: 2026-10-15\n---\n正文"
+    );
+    expect(setPublishDate("---\r\n发布:  2026/10/12\r\n---\r\n", "2026-10-15")).toBe("---\r\n发布:  2026-10-15\r\n---\r\n");
+    expect(setPublishDate('---\npublish: "2026-10-12"\n---\n', "2026-10-15")).toBe('---\npublish: "2026-10-15"\n---\n');
+    expect(setPublishDate("---\ntitle: a\n---\npublish: 2026-10-12\n", "2026-10-15")).toBe(
+      "---\ntitle: a\n---\npublish: 2026-10-12\n"
+    );
+    expect(setPublishDate("正文", "2026-10-15")).toBe("正文");
   });
 });

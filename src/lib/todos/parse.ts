@@ -6,7 +6,7 @@
  */
 
 import { parseFrontmatter, setFrontmatterValue } from "@/lib/frontmatter";
-import { parseDueTag } from "./dates";
+import { isDueTag, parseDueTag, todayKey } from "./dates";
 
 export interface ParsedTask {
   /** 0 起的行号（按 \n 切分，含 frontmatter 那几行），改写时按它定位 */
@@ -143,4 +143,53 @@ export function markPublished(md: string): string {
   const closeAt = trimmed.lastIndexOf("\n") + 1;
   const eol = head.includes("\r\n") ? "\r\n" : "\n";
   return md.slice(0, closeAt) + "published: true" + eol + md.slice(closeAt);
+}
+
+/**
+ * 改第 line 行待办的日期：先剥掉行尾已有的日期标签（口径同 parseDueTag：行尾、前面有空白、
+ * 认得的才剥；`@某人` 这种不认识的留在文字里），再追加 ` @YYYY-MM-DD`；due 为 null 即去掉日期。
+ * 缩进、`- [ ]` 前缀与行尾 \r 原样保留，其它行不动；那一行不是任务项就原样返回。
+ * today 只用来判断相对标签认不认得（不传取本地今天），测试可固定。
+ */
+export function setTaskLineDue(md: string, line: number, due: string | null, today: string = todayKey()): string {
+  const lines = md.split("\n");
+  const target = lines[line];
+  if (target === undefined) return md;
+  const cr = target.endsWith("\r") ? "\r" : "";
+  const m = /^(\s*[-*+]\s+\[(?: |x|X)\]\s+)(.+)$/.exec(cr ? target.slice(0, -1) : target);
+  if (!m) return md;
+  let text = m[2].trimEnd();
+  const tag = /(^|\s)@(\S+)$/.exec(text);
+  if (tag && isDueTag(tag[2], today)) {
+    const rest = text.slice(0, tag.index).trimEnd();
+    // 整行只有一个标签时 parseDueTag 把它当文字，这里也不剥，免得改完成了空任务
+    if (rest) text = rest;
+  }
+  const next = `${m[1]}${due ? `${text} @${due}` : text}${cr}`;
+  if (next === target) return md;
+  lines[line] = next;
+  return lines.join("\n");
+}
+
+/**
+ * 改发布排期：把 frontmatter 里 `publish:`（或 `发布:`）那一行的值换成 due，键名、冒号后的空白、
+ * 引号与行尾 \r 都不动；读取时 publish 优先，这里也先找它。没有这个键（或是列表写法）原样返回。
+ */
+export function setPublishDate(md: string, due: string): string {
+  const fm = parseFrontmatter(md);
+  if (!fm) return md;
+  const lines = md.split("\n");
+  let fmLines = 0;
+  for (let i = 0; i < fm.end; i++) if (md.charCodeAt(i) === 10) fmLines++;
+  for (const key of ["publish", "发布"]) { // i18n-ignore frontmatter key
+    for (let i = 1; i < fmLines; i++) {
+      const m = /^([^\s:][^:]*?)(\s*:\s*)(["']?)(.*?)\3([ \t]*)(\r?)$/.exec(lines[i]);
+      if (!m || m[1].trim() !== key || !m[4].trim()) continue;
+      const next = `${m[1]}${m[2]}${m[3]}${due}${m[3]}${m[5]}${m[6]}`;
+      if (next === lines[i]) return md;
+      lines[i] = next;
+      return lines.join("\n");
+    }
+  }
+  return md;
 }

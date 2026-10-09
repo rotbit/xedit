@@ -186,7 +186,7 @@ function InputRow({
       <div
         role="group"
         aria-label={t("记一件事")}
-        className="flex items-center gap-2.5 border-b border-[var(--hairline-soft)] px-0.5 py-2"
+        className="flex items-center gap-2.5 border-b border-[var(--hairline)] px-0.5 py-2"
       >
         <span className="h-4 w-4 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--hairline-strong)]" />
         <input
@@ -258,7 +258,7 @@ export function QuickAdd({
           type="button"
           // 标成菜单触发器：外部关闭逻辑放它一马，开关由这里自己 toggle
           data-menu-trigger
-          className="flex w-full cursor-pointer items-center gap-2.5 border-b border-[var(--hairline-soft)] px-0.5 py-2 text-left text-[14px] text-[var(--ink-faint)] hover:text-[var(--ink-soft)] disabled:cursor-default disabled:opacity-60"
+          className="flex w-full cursor-pointer items-center gap-2.5 border-b border-[var(--hairline)] px-0.5 py-2 text-left text-[14px] text-[var(--ink-faint)] hover:text-[var(--ink-soft)] disabled:cursor-default disabled:opacity-60"
           disabled={disabled}
           aria-expanded={open}
           onClick={() => setOpen(true)}
