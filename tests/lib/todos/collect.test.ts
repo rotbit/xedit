@@ -13,6 +13,7 @@ const item = (over: Partial<TodoItem>): TodoItem => ({
   line: 0,
   text: "x",
   due: null,
+  end: null,
   checked: false,
   source: "doc",
   link: null,
@@ -37,6 +38,22 @@ describe("bucketTodos", () => {
     expect(b.later.map((i) => i.key)).toEqual(["g", "f", "e"]);
     expect(b.done.map((i) => i.key)).toEqual(["h"]);
     expect(actionableCount(b)).toBe(4);
+  });
+
+  it("时间段：进行中归今天、过了结束日才逾期、还没开始归以后", () => {
+    const items = [
+      item({ key: "doing", due: "2026-10-06", end: "2026-10-10" }),
+      item({ key: "lastDay", due: "2026-10-05", end: T }),
+      item({ key: "firstDay", due: T, end: "2026-10-12" }),
+      item({ key: "late", due: "2026-10-01", end: "2026-10-07" }),
+      item({ key: "soon", due: "2026-10-09", end: "2026-10-12" }),
+      item({ key: "doneRange", due: "2026-10-01", end: "2026-10-03", checked: true }),
+    ];
+    const b = bucketTodos(items, T);
+    expect(b.today.map((i) => i.key)).toEqual(["doing", "lastDay", "firstDay"]);
+    expect(b.overdue.map((i) => i.key)).toEqual(["late"]);
+    expect(b.later.map((i) => i.key)).toEqual(["soon"]);
+    expect(b.done.map((i) => i.key)).toEqual(["doneRange"]);
   });
 });
 

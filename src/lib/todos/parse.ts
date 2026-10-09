@@ -15,6 +15,8 @@ export interface ParsedTask {
   /** 去掉日期标签后的显示文字 */
   text: string;
   due: string | null;
+  /** 时间段 `@开始~结束` 的结束日；单个日期或没日期为 null */
+  end: string | null;
 }
 
 /** 未解析日期标签的原始任务行：缓存存这一份，日期标签留到取用时按「今天」现算 */
@@ -72,13 +74,16 @@ const LINK_RE = /\s*\[\[([^\[\]\s]+)\]\]$/;
  * 解析一条任务的原文：先剥行尾日期标签，再剥紧挨着的关联标记 `[[docId]]`。
  * 格式是 `文字 [[docId]] @日期`；句中的 `[[x]]` 不算，剥完没字了也不剥（同 parseDueTag 的口径）。
  */
-export function parseTaskRaw(raw: string, today: string): { text: string; due: string | null; link: string | null } {
-  const { text, due } = parseDueTag(raw, today);
+export function parseTaskRaw(
+  raw: string,
+  today: string
+): { text: string; due: string | null; end: string | null; link: string | null } {
+  const { text, due, end } = parseDueTag(raw, today);
   const m = LINK_RE.exec(text);
-  if (!m) return { text, due, link: null };
+  if (!m) return { text, due, end, link: null };
   const rest = text.slice(0, m.index).trimEnd();
-  if (!rest) return { text, due, link: null };
-  return { text: rest, due, link: m[1] };
+  if (!rest) return { text, due, end, link: null };
+  return { text: rest, due, end, link: m[1] };
 }
 
 export function parseTasks(md: string, today: string): ParsedTask[] {
@@ -161,13 +166,25 @@ export function markPublished(md: string): string {
   return md.slice(0, closeAt) + "published: true" + eol + md.slice(closeAt);
 }
 
+/** 待办的日期：单日 end 为 null，时间段是开始日 due 到结束日 end（两头都算） */
+export interface DueRange {
+  due: string;
+  end: string | null;
+}
+
 /**
  * 改第 line 行待办的日期：先剥掉行尾已有的日期标签（口径同 parseDueTag：行尾、前面有空白、
- * 认得的才剥；`@某人` 这种不认识的留在文字里），再追加 ` @YYYY-MM-DD`；due 为 null 即去掉日期。
+ * 认得的才剥，含 `a~b` 时间段；`@某人` 这种不认识的留在文字里），再追加 ` @YYYY-MM-DD`
+ * 或时间段 ` @YYYY-MM-DD~YYYY-MM-DD`；range 为 null 即去掉日期。
  * 缩进、`- [ ]` 前缀与行尾 \r 原样保留，其它行不动；那一行不是任务项就原样返回。
  * today 只用来判断相对标签认不认得（不传取本地今天），测试可固定。
  */
-export function setTaskLineDue(md: string, line: number, due: string | null, today: string = todayKey()): string {
+export function setTaskLineDue(
+  md: string,
+  line: number,
+  range: DueRange | null,
+  today: string = todayKey()
+): string {
   const lines = md.split("\n");
   const target = lines[line];
   if (target === undefined) return md;
@@ -181,7 +198,8 @@ export function setTaskLineDue(md: string, line: number, due: string | null, tod
     // 整行只有一个标签时 parseDueTag 把它当文字，这里也不剥，免得改完成了空任务
     if (rest) text = rest;
   }
-  const next = `${m[1]}${due ? `${text} @${due}` : text}${cr}`;
+  const tagText = range ? (range.end ? `${range.due}~${range.end}` : range.due) : null;
+  const next = `${m[1]}${tagText ? `${text} @${tagText}` : text}${cr}`;
   if (next === target) return md;
   lines[line] = next;
   return lines.join("\n");

@@ -22,6 +22,8 @@ export interface TodoItem {
   line: number;
   text: string;
   due: string | null;
+  /** 时间段的结束日（`@开始~结束`），due 是开始日；单日、没日期与 publish 来源为 null */
+  end: string | null;
   checked: boolean;
   source: "doc" | "notes" | "publish";
   /** 关联文章的 docId（清单行尾的 `[[docId]]`）；只有 notes 来源会有，其它来源一律 null */
@@ -30,7 +32,10 @@ export interface TodoItem {
 
 export interface TodoBuckets {
   overdue: TodoItem[];
-  /** 今天到期的，加上 notes 来源的无日期待办：那篇清单就是专门记「要做」的，没排期就默认今天处理 */
+  /**
+   * 今天到期的（时间段是今天落在开始到结束之间的），加上 notes 来源的无日期待办：
+   * 那篇清单就是专门记「要做」的，没排期就默认今天处理
+   */
   today: TodoItem[];
   /** 文章正文里没定日期的（今天页不展示）、以及日期在以后的（右栏「接下来」）；都不计入侧栏计数 */
   later: TodoItem[];
@@ -84,8 +89,10 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
     const source = row.isNotes ? "notes" : "doc";
     for (const t of row.tasks) {
       // 关联标记只在清单里认：文章正文里的 `[[…]]` 是用户自己写的字，原样显示
-      const { text, due, link } = row.isNotes ? parseTaskRaw(t.raw, today) : { ...parseDueTag(t.raw, today), link: null };
-      out.push({ key: `${doc.id}:${t.line}`, docId: doc.id, docTitle, line: t.line, text, due, checked: t.checked, source, link });
+      const { text, due, end, link } = row.isNotes
+        ? parseTaskRaw(t.raw, today)
+        : { ...parseDueTag(t.raw, today), link: null };
+      out.push({ key: `${doc.id}:${t.line}`, docId: doc.id, docTitle, line: t.line, text, due, end, checked: t.checked, source, link });
     }
     if (row.publish.due && !row.publish.published) {
       out.push({
@@ -95,6 +102,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
         line: -1,
         text: `发布《${docTitle}》`, // i18n-ignore 会原样记进当日记录（数据）；界面在 today/parts.tsx 的 itemLabel 按语言重拼
         due: row.publish.due,
+        end: null,
         checked: false,
         source: "publish",
         link: null,
@@ -104,7 +112,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
   return out;
 }
 
-/** 有日期的按日期升序，没日期的垫后；sort 是稳定的，同日期保持文库顺序 */
+/** 有日期的按（开始）日期升序，没日期的垫后；sort 是稳定的，同日期保持文库顺序 */
 function byDue(a: TodoItem, b: TodoItem): number {
   if (a.due === b.due) return 0;
   if (!a.due) return 1;
@@ -115,10 +123,13 @@ function byDue(a: TodoItem, b: TodoItem): number {
 export function bucketTodos(items: TodoItem[], today: string): TodoBuckets {
   const b: TodoBuckets = { overdue: [], today: [], later: [], done: [] };
   for (const item of items) {
+    // 时间段过了结束日才算逾期；开始日到结束日之间每天都在左栏
+    const last = item.end ?? item.due;
     if (item.checked) b.done.push(item);
-    else if (item.due && item.due < today) b.overdue.push(item);
-    else if (item.due === today || (!item.due && item.source === "notes")) b.today.push(item);
-    else b.later.push(item);
+    else if (item.due && last && last < today) b.overdue.push(item);
+    else if ((item.due && last && item.due <= today && today <= last) || (!item.due && item.source === "notes")) {
+      b.today.push(item);
+    } else b.later.push(item);
   }
   b.overdue.sort(byDue);
   b.later.sort(byDue);

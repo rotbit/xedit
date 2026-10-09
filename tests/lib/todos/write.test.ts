@@ -15,6 +15,7 @@ const item = (docId: string, line: number, text: string, source: TodoItem["sourc
   line,
   text,
   due: null,
+  end: null,
   checked: false,
   source,
   link: null,
@@ -65,13 +66,13 @@ describe("追加待办", () => {
 describe("setTaskDue", () => {
   it("改正文行尾日期，去掉日期；发布排期改 frontmatter、不给去掉", async () => {
     const doc = createLocalDoc({ title: "A", content: "# A\n- [ ] 一 @明天\n" });
-    await setTaskDue(item(doc.id, 1, "一"), "2026-10-20");
+    await setTaskDue(item(doc.id, 1, "一"), { due: "2026-10-20", end: null });
     expect(getDocContent(doc.id)).toBe("# A\n- [ ] 一 @2026-10-20\n");
     await setTaskDue(item(doc.id, 1, "一"), null);
     expect(getDocContent(doc.id)).toBe("# A\n- [ ] 一\n");
 
     const pub = createLocalDoc({ title: "B", content: "---\npublish: 2026-10-12\n---\n正文" });
-    await setTaskDue(item(pub.id, -1, "发布《B》", "publish"), "2026-10-15");
+    await setTaskDue(item(pub.id, -1, "发布《B》", "publish"), { due: "2026-10-15", end: null });
     expect(getDocContent(pub.id)).toBe("---\npublish: 2026-10-15\n---\n正文");
     await setTaskDue(item(pub.id, -1, "发布《B》", "publish"), null);
     expect(getDocContent(pub.id)).toBe("---\npublish: 2026-10-15\n---\n正文");

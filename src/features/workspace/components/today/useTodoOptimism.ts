@@ -9,8 +9,14 @@
  */
 import { useState } from "react";
 import { bucketTodos, type TodoBuckets, type TodoItem } from "@/lib/todos/collect";
+import type { DueRange } from "@/lib/todos/parse";
 
 type ItemMap = Map<string, TodoItem>;
+
+/** 待办此刻的日期（开始 + 结束）；没日期为 null */
+type Span = DueRange | null;
+const spanOf = (i: TodoItem): Span => (i.due ? { due: i.due, end: i.end } : null);
+const sameSpan = (a: Span, b: Span) => (a?.due ?? null) === (b?.due ?? null) && (a?.end ?? null) === (b?.end ?? null);
 
 const sameIn = (map: Map<string, { text: string }>, item: TodoItem) => map.get(item.key)?.text === item.text;
 
@@ -29,7 +35,7 @@ export interface TodoOptimism {
   isDone: (item: TodoItem) => boolean;
   toggle: (item: TodoItem, checked: boolean) => Promise<void>;
   remove: (item: TodoItem) => Promise<void>;
-  move: (item: TodoItem, due: string | null) => Promise<void>;
+  move: (item: TodoItem, range: DueRange | null) => Promise<void>;
 }
 
 export function useTodoOptimism(
@@ -38,22 +44,23 @@ export function useTodoOptimism(
   write: {
     toggle: (item: TodoItem, checked: boolean) => Promise<boolean>;
     remove: (item: TodoItem) => Promise<boolean>;
-    move: (item: TodoItem, due: string | null) => Promise<boolean>;
+    move: (item: TodoItem, range: DueRange | null) => Promise<boolean>;
   }
 ): TodoOptimism {
   const [justDone, setJustDone] = useState<ItemMap>(() => new Map());
   const [removed, setRemoved] = useState<ItemMap>(() => new Map());
-  // 挪日期记下「从哪挪到哪」：只在汇总还显示旧日期（from）时才覆盖，
+  // 挪日期记下「从哪挪到哪」（开始日与结束日都记）：只在汇总还显示旧日期（from）时才覆盖，
   // 一旦正文落盘（或用户又在文章里改了日期）读到别的值，这条记录就自动失效，不会盖住真实数据
-  const [moved, setMoved] = useState<Map<string, { text: string; from: string | null; due: string | null }>>(
-    () => new Map()
-  );
+  const [moved, setMoved] = useState<Map<string, { text: string; from: Span; due: Span }>>(() => new Map());
 
   const adjusted = items
     .filter((i) => !sameIn(removed, i))
     .map((i) => {
       const m = moved.get(i.key);
-      return m && m.text === i.text && m.from === i.due && m.due !== i.due ? { ...i, due: m.due } : i;
+      const now = spanOf(i);
+      return m && m.text === i.text && sameSpan(m.from, now) && !sameSpan(m.due, now)
+        ? { ...i, due: m.due?.due ?? null, end: m.due?.end ?? null }
+        : i;
     });
   const buckets = bucketTodos(adjusted, today);
   const active = [...buckets.overdue, ...buckets.today];
@@ -72,12 +79,12 @@ export function useTodoOptimism(
     if (!(await write.remove(item))) setRemoved((p) => withEntry(p, item.key, null));
   };
 
-  const move = async (item: TodoItem, due: string | null) => {
+  const move = async (item: TodoItem, range: DueRange | null) => {
     const before = moved.get(item.key) ?? null;
     // item 可能已经套过一次乐观日期，「从哪挪」要以汇总里的真实值为准，连挪两次才不会闪回
-    const from = items.find((i) => i.key === item.key && i.text === item.text)?.due ?? item.due;
-    setMoved((p) => withEntry(p, item.key, { text: item.text, from, due }));
-    if (!(await write.move(item, due))) setMoved((p) => withEntry(p, item.key, before));
+    const from = spanOf(items.find((i) => i.key === item.key && i.text === item.text) ?? item);
+    setMoved((p) => withEntry(p, item.key, { text: item.text, from, due: range }));
+    if (!(await write.move(item, range))) setMoved((p) => withEntry(p, item.key, before));
   };
 
   return { buckets, doneOnly, isDone: (item) => sameIn(justDone, item), toggle, remove, move };

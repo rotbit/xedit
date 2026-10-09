@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { dayKeyOf, formatDayTitle, formatDue, parseDueTag, relativeDayLabel, shiftDay, todayKey } from "@/lib/todos/dates";
+import {
+  dayKeyOf,
+  daysBetween,
+  formatDayTitle,
+  formatDue,
+  isDueTag,
+  parseDueTag,
+  relativeDayLabel,
+  shiftDay,
+  todayKey,
+} from "@/lib/todos/dates";
 
 const T = "2026-10-08";
 
@@ -13,16 +23,16 @@ describe("dates", () => {
   });
 
   it("相对日期标签", () => {
-    expect(parseDueTag("交稿 @今天", T)).toEqual({ text: "交稿", due: T });
-    expect(parseDueTag("交稿 @明天", T)).toEqual({ text: "交稿", due: "2026-10-09" });
-    expect(parseDueTag("交稿 @昨天", T)).toEqual({ text: "交稿", due: "2026-10-07" });
+    expect(parseDueTag("交稿 @今天", T)).toEqual({ text: "交稿", due: T, end: null });
+    expect(parseDueTag("交稿 @明天", T)).toEqual({ text: "交稿", due: "2026-10-09", end: null });
+    expect(parseDueTag("交稿 @昨天", T)).toEqual({ text: "交稿", due: "2026-10-07", end: null });
   });
 
   it("M/D、M月D日、完整日期", () => {
-    expect(parseDueTag("改图 @10/10", T)).toEqual({ text: "改图", due: "2026-10-10" });
-    expect(parseDueTag("改图 @10月10日", T)).toEqual({ text: "改图", due: "2026-10-10" });
-    expect(parseDueTag("改图 @2026-10-10", T)).toEqual({ text: "改图", due: "2026-10-10" });
-    expect(parseDueTag("改图 @2027-1-3", T)).toEqual({ text: "改图", due: "2027-01-03" });
+    expect(parseDueTag("改图 @10/10", T)).toEqual({ text: "改图", due: "2026-10-10", end: null });
+    expect(parseDueTag("改图 @10月10日", T)).toEqual({ text: "改图", due: "2026-10-10", end: null });
+    expect(parseDueTag("改图 @2026-10-10", T)).toEqual({ text: "改图", due: "2026-10-10", end: null });
+    expect(parseDueTag("改图 @2027-1-3", T)).toEqual({ text: "改图", due: "2027-01-03", end: null });
   });
 
   it("不带年份：早于今天超过 180 天算明年，否则算今年（逾期）", () => {
@@ -34,10 +44,10 @@ describe("dates", () => {
   });
 
   it("不认识或不在行尾的 @ 原样保留", () => {
-    expect(parseDueTag("问 @小王 稿子", T)).toEqual({ text: "问 @小王 稿子", due: null });
-    expect(parseDueTag("找 @小王", T)).toEqual({ text: "找 @小王", due: null });
-    expect(parseDueTag("发 a@明天", T)).toEqual({ text: "发 a@明天", due: null });
-    expect(parseDueTag("x @2/30", T)).toEqual({ text: "x @2/30", due: null });
+    expect(parseDueTag("问 @小王 稿子", T)).toEqual({ text: "问 @小王 稿子", due: null, end: null });
+    expect(parseDueTag("找 @小王", T)).toEqual({ text: "找 @小王", due: null, end: null });
+    expect(parseDueTag("发 a@明天", T)).toEqual({ text: "发 a@明天", due: null, end: null });
+    expect(parseDueTag("x @2/30", T)).toEqual({ text: "x @2/30", due: null, end: null });
     expect(parseDueTag("x @13/1", T).due).toBeNull();
   });
 
@@ -54,13 +64,39 @@ describe("dates", () => {
   });
 
   it("英文标签不分大小写，与中文标签并存、与界面语言无关", () => {
-    expect(parseDueTag("Submit draft @today", T)).toEqual({ text: "Submit draft", due: T });
-    expect(parseDueTag("Submit draft @Tomorrow", T)).toEqual({ text: "Submit draft", due: "2026-10-09" });
-    expect(parseDueTag("Submit draft @YESTERDAY", T)).toEqual({ text: "Submit draft", due: "2026-10-07" });
-    expect(parseDueTag("交稿 @today", T)).toEqual({ text: "交稿", due: T });
+    expect(parseDueTag("Submit draft @today", T)).toEqual({ text: "Submit draft", due: T, end: null });
+    expect(parseDueTag("Submit draft @Tomorrow", T)).toEqual({ text: "Submit draft", due: "2026-10-09", end: null });
+    expect(parseDueTag("Submit draft @YESTERDAY", T)).toEqual({ text: "Submit draft", due: "2026-10-07", end: null });
+    expect(parseDueTag("交稿 @today", T)).toEqual({ text: "交稿", due: T, end: null });
     // 原型链上的名字不是日期标签
-    expect(parseDueTag("x @constructor", T)).toEqual({ text: "x @constructor", due: null });
+    expect(parseDueTag("x @constructor", T)).toEqual({ text: "x @constructor", due: null, end: null });
     expect(parseDueTag("x @todays", T).due).toBeNull();
+  });
+
+  it("时间段 @开始~结束：绝对、相对混用，写法同单个日期", () => {
+    expect(parseDueTag("写书 @2026-10-09~2026-10-12", T)).toEqual({ text: "写书", due: "2026-10-09", end: "2026-10-12" });
+    expect(parseDueTag("写书 @今天~10/12", T)).toEqual({ text: "写书", due: T, end: "2026-10-12" });
+    expect(parseDueTag("写书 @tomorrow~10月20日", T)).toEqual({ text: "写书", due: "2026-10-09", end: "2026-10-20" });
+    // 开始结束同一天也认
+    expect(parseDueTag("写书 @10/9~10/9", T)).toEqual({ text: "写书", due: "2026-10-09", end: "2026-10-09" });
+    expect(isDueTag("2026-10-09~2026-10-12", T)).toBe(true);
+  });
+
+  it("时间段：结束早于开始、任一边不认识、不在行尾都不认", () => {
+    expect(parseDueTag("写书 @10/12~10/9", T)).toEqual({ text: "写书 @10/12~10/9", due: null, end: null });
+    expect(parseDueTag("写书 @明天~昨天", T).due).toBeNull();
+    expect(parseDueTag("写书 @10/9~老王", T).due).toBeNull();
+    expect(parseDueTag("写书 @10/9~", T).due).toBeNull();
+    expect(parseDueTag("写书 @10/9~10/12 再说", T)).toEqual({ text: "写书 @10/9~10/12 再说", due: null, end: null });
+    expect(isDueTag("10/12~10/9", T)).toBe(false);
+  });
+
+  it("daysBetween 按本地零点算天数，跨月跨年", () => {
+    expect(daysBetween(T, T)).toBe(0);
+    expect(daysBetween("2026-10-08", "2026-10-12")).toBe(4);
+    expect(daysBetween("2026-12-30", "2027-01-02")).toBe(3);
+    expect(daysBetween("2026-10-12", "2026-10-08")).toBe(-4);
+    expect(daysBetween("bad", T)).toBe(0);
   });
 
   it("en 格式化", () => {

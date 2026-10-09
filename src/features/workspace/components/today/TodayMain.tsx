@@ -8,7 +8,7 @@
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
-import { formatDayTitle, formatDue } from "@/lib/todos/dates";
+import { daysBetween, formatDayTitle, formatDue, formatMonthDay } from "@/lib/todos/dates";
 import { removeDayEvent, type DayEvent } from "@/lib/todos/events";
 import type { DocMeta } from "../../types";
 import { LinkMenu } from "./LinkMenu";
@@ -66,7 +66,17 @@ function TodoRow({
   const menuOpen = actions.menuId === id;
   const linkId = `${id}|link`;
   const linkOpen = actions.menuId === linkId;
-  const late = !done && item.due !== null && item.due < today;
+  // 时间段过了结束日才算逾期；逾期标签上的日期也是结束日
+  const last = item.end ?? item.due;
+  const late = !done && last !== null && last < today;
+  // 进行中的时间段：注明起止和今天是第几天（逾期的照样显示逾期标签）
+  const span =
+    !done && !late && item.due && item.end
+      ? {
+          range: `${formatMonthDay(item.due, today, locale)} – ${formatMonthDay(item.end, today, locale)}`,
+          n: daysBetween(item.due, today) + 1,
+        }
+      : null;
   const sub = secondaryOf(item, t, actions.docTitleOf);
   const linked = linkedDoc(item, actions.docTitleOf);
   const label = itemLabel(item, t);
@@ -96,9 +106,13 @@ function TodoRow({
         )}
         {sub ? <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{sub}</div> : null}
       </div>
-      {late && item.due ? (
+      {late && last ? (
         <span className="mt-[3px] shrink-0 rounded-[4px] bg-[var(--seal-wash)] px-1.5 py-px text-[11px] tabular-nums text-[var(--seal)]">
-          {t("{date} 逾期", { date: formatDue(item.due, today, locale) })}
+          {t("{date} 逾期", { date: formatDue(last, today, locale) })}
+        </span>
+      ) : span ? (
+        <span className="mt-[3px] shrink-0 py-px text-[11px] tabular-nums text-[var(--ink-faint)]">
+          {span.range} · {t("第 {n} 天", { n: span.n, abs: span.n })}
         </span>
       ) : null}
       {canLink ? (

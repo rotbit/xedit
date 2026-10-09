@@ -4,6 +4,7 @@
 import { Check, X } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import type { TodoItem } from "@/lib/todos/collect";
+import type { DueRange } from "@/lib/todos/parse";
 
 /**
  * 一条待办在界面上的身份：key 里带行号，删掉一行后同一篇下面的行号会前移，
@@ -44,7 +45,8 @@ export function secondaryOf(item: TodoItem, t: TFn, titleOf: (id: string) => str
 /** 两栏都要的行操作：打开出处、挪日期、关联文章、删除；菜单同一时刻只开一个，开关状态由页面统一管 */
 export interface RowActions {
   onOpenDoc: (id: string) => void;
-  onMove: (item: TodoItem, due: string | null) => void;
+  /** 改日期：开始日 + 可选结束日（时间段）；null = 去掉日期 */
+  onMove: (item: TodoItem, range: DueRange | null) => void;
   onRemove: (item: TodoItem) => void;
   /** 关联 / 更换 / 取消关联（null）文章 */
   onLink: (item: TodoItem, link: string | null) => void;

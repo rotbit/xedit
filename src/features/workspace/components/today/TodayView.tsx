@@ -13,6 +13,7 @@ import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { todayKey } from "@/lib/todos/dates";
 import { DAY_LOG_CHANGED_EVENT } from "@/lib/todos/events";
+import type { DueRange } from "@/lib/todos/parse";
 import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { RowActions } from "./parts";
@@ -93,9 +94,9 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
-  const move = async (item: TodoItem, due: string | null): Promise<boolean> => {
+  const move = async (item: TodoItem, range: DueRange | null): Promise<boolean> => {
     try {
-      await setTaskDue(item, due);
+      await setTaskDue(item, range);
       return true;
     } catch {
       toast(t("没移成：浏览器存储空间不足"), "error");
@@ -135,7 +136,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   const actions: RowActions = {
     onOpenDoc: nav.openDoc,
-    onMove: (item, due) => void opt.move(item, due),
+    onMove: (item, range) => void opt.move(item, range),
     onRemove: (item) => void opt.remove(item),
     onLink: (item, id) => void link(item, id),
     onLinkNew: (item, title) => void linkNew(item, title),
