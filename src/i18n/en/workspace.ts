@@ -95,6 +95,8 @@ export const workspace: Record<string, string> = {
   新建的文章: "Articles created",
   写作天数: "Active days",
   "{n} 件": "{n} {abs, to-do, to-dos}",
+  "写了 {n} 字": "wrote {n} {abs, character, characters}",
+  "改了 {n} 篇": "edited {n} {abs, doc, docs}",
   "{n} 篇": "{n} {abs, article, articles}",
   "{n} 天": "{n} {abs, day, days}",
   "{date} · {chars} 字 · 完成 {n} 件": "{date} · {chars} {abs, char, chars} · {n} {n, to-do, to-dos} done",

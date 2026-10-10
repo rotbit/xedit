@@ -36,6 +36,7 @@ import {
   type RowActions,
 } from "./parts";
 import type { AddTarget } from "./AddTarget";
+import { writingToday } from "./doneToday";
 import { QuickAdd } from "./QuickAdd";
 
 /** 行尾 hover 才露出来的小按钮（关联文章 / 变更日期）：标成菜单触发器，开关由按钮自己 toggle */
@@ -359,11 +360,16 @@ export function TodayMain({
   // 日期格式化显式传 context 里的语言：服务端渲染时模块变量是各请求共享的，不可靠
   const locale = useLocale();
   const title = formatDayTitle(today, locale);
+  // 今天写了多少放在日期下面：首页该一眼看出「今天做了什么」，比在列表底下填东西有用；
+  // 日志变化由 TodayView 的信号触发重渲染，这里每次渲染现读即可
+  const wrote = writingToday(today);
   return (
     <div className="min-w-0">
       <h1 className="text-[30px] font-semibold leading-[1.15] tracking-tight">{title.main}</h1>
-      <div className="mb-6 mt-1.5 text-[13px] text-[var(--ink-faint)]">
+      <div className="mb-6 mt-1.5 text-[13px] text-[var(--ink-faint)] tabular-nums">
         {title.sub} · {t("今天")}
+        {wrote.chars > 0 ? ` · ${t("写了 {n} 字", { n: wrote.chars.toLocaleString(locale), abs: wrote.chars })}` : null}
+        {wrote.docs > 0 ? ` · ${t("改了 {n} 篇", { n: wrote.docs, abs: wrote.docs })}` : null}
       </div>
       <QuickAdd disabled={!ready} docs={docs} onSubmit={onAdd} />
       {rows.length === 0 ? (
