@@ -9,6 +9,8 @@ import { useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   BookDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
   FileInput,
   FilePlus2,
   FolderInput,
@@ -36,7 +38,7 @@ import type { Workspace } from "../hooks/useWorkspace";
 
 /** 分类操作菜单（右键 / 「···」共用）：根节点、未分类、普通分类各按能力渲染条目 */
 export function CategoryContextMenu({ ws }: { ws: Workspace }) {
-  const { menus, dialogs, docActions, catActions, library, auth } = ws;
+  const { menus, dialogs, docActions, catActions, library, auth, prefs } = ws;
   const anchor = menus.catMenu;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const t = useT();
@@ -49,6 +51,12 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   const canManage = !isRoot && path !== UNCATEGORIZED;
   // 分类路径用 / 拼接，段数就是层级深度；到 MAX_DEPTH 就不再给「新建子文件夹」这一条
   const canAddChild = canManage && path.split("/").length < MAX_DEPTH;
+  // 「收起 / 展开」只给里面有东西的文件夹：空文件夹展开了也没变化，是个点了什么都不会发生的选项
+  const hasChildren =
+    !isRoot &&
+    (library.customCats.some((c) => c.startsWith(`${path}/`)) ||
+      (library.docs ?? []).some((d) => d.category === path || d.category?.startsWith(`${path}/`)));
+  const isOpen = prefs.expanded.has(path);
 
   // 每个条目都先关菜单再执行动作：动作里可能弹输入框或选择器，菜单留着会压在上面
   const run = (fn: () => void) => () => {
@@ -98,6 +106,17 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
         <button className={menuItemCls} onClick={run(() => void docActions.refreshDocs())}>
           <RotateCw size={14} className="text-[var(--ink-faint)]" />
           {t("刷新列表")}
+        </button>
+      ) : null}
+
+      {hasChildren ? (
+        <button className={menuItemCls} onClick={run(() => prefs.toggleExpand(path))}>
+          {isOpen ? (
+            <ChevronsDownUp size={14} className="text-[var(--ink-faint)]" />
+          ) : (
+            <ChevronsUpDown size={14} className="text-[var(--ink-faint)]" />
+          )}
+          {isOpen ? t("收起") : t("展开")}
         </button>
       ) : null}
 
