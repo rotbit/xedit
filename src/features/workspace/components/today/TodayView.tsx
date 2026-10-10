@@ -18,13 +18,13 @@ import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink } from
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { RowActions } from "./parts";
 import type { AddTarget } from "./AddTarget";
-import { doneToday } from "./doneToday";
+import { doneRecent, doneToday } from "./doneToday";
 import { TodayMain } from "./TodayMain";
 import { UpcomingColumn } from "./UpcomingColumn";
 import { useTodoOptimism } from "./useTodoOptimism";
 
 /**
- * 订阅「文库变了 / 日志变了」两个事件，返回一个递增的版本号逼组件重渲染；
+ * 订阅「文库变了 / 日志变了」两个事件（含别的标签页改日志），返回一个递增的版本号逼组件重渲染；
  * 顺带把「今天」重取一次——页面开过零点后，下一次任何动静都会把日期纠正过来。
  */
 function useTodaySignals(): string {
@@ -35,13 +35,20 @@ function useTodaySignals(): string {
       setTick((t) => t + 1);
       setToday(todayKey());
     };
+    // 别的标签页勾掉的事写进同一份 localStorage，本页收不到自定义事件，只能靠 storage 事件；
+    // key 为 null 是 clear()，日志键也在其中，一并刷新
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key.startsWith("xedit-day-log")) bump();
+    };
     window.addEventListener(DOCS_CHANGED_EVENT, bump);
     window.addEventListener(DAY_LOG_CHANGED_EVENT, bump);
+    window.addEventListener("storage", onStorage);
     // 切回标签页时也对一次：隔夜挂着的页面回来就该是新的一天
     document.addEventListener("visibilitychange", bump);
     return () => {
       window.removeEventListener(DOCS_CHANGED_EVENT, bump);
       window.removeEventListener(DAY_LOG_CHANGED_EVENT, bump);
+      window.removeEventListener("storage", onStorage);
       document.removeEventListener("visibilitychange", bump);
     };
   }, []);
@@ -131,8 +138,11 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
   // 日志变化由 useTodaySignals 触发重渲染，这里每次渲染现读即可
   const done = doneToday(today, rows);
-  // 右栏展示的是 later 里带日期的；两边都空、今天也没做完过事才算整页全空
-  const allEmpty = rows.length === 0 && done.length === 0 && !buckets.later.some((i) => i.due !== null);
+  const recent = doneRecent(today, rows);
+  // 右栏展示的是 later 里带日期的；两边都空、今天和近一周也没做完过事才算整页全空——
+  // 有回顾可看时左栏换成插画引导会把回顾挤得像误入的内容
+  const allEmpty =
+    rows.length === 0 && done.length === 0 && recent.length === 0 && !buckets.later.some((i) => i.due !== null);
 
   const actions: RowActions = {
     onOpenDoc: nav.openDoc,
@@ -157,6 +167,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
           today={today}
           rows={rows}
           done={done}
+          recent={recent}
           isDone={opt.isDone}
           docs={docs ?? []}
           allEmpty={allEmpty}

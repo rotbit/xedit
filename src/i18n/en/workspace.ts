@@ -64,6 +64,7 @@ export const workspace: Record<string, string> = {
   删除这条待办: "Delete to-do",
   删除这条记录: "Delete this record",
   做完了: "Done",
+  "这几天做完 {n} 件": "{n} {abs, to-do, to-dos} done in the past week",
   "保存失败：浏览器存储空间不足": "Couldn't save: browser storage is full",
   "没记上：存储空间不足或网络异常，稍后再试": "Couldn't add: storage is full or the network is down. Try again later",
   "删除失败：浏览器存储空间不足": "Couldn't delete: browser storage is full",
