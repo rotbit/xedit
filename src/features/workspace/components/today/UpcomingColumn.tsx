@@ -2,14 +2,19 @@
 
 /**
  * 今天页右栏「接下来」：明天起六天，一天一行；再往后的折在底部「还有 N 件」里。
- * 这里只排期不打勾——要做的那天它自然会到左栏；每天末尾可以直接往那天记一件事。
+ * 这里只排期不打勾——要做的那天它自然会到左栏；每天末尾可以直接往那天记一件事，
+ * 和左栏快速输入一样可选关联一篇文章（交互共用 AddTarget.tsx）：提前排的事常常就是某篇稿子的活。
  */
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { useDismissMenu } from "@/hooks/useDismissMenu";
+import { useEscape } from "@/hooks/useEscape";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
 import { dayOfMonth, formatDue, formatMonthDay, formatWeekday, shiftDay } from "@/lib/todos/dates";
+import type { DocMeta } from "../../types";
+import { isDefaultTarget, Picker, TargetControl, useAddTarget, type AddTarget } from "./AddTarget";
 import { MoveMenu } from "./MoveMenu";
 import { itemLabel, linkedDoc, rowId, type RowActions } from "./parts";
 
@@ -110,42 +115,79 @@ function UpcomingItem({
   );
 }
 
-/** 每天末尾的「＋ 添加到明天」：悬停那一天才露出来，回车提交后清空、焦点留着方便连记 */
+/**
+ * 每天末尾的「＋ 添加到明天」：悬停那一天才露出来，回车提交后清空、焦点留着方便连记。
+ * 「关联文章」只在这一行有焦点时露出，免得六行都挂着它显得吵；选好了文章标签就常驻，
+ * 整行也跟着常显——不然鼠标一移开，选好的目标连同输入一起隐形了。
+ */
 function DayAdd({
   label,
   disabled,
+  docs,
   onSubmit,
 }: {
   label: string;
   disabled: boolean;
-  onSubmit: (text: string) => Promise<boolean>;
+  docs: DocMeta[];
+  onSubmit: (text: string, target: AddTarget) => Promise<boolean>;
 }) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { target, targetLabel, picking, setPicking, pick, detach, reset } = useAddTarget(inputRef);
+  const attached = !isDefaultTarget(target);
+  // 选择器在面板外点击 / Esc 时关掉，焦点回到输入框
+  const closePicker = useCallback(() => {
+    setPicking(false);
+    inputRef.current?.focus();
+  }, [setPicking]);
+  useDismissMenu(rowRef, closePicker, picking);
+  useEscape(closePicker, picking);
+
   return (
-    <form
-      className="opacity-0 focus-within:opacity-100 group-hover/day:opacity-100"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (pending || !text.trim()) return;
-        setPending(true);
-        const ok = await onSubmit(text.trim());
-        setPending(false);
-        if (ok) setText("");
-        inputRef.current?.focus();
-      }}
-    >
-      <input
-        ref={inputRef}
-        className="w-full bg-transparent py-[3px] text-[12px] text-[var(--ink-soft)] outline-none placeholder:text-[var(--ink-faint)] disabled:opacity-60"
-        placeholder={label}
-        aria-label={label}
-        value={text}
-        disabled={disabled || pending}
-        onChange={(e) => setText(e.target.value)}
-      />
-    </form>
+    <div ref={rowRef} className="group/add relative">
+      <form
+        className={`flex items-center gap-2 ${
+          attached || picking ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover/day:opacity-100"
+        }`}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (pending || !text.trim()) return;
+          // 提交中锁住，防连敲回车记两遍
+          setPending(true);
+          const ok = await onSubmit(text.trim(), target);
+          setPending(false);
+          if (ok) {
+            setText("");
+            reset();
+          }
+          // 失败保留文字和目标，方便重试
+          inputRef.current?.focus();
+        }}
+      >
+        <input
+          ref={inputRef}
+          className="min-w-0 flex-1 bg-transparent py-[3px] text-[12px] text-[var(--ink-soft)] outline-none placeholder:text-[var(--ink-faint)] disabled:opacity-60"
+          placeholder={label}
+          aria-label={label}
+          value={text}
+          disabled={disabled || pending}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <TargetControl
+          target={target}
+          label={targetLabel}
+          picking={picking}
+          pending={disabled || pending}
+          size="sm"
+          className={attached || picking ? "" : "hidden group-focus-within/add:flex"}
+          onToggle={() => setPicking((v) => !v)}
+          onDetach={detach}
+        />
+      </form>
+      {picking ? <Picker docs={docs} onPick={pick} /> : null}
+    </div>
   );
 }
 
@@ -191,6 +233,7 @@ export function UpcomingColumn({
   later,
   ready,
   actions,
+  docs,
   onAddOnDay,
 }: {
   today: string;
@@ -198,7 +241,9 @@ export function UpcomingColumn({
   later: TodoItem[];
   ready: boolean;
   actions: RowActions;
-  onAddOnDay: (text: string, day: string) => Promise<boolean>;
+  /** 关联文章的候选池：用户看得见的文章 */
+  docs: DocMeta[];
+  onAddOnDay: (text: string, day: string, target: AddTarget) => Promise<boolean>;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -249,7 +294,8 @@ export function UpcomingColumn({
               <DayAdd
                 label={t("＋ 添加到{day}", { day: name })}
                 disabled={!ready}
-                onSubmit={(text) => onAddOnDay(text, day)}
+                docs={docs}
+                onSubmit={(text, target) => onAddOnDay(text, day, target)}
               />
             </div>
           </div>

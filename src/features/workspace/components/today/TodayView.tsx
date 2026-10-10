@@ -17,8 +17,8 @@ import type { DueRange } from "@/lib/todos/parse";
 import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { RowActions } from "./parts";
+import type { AddTarget } from "./AddTarget";
 import { doneToday } from "./doneToday";
-import type { AddTarget } from "./QuickAdd";
 import { TodayMain } from "./TodayMain";
 import { UpcomingColumn } from "./UpcomingColumn";
 import { useTodoOptimism } from "./useTodoOptimism";
@@ -147,8 +147,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   // 左栏的输入框是「今天」的，记下的事带上今天的日期标签，过了今天就成逾期、不会悄悄消失
   const addToday = (text: string, target: AddTarget) => add(text, target, today);
-  // 往某一天记：带绝对日期标签写进待办清单那篇（parseDueTag 认 @YYYY-MM-DD）
-  const addOnDay = (text: string, day: string) => add(text, { kind: "notes" }, day);
+  // 往某一天记：带绝对日期标签写进待办清单那篇（parseDueTag 认 @YYYY-MM-DD），关联与左栏同样处理
+  const addOnDay = (text: string, day: string, target: AddTarget) => add(text, target, day);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -170,6 +170,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
           later={buckets.later}
           ready={allDocs !== null}
           actions={actions}
+          docs={docs ?? []}
           onAddOnDay={addOnDay}
         />
       </div>

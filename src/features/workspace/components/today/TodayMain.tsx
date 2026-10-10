@@ -26,7 +26,8 @@ import {
   TodoBox,
   type RowActions,
 } from "./parts";
-import { QuickAdd, type AddTarget } from "./QuickAdd";
+import type { AddTarget } from "./AddTarget";
+import { QuickAdd } from "./QuickAdd";
 
 /** 行尾 hover 才露出来的小按钮（关联文章 / 变更日期）：标成菜单触发器，开关由按钮自己 toggle */
 function MenuTrigger({ open, onClick, children }: { open: boolean; onClick: () => void; children: React.ReactNode }) {
