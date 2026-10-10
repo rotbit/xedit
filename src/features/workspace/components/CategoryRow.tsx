@@ -1,6 +1,6 @@
 "use client";
 
-import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from "lucide-react";
 import {
   DROP_HL,
   DROP_LINE_BOTTOM,
@@ -88,7 +88,8 @@ export function CategoryRow({
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
           title={name}
         >
-          {/* 14px 图标位：平时是合着的文件夹，悬停与展开时是打开的；有子项时点图标收起 / 展开 */}
+          {/* 14px 图标位：平时是文件夹；有子项时悬停换成折叠箭头，展开后箭头常驻（转 90°）。
+              没有子项的文件夹永远只是图标，不给箭头 */}
           <span
             className={`relative flex h-[14px] w-[14px] shrink-0 items-center justify-center ${iconTone(active)} ${hasChildren ? "cursor-pointer" : ""}`}
             onClick={
@@ -100,13 +101,25 @@ export function CategoryRow({
                 : undefined
             }
           >
-            {/* 悬停就「打开」：像凑近时文件夹自己张开，比换成一个箭头少一次形状跳变；展开着的一直是打开的 */}
-            <span className={`flex ${isOpen ? "hidden" : "group-hover/cat:hidden"}`}>
-              <Folder size={14} />
+            <span
+              className={`flex transition-opacity duration-100 ${
+                !hasChildren ? "" : isOpen ? "opacity-0" : "group-hover/cat:opacity-0"
+              }`}
+            >
+              {isOpen ? <FolderOpen size={14} /> : <Folder size={14} />}
             </span>
-            <span className={`flex ${isOpen ? "" : "hidden group-hover/cat:flex"}`}>
-              <FolderOpen size={14} />
-            </span>
+            {hasChildren ? (
+              <span
+                className={`absolute inset-0 flex items-center justify-center transition-opacity duration-100 ${
+                  isOpen ? "opacity-100" : "opacity-0 group-hover/cat:opacity-100"
+                }`}
+              >
+                <ChevronRight
+                  size={14}
+                  className={`transition-transform ${isOpen ? "rotate-90" : ""}`}
+                />
+              </span>
+            ) : null}
           </span>
           {/* 不显示篇数：目录树只管导航，数字挂在每行右侧只是噪音 */}
           <span className="min-w-0 flex-1 truncate">{name}</span>
