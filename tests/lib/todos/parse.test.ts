@@ -10,6 +10,7 @@ import {
   setPublishDate,
   setTaskLineDue,
   setTaskLineLink,
+  setTaskLineRepeat,
   toggleTaskLine,
 } from "@/lib/todos/parse";
 
@@ -35,13 +36,13 @@ describe("parseTasks", () => {
       "- [] 不是任务",
     ].join("\n");
     expect(parseTasks(md, T)).toEqual([
-      { line: 3, checked: false, text: "第一件", due: "2026-10-09", end: null },
-      { line: 12, checked: true, text: "第二件", due: null, end: null },
+      { line: 3, checked: false, text: "第一件", due: "2026-10-09", end: null, repeat: null },
+      { line: 12, checked: true, text: "第二件", due: null, end: null, repeat: null },
     ]);
   });
 
   it("\\r\\n 换行同样能认", () => {
-    expect(parseTasks("a\r\n- [ ] 事\r\n", T)).toEqual([{ line: 1, checked: false, text: "事", due: null, end: null }]);
+    expect(parseTasks("a\r\n- [ ] 事\r\n", T)).toEqual([{ line: 1, checked: false, text: "事", due: null, end: null, repeat: null }]);
   });
 });
 
@@ -177,5 +178,67 @@ describe("关联文章", () => {
     expect(setTaskLineLink(md, 1, null, T)).toBe("# A\r\n  - [ ] 补数据 @明天\r\n- [ ] 别动 [[a]]\r\n");
     expect(setTaskLineLink("- [x] 写 [[a]]", 0, null, T)).toBe("- [x] 写");
     expect(setTaskLineLink("正文 [[a]]", 0, null, T)).toBe("正文 [[a]]");
+  });
+});
+
+describe("每日任务", () => {
+  it("parseTasks 认 @每天 / @daily（不分大小写），due 恒为今天、没有结束日", () => {
+    const md = "- [ ] 跑步 @每天\n- [ ] Read @Daily\n- [ ] 背单词 @daily:2026-10-01";
+    expect(parseTasks(md, T)).toEqual([
+      { line: 0, checked: false, text: "跑步", due: T, end: null, repeat: "daily" },
+      { line: 1, checked: false, text: "Read", due: T, end: null, repeat: "daily" },
+      { line: 2, checked: false, text: "背单词", due: T, end: null, repeat: "daily" },
+    ]);
+  });
+
+  it("只有标签里的完成日是今天才算做了，勾选框不作数", () => {
+    const md = [
+      `- [x] a @每天:${T}`,
+      "- [x] b @每天:2026-10-07",
+      "- [x] c @每天",
+      `- [ ] d @daily:${T}`,
+    ].join("\n");
+    expect(parseTasks(md, T).map((t) => t.checked)).toEqual([true, false, false, true]);
+  });
+
+  it("冒号后不是合法日期的整个不认，原样当文字", () => {
+    for (const tag of ["每天:abc", "每天:", "每天:2026-1-3", "每天:2026-02-30", "每天们", "everyday"]) {
+      expect(parseTasks(`- [ ] 跑步 @${tag}`, T)[0]).toMatchObject({ text: `跑步 @${tag}`, due: null, repeat: null });
+    }
+  });
+
+  it("toggleTaskLine 勾上写完成日、取消去掉日期，保留用户的写法与行尾字节", () => {
+    expect(toggleTaskLine("- [ ] 跑步 @每天\r\n- [ ] 别动 @每天", 0, true, T)).toBe(`- [x] 跑步 @每天:${T}\r\n- [ ] 别动 @每天`);
+    expect(toggleTaskLine("- [x] Read @Daily:2026-10-01  ", 0, true, T)).toBe(`- [x] Read @Daily:${T}  `);
+    expect(toggleTaskLine(`- [x] 跑步 @每天:${T}`, 0, false, T)).toBe("- [ ] 跑步 @每天");
+    // 普通日期标签不受影响
+    expect(toggleTaskLine("- [ ] 写稿 @明天", 0, true, T)).toBe("- [x] 写稿 @明天");
+  });
+
+  it("setTaskLineDue 把每日任务改成单日待办，昨天留下的 [x] 不跟过来", () => {
+    expect(setTaskLineDue("- [x] 跑步 @每天:2026-10-07", 0, { due: "2026-10-12", end: null }, T)).toBe("- [ ] 跑步 @2026-10-12");
+    expect(setTaskLineDue("- [ ] 跑步 [[a]] @daily", 0, { due: T, end: null }, T)).toBe(`- [ ] 跑步 [[a]] @${T}`);
+    expect(setTaskLineDue("- [ ] 跑步 @每天", 0, null, T)).toBe("- [ ] 跑步");
+  });
+
+  it("setTaskLineRepeat 设：换掉日期标签，追加 @每天；已是重复的不动", () => {
+    expect(setTaskLineRepeat("- [ ] 跑步 @明天\r\n", 0, true, T)).toBe("- [ ] 跑步 @每天\r\n");
+    expect(setTaskLineRepeat("- [ ] 跑步", 0, true, T)).toBe("- [ ] 跑步 @每天");
+    expect(setTaskLineRepeat("- [ ] 问 @老王", 0, true, T)).toBe("- [ ] 问 @老王 @每天");
+    expect(setTaskLineRepeat("- [ ] 跑步 [[a]] @2026-10-12", 0, true, T)).toBe("- [ ] 跑步 [[a]] @每天");
+    expect(setTaskLineRepeat("- [ ] 跑步 @daily", 0, true, T)).toBe("- [ ] 跑步 @daily");
+    expect(setTaskLineRepeat("正文", 0, true, T)).toBe("正文");
+  });
+
+  it("setTaskLineRepeat 取消：换成今天的日期，勾选框按今天做没做", () => {
+    expect(setTaskLineRepeat("- [x] 跑步 @每天:2026-10-07", 0, false, T)).toBe(`- [ ] 跑步 @${T}`);
+    expect(setTaskLineRepeat(`- [x] 跑步 [[a]] @每天:${T}`, 0, false, T)).toBe(`- [x] 跑步 [[a]] @${T}`);
+    expect(setTaskLineRepeat("- [ ] 跑步 @明天", 0, false, T)).toBe("- [ ] 跑步 @明天");
+  });
+
+  it("关联标记与重复标签并存：剥得开、改关联时标签原样接回", () => {
+    expect(parseTaskRaw(`跑步 [[abc]] @每天:${T}`, T)).toEqual({ text: "跑步", due: T, end: null, link: "abc" });
+    expect(setTaskLineLink("- [ ] 跑步 @每天:2026-10-07", 0, "a", T)).toBe("- [ ] 跑步 [[a]] @每天:2026-10-07");
+    expect(setTaskLineLink("- [ ] 跑步 [[a]] @daily", 0, null, T)).toBe("- [ ] 跑步 @daily");
   });
 });

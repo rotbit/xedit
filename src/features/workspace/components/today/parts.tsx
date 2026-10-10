@@ -50,6 +50,8 @@ export interface RowActions {
   onOpenDoc: (id: string) => void;
   /** 改日期：开始日 + 可选结束日（时间段）；null = 去掉日期 */
   onMove: (item: TodoItem, range: DueRange | null) => void;
+  /** 设 / 取消每日重复 */
+  onRepeat: (item: TodoItem, on: boolean) => void;
   onRemove: (item: TodoItem) => void;
   /** 关联 / 更换 / 取消关联（null）文章 */
   onLink: (item: TodoItem, link: string | null) => void;

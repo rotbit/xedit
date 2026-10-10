@@ -78,6 +78,10 @@ export const workspace: Record<string, string> = {
   "持续到…": "Until…",
   "第 {n} 天": "Day {n}",
   删除这条: "Delete",
+  // 每日任务
+  每天: "Daily",
+  每天重复: "Repeat daily",
+  不再重复: "Stop repeating",
   接下来: "Coming Up",
   "＋ 添加到{day}": "+ Add to {day}",
   "还有 {n} 件": "{n} more",

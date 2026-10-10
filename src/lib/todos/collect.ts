@@ -11,8 +11,7 @@ import { getDocContent } from "@/lib/docContent";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { isTemplateDoc } from "@/lib/templates";
 import type { DocMeta } from "@/features/workspace/types";
-import { parseDueTag } from "./dates";
-import { isNotesDoc, parsePublish, parseTaskLines, parseTaskRaw, type RawTask } from "./parse";
+import { isNotesDoc, parsePublish, parseTaskLines, resolveTask, type RawTask } from "./parse";
 
 export interface TodoItem {
   /** `${docId}:${line}`，publish 来源的 line 为 -1 */
@@ -24,7 +23,10 @@ export interface TodoItem {
   due: string | null;
   /** 时间段的结束日（`@开始~结束`），due 是开始日；单日、没日期与 publish 来源为 null */
   end: string | null;
+  /** 每日任务的 checked 只表示「今天做了没」，第二天自动回到没做 */
   checked: boolean;
+  /** 每日任务（`@每天` / `@daily`）：due 恒为今天、end 为 null，所以只会落在今天或已完成 */
+  repeat: "daily" | null;
   source: "doc" | "notes" | "publish";
   /** 关联文章的 docId（清单行尾的 `[[docId]]`）；只有 notes 来源会有，其它来源一律 null */
   link: string | null;
@@ -89,10 +91,8 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
     const source = row.isNotes ? "notes" : "doc";
     for (const t of row.tasks) {
       // 关联标记只在清单里认：文章正文里的 `[[…]]` 是用户自己写的字，原样显示
-      const { text, due, end, link } = row.isNotes
-        ? parseTaskRaw(t.raw, today)
-        : { ...parseDueTag(t.raw, today), link: null };
-      out.push({ key: `${doc.id}:${t.line}`, docId: doc.id, docTitle, line: t.line, text, due, end, checked: t.checked, source, link });
+      const { text, due, end, link, repeat, checked } = resolveTask(t.raw, t.checked, today, row.isNotes);
+      out.push({ key: `${doc.id}:${t.line}`, docId: doc.id, docTitle, line: t.line, text, due, end, checked, repeat, source, link });
     }
     if (row.publish.due && !row.publish.published) {
       out.push({
@@ -104,6 +104,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
         due: row.publish.due,
         end: null,
         checked: false,
+        repeat: null,
         source: "publish",
         link: null,
       });

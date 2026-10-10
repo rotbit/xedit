@@ -7,7 +7,7 @@
  * 再往下是折叠着的「这几天做完」，近一周按天回顾。
  */
 import { useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, Repeat } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
@@ -77,12 +77,13 @@ function TodoRow({
   const menuOpen = actions.menuId === id;
   const linkId = `${id}|link`;
   const linkOpen = actions.menuId === linkId;
-  // 时间段过了结束日才算逾期；逾期标签上的日期也是结束日
+  const repeat = item.repeat !== null;
+  // 时间段过了结束日才算逾期；逾期标签上的日期也是结束日。每日任务的 due 是现算的今天，不会逾期也不成段
   const last = item.end ?? item.due;
-  const late = !done && last !== null && last < today;
+  const late = !repeat && !done && last !== null && last < today;
   // 进行中的时间段：注明起止和今天是第几天（逾期的照样显示逾期标签）
   const span =
-    !done && !late && item.due && item.end
+    !repeat && !done && !late && item.due && item.end
       ? {
           range: `${formatMonthDay(item.due, today, locale)} – ${formatMonthDay(item.end, today, locale)}`,
           n: daysBetween(item.due, today) + 1,
@@ -122,7 +123,12 @@ function TodoRow({
           </div>
         ) : null}
       </div>
-      {late && last ? (
+      {repeat ? (
+        <span className="mt-[3px] flex shrink-0 items-center gap-1 py-px text-[11px] text-[var(--ink-faint)]">
+          <Repeat size={12} className="text-[var(--ink-faint)]" aria-hidden />
+          {t("每天")}
+        </span>
+      ) : late && last ? (
         <span className="mt-[3px] shrink-0 rounded-[4px] bg-[var(--seal-wash)] px-1.5 py-px text-[11px] tabular-nums text-[var(--seal)]">
           {t("{date} 逾期", { date: formatDue(last, today, locale) })}
         </span>
@@ -147,6 +153,7 @@ function TodoRow({
           item={item}
           today={today}
           onMove={(due) => actions.onMove(item, due)}
+          onRepeat={(on) => actions.onRepeat(item, on)}
           onRemove={() => actions.onRemove(item)}
           onClose={() => actions.setMenuId(null)}
         />

@@ -2,11 +2,20 @@
  * 待办写回：走真实的本地文档存储（未登录 / 本地模式那条路），
  * 编辑器没挂着任何一篇，所以读写都直接落存储。
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDocContent } from "@/lib/docContent";
 import { createLocalDoc, listLocalDocs } from "@/lib/localDocs";
 import type { TodoItem } from "@/lib/todos/collect";
-import { addNoteTask, addTaskToDoc, deleteTask, NOTES_TITLE, setTaskDue, setTaskLink } from "@/lib/todos/write";
+import {
+  addNoteTask,
+  addTaskToDoc,
+  deleteTask,
+  NOTES_TITLE,
+  setTaskChecked,
+  setTaskDue,
+  setTaskLink,
+  setTaskRepeat,
+} from "@/lib/todos/write";
 
 const item = (docId: string, line: number, text: string, source: TodoItem["source"] = "doc"): TodoItem => ({
   key: `${docId}:${line}`,
@@ -17,6 +26,7 @@ const item = (docId: string, line: number, text: string, source: TodoItem["sourc
   due: null,
   end: null,
   checked: false,
+  repeat: null,
   source,
   link: null,
 });
@@ -88,5 +98,27 @@ describe("setTaskLink", () => {
     expect(getDocContent(doc.id)).toBe("---\ntype: todo\n---\n- [ ] 补数据 [[x2]] @2026-10-20\n");
     await setTaskLink(item(doc.id, 3, "补数据", "notes"), null);
     expect(getDocContent(doc.id)).toBe("---\ntype: todo\n---\n- [ ] 补数据 @2026-10-20\n");
+  });
+});
+
+describe("每日任务写回", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("勾选找得到昨天留着 [x] 的那条；勾上写今天，取消去日期；设 / 取消重复", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 10, 9));
+    const doc = createLocalDoc({ title: "A", content: "新插的一行\n# A\n- [x] 跑步 @每天:2026-10-09\n" });
+    // 行号对不上、原始框又是 [x]：照样认出这是今天还没做的那条
+    await setTaskChecked(item(doc.id, 1, "跑步"), true);
+    expect(getDocContent(doc.id)).toBe("新插的一行\n# A\n- [x] 跑步 @每天:2026-10-10\n");
+    await setTaskChecked({ ...item(doc.id, 2, "跑步"), checked: true, repeat: "daily" }, false);
+    expect(getDocContent(doc.id)).toBe("新插的一行\n# A\n- [ ] 跑步 @每天\n");
+
+    await setTaskRepeat(item(doc.id, 2, "跑步"), false);
+    expect(getDocContent(doc.id)).toBe("新插的一行\n# A\n- [ ] 跑步 @2026-10-10\n");
+    await setTaskRepeat(item(doc.id, 2, "跑步"), true);
+    expect(getDocContent(doc.id)).toBe("新插的一行\n# A\n- [ ] 跑步 @每天\n");
   });
 });

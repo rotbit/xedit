@@ -5,6 +5,8 @@
  * 「持续到…」设时间段的结束日，再加删除。左右两栏共用，绝对定位在触发行的右下方（触发行要带 relative）。
  * 改开始日时结束日照留（早于新开始日就丢掉，变回单日）。
  * 发布排期不给删除也不给时间段：没有正文行可删，发布是某一天的事。
+ * 每日任务的 due 是现算的「今天」，并非用户定的日期：任何落点（含今天）都算一次改动，
+ * 选了就变回普通的单日待办；取消重复单独一项，落到今天。
  */
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
@@ -61,12 +63,14 @@ export function MoveMenu({
   item,
   today,
   onMove,
+  onRepeat,
   onRemove,
   onClose,
 }: {
   item: TodoItem;
   today: string;
   onMove: (range: DueRange) => void;
+  onRepeat: (on: boolean) => void;
   onRemove: () => void;
   onClose: () => void;
 }) {
@@ -77,17 +81,20 @@ export function MoveMenu({
   const t = useT();
   const locale = useLocale();
   const isPublish = item.source === "publish";
+  const repeat = item.repeat !== null;
+  /** 菜单眼里的「当前日期」：每日任务没有定下的日期 */
+  const due = repeat ? null : item.due;
 
   const pick = (range: DueRange) => {
     onClose();
-    if (range.due !== item.due || range.end !== item.end) onMove(range);
+    if (range.due !== due || range.end !== item.end) onMove(range);
   };
   /** 改开始日：结束日照留，早于新开始日（或就是同一天）就丢掉，变回单日 */
   const moveStart = (due: string) => pick({ due, end: item.end && item.end > due ? item.end : null });
 
   const start = item.due ?? today;
-  const startDraft = useDateDraft(item.due ?? "", (v) => {
-    if (DATE_RE.test(v) && v !== item.due) moveStart(v);
+  const startDraft = useDateDraft(due ?? "", (v) => {
+    if (DATE_RE.test(v) && v !== due) moveStart(v);
   });
   const endDraft = useDateDraft(item.end ?? "", (v) => {
     // 清空 = 不再持续，变回单日；早于开始日的不认（min 拦不住手敲）
@@ -100,7 +107,9 @@ export function MoveMenu({
     { label: t("明天"), due: shiftDay(today, 1) },
     { label: t("下周一"), due: nextMonday(today) },
   ];
-  const current = !item.due
+  const current = repeat
+    ? t("每天")
+    : !item.due
     ? t("没定日期")
     : item.end
       ? `${formatMonthDay(item.due, today, locale)} – ${formatMonthDay(item.end, today, locale)}`
@@ -117,7 +126,7 @@ export function MoveMenu({
         <span className="tabular-nums">{current}</span>
       </div>
       {presets.map((p) => {
-        const same = p.due === item.due;
+        const same = p.due === due;
         return (
           <button
             key={p.label}
@@ -144,6 +153,17 @@ export function MoveMenu({
             <span>{t("持续到…")}</span>
             <input type="date" className={dateInputCls} min={start} {...endDraft} />
           </label>
+          <button
+            type="button"
+            role="menuitem"
+            className={itemCls}
+            onClick={() => {
+              onClose();
+              onRepeat(!repeat);
+            }}
+          >
+            {repeat ? t("不再重复") : t("每天重复")}
+          </button>
           <div className="mx-1 my-1 border-t border-[var(--hairline-soft)]" />
           <button
             type="button"

@@ -6,7 +6,7 @@
  */
 
 import { parseFrontmatter, setFrontmatterValue } from "@/lib/frontmatter";
-import { isDueTag, parseDueTag, todayKey } from "./dates";
+import { isDueTag, parseRepeatTag, parseTaskTag, todayKey } from "./dates";
 
 export interface ParsedTask {
   /** 0 起的行号（按 \n 切分，含 frontmatter 那几行），改写时按它定位 */
@@ -17,6 +17,8 @@ export interface ParsedTask {
   due: string | null;
   /** 时间段 `@开始~结束` 的结束日；单个日期或没日期为 null */
   end: string | null;
+  /** 行尾是 `@每天` / `@daily`：due 恒为今天，checked 只看标签里的完成日 */
+  repeat: "daily" | null;
 }
 
 /** 未解析日期标签的原始任务行：缓存存这一份，日期标签留到取用时按「今天」现算 */
@@ -27,6 +29,11 @@ export interface RawTask {
 }
 
 const TASK_RE = /^\s*[-*+]\s+\[( |x|X)\]\s+(.+)$/;
+/** 行首到勾选框：$2 是框里那个字符 */
+const BOX_RE = /^(\s*[-*+]\s+\[)( |x|X)(\])/;
+
+/** 把前缀（缩进 + `- [ ] `）里的勾选框改成 checked 对应的样子 */
+const withBox = (prefix: string, checked: boolean) => prefix.replace(BOX_RE, `$1${checked ? "x" : " "}$3`);
 /** 围栏代码块：最多缩进 3 格，``` 或 ~~~ 至少三个 */
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
 
@@ -70,24 +77,49 @@ export function parseTaskLines(md: string): RawTask[] {
 /** 行尾的关联标记 `[[docId]]`：只认一个，且在日期标签之前（日期标签先剥） */
 const LINK_RE = /\s*\[\[([^\[\]\s]+)\]\]$/;
 
+export interface ResolvedTask {
+  text: string;
+  due: string | null;
+  end: string | null;
+  link: string | null;
+  repeat: "daily" | null;
+  checked: boolean;
+}
+
 /**
- * 解析一条任务的原文：先剥行尾日期标签，再剥紧挨着的关联标记 `[[docId]]`。
- * 格式是 `文字 [[docId]] @日期`；句中的 `[[x]]` 不算，剥完没字了也不剥（同 parseDueTag 的口径）。
+ * 一条任务原文 + 勾选框 → 界面要的全部信息。先剥行尾日期 / 重复标签，withLink 时再剥紧挨着的
+ * 关联标记 `[[docId]]`（只有待办清单认它：文章正文里的 `[[…]]` 是用户自己写的字）。
+ * 格式是 `文字 [[docId]] @标签`；句中的 `[[x]]` 不算，剥完没字了也不剥（同 parseDueTag 的口径）。
+ * 每日任务不看勾选框：昨天勾上留下的 `[x]` 今天不算数，只认标签里的完成日是不是今天。
  */
+export function resolveTask(raw: string, checked: boolean, today: string, withLink: boolean): ResolvedTask {
+  const tag = parseTaskTag(raw, today);
+  let text = tag.text;
+  let link: string | null = null;
+  const m = withLink ? LINK_RE.exec(text) : null;
+  const rest = m ? text.slice(0, m.index).trimEnd() : "";
+  if (m && rest) {
+    text = rest;
+    link = m[1];
+  }
+  const done = tag.repeat ? tag.last === today : checked;
+  return { text, due: tag.due, end: tag.end, link, repeat: tag.repeat, checked: done };
+}
+
+/** 待办清单一行的文字、日期与关联（不管勾选）；口径见 resolveTask */
 export function parseTaskRaw(
   raw: string,
   today: string
 ): { text: string; due: string | null; end: string | null; link: string | null } {
-  const { text, due, end } = parseDueTag(raw, today);
-  const m = LINK_RE.exec(text);
-  if (!m) return { text, due, end, link: null };
-  const rest = text.slice(0, m.index).trimEnd();
-  if (!rest) return { text, due, end, link: null };
-  return { text: rest, due, end, link: m[1] };
+  const { text, due, end, link } = resolveTask(raw, false, today, true);
+  return { text, due, end, link };
 }
 
 export function parseTasks(md: string, today: string): ParsedTask[] {
-  return parseTaskLines(md).map(({ line, checked, raw }) => ({ line, checked, ...parseDueTag(raw, today) }));
+  return parseTaskLines(md).map(({ line, checked, raw }) => {
+    const r = resolveTask(raw, checked, today, false);
+    return { line, checked: r.checked, text: r.text, due: r.due, end: r.end, repeat: r.repeat };
+  });
 }
 
 /** frontmatter 里的一个标量值（列表写法不算） */
@@ -116,12 +148,23 @@ export function isNotesDoc(md: string): boolean {
   return scalar(fm?.data ?? {}, "type")?.toLowerCase() === "todo";
 }
 
-/** 只改第 line 行的勾选框；那一行不是任务项就原样返回 */
-export function toggleTaskLine(md: string, line: number, checked: boolean): string {
+/**
+ * 只改第 line 行的勾选框；那一行不是任务项就原样返回。
+ * 每日任务（行尾 `@每天` / `@daily`）另把完成日写进标签：勾上记成 `@每天:今天`，取消就去掉日期——
+ * 光靠 `[x]` 分不出是今天还是哪天勾的，第二天它得自己变回没做。today 不传取本地今天，测试可固定。
+ */
+export function toggleTaskLine(md: string, line: number, checked: boolean, today: string = todayKey()): string {
   const lines = md.split("\n");
   const target = lines[line];
   if (target === undefined) return md;
-  const next = target.replace(/^(\s*[-*+]\s+\[)( |x|X)(\])/, `$1${checked ? "x" : " "}$3`);
+  if (!BOX_RE.test(target)) return md;
+  const next = target
+    .replace(BOX_RE, `$1${checked ? "x" : " "}$3`)
+    // 行尾空白（含 \r）原样接回去，只换标签那几个字
+    .replace(/(\s@)(\S+)(\s*)$/, (all, at: string, tag: string, tail: string) => {
+      const rep = parseRepeatTag(tag);
+      return rep ? `${at}${checked ? `${rep.word}:${today}` : rep.word}${tail}` : all;
+    });
   if (next === target) return md;
   lines[line] = next;
   return lines.join("\n");
@@ -192,14 +235,20 @@ export function setTaskLineDue(
   const m = /^(\s*[-*+]\s+\[(?: |x|X)\]\s+)(.+)$/.exec(cr ? target.slice(0, -1) : target);
   if (!m) return md;
   let text = m[2].trimEnd();
+  let prefix = m[1];
   const tag = /(^|\s)@(\S+)$/.exec(text);
   if (tag && isDueTag(tag[2], today)) {
     const rest = text.slice(0, tag.index).trimEnd();
     // 整行只有一个标签时 parseDueTag 把它当文字，这里也不剥，免得改完成了空任务
-    if (rest) text = rest;
+    if (rest) {
+      text = rest;
+      // 每日任务改成定日期：昨天勾上留下的 `[x]` 不能跟过来，否则一挪就成了「已完成」
+      const rep = parseRepeatTag(tag[2]);
+      if (rep) prefix = withBox(prefix, rep.last === today);
+    }
   }
   const tagText = range ? (range.end ? `${range.due}~${range.end}` : range.due) : null;
-  const next = `${m[1]}${tagText ? `${text} @${tagText}` : text}${cr}`;
+  const next = `${prefix}${tagText ? `${text} @${tagText}` : text}${cr}`;
   if (next === target) return md;
   lines[line] = next;
   return lines.join("\n");
@@ -257,6 +306,40 @@ export function setTaskLineLink(md: string, line: number, link: string | null, t
   }
   const body = [text, link ? `[[${link}]]` : "", tail].filter(Boolean).join(" ");
   const next = `${m[1]}${body}${cr}`;
+  if (next === target) return md;
+  lines[line] = next;
+  return lines.join("\n");
+}
+
+/**
+ * 设 / 取消每日重复。设：剥掉行尾已有的日期或重复标签，追加 ` @每天`（关联标记照旧在它前面）。
+ * 取消：把重复标签换成今天的日期 `@today`——清单外的待办没日期就不上今天页，直接去掉会让它悄悄消失；
+ * 勾选框按「今天做没做」重写，免得昨天的 `[x]` 让它一取消就变成已完成。
+ * 缩进、前缀与行尾 \r 原样保留；不是任务项、或本来就是 / 不是重复的，原样返回。
+ */
+export function setTaskLineRepeat(md: string, line: number, on: boolean, today: string = todayKey()): string {
+  const lines = md.split("\n");
+  const target = lines[line];
+  if (target === undefined) return md;
+  const cr = target.endsWith("\r") ? "\r" : "";
+  const m = /^(\s*[-*+]\s+\[(?: |x|X)\]\s+)(.+)$/.exec(cr ? target.slice(0, -1) : target);
+  if (!m) return md;
+  let prefix = m[1];
+  let text = m[2].trimEnd();
+  const tag = /(^|\s)@(\S+)$/.exec(text);
+  const rep = tag ? parseRepeatTag(tag[2]) : null;
+  const rest = tag ? text.slice(0, tag.index).trimEnd() : "";
+  if (on) {
+    if (rep) return md;
+    // 同 setTaskLineDue：整行只有一个标签时不剥
+    if (tag && rest && isDueTag(tag[2], today)) text = rest;
+    text = `${text} @每天`; // i18n-ignore 标签数据
+  } else {
+    if (!rep) return md;
+    prefix = withBox(prefix, rep.last === today);
+    text = rest ? `${rest} @${today}` : `@${today}`;
+  }
+  const next = `${prefix}${text}${cr}`;
   if (next === target) return md;
   lines[line] = next;
   return lines.join("\n");
