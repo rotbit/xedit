@@ -43,7 +43,8 @@ interface Params {
  */
 export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
   const searchParams = useSearchParams();
-  const [activeCat, setActiveCat] = useState<string>(ALL);
+  // 首页 = 今天页（待办 + 最近在写）；ALL 视图仍在，只是从今天页「全部」或命令进入
+  const [activeCat, setActiveCat] = useState<string>(TODAY);
   const [search, setSearch] = useState("");
   // 在读哪篇不落本地：刷新后回到列表是有意的，省得每次进来都被上次那篇挡住
   const [readingId, setReading] = useState<string | null>(() => {

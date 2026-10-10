@@ -56,7 +56,8 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
     );
   }
   if (activeCat === ASSETS) return <span className={crumbNow}>{t("图片库")}</span>;
-  if (activeCat === TODAY) return <span className={crumbNow}>{t("我的待办")}</span>;
+  // 带 !readingId：?doc= 直达时文章还没取回来的那一下，别先闪一个「今天」
+  if (activeCat === TODAY && !readingId) return <span className={crumbNow}>{t("今天")}</span>;
   if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
   if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("最近打开")}</span>;
