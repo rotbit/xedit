@@ -12,6 +12,7 @@ import { getBrowserBackend, LOCAL_BACKEND_CHANGED_EVENT } from "@/lib/localBacke
 import { getActiveVault } from "@/lib/localBackend/vaultSession";
 import { listMirrorDocs } from "@/lib/docStore";
 import { startSync, syncNow, SYNC_DONE_EVENT } from "@/lib/sync";
+import { startDayLogSync } from "@/lib/todos/dayLogSync";
 import { findNotesDoc } from "@/lib/todos/collect";
 import { toast } from "@/components/Toast";
 import { t } from "@/i18n/t";
@@ -193,10 +194,13 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
       }
     };
     window.addEventListener(SYNC_DONE_EVENT, refresh);
+    // 日志同步的监听先挂上：startSync 首轮 syncNow 里就会推拉当日记录
+    const stopDayLog = startDayLogSync();
     const stop = startSync();
     return () => {
       window.removeEventListener(SYNC_DONE_EVENT, refresh);
       stop();
+      stopDayLog();
     };
   }, [loggedIn, offlineAuthed]);
 

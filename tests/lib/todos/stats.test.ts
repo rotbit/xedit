@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DayEvent } from "@/lib/todos/events";
 import { monthOf, monthStats } from "@/lib/todos/stats";
 
-const ev = (kind: DayEvent["kind"], chars?: number): DayEvent => ({ ts: 1, kind, chars });
+const ev = (kind: DayEvent["kind"], chars?: number): DayEvent => ({ id: "e", ts: 1, kind, chars });
 
 describe("monthOf", () => {
   it("取日期键的 YYYY-MM", () => {
