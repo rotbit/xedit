@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { CalendarCheck, History, PanelLeftClose, Plus, Search } from "lucide-react";
+import { CalendarCheck, PanelLeftClose, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { useDragDivider } from "@/hooks/useDragDivider";
@@ -21,14 +21,12 @@ import type { Workspace } from "../hooks/useWorkspace";
 
 /**
  * 工作区侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕。
- * 结构自上而下——工作区头 / 全局搜索 / 我的待办 · 最近打开 / 「文件夹」小标题 + 分类树 / 工具与账户。
+ * 结构自上而下——工作区头 / 全局搜索 / 今天 / 「文件夹」小标题 + 分类树 / 工具与账户。
  * 全部行共用一套网格（左内边距 8px + 14px 图标位 + 8px 间距 + 文字），图标、文字各自对齐成一条线。
  */
 export function Sidebar({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, menus, catActions } = ws;
-  const { docs } = library;
   const t = useT();
-  const allActive = nav.activeCat === ALL && !nav.readingId;
   const todayActive = nav.activeCat === TODAY && !nav.readingId;
   /** 「今天」右侧的数：逾期 + 今天到期，含清单里没定日期的。
    *  文库每次自动保存都换引用，collectTodos 按 updatedAt 缓存解析结果，重算只是遍历一遍 */
@@ -97,24 +95,15 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         </div>
       </div>
 
-      {/* 视图组：靠位置表明身份——搜索之下、文件夹之上的两条固定入口 */}
+      {/* 视图入口：搜索之下、文件夹之上。「今天」是首页——待办 + 最近在写；
+          跨文件夹的时间流（ALL 视图）不再单列一行，从今天页「最近在写 · 全部」进入 */}
       <div className="flex shrink-0 flex-col gap-0.5 px-2">
         <NavRow
           icon={<CalendarCheck size={14} />}
-          label={t("我的待办")}
+          label={t("今天")}
           active={todayActive}
           count={todoCount}
           onClick={() => nav.openCategory(TODAY)}
-        />
-        {/* 「最近打开」：全库文章按时间混排的时间流，也是搜索结果页与各处的兜底视图；
-            右键兼作根级菜单（新建文章 / 新建文件夹 / 刷新 / 导入） */}
-        <NavRow
-          icon={<History size={14} />}
-          label={t("最近打开")}
-          active={allActive}
-          disabled={docs === null}
-          onClick={() => nav.openCategory(ALL)}
-          onContextMenu={(e) => menus.openCatMenuAt(e, ALL)}
         />
       </div>
 

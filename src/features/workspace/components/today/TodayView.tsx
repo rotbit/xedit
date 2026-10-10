@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 「今天」页：左栏今天（逾期 + 今天，含清单里没定日期的），右栏接下来六天与再往后的。
+ * 「今天」页（打开应用的首页）：左栏今天（逾期 + 今天，含清单里没定日期的）+ 最近在写，右栏接下来六天与再往后的。
  * 数据全在客户端：待办从文库正文现算（collectTodos 自带缓存）。
  * 不用 useMemo：汇总有缓存，而触发重算的除了文库还有两个全局事件，挂在 memo 依赖里反而绕。
  */
@@ -202,6 +202,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
           onToggle={(item, checked) => void opt.toggle(item, checked)}
           onUndo={undo}
           onAdd={addToday}
+          nav={nav}
         />
         <UpcomingColumn
           today={today}

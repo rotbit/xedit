@@ -10,6 +10,7 @@ export const workspace: Record<string, string> = {
   "搜索文章…": "Search articles…",
   "搜索回收站…": "Search trash…",
   最近打开: "Recently Opened",
+  最近在写: "Recently edited",
   "拖动调整侧栏宽度，双击恢复默认": "Drag to resize, double-click to reset",
   图片库: "Images",
   回收站: "Trash",
