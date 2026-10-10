@@ -123,20 +123,7 @@ function TodoRow({
           </div>
         ) : null}
       </div>
-      {repeat ? (
-        <span className="mt-[3px] flex shrink-0 items-center gap-1 py-px text-[11px] text-[var(--ink-faint)]">
-          <Repeat size={12} className="text-[var(--ink-faint)]" aria-hidden />
-          {t("每天")}
-        </span>
-      ) : late && last ? (
-        <span className="mt-[3px] shrink-0 rounded-[4px] bg-[var(--seal-wash)] px-1.5 py-px text-[11px] tabular-nums text-[var(--seal)]">
-          {t("{date} 逾期", { date: formatDue(last, today, locale) })}
-        </span>
-      ) : span ? (
-        <span className="mt-[3px] shrink-0 py-px text-[11px] tabular-nums text-[var(--ink-faint)]">
-          {span.range} · {t("第 {n} 天", { n: span.n, abs: span.n })}
-        </span>
-      ) : null}
+      {/* 悬停操作在前、状态标签在后：操作平时透明但占位，标签放最右才能每行对齐，不被它们顶到行中间 */}
       {canLink ? (
         <MenuTrigger open={linkOpen} onClick={() => actions.setMenuId(linkOpen ? null : linkId)}>
           {t("关联文章")} ▾
@@ -148,6 +135,20 @@ function TodoRow({
         </MenuTrigger>
       )}
       {canRemove ? <RemoveButton label={t("删除这条待办")} onClick={() => actions.onRemove(item)} /> : null}
+      {repeat ? (
+        <span className="ml-1 mt-[3px] flex shrink-0 items-center gap-1 py-px text-[11px] text-[var(--ink-faint)]">
+          <Repeat size={12} className="text-[var(--ink-faint)]" aria-hidden />
+          {t("每天")}
+        </span>
+      ) : late && last ? (
+        <span className="ml-1 mt-[3px] shrink-0 rounded-[4px] bg-[var(--seal-wash)] px-1.5 py-px text-[11px] tabular-nums text-[var(--seal)]">
+          {t("{date} 逾期", { date: formatDue(last, today, locale) })}
+        </span>
+      ) : span ? (
+        <span className="ml-1 mt-[3px] shrink-0 py-px text-[11px] tabular-nums text-[var(--ink-faint)]">
+          {span.range} · {t("第 {n} 天", { n: span.n, abs: span.n })}
+        </span>
+      ) : null}
       {menuOpen ? (
         <MoveMenu
           item={item}
