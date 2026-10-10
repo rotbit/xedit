@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 今天页右栏「接下来」：明天起六天，一天一行；再往后的折在底部「还有 N 件」里。
+ * 今天页右栏「接下来」：明天起六天，一天一行；再往后的折在底部「还有 N 件」里，最下面是「最近打开」。
  * 这里只排期不打勾——要做的那天它自然会到左栏；每天末尾可以直接往那天记一件事，
  * 和左栏快速输入一样可选关联一篇文章（交互共用 AddTarget.tsx）：提前排的事常常就是某篇稿子的活。
  */
@@ -13,9 +13,11 @@ import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
 import { dayOfMonth, formatDue, formatMonthDay, formatWeekday, shiftDay } from "@/lib/todos/dates";
+import type { Workspace } from "../../hooks/useWorkspace";
 import type { DocMeta } from "../../types";
 import { isDefaultTarget, Picker, TargetControl, useAddTarget, type AddTarget } from "./AddTarget";
 import { MoveMenu } from "./MoveMenu";
+import { RecentDocsSection } from "./RecentDocs";
 import { itemLabel, linkedDoc, rowId, type RowActions } from "./parts";
 
 const DAYS_AHEAD = 6;
@@ -236,6 +238,7 @@ export function UpcomingColumn({
   actions,
   docs,
   onAddOnDay,
+  nav,
 }: {
   today: string;
   /** later 桶：已按日期升序 */
@@ -245,6 +248,7 @@ export function UpcomingColumn({
   /** 关联文章的候选池：用户看得见的文章 */
   docs: DocMeta[];
   onAddOnDay: (text: string, day: string, target: AddTarget) => Promise<boolean>;
+  nav: Workspace["nav"];
 }) {
   const t = useT();
   const locale = useLocale();
@@ -303,6 +307,7 @@ export function UpcomingColumn({
         );
       })}
       <Fold items={beyond} today={today} actions={actions} t={t} />
+      <RecentDocsSection docs={docs} nav={nav} />
     </aside>
   );
 }

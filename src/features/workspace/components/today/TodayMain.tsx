@@ -3,11 +3,11 @@
 /**
  * 今天页左栏：日期标题 + 快速输入 + 逾期与今天的待办。
  * 明天以后的都在右栏「接下来」，这里只放今天该处理的事（清单里没定日期的也算今天）。
- * 列表下面是「做完了」：今天勾掉的事（当日日志），刷新后从列表消失的也还留在这里；
- * 再往下是折叠着的「这几天做完」，近一周按天回顾。「最近在写」在 TodayView 里占满两栏，不在这个组件内。
+ * 列表下面是「已经完成」：今天勾掉的事（当日日志），刷新后从列表消失的也还留在这里；
+ * 再往下是默认收起的「这几天做完」，近一周按天回顾。「最近打开」在右栏 UpcomingColumn 里，不在这个组件内。
  */
 import { useState } from "react";
-import { FileText, Repeat } from "lucide-react";
+import { ChevronRight, FileText, Repeat } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
@@ -194,7 +194,46 @@ function DoneRow({ day, e, t, onUndo }: { day: string; e: DayEvent; t: TFn; onUn
   );
 }
 
-/** 「做完了」：今天勾掉的事；点勾可以改回没做 */
+/**
+ * 可折叠段的标题行：整行是按钮，左标题、右计数 + 箭头（收着朝右、展开转 90°）。
+ * 为什么用段标题折叠而不用「这几天做完 N 件 ›」那种文字链：用户要求形态统一——
+ * 两段都是同一种带线的 h2，折叠箭头和侧栏文件夹同一套语言，一眼看得出是能收起的段，而不是一句链接。
+ */
+function FoldHeader({
+  label,
+  count,
+  open,
+  onToggle,
+  t,
+}: {
+  label: string;
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+  t: TFn;
+}) {
+  return (
+    <h2>
+      <button
+        type="button"
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center justify-between border-b border-[var(--hairline)] pb-2 text-left text-[11.5px] tracking-[.14em] text-[var(--ink-faint)] hover:text-[var(--ink)]"
+        onClick={onToggle}
+      >
+        <span>{label}</span>
+        <span className="flex items-center gap-1 tracking-normal tabular-nums">
+          {t("{n} 件", { n: count, abs: count })}
+          <ChevronRight size={12} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+        </span>
+      </button>
+    </h2>
+  );
+}
+
+/**
+ * 「已经完成」：今天勾掉的事；点勾可以改回没做。
+ * 默认展开——刚勾掉的事要看得见、能撤回；一天勾掉几十条嫌长时可以收起来，让待办仍是主角。
+ */
 function DoneSection({
   today,
   done,
@@ -206,24 +245,25 @@ function DoneSection({
   t: TFn;
   onUndo: (e: DayEvent) => void;
 }) {
+  const [open, setOpen] = useState(true);
   if (done.length === 0) return null;
   return (
     <div className="mt-12">
-      <h2 className="border-b border-[var(--hairline)] pb-2 text-[11.5px] tracking-[.14em] text-[var(--ink-faint)]">
-        {t("已经完成")}
-      </h2>
-      <div className="divide-y divide-[var(--hairline-soft)]">
-        {done.map((e) => (
-          <DoneRow key={e.id} day={today} e={e} t={t} onUndo={() => onUndo(e)} />
-        ))}
-      </div>
+      <FoldHeader label={t("已经完成")} count={done.length} open={open} onToggle={() => setOpen((v) => !v)} t={t} />
+      {open ? (
+        <div className="divide-y divide-[var(--hairline-soft)]">
+          {done.map((e) => (
+            <DoneRow key={e.id} day={today} e={e} t={t} onUndo={() => onUndo(e)} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
 
 /**
- * 「这几天做完」：近一周的回顾，默认折叠成一行——它是回头看的，不该和今天的事抢视线。
- * 展开后按天分组，行与「做完了」完全一致（同一个 DoneRow），删除也落在各自那天的日志上。
+ * 「这几天做完」：近一周的回顾，默认收起——它是回头看的，不该和今天的事抢视线。
+ * 展开后按天分组，行与「已经完成」完全一致（同一个 DoneRow），删除也落在各自那天的日志上。
  */
 function RecentDoneSection({
   today,
@@ -244,16 +284,8 @@ function RecentDoneSection({
       ? t("昨天")
       : `${formatWeekday(day, locale)} · ${formatMonthDay(day, today, locale)}`;
   return (
-    <div className="mt-6">
-      <button
-        type="button"
-        aria-expanded={open}
-        className="flex w-full cursor-pointer items-center gap-1 py-2.5 text-left text-[12.5px] tabular-nums text-[var(--ink-soft)] hover:text-[var(--ink)]"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span>{t("这几天做完 {n} 件", { n, abs: n })}</span>
-        <span className={`inline-block text-[var(--ink-faint)] transition-transform ${open ? "rotate-90" : ""}`}>›</span>
-      </button>
+    <div className="mt-8">
+      <FoldHeader label={t("这几天做完")} count={n} open={open} onToggle={() => setOpen((v) => !v)} t={t} />
       {open
         ? recent.map((g) => (
             <div key={g.day} className="mt-3">

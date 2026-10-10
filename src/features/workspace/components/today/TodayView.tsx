@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * 「今天」页（打开应用的首页）：左栏今天（逾期 + 今天，含清单里没定日期的）+ 最近在写，右栏接下来六天与再往后的。
+ * 「今天」页（打开应用的首页）：左栏今天（逾期 + 今天，含清单里没定日期的）与做完的，
+ * 右栏接下来六天、再往后的，以及最近打开的文章。
  * 数据全在客户端：待办从文库正文现算（collectTodos 自带缓存）。
  * 不用 useMemo：汇总有缓存，而触发重算的除了文库还有两个全局事件，挂在 memo 依赖里反而绕。
  */
@@ -19,7 +20,6 @@ import type { Workspace } from "../../hooks/useWorkspace";
 import type { RowActions } from "./parts";
 import type { AddTarget } from "./AddTarget";
 import { doneRecent, doneToday } from "./doneToday";
-import { RecentDocsSection } from "./RecentDocs";
 import { TodayMain } from "./TodayMain";
 import { UpcomingColumn } from "./UpcomingColumn";
 import { useTodoOptimism } from "./useTodoOptimism";
@@ -189,7 +189,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-[1000px] gap-x-10 gap-y-12 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-x-14">
+      <div className="mx-auto grid w-full max-w-[1000px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-14">
         <TodayMain
           today={today}
           rows={rows}
@@ -211,9 +211,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
           actions={actions}
           docs={docs ?? []}
           onAddOnDay={addOnDay}
+          nav={nav}
         />
-        {/* 占满两栏：用掉右栏下方的空白，也让页面不至于被左栏一路拖长 */}
-        <RecentDocsSection docs={docs ?? []} nav={nav} />
       </div>
     </div>
   );
