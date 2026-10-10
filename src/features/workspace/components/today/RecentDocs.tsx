@@ -5,15 +5,18 @@
  *
  * 为什么并进今天页：打开应用默认落在这里，「今天要做的事 + 手头在写的稿子」一屏看完，
  * 不必再去侧栏点一下「最近打开」；它也是跨文件夹时间流（ALL 视图）唯一的一键入口。
- * 为什么只列 8 篇：这里是落脚点不是列表页，多了会把待办挤下去；更多的走标题右侧「全部」进 ALL 视图。
+ * 为什么只列 8 篇、排成两列：这里是落脚点不是列表页，占满两栏宽排两列四行刚好用掉右栏下方的空白，
+ * 页面也不会被拖得很长；更多的走标题右侧「全部」进 ALL 视图。
+ * 为什么不画分隔线、只给末级目录：上面待办和做完了已经是两张带线的表，这一段要轻一档才分得出主次；
+ * 完整路径前缀几乎都一样（「工作笔记/xx/2026年…」），截断后反而把有信息的末级目录截没了。
  */
 import { useMemo } from "react";
-import { ChevronRight, FileText } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useT } from "@/i18n/useT";
 import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { formatRelativeTime } from "@/lib/format";
 import { ALL } from "../../constants";
-import { displayCatPath } from "../../lib/catPath";
+import { displayCatName, nameOf } from "../../lib/catPath";
 import { recencyOf, useRecentOpens } from "../../lib/recentOpens";
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { DocMeta } from "../../types";
@@ -37,7 +40,7 @@ export function RecentDocsSection({ docs, nav }: { docs: DocMeta[]; nav: Workspa
   );
   if (recent.length === 0) return null;
   return (
-    <div className="mt-8">
+    <section className="md:col-span-2">
       <h2 className="flex items-center justify-between border-b border-[var(--hairline)] pb-2 text-[11.5px] tracking-[.14em] text-[var(--ink-faint)]">
         <span>{t("最近在写")}</span>
         <button
@@ -49,23 +52,21 @@ export function RecentDocsSection({ docs, nav }: { docs: DocMeta[]; nav: Workspa
           <ChevronRight size={12} />
         </button>
       </h2>
-      <div className="divide-y divide-[var(--hairline-soft)]">
+      <div className="mt-2 grid gap-x-10 sm:grid-cols-2">
         {recent.map(({ doc, at }) => (
           <button
             key={doc.id}
             type="button"
-            className="flex w-full cursor-pointer items-center gap-2.5 px-0.5 py-2 text-left hover:bg-[var(--paper)]"
+            className="-mx-2 flex cursor-pointer flex-col items-start gap-0.5 rounded-md px-2 py-2 text-left hover:bg-[var(--paper)]"
             onClick={() => nav.openDoc(doc.id)}
           >
-            <FileText size={14} className="shrink-0 text-[var(--ink-faint)]" />
-            <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--ink)]">{doc.title || t(UNTITLED_DOC)}</span>
-            <span className="hidden max-w-[160px] truncate text-[12px] text-[var(--ink-faint)] sm:block">
-              {displayCatPath(doc.category || UNCATEGORIZED, t)}
+            <span className="w-full truncate text-[14px] text-[var(--ink)]">{doc.title || t(UNTITLED_DOC)}</span>
+            <span className="w-full truncate text-[12px] text-[var(--ink-faint)]">
+              {displayCatName(nameOf(doc.category || UNCATEGORIZED), t)} · {formatRelativeTime(at)}
             </span>
-            <span className="shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{formatRelativeTime(at)}</span>
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

@@ -19,6 +19,7 @@ import type { Workspace } from "../../hooks/useWorkspace";
 import type { RowActions } from "./parts";
 import type { AddTarget } from "./AddTarget";
 import { doneRecent, doneToday } from "./doneToday";
+import { RecentDocsSection } from "./RecentDocs";
 import { TodayMain } from "./TodayMain";
 import { UpcomingColumn } from "./UpcomingColumn";
 import { useTodoOptimism } from "./useTodoOptimism";
@@ -188,7 +189,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-[1000px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-14">
+      <div className="mx-auto grid w-full max-w-[1000px] gap-x-10 gap-y-12 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-x-14">
         <TodayMain
           today={today}
           rows={rows}
@@ -202,7 +203,6 @@ export function TodayView({ ws }: { ws: Workspace }) {
           onToggle={(item, checked) => void opt.toggle(item, checked)}
           onUndo={undo}
           onAdd={addToday}
-          nav={nav}
         />
         <UpcomingColumn
           today={today}
@@ -212,6 +212,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
           docs={docs ?? []}
           onAddOnDay={addOnDay}
         />
+        {/* 占满两栏：用掉右栏下方的空白，也让页面不至于被左栏一路拖长 */}
+        <RecentDocsSection docs={docs ?? []} nav={nav} />
       </div>
     </div>
   );
