@@ -300,7 +300,7 @@ function RecentDoneRows({
         <span className="flex h-4 w-4 shrink-0 items-center justify-center">
           <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
         </span>
-        <span className="min-w-0 flex-1">{t("这几天做完")}</span>
+        <span className="min-w-0 flex-1">{t("更多")}</span>
         <span className="shrink-0 text-[12px] tabular-nums">{t("{n} 件", { n, abs: n })}</span>
       </button>
       {open
