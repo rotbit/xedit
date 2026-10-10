@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 今天页右栏「接下来」：明天起六天，一天一行；再往后的折在底部「还有 N 件」里，最下面是「最近打开」。
+ * 今天页右栏「接下来」：明天起六天，一天一行（连续的空日子合成一行，点开再分日）；再往后的折在底部「还有 N 件」里，最下面是「最近打开」。
  * 这里只排期不打勾——要做的那天它自然会到左栏；每天末尾可以直接往那天记一件事，
  * 和左栏快速输入一样可选关联一篇文章（交互共用 AddTarget.tsx）：提前排的事常常就是某篇稿子的活。
  */
@@ -263,6 +263,20 @@ export function UpcomingColumn({
     else byDay.get(item.due)?.push(item);
   }
   const weekCount = days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
+  // 连续两天以上都没安排时合成一行「13–16 · 周二 – 周五」：空日子和有事的日子一样高会把右栏撑得很长，
+  // 把下面的「最近打开」压出首屏。点那一行展开成单日，才能往其中某一天记事；展开状态只在本次会话里
+  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(() => new Set());
+  const groups: { from: number; to: number }[] = [];
+  for (let i = 0; i < days.length; i++) {
+    const empty = (byDay.get(days[i])?.length ?? 0) === 0;
+    let j = i;
+    while (empty && j + 1 < days.length && (byDay.get(days[j + 1])?.length ?? 0) === 0) j++;
+    if (j > i && !expandedRuns.has(days[i])) {
+      groups.push({ from: i, to: j });
+      i = j;
+    } else groups.push({ from: i, to: i });
+  }
+  const dayName = (day: string, i: number) => (i === 0 ? t("明天") : formatWeekday(day, locale));
 
   return (
     <aside className="min-w-0">
@@ -272,10 +286,31 @@ export function UpcomingColumn({
           {t("{n} 件", { n: weekCount, abs: weekCount })}
         </span>
       </div>
-      {days.map((day, i) => {
+      {groups.map(({ from, to }) => {
+        if (to > from) {
+          const a = days[from];
+          const b = days[to];
+          return (
+            <button
+              key={a}
+              type="button"
+              title={t("展开这几天")}
+              className="group/run grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)] gap-2.5 border-b border-[var(--hairline-soft)] py-2.5 text-left text-[var(--hairline-strong)] hover:text-[var(--ink-faint)]"
+              onClick={() => setExpandedRuns((p) => new Set(p).add(a))}
+            >
+              <div className="[font-family:var(--serif)] whitespace-nowrap text-[13px] leading-[18px] tabular-nums">
+                {dayOfMonth(a)}–{dayOfMonth(b)}
+              </div>
+              <div className={`min-w-0 truncate py-[3px] text-[12px] leading-[12px] ${locale === "en" ? "" : "tracking-[.14em]"}`}>
+                {dayName(a, from)} – {dayName(b, to)}
+              </div>
+            </button>
+          );
+        }
+        const day = days[from];
         const items = byDay.get(day) ?? [];
         const empty = items.length === 0;
-        const name = i === 0 ? t("明天") : formatWeekday(day, locale);
+        const name = dayName(day, from);
         return (
           <div
             key={day}
