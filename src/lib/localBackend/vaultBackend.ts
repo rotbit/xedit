@@ -162,12 +162,14 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       const dirPath = catDir(category);
       const name = uniqueName(docs.values(), dirPath, sanitizeFileName(title), null);
       const relPath = join(dirPath, name);
+      const now = new Date().toISOString();
       const meta: LocalDocMeta = {
         id: uniqueDocId(docs, relPath),
         // 文件名即标题：非法字符替换、撞名加后缀之后以磁盘上的名字为准，重开库不会变
         title: stripMd(name),
         category,
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
         ...summarize(content),
       };
       // 缓存里放副本，返回的那份给调用方自己留着（后续改动不该顺着引用倒灌回去）；

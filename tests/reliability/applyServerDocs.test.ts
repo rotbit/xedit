@@ -3,7 +3,13 @@
  * 重复的一批不该白写正文；单篇写失败（配额满）也不能连累其余篇。
  */
 import { describe, expect, it, vi } from "vitest";
-import { applyServerDocs, getMirrorContent, getMirrorMeta, listMirrorDocs } from "@/lib/docStore";
+import {
+  applyServerDocs,
+  getMirrorContent,
+  getMirrorMeta,
+  listMirrorDocs,
+  setMirrorCreatedAt,
+} from "@/lib/docStore";
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { storage } from "../setup";
 
@@ -99,5 +105,36 @@ describe("applyServerDocs", () => {
     expect(getMirrorMeta("doc-2")).toBeNull();
     expect(getMirrorMeta("doc-3")!.title).toBe("第 3 篇");
     expect(getMirrorContent("doc-4")).toBe("正文 4");
+  });
+  it("创建时间：服务端给了就落进索引；之后没给的一批不会把它抹掉", () => {
+    const createdAt = "2025-12-31T08:00:00.000Z";
+    const [doc] = makeDocs(1);
+    applyServerDocs([{ ...doc, createdAt }]);
+    expect(getMirrorMeta(doc.id)?.createdAt).toBe(createdAt);
+    applyServerDocs([{ ...doc, content: "改过的正文", updatedAt: "2026-02-01T00:00:00.000Z" }]);
+    expect(getMirrorMeta(doc.id)?.createdAt).toBe(createdAt);
+  });
+
+  it("老镜像缺创建时间：内容一致的同一篇也要写入，把创建时间补上", () => {
+    const [doc] = makeDocs(1);
+    applyServerDocs([doc]);
+    const result = applyServerDocs([{ ...doc, createdAt: "2025-12-31T08:00:00.000Z" }]);
+    expect(result.applied).toBe(1);
+    expect(getMirrorMeta(doc.id)?.createdAt).toBe("2025-12-31T08:00:00.000Z");
+  });
+
+  it("setMirrorCreatedAt 只补缺失的，不碰 updatedAt / rev / dirty", () => {
+    const [doc] = makeDocs(1);
+    applyServerDocs([doc]);
+    const before = getMirrorMeta(doc.id)!;
+    setMirrorCreatedAt(doc.id, "2025-12-31T08:00:00.000Z");
+    const after = getMirrorMeta(doc.id)!;
+    expect(after.createdAt).toBe("2025-12-31T08:00:00.000Z");
+    expect(after.updatedAt).toBe(before.updatedAt);
+    expect(after.rev).toBe(before.rev);
+    expect(after.dirty).toBe(before.dirty);
+    // 已有的不覆盖
+    setMirrorCreatedAt(doc.id, "2020-01-01T00:00:00.000Z");
+    expect(getMirrorMeta(doc.id)?.createdAt).toBe("2025-12-31T08:00:00.000Z");
   });
 });

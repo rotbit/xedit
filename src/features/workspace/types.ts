@@ -4,6 +4,8 @@ export interface DocMeta {
   id: string;
   title: string;
   category?: string;
+  /** 创建时间（ISO）。老镜像、Vault 磁盘文件可能没有 */
+  createdAt?: string;
   updatedAt: string;
   excerpt?: string;
   chars?: number;
