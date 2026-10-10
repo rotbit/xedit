@@ -29,6 +29,7 @@ import { getBrowserBackend } from "./localBackend";
 import { isSyncHeld } from "./mirrorOwner";
 import { isLocalId } from "./localDocs";
 import { getSessionEpoch, isCurrentEpoch } from "./sessionEpoch";
+import { pullDayLog, pushDayLog } from "./todos/dayLogSync";
 import { toast } from "@/components/Toast";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
 import { t } from "@/i18n/t";
@@ -332,6 +333,20 @@ export async function syncNow(): Promise<void> {
       reconcileMirror(liveIds);
       if (latest) localStorage.setItem(SYNC_CURSOR_KEY, latest);
       window.dispatchEvent(new CustomEvent(SYNC_DONE_EVENT));
+    }
+    if (!isCurrentEpoch(epoch)) return;
+    // 当日记录搭文档同步的车：同样的触发时机（进工作台、联网、回前台）。
+    // 各自吞错，日志同步失败不影响文档同步的结果，也不阻断后面的补跑
+    try {
+      await pushDayLog();
+    } catch {
+      // 下次触发再推
+    }
+    if (!isCurrentEpoch(epoch)) return;
+    try {
+      await pullDayLog(epoch);
+    } catch {
+      // 下次触发再拉
     }
   } catch {
     // 离线或服务端异常：镜像保持现状，下次触发再试

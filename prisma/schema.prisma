@@ -44,6 +44,7 @@ model User {
   feishuConnection FeishuConnection?
   feishuDocLinks   FeishuDocLink[]
   reviewRecords    ReviewRecord[]
+  dayLogEvents     DayLogEvent[]
 }
 
 model Account {
@@ -250,6 +251,27 @@ model WritingActivity {
   user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, date])
+}
+
+/// 「今天」页的当日记录：客户端生成 id 幂等上云；day 是客户端本地时区的 YYYY-MM-DD；删除用 deletedAt 墓碑让其它设备知道
+model DayLogEvent {
+  id        String
+  userId    String
+  day       String
+  ts        DateTime
+  end       DateTime?
+  kind      String
+  docId     String?
+  title     String?
+  chars     Int?
+  text      String?
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, id])
+  @@index([userId, updatedAt])
+  @@index([userId, day])
 }
 
 /// MCP 内置的 OAuth 2.1 授权服务器：动态注册（RFC 7591）的客户端。

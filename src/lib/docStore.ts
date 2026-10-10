@@ -7,6 +7,7 @@
 import { clearAuthSnapshot } from "./authSnapshot";
 import { notifyDocsChanged, summarize } from "./localDocs";
 import { bumpSessionEpoch } from "./sessionEpoch";
+import { clearDayLog } from "./todos/events";
 import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 
 export interface MirrorMeta {
@@ -248,6 +249,8 @@ export function clearMirror() {
   for (const d of readIndex()) localStorage.removeItem(DOC_PREFIX + d.id);
   localStorage.removeItem(INDEX_KEY);
   localStorage.removeItem(SYNC_CURSOR_KEY);
+  // 当日记录（含待推的脏标记）同属上一个账号，留着会被当成下一个账号的记录推上去
+  clearDayLog();
   clearAuthSnapshot();
   // 代际 +1：上一个账号还在飞的推拉请求回来时会发现代际变了，结果直接丢弃，
   // 不会把上一个账号的内容写进刚清空的镜像里
