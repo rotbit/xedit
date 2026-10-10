@@ -1,6 +1,6 @@
 "use client";
 
-import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
+import { ChevronRight, MoreHorizontal } from "lucide-react";
 import {
   DROP_HL,
   DROP_LINE_BOTTOM,
@@ -89,15 +89,9 @@ export function CategoryRow({
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
           title={name}
         >
-          {/* 14px 图标位：平时是合着的文件夹，悬停与展开时是打开的——像凑近时它自己张开。
-              整行都是展开 / 收起，所以不需要常驻箭头 */}
-          <span className={`relative flex h-[14px] w-[14px] shrink-0 items-center justify-center ${iconTone(active)}`}>
-            <span className={`flex ${isOpen ? "hidden" : "group-hover/cat:hidden"}`}>
-              <Folder size={14} />
-            </span>
-            <span className={`flex ${isOpen ? "" : "hidden group-hover/cat:flex"}`}>
-              <FolderOpen size={14} />
-            </span>
+          {/* 14px 图标位：常驻的折叠箭头（像 Obsidian），收着朝右、展开朝下；整行都是展开 / 收起 */}
+          <span className={`flex h-[14px] w-[14px] shrink-0 items-center justify-center ${iconTone(active)}`}>
+            <ChevronRight size={14} className={`transition-transform ${isOpen ? "rotate-90" : ""}`} />
           </span>
           {/* 不显示篇数：目录树只管导航，数字挂在每行右侧只是噪音 */}
           <span className="min-w-0 flex-1 truncate">{name}</span>

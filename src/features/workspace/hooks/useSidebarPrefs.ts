@@ -62,10 +62,12 @@ export function useSidebarPrefs() {
     writeLocal(K_EXPANDED, JSON.stringify(Array.from(next)));
   };
 
+  /** 展开只铺开这一层；收起连里面展开过的子目录一起收，下次再点开看到的只是当前层级 */
   const toggleExpand = (path: string) => {
     const next = new Set(expanded);
-    if (next.has(path)) next.delete(path);
-    else next.add(path);
+    if (next.has(path)) {
+      for (const p of next) if (p === path || p.startsWith(`${path}/`)) next.delete(p);
+    } else next.add(path);
     persistExpanded(next);
   };
 
