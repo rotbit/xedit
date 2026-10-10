@@ -180,10 +180,11 @@ function clock(ts: number): string {
 }
 
 /** 「做完了」里的一行：只读，不跳转；误记的可以删掉这条记录（只删日志，不动正文） */
-function DoneRow({ day, e, t }: { day: string; e: DayEvent; t: TFn }) {
+/** 做完的一行；给了 onUndo（今天的）才能点勾取消，过去几天的只读 */
+function DoneRow({ day, e, t, onUndo }: { day: string; e: DayEvent; t: TFn; onUndo?: () => void }) {
   return (
     <div className="group flex items-start gap-2.5 px-0.5 py-2">
-      <TodoBox done />
+      <TodoBox done onClick={onUndo} label={onUndo ? t("取消完成") : undefined} />
       <span className="min-w-0 flex-1 text-[14.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
         {eventLabel(e.text ?? "", e.title, t)}
       </span>
@@ -193,8 +194,18 @@ function DoneRow({ day, e, t }: { day: string; e: DayEvent; t: TFn }) {
   );
 }
 
-/** 「做完了」：今天勾掉的事 */
-function DoneSection({ today, done, t }: { today: string; done: DayEvent[]; t: TFn }) {
+/** 「做完了」：今天勾掉的事；点勾可以改回没做 */
+function DoneSection({
+  today,
+  done,
+  t,
+  onUndo,
+}: {
+  today: string;
+  done: DayEvent[];
+  t: TFn;
+  onUndo: (e: DayEvent) => void;
+}) {
   if (done.length === 0) return null;
   return (
     <div className="mt-8">
@@ -203,7 +214,7 @@ function DoneSection({ today, done, t }: { today: string; done: DayEvent[]; t: T
       </h2>
       <div className="divide-y divide-[var(--hairline-soft)]">
         {done.map((e) => (
-          <DoneRow key={e.id} day={today} e={e} t={t} />
+          <DoneRow key={e.id} day={today} e={e} t={t} onUndo={() => onUndo(e)} />
         ))}
       </div>
     </div>
@@ -272,6 +283,7 @@ export function TodayMain({
   ready,
   actions,
   onToggle,
+  onUndo,
   onAdd,
 }: {
   today: string;
@@ -290,6 +302,8 @@ export function TodayMain({
   ready: boolean;
   actions: RowActions;
   onToggle: (item: TodoItem, checked: boolean) => void;
+  /** 「做完了」里点勾：改回没做，回到列表 */
+  onUndo: (e: DayEvent) => void;
   onAdd: (text: string, target: AddTarget) => Promise<boolean>;
 }) {
   const t = useT();
@@ -330,7 +344,7 @@ export function TodayMain({
           })}
         </div>
       )}
-      <DoneSection today={today} done={done} t={t} />
+      <DoneSection today={today} done={done} t={t} onUndo={onUndo} />
       <RecentDoneSection today={today} recent={recent} t={t} />
     </div>
   );

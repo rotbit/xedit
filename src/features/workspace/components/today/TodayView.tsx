@@ -12,7 +12,7 @@ import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { splitRepeatTag, todayKey } from "@/lib/todos/dates";
-import { DAY_LOG_CHANGED_EVENT } from "@/lib/todos/events";
+import { DAY_LOG_CHANGED_EVENT, removeDayEvent, type DayEvent } from "@/lib/todos/events";
 import type { DueRange } from "@/lib/todos/parse";
 import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink, setTaskRepeat } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
@@ -146,7 +146,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   const titles = new Map((docs ?? []).map((d) => [d.id, d.title || t(UNTITLED_DOC)]));
 
-  const opt = useTodoOptimism(collectTodos(allDocs ?? [], today), today, { toggle, remove, move });
+  const all = collectTodos(allDocs ?? [], today);
+  const opt = useTodoOptimism(all, today, { toggle, remove, move });
   const { buckets } = opt;
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
   // 日志变化由 useTodaySignals 触发重渲染，这里每次渲染现读即可
@@ -156,6 +157,17 @@ export function TodayView({ ws }: { ws: Workspace }) {
   // 有回顾可看时左栏换成插画引导会把回顾挤得像误入的内容
   const allEmpty =
     rows.length === 0 && done.length === 0 && recent.length === 0 && !buckets.later.some((i) => i.due !== null);
+
+  /**
+   * 「做完了」里点勾改回没做：记录只存了文章 + 文字，按这两样找回那条待办
+   * （文章里已勾上的，或刚勾掉还没落盘、只在乐观状态里的），把行改回 `[ ]`；
+   * 记录先删，这行即刻从「做完了」消失。找不到（那行已从文章里删了）就只删记录
+   */
+  const undo = (e: DayEvent) => {
+    removeDayEvent(today, e.id);
+    const item = all.find((i) => i.docId === e.docId && i.text === e.text && (i.checked || opt.isDone(i)));
+    if (item) void opt.toggle(item, false);
+  };
 
   const actions: RowActions = {
     onOpenDoc: nav.openDoc,
@@ -188,6 +200,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
           ready={allDocs !== null}
           actions={actions}
           onToggle={(item, checked) => void opt.toggle(item, checked)}
+          onUndo={undo}
           onAdd={addToday}
         />
         <UpcomingColumn
