@@ -9,36 +9,14 @@
  * 关联文章是可选的次级动作：右侧「关联文章」点开才出搜索，有的事明确属于某篇稿子
  * （「补第三节的数据」）就关联上那篇——任务仍记在清单里，行尾带 `[[docId]]`，
  * 今天页上点它能跳过去；搜不到还可以就地新建一篇再关联。
+ * 关联目标的状态与右侧控件在 AddTarget.tsx，与右栏每天末尾的输入行共用。
  */
 import { useRef, useState } from "react";
-import { X } from "lucide-react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
 import { useT } from "@/i18n/useT";
 import type { DocMeta } from "../../types";
-import { DocPicker, type Option } from "./DocPicker";
-
-/**
- * 任务记到哪：一律记进待办清单（有就追加、没有就建），可选关联一篇现有文章（link）；
- * 或以搜索词为标题新建一篇再关联上。
- */
-export type AddTarget = { kind: "notes"; link?: string } | { kind: "new"; title: string };
-
-const NOTES: AddTarget = { kind: "notes" };
-
-/** 输入行下方的文章选择器外框 */
-function Picker({ docs, onPick }: { docs: DocMeta[]; onPick: (o: Option) => void }) {
-  const t = useT();
-  return (
-    <div
-      role="dialog"
-      aria-label={t("关联文章")}
-      className="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] p-2 text-[13px] shadow-lg"
-    >
-      <DocPicker docs={docs} onPick={onPick} />
-    </div>
-  );
-}
+import { Picker, TargetControl, useAddTarget, type AddTarget } from "./AddTarget";
 
 /**
  * 打开态的输入行（连同选择器）。关掉即卸载，下次打开是全新的状态，目标也回到独立待办。
@@ -55,10 +33,7 @@ function InputRow({
   const rowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
-  const [target, setTarget] = useState<AddTarget>(NOTES);
-  /** 关联文章时右侧标签的文字；默认目标不显示标签 */
-  const [targetLabel, setTargetLabel] = useState("");
-  const [picking, setPicking] = useState(false);
+  const { target, targetLabel, picking, setPicking, pick, detach } = useAddTarget(inputRef);
   const [pending, setPending] = useState(false);
   const t = useT();
   useDismissMenu(rowRef, onClose, true);
@@ -78,20 +53,6 @@ function InputRow({
     setPending(false);
     if (ok) onClose();
     else inputRef.current?.focus(); // 失败不关、字不清，焦点回去方便重试
-  };
-
-  const pick = (o: Option) => {
-    setTarget(o.pick.kind === "new" ? o.pick : { kind: "notes", link: o.pick.id });
-    setTargetLabel(o.pick.kind === "new" ? o.label : t("《{title}》", { title: o.label }));
-    setPicking(false);
-    // 选完让用户接着打字或直接回车
-    inputRef.current?.focus();
-  };
-
-  const detach = () => {
-    setTarget(NOTES);
-    setTargetLabel("");
-    inputRef.current?.focus();
   };
 
   return (
@@ -117,30 +78,15 @@ function InputRow({
             void submit();
           }}
         />
-        {target.kind === "notes" && !target.link ? (
-          <button
-            type="button"
-            className="shrink-0 cursor-pointer text-[12.5px] text-[var(--ink-faint)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-60"
-            disabled={pending}
-            aria-expanded={picking}
-            onClick={() => setPicking((v) => !v)}
-          >
-            {t("关联文章")}
-          </button>
-        ) : (
-          <span className="flex max-w-[40%] shrink-0 items-center gap-1 text-[12.5px] text-[var(--ink-soft)]">
-            <span className="min-w-0 truncate">{targetLabel}</span>
-            <button
-              type="button"
-              className="shrink-0 cursor-pointer rounded p-0.5 text-[var(--ink-faint)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-60"
-              aria-label={t("取消关联")}
-              disabled={pending}
-              onClick={detach}
-            >
-              <X size={12} />
-            </button>
-          </span>
-        )}
+        <TargetControl
+          target={target}
+          label={targetLabel}
+          picking={picking}
+          pending={pending}
+          size="md"
+          onToggle={() => setPicking((v) => !v)}
+          onDetach={detach}
+        />
       </div>
       {picking ? <Picker docs={docs} onPick={pick} /> : null}
     </div>
