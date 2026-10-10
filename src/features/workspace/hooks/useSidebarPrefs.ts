@@ -69,12 +69,14 @@ export function useSidebarPrefs() {
     persistExpanded(next);
   };
 
-  /** 只展开祖先节点，让这一行在树里可见；它自己的展开态不动（点分类不自动铺开内容） */
-  const expandAncestors = (path: string) => {
+  /**
+   * 展开到这个节点：祖先连同它自己一起铺开。进入一个文件夹就该看见里面有什么——
+   * 侧栏没有常驻的折叠箭头，点名字是展开子目录最自然的入口；收起走图标或「···」菜单
+   */
+  const expandPath = (path: string) => {
     const parts = path.split("/");
-    if (parts.length < 2) return;
     const next = new Set(expanded);
-    for (let i = 1; i < parts.length; i++) next.add(parts.slice(0, i).join("/"));
+    for (let i = 1; i <= parts.length; i++) next.add(parts.slice(0, i).join("/"));
     persistExpanded(next);
   };
 
@@ -112,7 +114,7 @@ export function useSidebarPrefs() {
     closeDrawerOnMobile,
     expanded,
     toggleExpand,
-    expandAncestors,
+    expandPath,
     expandOne,
     docView,
     switchDocView,
