@@ -3,13 +3,22 @@
 /**
  * 今天页左栏：日期标题 + 快速输入 + 逾期与今天的待办。
  * 明天以后的都在右栏「接下来」，这里只放今天该处理的事（清单里没定日期的也算今天）。
- * 列表下面是「做完了」：今天勾掉的事（当日日志），刷新后从列表消失的也还留在这里。
+ * 列表下面是「做完了」：今天勾掉的事（当日日志），刷新后从列表消失的也还留在这里；
+ * 再往下是折叠着的「这几天做完」，近一周按天回顾。
  */
+import { useState } from "react";
 import { FileText } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
-import { daysBetween, formatDayTitle, formatDue, formatMonthDay } from "@/lib/todos/dates";
+import {
+  daysBetween,
+  formatDayTitle,
+  formatDue,
+  formatMonthDay,
+  formatWeekday,
+  shiftDay,
+} from "@/lib/todos/dates";
 import { removeDayEvent, type DayEvent } from "@/lib/todos/events";
 import type { DocMeta } from "../../types";
 import { LinkMenu } from "./LinkMenu";
@@ -162,7 +171,21 @@ function clock(ts: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** 「做完了」：只读回顾，不跳转；误记的可以删掉这条记录（只删日志，不动正文） */
+/** 「做完了」里的一行：只读，不跳转；误记的可以删掉这条记录（只删日志，不动正文） */
+function DoneRow({ day, e, t }: { day: string; e: DayEvent; t: TFn }) {
+  return (
+    <div className="group flex items-start gap-2.5 px-0.5 py-2">
+      <TodoBox done />
+      <span className="min-w-0 flex-1 text-[14.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
+        {eventLabel(e.text ?? "", e.title, t)}
+      </span>
+      <span className="mt-[3px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>
+      <RemoveButton label={t("删除这条记录")} onClick={() => removeDayEvent(day, e.id)} />
+    </div>
+  );
+}
+
+/** 「做完了」：今天勾掉的事 */
 function DoneSection({ today, done, t }: { today: string; done: DayEvent[]; t: TFn }) {
   if (done.length === 0) return null;
   return (
@@ -172,16 +195,60 @@ function DoneSection({ today, done, t }: { today: string; done: DayEvent[]; t: T
       </h2>
       <div className="divide-y divide-[var(--hairline-soft)]">
         {done.map((e) => (
-          <div key={`${e.ts}|${e.docId ?? ""}|${e.text ?? ""}`} className="group flex items-start gap-2.5 px-0.5 py-2">
-            <TodoBox done />
-            <span className="min-w-0 flex-1 text-[14.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
-              {eventLabel(e.text ?? "", e.title, t)}
-            </span>
-            <span className="mt-[3px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>
-            <RemoveButton label={t("删除这条记录")} onClick={() => removeDayEvent(today, e.ts, "task")} />
-          </div>
+          <DoneRow key={e.id} day={today} e={e} t={t} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 「这几天做完」：近一周的回顾，默认折叠成一行——它是回头看的，不该和今天的事抢视线。
+ * 展开后按天分组，行与「做完了」完全一致（同一个 DoneRow），删除也落在各自那天的日志上。
+ */
+function RecentDoneSection({
+  today,
+  recent,
+  t,
+}: {
+  today: string;
+  recent: { day: string; events: DayEvent[] }[];
+  t: TFn;
+}) {
+  const [open, setOpen] = useState(false);
+  const locale = useLocale();
+  if (recent.length === 0) return null;
+  const n = recent.reduce((sum, g) => sum + g.events.length, 0);
+  // 昨天说「昨天」更顺口；更早的用「周三 · 10/7」，星期帮人回想、日期防歧义
+  const dayName = (day: string) =>
+    day === shiftDay(today, -1)
+      ? t("昨天")
+      : `${formatWeekday(day, locale)} · ${formatMonthDay(day, today, locale)}`;
+  return (
+    <div className="mt-6">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center gap-1 py-2.5 text-left text-[12.5px] tabular-nums text-[var(--ink-soft)] hover:text-[var(--ink)]"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{t("这几天做完 {n} 件", { n, abs: n })}</span>
+        <span className={`inline-block text-[var(--ink-faint)] transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+      </button>
+      {open
+        ? recent.map((g) => (
+            <div key={g.day} className="mt-3">
+              <h3 className="border-b border-[var(--hairline-soft)] pb-1.5 text-[11px] tracking-[.14em] tabular-nums text-[var(--ink-faint)]">
+                {dayName(g.day)}
+              </h3>
+              <div className="divide-y divide-[var(--hairline-soft)]">
+                {g.events.map((e) => (
+                  <DoneRow key={e.id} day={g.day} e={e} t={t} />
+                ))}
+              </div>
+            </div>
+          ))
+        : null}
     </div>
   );
 }
@@ -190,6 +257,7 @@ export function TodayMain({
   today,
   rows,
   done,
+  recent,
   isDone,
   docs,
   allEmpty,
@@ -203,10 +271,12 @@ export function TodayMain({
   rows: TodoItem[];
   /** 今天勾掉、且已不在 rows 里的事（doneToday 算好传进来） */
   done: DayEvent[];
+  /** 昨天到 7 天前做完的事，按天倒序（doneRecent 算好传进来） */
+  recent: { day: string; events: DayEvent[] }[];
   isDone: (item: TodoItem) => boolean;
   /** 「关联文章」的候选池：用户看得见的文章（不含待办清单那篇） */
   docs: DocMeta[];
-  /** 右栏也一件没有、今天也没做完过事：整页全空，左栏换成带插画的引导空态 */
+  /** 右栏也一件没有、今天和近一周也没做完过事：整页全空，左栏换成带插画的引导空态 */
   allEmpty: boolean;
   /** 全库是否载完：没载完时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
   ready: boolean;
@@ -253,6 +323,7 @@ export function TodayMain({
         </div>
       )}
       <DoneSection today={today} done={done} t={t} />
+      <RecentDoneSection today={today} recent={recent} t={t} />
     </div>
   );
 }
