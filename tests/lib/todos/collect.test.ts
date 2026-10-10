@@ -15,6 +15,7 @@ const item = (over: Partial<TodoItem>): TodoItem => ({
   due: null,
   end: null,
   checked: false,
+  repeat: null,
   source: "doc",
   link: null,
   ...over,
@@ -54,6 +55,31 @@ describe("bucketTodos", () => {
     expect(b.overdue.map((i) => i.key)).toEqual(["late"]);
     expect(b.later.map((i) => i.key)).toEqual(["soon"]);
     expect(b.done.map((i) => i.key)).toEqual(["doneRange"]);
+  });
+});
+
+describe("每日任务分桶", () => {
+  it("今天没做在今天、做了在已完成，从不逾期、不进以后", () => {
+    saveMirrorLocal("r", {
+      title: "待办清单",
+      content: `---\ntype: todo\n---\n- [x] 跑步 @每天:2026-10-01\n- [x] 背单词 @daily:${T}\n- [ ] 读书 @每天\n`,
+    });
+    const items = collectTodos(listMirrorDocs(), T).filter((i) => i.docId === "r");
+    expect(items.map((i) => [i.text, i.repeat, i.due, i.end, i.checked])).toEqual([
+      ["跑步", "daily", T, null, false],
+      ["背单词", "daily", T, null, true],
+      ["读书", "daily", T, null, false],
+    ]);
+    // 换一天再算：昨天做了的今天又回到没做
+    const tomorrow = collectTodos(listMirrorDocs(), "2026-10-09").filter((i) => i.docId === "r");
+    const b = bucketTodos(tomorrow, "2026-10-09");
+    expect(b.today.map((i) => i.text)).toEqual(["跑步", "背单词", "读书"]);
+    expect(b.overdue.length + b.later.length + b.done.length).toBe(0);
+
+    const bt = bucketTodos(items, T);
+    expect(bt.today.map((i) => i.text)).toEqual(["跑步", "读书"]);
+    expect(bt.done.map((i) => i.text)).toEqual(["背单词"]);
+    expect(bt.overdue.length + bt.later.length).toBe(0);
   });
 });
 

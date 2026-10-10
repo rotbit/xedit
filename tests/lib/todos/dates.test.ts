@@ -8,6 +8,7 @@ import {
   parseDueTag,
   relativeDayLabel,
   shiftDay,
+  splitRepeatTag,
   todayKey,
 } from "@/lib/todos/dates";
 
@@ -106,5 +107,21 @@ describe("dates", () => {
     expect(formatDue("2027-01-03", T, "en")).toBe("Jan 3, 2027");
     expect(formatDayTitle(T, "en")).toEqual({ main: "October 8", sub: "Thursday" });
     expect(formatDayTitle("bad", "en")).toEqual({ main: "bad", sub: "" });
+  });
+});
+
+describe("每日重复标签", () => {
+  it("isDueTag 认重复标签（带不带完成日），parseDueTag 把它算成今天", () => {
+    expect(isDueTag("每天", T)).toBe(true);
+    expect(isDueTag("DAILY:2026-10-01", T)).toBe(true);
+    expect(isDueTag("每天:abc", T)).toBe(false);
+    expect(parseDueTag("跑步 @每天:2026-10-01", T)).toEqual({ text: "跑步", due: T, end: null });
+  });
+
+  it("splitRepeatTag 拆出行尾的重复标签，别的标签不算", () => {
+    expect(splitRepeatTag("跑步 @每天  ")).toEqual({ text: "跑步", tag: "每天" });
+    expect(splitRepeatTag("Run @Daily:2026-10-01")).toEqual({ text: "Run", tag: "Daily:2026-10-01" });
+    expect(splitRepeatTag("跑步 @明天")).toBeNull();
+    expect(splitRepeatTag("跑步@每天")).toBeNull();
   });
 });

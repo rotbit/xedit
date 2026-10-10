@@ -118,9 +118,37 @@ function resolveRange(tag: string, today: string): { due: string; end: string | 
   return { due, end };
 }
 
-/** 这个 `@xxx`（不含 @）是不是 parseDueTag 认得的日期标签（含 `a~b` 时间段）；改日期时据此决定剥不剥 */
+/**
+ * 每日重复标签（不含 @）：`每天` / `daily`，可带上次完成日 `每天:2026-10-10`。
+ * 完成日记在标签里而不是另起一处：勾一下只改这一行，同步、导出、换设备都跟着正文走。
+ * 冒号后不是真实存在的补零日期就整个不认（当普通文字留着），免得半截手误被悄悄当成每日任务。
+ * word 是用户写的那个词（每天 / daily 原样大小写），改写时照用，不替用户换语言。
+ */
+export function parseRepeatTag(tag: string): { word: string; last: string | null } | null {
+  const m = /^(每天|daily)(?::(.*))?$/i.exec(tag); // i18n-ignore 标签数据
+  if (!m) return null;
+  if (m[2] === undefined) return { word: m[1], last: null };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(m[2]) || !parseKey(m[2])) return null;
+  return { word: m[1], last: m[2] };
+}
+
+/**
+ * 这个 `@xxx`（不含 @）是不是 parseDueTag 认得的标签（日期、`a~b` 时间段、每日重复）；
+ * 改日期 / 改关联时据此决定剥不剥——重复标签和日期标签同占行尾那个位置，一视同仁
+ */
 export function isDueTag(tag: string, today: string): boolean {
-  return resolveRange(tag, today) !== null;
+  return parseRepeatTag(tag) !== null || resolveRange(tag, today) !== null;
+}
+
+/**
+ * 文字末尾的每日重复标签（规则同 parseDueTag：行尾一个、前面有空白）：
+ * 拆成前面的文字和标签本身（不含 @）；没有返回 null。记一件事时据此决定还要不要补日期标签。
+ */
+export function splitRepeatTag(text: string): { text: string; tag: string } | null {
+  const trimmed = text.trimEnd();
+  const m = /(^|\s)@(\S+)$/.exec(trimmed);
+  if (!m || !parseRepeatTag(m[2])) return null;
+  return { text: trimmed.slice(0, m.index).trimEnd(), tag: m[2] };
 }
 
 /** 下周一：今天之后的第一个周一（今天就是周一则是七天后） */
@@ -140,14 +168,34 @@ export function parseDueTag(
   text: string,
   today: string
 ): { text: string; due: string | null; end: string | null } {
+  const { text: rest, due, end } = parseTaskTag(text, today);
+  return { text: rest, due, end };
+}
+
+/**
+ * parseDueTag 的完整版：多给出每日重复的信息。每日任务的 due 恒为今天、没有结束日——
+ * 它每天都该出现在左栏，既不会逾期也不会排到「接下来」；last 是标签里记的上次完成日。
+ */
+export function parseTaskTag(
+  text: string,
+  today: string
+): { text: string; due: string | null; end: string | null; repeat: "daily" | null; last: string | null } {
   const trimmed = text.trimEnd();
+  const none = { text: trimmed, due: null, end: null, repeat: null, last: null };
   const m = /(^|\s)@(\S+)$/.exec(trimmed);
-  if (!m) return { text: trimmed, due: null, end: null };
-  const range = resolveRange(m[2], today);
-  if (!range) return { text: trimmed, due: null, end: null };
+  if (!m) return none;
+  const rep = parseRepeatTag(m[2]);
+  const range = rep ? { due: today, end: null } : resolveRange(m[2], today);
+  if (!range) return none;
   const rest = trimmed.slice(0, m.index).trimEnd();
   // 整行只有一个标签时剥完就空了：保留原文，免得出现一条看不见文字的待办
-  return { text: rest || trimmed, due: range.due, end: range.end };
+  return {
+    text: rest || trimmed,
+    due: range.due,
+    end: range.end,
+    repeat: rep ? "daily" : null,
+    last: rep ? rep.last : null,
+  };
 }
 
 /** Intl 格式化器按语言缓存：今天页每行待办都要格式化一次，别反复 new */

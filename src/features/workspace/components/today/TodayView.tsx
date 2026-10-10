@@ -11,10 +11,10 @@ import { useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { collectTodos, type TodoItem } from "@/lib/todos/collect";
-import { todayKey } from "@/lib/todos/dates";
+import { splitRepeatTag, todayKey } from "@/lib/todos/dates";
 import { DAY_LOG_CHANGED_EVENT } from "@/lib/todos/events";
 import type { DueRange } from "@/lib/todos/parse";
-import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink } from "@/lib/todos/write";
+import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink, setTaskRepeat } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { RowActions } from "./parts";
 import type { AddTarget } from "./AddTarget";
@@ -77,11 +77,15 @@ export function TodayView({ ws }: { ws: Workspace }) {
   /**
    * 记一件事：一律记进待办清单那篇。行的拼法集中在这里，顺序固定为 `文字 [[docId]] @日期`——
    * 日期标签只认行尾，关联标记要在它前面。目标是「新建《…》」就先静默建好那篇，再关联上。
+   * 自己敲了 `@每天` 的是每日任务：标签就用它的、不再补日期（右栏选的那天也不管），
+   * 关联标记照样插在标签前面，排成 `文字 [[docId]] @每天`。
    */
   const add = async (text: string, target: AddTarget, due: string): Promise<boolean> => {
     try {
       const link = target.kind === "new" ? await docActions.createDocQuietly(target.title, "") : target.link;
-      const line = `${text.trim()}${link ? ` [[${link}]]` : ""} @${due}`;
+      const rep = splitRepeatTag(text);
+      const body = rep ? rep.text : text.trim();
+      const line = [body, link ? `[[${link}]]` : "", `@${rep ? rep.tag : due}`].filter(Boolean).join(" ");
       await addNoteTask(line, allDocs ?? [], docActions.createDocQuietly);
       return true;
     } catch {
@@ -108,6 +112,15 @@ export function TodayView({ ws }: { ws: Workspace }) {
     } catch {
       toast(t("没移成：浏览器存储空间不足"), "error");
       return false;
+    }
+  };
+
+  /** 同 link：写完文库会换引用、触发重算，不必乐观更新 */
+  const repeat = async (item: TodoItem, on: boolean): Promise<void> => {
+    try {
+      await setTaskRepeat(item, on);
+    } catch {
+      toast(t("保存失败：浏览器存储空间不足"), "error");
     }
   };
 
@@ -147,6 +160,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const actions: RowActions = {
     onOpenDoc: nav.openDoc,
     onMove: (item, range) => void opt.move(item, range),
+    onRepeat: (item, on) => void repeat(item, on),
     onRemove: (item) => void opt.remove(item),
     onLink: (item, id) => void link(item, id),
     onLinkNew: (item, title) => void linkNew(item, title),

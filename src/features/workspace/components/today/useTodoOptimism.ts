@@ -48,6 +48,12 @@ export function useTodoOptimism(
   }
 ): TodoOptimism {
   const [justDone, setJustDone] = useState<ItemMap>(() => new Map());
+  // 页面跨过零点：昨天勾掉的每日任务今天又该是没做，「刚勾掉」的记录得跟着作废（渲染期按日期重置）
+  const [doneDay, setDoneDay] = useState(today);
+  if (doneDay !== today) {
+    setDoneDay(today);
+    setJustDone(new Map());
+  }
   const [removed, setRemoved] = useState<ItemMap>(() => new Map());
   // 挪日期记下「从哪挪到哪」（开始日与结束日都记）：只在汇总还显示旧日期（from）时才覆盖，
   // 一旦正文落盘（或用户又在文章里改了日期）读到别的值，这条记录就自动失效，不会盖住真实数据
@@ -59,7 +65,8 @@ export function useTodoOptimism(
       const m = moved.get(i.key);
       const now = spanOf(i);
       return m && m.text === i.text && sameSpan(m.from, now) && !sameSpan(m.due, now)
-        ? { ...i, due: m.due?.due ?? null, end: m.due?.end ?? null }
+        ? // 挪过日期的每日任务就成了普通单日待办（setTaskLineDue 换掉了重复标签）
+          { ...i, due: m.due?.due ?? null, end: m.due?.end ?? null, repeat: null }
         : i;
     });
   const buckets = bucketTodos(adjusted, today);

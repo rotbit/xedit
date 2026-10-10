@@ -14,18 +14,19 @@ import { isDocOpenInEditor } from "@/lib/editor/mounted";
 import { useStore } from "@/store/useStore";
 import type { DocMeta } from "@/features/workspace/types";
 import { findNotesDoc, type TodoItem } from "./collect";
-import { parseDueTag, todayKey } from "./dates";
+import { todayKey } from "./dates";
 import { logEvent } from "./events";
 import {
   appendTask,
   markPublished,
   parseTaskLines,
-  parseTaskRaw,
   removeTaskLine,
+  resolveTask,
   type DueRange,
   setPublishDate,
   setTaskLineDue,
   setTaskLineLink,
+  setTaskLineRepeat,
   toggleTaskLine,
 } from "./parse";
 
@@ -70,17 +71,15 @@ export async function writeDocContent(docId: string, next: string): Promise<void
  * 找到这条待办此刻所在的行。列表是按缓存算的，用户可能刚在别处改过正文，
  * 行号对不上就按文字再找一次；找不到返回 -1。
  * notChecked 给定时只认勾选状态与它相反的同名任务（勾选要找还没勾的那条）；
- * 删除不挑状态，传 null。
+ * 删除不挑状态，传 null。勾选状态按 resolveTask 的口径算：每日任务的 `[x]` 可能是昨天勾的，
+ * 照原始勾选框比会把今天还没做的那条漏掉。
  */
-function locateTask(md: string, item: TodoItem, notChecked: boolean | null): number {
-  const today = todayKey();
-  const tasks = parseTaskLines(md);
-  // 口径同 collectTodos：清单行要连关联标记一起剥掉再比，正文行只剥日期标签
-  const same = (raw: string) =>
-    (item.source === "notes" ? parseTaskRaw(raw, today) : parseDueTag(raw, today)).text === item.text;
+function locateTask(md: string, item: TodoItem, notChecked: boolean | null, today: string = todayKey()): number {
+  // 口径同 collectTodos：清单行要连关联标记一起剥掉再比，正文行只剥日期 / 重复标签
+  const tasks = parseTaskLines(md).map((t) => ({ line: t.line, ...resolveTask(t.raw, t.checked, today, item.source === "notes") }));
   const exact = tasks.find((t) => t.line === item.line);
-  if (exact && same(exact.raw)) return exact.line;
-  return tasks.find((t) => (notChecked === null || t.checked !== notChecked) && same(t.raw))?.line ?? -1;
+  if (exact && exact.text === item.text) return exact.line;
+  return tasks.find((t) => (notChecked === null || t.checked !== notChecked) && t.text === item.text)?.line ?? -1;
 }
 
 /** 勾选 / 取消一条待办；勾上时记一条「完成」到当日记录 */
@@ -92,9 +91,10 @@ export async function setTaskChecked(item: TodoItem, checked: boolean): Promise<
     if (!checked) return;
     next = markPublished(md);
   } else {
-    const line = locateTask(md, item, checked);
+    const today = todayKey();
+    const line = locateTask(md, item, checked, today);
     if (line < 0) return;
-    next = toggleTaskLine(md, line, checked);
+    next = toggleTaskLine(md, line, checked, today);
   }
   if (next === md) return;
   await writeDocContent(item.docId, next);
@@ -153,6 +153,20 @@ export async function setTaskLink(item: TodoItem, link: string | null): Promise<
   const line = locateTask(md, item, null);
   if (line < 0) return;
   const next = setTaskLineLink(md, line, link);
+  if (next === md) return;
+  await writeDocContent(item.docId, next);
+}
+
+/**
+ * 设 / 取消每日重复。取消时换成今天的日期，见 setTaskLineRepeat；发布排期没有重复这回事，忽略。
+ */
+export async function setTaskRepeat(item: TodoItem, on: boolean): Promise<void> {
+  if (item.source === "publish") return;
+  const md = readDocContent(item.docId);
+  const today = todayKey();
+  const line = locateTask(md, item, null, today);
+  if (line < 0) return;
+  const next = setTaskLineRepeat(md, line, on, today);
   if (next === md) return;
   await writeDocContent(item.docId, next);
 }

@@ -107,6 +107,7 @@ function UpcomingItem({
           item={item}
           today={today}
           onMove={(due) => actions.onMove(item, due)}
+          onRepeat={(on) => actions.onRepeat(item, on)}
           onRemove={() => actions.onRemove(item)}
           onClose={() => actions.setMenuId(null)}
         />
