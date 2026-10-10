@@ -210,7 +210,7 @@ function DoneSection({
   return (
     <div className="mt-12">
       <h2 className="border-b border-[var(--hairline)] pb-2 text-[11.5px] tracking-[.14em] text-[var(--ink-faint)]">
-        {t("做完了")}
+        {t("已经完成")}
       </h2>
       <div className="divide-y divide-[var(--hairline-soft)]">
         {done.map((e) => (
