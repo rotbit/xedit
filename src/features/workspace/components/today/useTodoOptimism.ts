@@ -18,6 +18,9 @@ type Span = DueRange | null;
 const spanOf = (i: TodoItem): Span => (i.due ? { due: i.due, end: i.end } : null);
 const sameSpan = (a: Span, b: Span) => (a?.due ?? null) === (b?.due ?? null) && (a?.end ?? null) === (b?.end ?? null);
 
+/** 勾掉后划线停留多久再落到「做完了」 */
+const SETTLE_MS = 800;
+
 const sameIn = (map: Map<string, { text: string }>, item: TodoItem) => map.get(item.key)?.text === item.text;
 
 function withEntry<V>(prev: Map<string, V>, key: string, value: V | null): Map<string, V> {
@@ -30,7 +33,7 @@ function withEntry<V>(prev: Map<string, V>, key: string, value: V | null): Map<s
 export interface TodoOptimism {
   /** 套上删除 / 挪日期之后重新分的桶 */
   buckets: TodoBuckets;
-  /** 这次在页面上勾掉、但已不在逾期 / 今天桶里的：留在原地画成已完成，离开页面再清 */
+  /** 刚勾掉、还在原地画成已完成的（停留一下再落到「做完了」），且已不在逾期 / 今天桶里的 */
   doneOnly: TodoItem[];
   isDone: (item: TodoItem) => boolean;
   toggle: (item: TodoItem, checked: boolean) => Promise<void>;
@@ -48,11 +51,16 @@ export function useTodoOptimism(
   }
 ): TodoOptimism {
   const [justDone, setJustDone] = useState<ItemMap>(() => new Map());
+  // 勾掉后在原地划线停一下再落到「做完了」：进了这张表就从列表里藏起来。
+  // 不能只靠汇总自己变：编辑器正开着那篇时改动要等自动保存才落盘，期间汇总读到的还是没勾的，
+  // 不藏的话它会以未完成的样子闪回列表
+  const [settled, setSettled] = useState<ItemMap>(() => new Map());
   // 页面跨过零点：昨天勾掉的每日任务今天又该是没做，「刚勾掉」的记录得跟着作废（渲染期按日期重置）
   const [doneDay, setDoneDay] = useState(today);
   if (doneDay !== today) {
     setDoneDay(today);
     setJustDone(new Map());
+    setSettled(new Map());
   }
   const [removed, setRemoved] = useState<ItemMap>(() => new Map());
   // 挪日期记下「从哪挪到哪」（开始日与结束日都记）：只在汇总还显示旧日期（from）时才覆盖，
@@ -60,7 +68,7 @@ export function useTodoOptimism(
   const [moved, setMoved] = useState<Map<string, { text: string; from: Span; due: Span }>>(() => new Map());
 
   const adjusted = items
-    .filter((i) => !sameIn(removed, i))
+    .filter((i) => !sameIn(removed, i) && !sameIn(settled, i))
     .map((i) => {
       const m = moved.get(i.key);
       const now = spanOf(i);
@@ -72,12 +80,18 @@ export function useTodoOptimism(
   const buckets = bucketTodos(adjusted, today);
   const active = [...buckets.overdue, ...buckets.today];
   const doneOnly = [...justDone.values()].filter(
-    (i) => !sameIn(removed, i) && !active.some((a) => a.key === i.key && a.text === i.text)
+    (i) => !sameIn(removed, i) && !sameIn(settled, i) && !active.some((a) => a.key === i.key && a.text === i.text)
   );
 
   const toggle = async (item: TodoItem, checked: boolean) => {
     setJustDone((p) => withEntry(p, item.key, checked ? item : null)); // 先画上，勾选要即时
-    if (!(await write.toggle(item, checked))) setJustDone((p) => withEntry(p, item.key, checked ? null : item));
+    if (!checked) setSettled((p) => withEntry(p, item.key, null));
+    if (!(await write.toggle(item, checked))) {
+      setJustDone((p) => withEntry(p, item.key, checked ? null : item));
+      return;
+    }
+    // 写成功了才落下去：划线停留一下让人看清是哪条勾掉了，再从列表消失、出现在「做完了」
+    if (checked) setTimeout(() => setSettled((p) => withEntry(p, item.key, item)), SETTLE_MS);
   };
 
   /** 删除不弹确认：删的只是正文里的一行，代价小 */
