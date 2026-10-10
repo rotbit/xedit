@@ -4,7 +4,7 @@
  * 今天页左栏：日期标题 + 快速输入 + 逾期与今天的待办。
  * 明天以后的都在右栏「接下来」，这里只放今天该处理的事（清单里没定日期的也算今天）。
  * 列表下面是「做完了」：今天勾掉的事（当日日志），刷新后从列表消失的也还留在这里；
- * 再往下是折叠着的「这几天做完」，近一周按天回顾；最底下是「最近在写」，最近打开 / 编辑过的几篇文章。
+ * 再往下是折叠着的「这几天做完」，近一周按天回顾。「最近在写」在 TodayView 里占满两栏，不在这个组件内。
  */
 import { useState } from "react";
 import { FileText, Repeat } from "lucide-react";
@@ -37,8 +37,6 @@ import {
 } from "./parts";
 import type { AddTarget } from "./AddTarget";
 import { QuickAdd } from "./QuickAdd";
-import { RecentDocsSection } from "./RecentDocs";
-import type { Workspace } from "../../hooks/useWorkspace";
 
 /** 行尾 hover 才露出来的小按钮（关联文章 / 变更日期）：标成菜单触发器，开关由按钮自己 toggle */
 function MenuTrigger({ open, onClick, children }: { open: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -185,12 +183,12 @@ function clock(ts: number): string {
 /** 做完的一行；给了 onUndo（今天的）才能点勾取消，过去几天的只读 */
 function DoneRow({ day, e, t, onUndo }: { day: string; e: DayEvent; t: TFn; onUndo?: () => void }) {
   return (
-    <div className="group flex items-start gap-2.5 px-0.5 py-2">
+    <div className="group flex items-start gap-2.5 px-0.5 py-1.5">
       <TodoBox done onClick={onUndo} label={onUndo ? t("取消完成") : undefined} />
-      <span className="min-w-0 flex-1 text-[14.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
+      <span className="min-w-0 flex-1 text-[13.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
         {eventLabel(e.text ?? "", e.title, t)}
       </span>
-      <span className="mt-[3px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>
+      <span className="mt-[2px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>
       <RemoveButton label={t("删除这条记录")} onClick={() => removeDayEvent(day, e.id)} />
     </div>
   );
@@ -210,7 +208,7 @@ function DoneSection({
 }) {
   if (done.length === 0) return null;
   return (
-    <div className="mt-8">
+    <div className="mt-12">
       <h2 className="border-b border-[var(--hairline)] pb-2 text-[11.5px] tracking-[.14em] text-[var(--ink-faint)]">
         {t("做完了")}
       </h2>
@@ -287,7 +285,6 @@ export function TodayMain({
   onToggle,
   onUndo,
   onAdd,
-  nav,
 }: {
   today: string;
   /** 逾期 + 今天 + 这次刚勾掉的 */
@@ -308,8 +305,6 @@ export function TodayMain({
   /** 「做完了」里点勾：改回没做，回到列表 */
   onUndo: (e: DayEvent) => void;
   onAdd: (text: string, target: AddTarget) => Promise<boolean>;
-  /** 「最近在写」用：点文章打开、点「全部」进 ALL 视图 */
-  nav: Workspace["nav"];
 }) {
   const t = useT();
   // 日期格式化显式传 context 里的语言：服务端渲染时模块变量是各请求共享的，不可靠
@@ -351,7 +346,6 @@ export function TodayMain({
       )}
       <DoneSection today={today} done={done} t={t} onUndo={onUndo} />
       <RecentDoneSection today={today} recent={recent} t={t} />
-      <RecentDocsSection docs={docs} nav={nav} />
     </div>
   );
 }
