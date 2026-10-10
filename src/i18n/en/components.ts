@@ -271,6 +271,8 @@ export const components: Record<string, string> = {
   "点击移动到文件夹": "Click to move to another folder",
   "已更新到最新版本": "Updated to the latest version",
   "约 {n} 分钟读完": "{n} min read",
+  "创建于 {t}": "Created {t}",
+  "更新于 {t}": "Updated {t}",
   "拖动调整源码/预览宽度": "Drag to resize source / preview",
 
   // ── ThemePicker ──

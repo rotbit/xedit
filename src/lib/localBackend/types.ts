@@ -10,6 +10,8 @@ export interface LocalDocMeta {
   id: string;
   title: string;
   category?: string;
+  /** 创建时间（ISO）。只有在本应用里新建的才有；Vault 从磁盘读进来的拿不到可靠的创建时间 */
+  createdAt?: string;
   updatedAt: string;
   excerpt?: string;
   chars?: number;

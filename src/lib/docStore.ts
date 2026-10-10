@@ -14,6 +14,8 @@ export interface MirrorMeta {
   id: string;
   title: string;
   category?: string;
+  /** 创建时间（ISO）。老镜像没有这个字段，打开文章校新时补齐 */
+  createdAt?: string;
   updatedAt: string;
   excerpt?: string;
   chars?: number;
@@ -36,6 +38,8 @@ export interface ServerDoc {
   id: string;
   title: string;
   category?: string | null;
+  /** 列表 / 增量 / 全量 / 单篇接口都会带；旧服务端或别的来源可能没有 */
+  createdAt?: string;
   updatedAt: string;
   content: string;
 }
@@ -95,7 +99,8 @@ export function saveMirrorLocal(
   const list = readIndex();
   let meta = list.find((d) => d.id === id);
   if (!meta) {
-    meta = { id, title: UNTITLED_DOC, updatedAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    meta = { id, title: UNTITLED_DOC, createdAt: now, updatedAt: now };
     list.unshift(meta);
   }
   // 正文先落盘：这一步抛了，下面的索引改动只活在这个临时数组里，本地状态没被动过
@@ -145,8 +150,15 @@ export function applyServerDocs(docs: ServerDoc[]): ApplyServerDocsResult {
     const updatedAt =
       typeof doc.updatedAt === "string" ? doc.updatedAt : new Date(doc.updatedAt).toISOString();
     const category = doc.category ?? UNCATEGORIZED;
+    const createdAt = doc.createdAt
+      ? typeof doc.createdAt === "string"
+        ? doc.createdAt
+        : new Date(doc.createdAt).toISOString()
+      : existing?.createdAt;
     if (
       existing &&
+      // 老镜像缺创建时间而这次服务端给了：不能当「完全一致」跳过，借这趟顺手补上
+      existing.createdAt === createdAt &&
       existing.title === doc.title &&
       existing.category === category &&
       existing.updatedAt === updatedAt &&
@@ -166,6 +178,7 @@ export function applyServerDocs(docs: ServerDoc[]): ApplyServerDocsResult {
       id: doc.id,
       title: doc.title,
       category,
+      ...(createdAt ? { createdAt } : {}),
       updatedAt,
       // 本地这份从此派生自服务端这个版本，下次 PUT 带它去判冲突
       baseUpdatedAt: updatedAt,
@@ -184,6 +197,20 @@ export function applyServerDocs(docs: ServerDoc[]): ApplyServerDocsResult {
     notifyDocsChanged();
   }
   return result;
+}
+
+/**
+ * 只补创建时间：老镜像建立时还没有 createdAt，而增量同步只发有变动的篇，
+ * 没改过的老文章永远等不到它。打开文章校新时拿整行回来顺手补上。
+ * 只在缺失时写，不碰 updatedAt / dirty / rev——这不是一次编辑，不该触发推送或冲突判定。
+ */
+export function setMirrorCreatedAt(id: string, iso: string) {
+  const list = readIndex();
+  const meta = list.find((d) => d.id === id);
+  if (!meta || meta.createdAt) return;
+  meta.createdAt = iso;
+  writeIndex(list);
+  notifyDocsChanged();
 }
 
 /**

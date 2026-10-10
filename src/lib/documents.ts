@@ -20,6 +20,7 @@ export interface DocSummary {
   id: string;
   title: string;
   category: string;
+  createdAt: Date;
   updatedAt: Date;
   excerpt: string;
   chars: number;
@@ -65,12 +66,20 @@ export async function listDocuments(
     },
     orderBy: { updatedAt: "desc" },
     take: opts.limit === "all" ? undefined : clampLimit(opts.limit, 50, 200),
-    select: { id: true, title: true, category: true, updatedAt: true, content: true },
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      createdAt: true,
+      updatedAt: true,
+      content: true,
+    },
   });
   return docs.map((d) => ({
     id: d.id,
     title: d.title,
     category: d.category,
+    createdAt: d.createdAt,
     updatedAt: d.updatedAt,
     excerpt: summarize(d.content),
     chars: wordCount(d.content),
@@ -109,7 +118,14 @@ export async function searchDocuments(
     },
     orderBy: { updatedAt: "desc" },
     take: clampLimit(limit, 20, 100),
-    select: { id: true, title: true, category: true, updatedAt: true, content: true },
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      createdAt: true,
+      updatedAt: true,
+      content: true,
+    },
   });
   return docs.map((d) => {
     const plain = plainText(d.content);
@@ -117,6 +133,7 @@ export async function searchDocuments(
       id: d.id,
       title: d.title,
       category: d.category,
+      createdAt: d.createdAt,
       updatedAt: d.updatedAt,
       excerpt: snippetAround(plain, q),
       chars: wordCount(d.content),

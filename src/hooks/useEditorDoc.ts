@@ -20,6 +20,7 @@ import {
   getMirrorContent,
   applyServerDoc,
   removeMirrorDoc,
+  setMirrorCreatedAt,
 } from "@/lib/docStore";
 import { getSavedDocument, rememberSavedDocument, hasPendingContent } from "@/lib/editor/persistence";
 import { useEditorSave } from "@/hooks/useEditorSave";
@@ -84,10 +85,19 @@ export function useEditorDoc(routeDocId: string | null) {
     if (before.docId !== id || before.content !== mirrored || before.title !== meta.title) return;
     lastRefreshAtRef.current = Date.now();
     try {
-      const res = await fetch(`/api/documents/${id}?since=${encodeURIComponent(meta.updatedAt)}`);
+      // 老镜像缺创建时间：这一趟不带 ?since=，宁可多下一次正文也要拿到整行把它补上
+      // （增量同步只发有变动的篇，没改过的老文章别处补不到）
+      const backfill = !meta.createdAt;
+      const res = await fetch(
+        backfill
+          ? `/api/documents/${id}`
+          : `/api/documents/${id}?since=${encodeURIComponent(meta.updatedAt)}`
+      );
       if (res.status === 204) return; // 云端没有更新
       if (!res.ok) return;
       const doc = await res.json();
+      // 先补创建时间再判断要不要替换内容：云端没更新时下面会直接 return
+      if (backfill && typeof doc.createdAt === "string") setMirrorCreatedAt(id, doc.createdAt);
       if (new Date(doc.updatedAt).getTime() <= new Date(meta.updatedAt).getTime()) return;
       // 请求往返期间用户可能已开始打字或切走，写回 store 前再核一次
       const now = useStore.getState();

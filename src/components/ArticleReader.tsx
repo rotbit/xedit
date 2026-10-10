@@ -29,6 +29,7 @@ import { useWikiLinkOpen } from "@/hooks/useWikiLinkOpen";
 import { useRenameLinks } from "@/hooks/useRenameLinks";
 import type { DocMeta } from "@/features/workspace/types";
 import { OutlinePanel } from "./OutlinePanel";
+import { DocTimestamps } from "./DocTimestamps";
 import { Preview } from "./Preview";
 import { VersionsPanel } from "./VersionsPanel";
 import { useReview } from "@/features/review/useReview";
@@ -471,6 +472,7 @@ export function ArticleReader({
                           <span>{t("约 {n} 分钟读完", { n: Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE)) })}</span>
                         </>
                       ) : null}
+                      <DocTimestamps meta={docs?.find((d) => d.id === docId)} />
                       <span>·</span>
                       <CoverPicker content={content} onPick={pickCover} />
                     </div>

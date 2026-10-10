@@ -58,11 +58,13 @@ const backend: LocalBackend = {
 
   createDoc(init: DocInit): LocalDocMeta {
     const content = init.content ?? "";
+    const now = new Date().toISOString();
     const meta: LocalDocMeta = {
       id: `local-${crypto.randomUUID()}`,
       title: init.title?.slice(0, 200) || UNTITLED_DOC,
       category: init.category?.trim() || UNCATEGORIZED,
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       ...summarize(content),
     };
     localStorage.setItem(DOC_PREFIX + meta.id, content);

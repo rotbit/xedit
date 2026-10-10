@@ -28,6 +28,7 @@ export async function GET(req: Request) {
           select: {
             id: true,
             title: true,
+            createdAt: true,
             updatedAt: true,
             content: true,
             category: true,
@@ -46,7 +47,14 @@ export async function GET(req: Request) {
     const docs = await prisma.document.findMany({
       where: { userId, deletedAt: trash ? { not: null } : null },
       orderBy: { updatedAt: "desc" },
-      select: { id: true, title: true, updatedAt: true, content: true, category: true },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        content: true,
+        category: true,
+      },
     });
     return NextResponse.json(docs);
   }
