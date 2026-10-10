@@ -52,3 +52,20 @@ export function doneRecent(
   }
   return out;
 }
+
+/**
+ * 今天写了多少：日期下那行小结用。
+ * chars 是净增量（删字为负），按净值相加——写了一千又删掉八百，说「写了 200 字」才诚实；净值不为正就不提字数。
+ * 「改了几篇」数的是今天有过写入或新建的不同文章。
+ */
+export function writingToday(day: string): { chars: number; docs: number } {
+  const events = readDayEvents(day);
+  let chars = 0;
+  const docs = new Set<string>();
+  for (const e of events) {
+    if (e.kind !== "write" && e.kind !== "create") continue;
+    if (e.docId) docs.add(e.docId);
+    if (e.kind === "write") chars += e.chars ?? 0;
+  }
+  return { chars: Math.max(0, chars), docs: docs.size };
+}

@@ -189,7 +189,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-[1000px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-14">
+      <div className="mx-auto grid w-full max-w-[880px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-12">
         <TodayMain
           today={today}
           rows={rows}
