@@ -60,7 +60,6 @@ export function CategoryRow({
   const name = displayCatName(node.name, t);
   const isOpen = prefs.expanded.has(node.path);
   const active = nav.activeCat === node.path && !nav.readingId;
-  const hasChildren = node.children.length > 0 || node.docs.length > 0;
   const canManage = node.path !== UNCATEGORIZED;
   const spot = drag.dropSpot;
   const zone = spot?.kind === "cat" && spot.key === node.path ? spot.zone : null;
@@ -84,23 +83,15 @@ export function CategoryRow({
             width: `calc(100% - ${rowInset(depth)}px)`,
             paddingLeft: `${rowPadLeft(depth)}px`,
           }}
-          onClick={() => nav.openCategory(node.path)}
+          // 点文件夹只在侧栏里展开 / 收起（像 Obsidian）：右侧正在读的东西不动。
+          // 要在右侧看这个文件夹的时间流，走「···」菜单或面包屑
+          onClick={() => prefs.toggleExpand(node.path)}
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
           title={name}
         >
           {/* 14px 图标位：平时是合着的文件夹，悬停与展开时是打开的——像凑近时它自己张开。
-              点名字进入时会顺带展开，所以不需要常驻箭头；点图标或「···」菜单收起 */}
-          <span
-            className={`relative flex h-[14px] w-[14px] shrink-0 items-center justify-center ${iconTone(active)} ${hasChildren ? "cursor-pointer" : ""}`}
-            onClick={
-              hasChildren
-                ? (e) => {
-                    e.stopPropagation();
-                    prefs.toggleExpand(node.path);
-                  }
-                : undefined
-            }
-          >
+              整行都是展开 / 收起，所以不需要常驻箭头 */}
+          <span className={`relative flex h-[14px] w-[14px] shrink-0 items-center justify-center ${iconTone(active)}`}>
             <span className={`flex ${isOpen ? "hidden" : "group-hover/cat:hidden"}`}>
               <Folder size={14} />
             </span>

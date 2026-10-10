@@ -16,6 +16,7 @@ import {
   FolderInput,
   FolderOutput,
   FolderPlus,
+  PanelRight,
   PenLine,
   RotateCw,
   Trash2,
@@ -38,7 +39,7 @@ import type { Workspace } from "../hooks/useWorkspace";
 
 /** 分类操作菜单（右键 / 「···」共用）：根节点、未分类、普通分类各按能力渲染条目 */
 export function CategoryContextMenu({ ws }: { ws: Workspace }) {
-  const { menus, dialogs, docActions, catActions, library, auth, prefs } = ws;
+  const { menus, dialogs, docActions, catActions, library, auth, prefs, nav } = ws;
   const anchor = menus.catMenu;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const t = useT();
@@ -109,6 +110,13 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
         </button>
       ) : null}
 
+      {/* 点文件夹名只展开侧栏；想在右侧看这个文件夹的时间流 / 列表，从这里进 */}
+      {!isRoot ? (
+        <button className={menuItemCls} onClick={run(() => nav.openCategory(path))}>
+          <PanelRight size={14} className="text-[var(--ink-faint)]" />
+          {t("在右侧打开")}
+        </button>
+      ) : null}
       {hasChildren ? (
         <button className={menuItemCls} onClick={run(() => prefs.toggleExpand(path))}>
           {isOpen ? (
