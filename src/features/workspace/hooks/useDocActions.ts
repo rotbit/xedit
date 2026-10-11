@@ -126,12 +126,14 @@ export function useDocActions({ auth, library, nav }: Params) {
   const createDocQuietly = async (
     title: string,
     content: string,
-    opts?: { log?: boolean }
+    opts?: { log?: boolean },
+    /** 落到哪个分类；不给就是「未分类」（待办清单那篇、快速建稿都走默认） */
+    category: string = UNCATEGORIZED
   ): Promise<string> => {
     const log = opts?.log !== false;
     const local = localMode || !online;
     if (local) {
-      const doc = createLocalDoc({ category: UNCATEGORIZED, title, content });
+      const doc = createLocalDoc({ category, title, content });
       if (log) logEvent({ kind: "create", docId: doc.id, title: doc.title });
       setDocs(localMode ? listLocalDocs() : mergedCloudList());
       return doc.id;
@@ -139,7 +141,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     const res = await fetch("/api/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, content, category: UNCATEGORIZED }),
+      body: JSON.stringify({ title, content, category }),
     });
     if (!res.ok) throw new Error(`create failed: ${res.status}`);
     const doc = await res.json();

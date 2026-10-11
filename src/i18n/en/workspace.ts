@@ -237,4 +237,7 @@ export const workspace: Record<string, string> = {
   "推送失败：网络异常": "Push failed: network error",
   // 「最近打开」时间流底部的展开按钮
   "更早的文章 · 还有 {n} 篇": "Older articles · {n} more",
+  // 今天页关联文章选择器：常驻的新建入口与选文件夹弹窗
+  "新建文章…": "New article…",
+  新建文章到哪个文件夹: "Which folder for the new article",
 };

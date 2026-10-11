@@ -38,6 +38,7 @@ import {
 import type { AddTarget } from "./AddTarget";
 import { writingToday } from "./doneToday";
 import { QuickAdd } from "./QuickAdd";
+import { dragRowCls, useTodoDrag } from "./useTodoDrag";
 
 /** 行尾 hover 才露出来的小按钮（关联文章 / 变更日期）：标成菜单触发器，开关由按钮自己 toggle */
 function MenuTrigger({ open, onClick, children }: { open: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -101,8 +102,13 @@ function TodoRow({
   const canLink = !done && item.source === "notes";
   // 发布排期不是正文里的一行，没东西可删
   const canRemove = !done && item.source !== "publish";
+  // 做完的不可拖：它已不在任何一天的安排里
+  const drag = useTodoDrag();
   return (
-    <div className="group relative flex items-start gap-2.5 px-0.5 py-2">
+    <div
+      {...(done ? {} : drag.dragProps(item))}
+      className={`group relative flex items-start gap-2.5 px-0.5 py-2 ${done ? "" : dragRowCls(drag, item)}`}
+    >
       <TodoBox done={done} onClick={onToggle} label={done ? t("取消完成") : t("标记完成")} />
       <div className="min-w-0 flex-1">
         {/* 点文字去看出处：待办常常要回到文章里才知道具体怎么做 */}
@@ -164,8 +170,9 @@ function TodoRow({
         <LinkMenu
           item={item}
           docs={docs}
+          categories={actions.categories}
           onLink={(link) => actions.onLink(item, link)}
-          onLinkNew={(title) => actions.onLinkNew(item, title)}
+          onLinkNew={(title, category) => actions.onLinkNew(item, title, category)}
           onClose={() => actions.setMenuId(null)}
         />
       ) : null}
@@ -363,6 +370,9 @@ export function TodayMain({
   // 今天写了多少放在日期下面：首页该一眼看出「今天做了什么」，比在列表底下填东西有用；
   // 日志变化由 TodayView 的信号触发重渲染，这里每次渲染现读即可
   const wrote = writingToday(today);
+  // 列表区是「今天」的落点；只接右栏拖来的（开始日在今天之后），逾期 / 今天的本就在这里
+  const drag = useTodoDrag();
+  const listDrop = drag.dropProps(today, { accept: (i) => i.due !== null && i.due > today });
   return (
     <div className="min-w-0">
       <h1 className="text-[30px] font-semibold leading-[1.15] tracking-tight">{title.main}</h1>
@@ -371,34 +381,39 @@ export function TodayMain({
         {wrote.chars > 0 ? ` · ${t("写了 {n} 字", { n: wrote.chars.toLocaleString(locale), abs: wrote.chars })}` : null}
         {wrote.docs > 0 ? ` · ${t("改了 {n} 篇", { n: wrote.docs, abs: wrote.docs })}` : null}
       </div>
-      <QuickAdd disabled={!ready} docs={docs} onSubmit={onAdd} />
-      {rows.length === 0 ? (
-        allEmpty ? (
-          <EmptyGuide text={t("添加一件今天要做的事，或在右侧排到某一天")} />
+      <QuickAdd disabled={!ready} docs={docs} categories={actions.categories} onSubmit={onAdd} />
+      <div
+        {...listDrop}
+        className={`-mx-1.5 rounded-md px-1.5 ${drag.isOver(today) ? "bg-[var(--accent-wash)]" : ""}`}
+      >
+        {rows.length === 0 ? (
+          allEmpty ? (
+            <EmptyGuide text={t("添加一件今天要做的事，或在右侧排到某一天")} />
+          ) : (
+            <EmptyLine>{t("今天没有安排")}</EmptyLine>
+          )
         ) : (
-          <EmptyLine>{t("今天没有安排")}</EmptyLine>
-        )
-      ) : (
-        <div className="divide-y divide-[var(--hairline-soft)]">
-          {rows.map((item) => {
-            const done = isDone(item);
-            // 发布排期勾上就写进了 published: true，没有「取消发布」这回事
-            const locked = done && item.source === "publish";
-            return (
-              <TodoRow
-                key={rowId(item)}
-                item={item}
-                done={done}
-                today={today}
-                docs={docs}
-                actions={actions}
-                onToggle={locked ? undefined : () => onToggle(item, !done)}
-                t={t}
-              />
-            );
-          })}
-        </div>
-      )}
+          <div className="divide-y divide-[var(--hairline-soft)]">
+            {rows.map((item) => {
+              const done = isDone(item);
+              // 发布排期勾上就写进了 published: true，没有「取消发布」这回事
+              const locked = done && item.source === "publish";
+              return (
+                <TodoRow
+                  key={rowId(item)}
+                  item={item}
+                  done={done}
+                  today={today}
+                  docs={docs}
+                  actions={actions}
+                  onToggle={locked ? undefined : () => onToggle(item, !done)}
+                  t={t}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
       <DoneSection today={today} done={done} recent={recent} t={t} onUndo={onUndo} />
     </div>
   );

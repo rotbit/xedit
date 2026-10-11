@@ -9,20 +9,32 @@
  */
 import { useState, type RefObject } from "react";
 import { X } from "lucide-react";
+import { askCategoryPick } from "@/components/CategoryPickDialog";
+import type { TFn } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
+import { displayCatName, nameOf } from "../../lib/catPath";
 import type { DocMeta } from "../../types";
 import { DocPicker, type Option } from "./DocPicker";
 
 /**
  * 任务记到哪：一律记进待办清单（有就追加、没有就建），可选关联一篇现有文章（link）；
- * 或以搜索词为标题新建一篇再关联上。
+ * 或新建一篇再关联上——title 为空串时用任务文字当标题，category 是选好的文件夹。
  */
-export type AddTarget = { kind: "notes"; link?: string } | { kind: "new"; title: string };
+export type AddTarget = { kind: "notes"; link?: string } | { kind: "new"; title: string; category: string };
 
 export const NOTES: AddTarget = { kind: "notes" };
 
 /** 是否还是默认目标（独立待办、没关联任何文章） */
 export const isDefaultTarget = (target: AddTarget) => target.kind === "notes" && !target.link;
+
+/**
+ * 选择器里点了「新建」后问落到哪个文件夹，三处（行尾关联、快速输入、每天末尾）共用。
+ * 返回分类路径，null = 取消。调用方各自先收起自己的弹层再 await 它——
+ * 弹窗是全局宿主，不依赖调用方还挂着，所以行尾弹层关掉即卸载也不影响后续回调。
+ */
+export function askNewDocFolder(categories: string[], t: TFn): Promise<string | null> {
+  return askCategoryPick({ title: t("新建文章到哪个文件夹"), categories });
+}
 
 /** 输入行下方的文章选择器外框 */
 export function Picker({ docs, onPick }: { docs: DocMeta[]; onPick: (o: Option) => void }) {
@@ -39,20 +51,39 @@ export function Picker({ docs, onPick }: { docs: DocMeta[]; onPick: (o: Option) 
 }
 
 /**
- * 关联目标的状态：选了什么（target）、右侧标签文字（targetLabel）、选择器开没开（picking）。
- * 选中 / 取消之后焦点还给输入框，让用户接着打字或直接回车。
+ * 关联目标的状态：选了什么（target）、右侧标签文字（targetLabel）、选择器开没开（picking）、
+ * 文件夹弹窗开没开（choosingFolder）。选中 / 取消之后焦点还给输入框，让用户接着打字或直接回车。
+ *
+ * choosingFolder 要交给输入行：弹窗是 modal，点在弹窗里对输入行来说是「外部点击」，
+ * Esc 也会同时传到输入行——不挂起它们的关闭逻辑，输入行就会被收起（快速输入那行还会卸载、字丢掉）。
  */
-export function useAddTarget(inputRef: RefObject<HTMLInputElement | null>) {
+export function useAddTarget(inputRef: RefObject<HTMLInputElement | null>, categories: string[]) {
   const t = useT();
   const [target, setTarget] = useState<AddTarget>(NOTES);
   /** 关联文章时右侧标签的文字；默认目标不显示标签 */
   const [targetLabel, setTargetLabel] = useState("");
   const [picking, setPicking] = useState(false);
+  const [choosingFolder, setChoosingFolder] = useState(false);
 
-  const pick = (o: Option) => {
-    setTarget(o.pick.kind === "new" ? o.pick : { kind: "notes", link: o.pick.id });
-    setTargetLabel(o.pick.kind === "new" ? o.label : t("《{title}》", { title: o.label }));
+  const pick = async (o: Option) => {
     setPicking(false);
+    if (o.pick.kind === "doc") {
+      setTarget({ kind: "notes", link: o.pick.id });
+      setTargetLabel(t("《{title}》", { title: o.label }));
+      inputRef.current?.focus();
+      return;
+    }
+    const { title } = o.pick;
+    setChoosingFolder(true);
+    const category = await askNewDocFolder(categories, t);
+    setChoosingFolder(false);
+    // 取消就当没点过「新建」：目标保持原样
+    if (category !== null) {
+      setTarget({ kind: "new", title, category });
+      // 带上文件夹末级名：不然选完看不出落到哪，提交前也没机会发现选错了
+      const what = title ? t("新建《{title}》", { title }) : t("新建文章");
+      setTargetLabel(`${what} · ${displayCatName(nameOf(category), t)}`);
+    }
     inputRef.current?.focus();
   };
 
@@ -69,7 +100,7 @@ export function useAddTarget(inputRef: RefObject<HTMLInputElement | null>) {
     setPicking(false);
   };
 
-  return { target, targetLabel, picking, setPicking, pick, detach, reset };
+  return { target, targetLabel, picking, setPicking, choosingFolder, pick, detach, reset };
 }
 
 const SIZES = {
