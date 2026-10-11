@@ -9,19 +9,22 @@
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toast";
 import { useT } from "@/i18n/useT";
-import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
+import { isTemplateCategory } from "@/lib/templates";
 import { collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { splitRepeatTag, todayKey } from "@/lib/todos/dates";
 import { DAY_LOG_CHANGED_EVENT, removeDayEvent, type DayEvent } from "@/lib/todos/events";
 import type { DueRange } from "@/lib/todos/parse";
 import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink, setTaskRepeat } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
+import { allCategories } from "../../lib/catTree";
 import type { RowActions } from "./parts";
 import type { AddTarget } from "./AddTarget";
 import { doneRecent, doneToday } from "./doneToday";
 import { TodayMain } from "./TodayMain";
 import { UpcomingColumn } from "./UpcomingColumn";
+import { TodoDragProvider } from "./useTodoDrag";
 import { useTodoOptimism } from "./useTodoOptimism";
 
 /**
@@ -77,15 +80,19 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   /**
    * 记一件事：一律记进待办清单那篇。行的拼法集中在这里，顺序固定为 `文字 [[docId]] @日期`——
-   * 日期标签只认行尾，关联标记要在它前面。目标是「新建《…》」就先静默建好那篇，再关联上。
+   * 日期标签只认行尾，关联标记要在它前面。目标是「新建」就先静默建好那篇（落到选好的文件夹，
+   * 没给标题就用任务文字），再关联上。
    * 自己敲了 `@每天` 的是每日任务：标签就用它的、不再补日期（右栏选的那天也不管），
    * 关联标记照样插在标签前面，排成 `文字 [[docId]] @每天`。
    */
   const add = async (text: string, target: AddTarget, due: string): Promise<boolean> => {
     try {
-      const link = target.kind === "new" ? await docActions.createDocQuietly(target.title, "") : target.link;
       const rep = splitRepeatTag(text);
       const body = rep ? rep.text : text.trim();
+      const link =
+        target.kind === "new"
+          ? await docActions.createDocQuietly(target.title || body, "", undefined, target.category)
+          : target.link;
       const line = [body, link ? `[[${link}]]` : "", `@${rep ? rep.tag : due}`].filter(Boolean).join(" ");
       await addNoteTask(line, allDocs ?? [], docActions.createDocQuietly);
       return true;
@@ -134,16 +141,20 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
-  const linkNew = async (item: TodoItem, title: string): Promise<void> => {
+  const linkNew = async (item: TodoItem, title: string, category: string): Promise<void> => {
     let id: string;
     try {
-      id = await docActions.createDocQuietly(title, "");
+      id = await docActions.createDocQuietly(title, "", undefined, category);
     } catch {
       toast(t("没记上：存储空间不足或网络异常，稍后再试"), "error");
       return;
     }
     await link(item, id);
   };
+
+  // 「新建文章」可落的文件夹：模板分类不收正经稿子；文库还空着时至少留个「未分类」，弹窗不至于无处可选
+  const cats = allCategories(library.customCats, library.docs).filter((c) => !isTemplateCategory(c));
+  const categories = cats.length > 0 ? cats : [UNCATEGORIZED];
 
   const titles = new Map((docs ?? []).map((d) => [d.id, d.title || t(UNTITLED_DOC)]));
 
@@ -176,7 +187,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
     onRepeat: (item, on) => void repeat(item, on),
     onRemove: (item) => void opt.remove(item),
     onLink: (item, id) => void link(item, id),
-    onLinkNew: (item, title) => void linkNew(item, title),
+    onLinkNew: (item, title, category) => void linkNew(item, title, category),
+    categories,
     docTitleOf: (id) => titles.get(id) ?? null,
     menuId,
     setMenuId,
@@ -189,31 +201,34 @@ export function TodayView({ ws }: { ws: Workspace }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-[880px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-12">
-        <TodayMain
-          today={today}
-          rows={rows}
-          done={done}
-          recent={recent}
-          isDone={opt.isDone}
-          docs={docs ?? []}
-          allEmpty={allEmpty}
-          ready={allDocs !== null}
-          actions={actions}
-          onToggle={(item, checked) => void opt.toggle(item, checked)}
-          onUndo={undo}
-          onAdd={addToday}
-        />
-        <UpcomingColumn
-          today={today}
-          later={buckets.later}
-          ready={allDocs !== null}
-          actions={actions}
-          docs={docs ?? []}
-          onAddOnDay={addOnDay}
-          nav={nav}
-        />
-      </div>
+      {/* 拖动待办改日期：拖源和落点分散在两栏，状态在这里统一提供 */}
+      <TodoDragProvider actions={actions}>
+        <div className="mx-auto grid w-full max-w-[880px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-12">
+          <TodayMain
+            today={today}
+            rows={rows}
+            done={done}
+            recent={recent}
+            isDone={opt.isDone}
+            docs={docs ?? []}
+            allEmpty={allEmpty}
+            ready={allDocs !== null}
+            actions={actions}
+            onToggle={(item, checked) => void opt.toggle(item, checked)}
+            onUndo={undo}
+            onAdd={addToday}
+          />
+          <UpcomingColumn
+            today={today}
+            later={buckets.later}
+            ready={allDocs !== null}
+            actions={actions}
+            docs={docs ?? []}
+            onAddOnDay={addOnDay}
+            nav={nav}
+          />
+        </div>
+      </TodoDragProvider>
     </div>
   );
 }

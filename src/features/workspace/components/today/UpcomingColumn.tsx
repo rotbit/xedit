@@ -19,6 +19,7 @@ import { isDefaultTarget, Picker, TargetControl, useAddTarget, type AddTarget } 
 import { MoveMenu } from "./MoveMenu";
 import { RecentDocsSection } from "./RecentDocs";
 import { itemLabel, linkedDoc, rowId, type RowActions } from "./parts";
+import { dragRowCls, useTodoDrag } from "./useTodoDrag";
 
 const DAYS_AHEAD = 6;
 
@@ -46,11 +47,13 @@ function UpcomingItem({
   const textCls = "min-w-0 flex-1 truncate text-left";
   // 清单里的事那篇对用户隐形，关联了文章才可点、去关联的那篇
   const openId = item.source === "notes" ? (linkedDoc(item, actions.docTitleOf)?.id ?? null) : item.docId;
+  const drag = useTodoDrag();
   return (
     <div
+      {...drag.dragProps(item)}
       className={`group relative -mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-[3px] text-[13px] text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] ${
         menuOpen ? "bg-[var(--accent-wash)]" : ""
-      }`}
+      } ${dragRowCls(drag, item)}`}
     >
       <span
         className={`h-[5px] w-[5px] shrink-0 rounded-full ${
@@ -127,20 +130,29 @@ function DayAdd({
   label,
   disabled,
   docs,
+  categories,
   onSubmit,
 }: {
   label: string;
   disabled: boolean;
   docs: DocMeta[];
+  categories: string[];
   onSubmit: (text: string, target: AddTarget) => Promise<boolean>;
 }) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { target, targetLabel, picking, setPicking, pick, detach, reset } = useAddTarget(inputRef);
+  const { target, targetLabel, picking, setPicking, choosingFolder, pick, detach, reset } = useAddTarget(
+    inputRef,
+    categories
+  );
   const attached = !isDefaultTarget(target);
-  // 选择器在面板外点击 / Esc 时关掉，焦点回到输入框
+  // 文件夹弹窗开着时焦点在弹窗里、鼠标也不在这一天上，不常显的话输入行会隐形
+  const shown = attached || picking || choosingFolder;
+  // 选择器在面板外点击 / Esc 时关掉，焦点回到输入框。
+  // 只在 picking 时挂：选了「新建」后 picking 先落下再弹文件夹窗，点弹窗、按 Esc 都碰不到这一行
+
   const closePicker = useCallback(() => {
     setPicking(false);
     inputRef.current?.focus();
@@ -152,7 +164,7 @@ function DayAdd({
     <div ref={rowRef} className="group/add relative">
       <form
         className={`flex items-center gap-2 ${
-          attached || picking ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover/day:opacity-100"
+          shown ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover/day:opacity-100"
         }`}
         onSubmit={async (e) => {
           e.preventDefault();
@@ -184,12 +196,12 @@ function DayAdd({
           picking={picking}
           pending={disabled || pending}
           size="sm"
-          className={attached || picking ? "" : "hidden group-focus-within/add:flex"}
+          className={shown ? "" : "hidden group-focus-within/add:flex"}
           onToggle={() => setPicking((v) => !v)}
           onDetach={detach}
         />
       </form>
-      {picking ? <Picker docs={docs} onPick={pick} /> : null}
+      {picking ? <Picker docs={docs} onPick={(o) => void pick(o)} /> : null}
     </div>
   );
 }
@@ -264,19 +276,22 @@ export function UpcomingColumn({
   }
   const weekCount = days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
   // 连续两天以上都没安排时合成一行「13–16 · 周二 – 周五」：空日子和有事的日子一样高会把右栏撑得很长，
-  // 把下面的「最近打开」压出首屏。点那一行展开成单日，才能往其中某一天记事；展开状态只在本次会话里
-  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(() => new Set());
+  // 把下面的「最近打开」压出首屏。点任何一段就把所有合并的段一起展开成单日（用户不想一段一段点），才能往其中某一天记事；展开状态只在本次会话里
+  const [expanded, setExpanded] = useState(false);
   const groups: { from: number; to: number }[] = [];
   for (let i = 0; i < days.length; i++) {
     const empty = (byDay.get(days[i])?.length ?? 0) === 0;
     let j = i;
     while (empty && j + 1 < days.length && (byDay.get(days[j + 1])?.length ?? 0) === 0) j++;
-    if (j > i && !expandedRuns.has(days[i])) {
+    if (j > i && !expanded) {
       groups.push({ from: i, to: j });
       i = j;
     } else groups.push({ from: i, to: i });
   }
   const dayName = (day: string, i: number) => (i === 0 ? t("明天") : formatWeekday(day, locale));
+  // 拖着待办悬停的那天整行铺底色；负边距 + 同等内边距让底色盖到两侧，只在悬停时加，平时分隔线不变长
+  const drag = useTodoDrag();
+  const overCls = (day: string) => (drag.isOver(day) ? "-mx-2 rounded-md bg-[var(--accent-wash)] px-2" : "");
 
   return (
     <aside className="min-w-0">
@@ -295,8 +310,10 @@ export function UpcomingColumn({
               key={a}
               type="button"
               title={t("展开这几天")}
-              className="group/run grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)] gap-2.5 border-b border-[var(--hairline-soft)] py-2.5 text-left text-[var(--hairline-strong)] hover:text-[var(--ink-faint)]"
-              onClick={() => setExpandedRuns((p) => new Set(p).add(a))}
+              // 也是落点：直接松手落到第一天；拖着停一会儿自动展开，好继续拖到具体某一天
+              {...drag.dropProps(a, { onLinger: () => setExpanded(true) })}
+              className={`group/run grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)] gap-2.5 border-b border-[var(--hairline-soft)] py-2.5 text-left text-[var(--hairline-strong)] hover:text-[var(--ink-faint)] ${overCls(a)}`}
+              onClick={() => setExpanded(true)}
             >
               <div className="[font-family:var(--serif)] whitespace-nowrap text-[13px] leading-[18px] tabular-nums">
                 {dayOfMonth(a)}–{dayOfMonth(b)}
@@ -314,9 +331,10 @@ export function UpcomingColumn({
         return (
           <div
             key={day}
-            className="group/day grid grid-cols-[44px_minmax(0,1fr)] gap-2.5 border-b border-[var(--hairline-soft)] py-2.5"
+            {...drag.dropProps(day)}
+            className={`group/day grid grid-cols-[44px_minmax(0,1fr)] gap-2.5 border-b border-[var(--hairline-soft)] py-2.5 ${overCls(day)}`}
           >
-            <div className={empty ? "text-[var(--hairline-strong)]" : "text-[var(--ink)]"}>
+            <div className={empty && !drag.isOver(day) ? "text-[var(--hairline-strong)]" : "text-[var(--ink)]"}>
               <div className="[font-family:var(--serif)] text-[18px] leading-none">{dayOfMonth(day)}</div>
               <div
                 className={`mt-1.5 whitespace-nowrap text-[10.5px] ${locale === "en" ? "" : "tracking-[.14em]"} ${
@@ -335,6 +353,7 @@ export function UpcomingColumn({
                 label={t("＋ 添加到{day}", { day: name })}
                 disabled={!ready}
                 docs={docs}
+                categories={actions.categories}
                 onSubmit={(text, target) => onAddOnDay(text, day, target)}
               />
             </div>

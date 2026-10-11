@@ -55,8 +55,10 @@ export interface RowActions {
   onRemove: (item: TodoItem) => void;
   /** 关联 / 更换 / 取消关联（null）文章 */
   onLink: (item: TodoItem, link: string | null) => void;
-  /** 选择器里点了「新建《…》」：建好那篇再关联上 */
-  onLinkNew: (item: TodoItem, title: string) => void;
+  /** 选择器里点了「新建」并选好文件夹：建好那篇再关联上 */
+  onLinkNew: (item: TodoItem, title: string, category: string) => void;
+  /** 「新建文章」可落的文件夹（已滤掉模板分类）；三处选择器都要，跟着行操作一路传下去 */
+  categories: string[];
   /** 文章 id → 显示标题；找不到（已删、不在文库里）返回 null */
   docTitleOf: (id: string) => string | null;
   /** 当前开着的菜单：日期菜单是 rowId，关联菜单是 `${rowId}|link`；没有为 null */

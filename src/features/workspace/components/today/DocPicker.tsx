@@ -1,11 +1,13 @@
 "use client";
 
 /**
- * 待办关联文章用的选择器：搜索框 + 最近文章 / 搜索结果 + 「新建《…》」。
- * 只负责挑，选中交给 onPick；外框（定位、边框、阴影）由调用方给——
+ * 待办关联文章用的选择器：搜索框 + 最近文章 / 搜索结果 + 末尾常驻的「新建文章…」。
+ * 只负责挑，选中交给 onPick；选了「新建」也只上报，落到哪个文件夹由调用方接着问
+ * （它们各自要先收起自己的弹层）。外框（定位、边框、阴影）由调用方给——
  * 快速输入里是输入行下方的整宽浮层，今天页的行里是行尾的小弹层。
  */
 import { useMemo, useState, type ReactNode } from "react";
+import { FilePlus2 } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
@@ -13,7 +15,7 @@ import { searchDocs } from "@/lib/docSearch";
 import { isTemplateDoc } from "@/lib/templates";
 import type { DocMeta } from "../../types";
 
-/** 选中的是哪篇：现有文章 / 以搜索词为标题新建一篇 */
+/** 选中的是哪篇：现有文章 / 新建一篇（title 为空串表示没给标题，由调用方拿任务文字顶上） */
 export type DocPick = { kind: "doc"; id: string } | { kind: "new"; title: string };
 
 export interface Option {
@@ -41,13 +43,18 @@ const docOption = (doc: DocMeta, t: TFn): Option => ({
 function buildOptions(docs: DocMeta[], query: string, t: TFn): Option[] {
   const pool = docs.filter((d) => !isTemplateDoc(d));
   const q = query.trim();
-  if (!q) return searchDocs(pool, "", { limit: RECENT_COUNT }).map((h) => docOption(h.doc, t));
-  const hits = searchDocs(pool, q, { limit: MAX_RESULTS }).map((h) => docOption(h.doc, t));
-  // 只要没有同名的就给「新建」：只看「有没有命中」的话，搜「周报」时正文提到周报的文章
-  // 会把新建入口挤掉，用户就没法建一篇真正叫「周报」的了
-  if (!pool.some((d) => d.title === q)) {
-    hits.push({ key: "new", pick: { kind: "new", title: q }, label: t("新建《{title}》", { title: q }), hint: "" });
-  }
+  // 空搜索词时 searchDocs 按最近排，即「最近文章」
+  const hits = searchDocs(pool, q, { limit: q ? MAX_RESULTS : RECENT_COUNT }).map((h) => docOption(h.doc, t));
+  // 「新建」常驻末尾：要关联的稿子常常还不存在，不该非得先搜一次扑空才给入口。
+  // 搜索词没有同名文章时就拿它当标题——只看「有没有命中」的话，搜「周报」时正文提到周报的文章
+  // 会把新建入口挤掉，用户就没法建一篇真正叫「周报」的了；有同名的就不拿它当标题，免得建出重名
+  const titled = q !== "" && !pool.some((d) => d.title === q);
+  hits.push({
+    key: "new",
+    pick: { kind: "new", title: titled ? q : "" },
+    label: titled ? t("新建《{title}》", { title: q }) : t("新建文章…"),
+    hint: "",
+  });
   return hits;
 }
 
@@ -114,6 +121,9 @@ export function DocPicker({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onPick(o)}
             >
+              {o.pick.kind === "new" ? (
+                <FilePlus2 size={13} className="shrink-0 self-center text-[var(--ink-faint)]" />
+              ) : null}
               <span className="min-w-0 flex-1 truncate">{o.label}</span>
               {o.hint ? <span className="max-w-[40%] shrink-0 truncate text-[12px] text-[var(--ink-faint)]">{o.hint}</span> : null}
             </div>

@@ -8,7 +8,7 @@
  * 而那篇在文库层就被滤掉了，用户看不见它。
  * 关联文章是可选的次级动作：右侧「关联文章」点开才出搜索，有的事明确属于某篇稿子
  * （「补第三节的数据」）就关联上那篇——任务仍记在清单里，行尾带 `[[docId]]`，
- * 今天页上点它能跳过去；搜不到还可以就地新建一篇再关联。
+ * 今天页上点它能跳过去；也可以就地新建一篇（选好文件夹）再关联。
  * 关联目标的状态与右侧控件在 AddTarget.tsx，与右栏每天末尾的输入行共用。
  */
 import { useRef, useState } from "react";
@@ -23,27 +23,30 @@ import { Picker, TargetControl, useAddTarget, type AddTarget } from "./AddTarget
  */
 function InputRow({
   docs,
+  categories,
   onSubmit,
   onClose,
 }: {
   docs: DocMeta[];
+  categories: string[];
   onSubmit: (text: string, target: AddTarget) => Promise<boolean>;
   onClose: () => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
-  const { target, targetLabel, picking, setPicking, pick, detach } = useAddTarget(inputRef);
+  const { target, targetLabel, picking, setPicking, choosingFolder, pick, detach } = useAddTarget(inputRef, categories);
   const [pending, setPending] = useState(false);
   const t = useT();
-  useDismissMenu(rowRef, onClose, true);
+  // 文件夹弹窗开着时挂起：点弹窗、按 Esc 都是弹窗自己的事，不能顺手把输入行收掉
+  useDismissMenu(rowRef, onClose, !choosingFolder);
   // Esc 分两级：选择器开着先只关选择器，回到输入行；否则关掉整个输入行
   useEscape(() => {
     if (picking) {
       setPicking(false);
       inputRef.current?.focus();
     } else onClose();
-  });
+  }, !choosingFolder);
 
   const submit = async () => {
     if (pending || !text.trim()) return;
@@ -88,7 +91,7 @@ function InputRow({
           onDetach={detach}
         />
       </div>
-      {picking ? <Picker docs={docs} onPick={pick} /> : null}
+      {picking ? <Picker docs={docs} onPick={(o) => void pick(o)} /> : null}
     </div>
   );
 }
@@ -100,10 +103,13 @@ function InputRow({
 export function QuickAdd({
   disabled,
   docs,
+  categories,
   onSubmit,
 }: {
   disabled: boolean;
   docs: DocMeta[];
+  /** 「新建文章」可落的文件夹（已滤掉模板分类） */
+  categories: string[];
   onSubmit: (text: string, target: AddTarget) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
@@ -111,7 +117,7 @@ export function QuickAdd({
   return (
     <div className="relative mb-1.5">
       {open ? (
-        <InputRow docs={docs} onSubmit={onSubmit} onClose={() => setOpen(false)} />
+        <InputRow docs={docs} categories={categories} onSubmit={onSubmit} onClose={() => setOpen(false)} />
       ) : (
         <button
           type="button"
