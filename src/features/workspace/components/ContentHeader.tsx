@@ -8,7 +8,7 @@ import { ChevronRight, CalendarDays, List, PanelLeftOpen, Trash2, X } from "luci
 import { tk } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
-import { ALL, ASSETS, TODAY } from "../constants";
+import { ALL, ASSETS, HISTORY, TODAY } from "../constants";
 import { displayCatName, displayCatPath } from "../lib/catPath";
 import { NewDocButton } from "./NewDocButton";
 import type { DocMeta } from "../types";
@@ -58,6 +58,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
   if (activeCat === ASSETS) return <span className={crumbNow}>{t("图片库")}</span>;
   // 带 !readingId：?doc= 直达时文章还没取回来的那一下，别先闪一个「今天」
   if (activeCat === TODAY && !readingId) return <span className={crumbNow}>{t("今天")}</span>;
+  if (activeCat === HISTORY && !readingId) return <span className={crumbNow}>{t("历史已完成")}</span>;
   if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
   if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("最近打开")}</span>;
@@ -101,8 +102,8 @@ export function ContentHeader({
 }) {
   const { nav, prefs, docActions, auth, vault, library } = ws;
   const t = useT();
-  // 图片库、今天都不是文章列表：没有视图切换，也不在这里新建
-  const inList = !nav.readingId && nav.activeCat !== ASSETS && nav.activeCat !== TODAY;
+  // 图片库、今天、历史已完成都不是文章列表：没有视图切换，也不在这里新建
+  const inList = !nav.readingId && nav.activeCat !== ASSETS && nav.activeCat !== TODAY && nav.activeCat !== HISTORY;
   // 清空回收站只对磁盘文库开放：云端回收站有 30 天自动清理，逐篇彻底删除就够了
   const canEmptyTrash =
     nav.isTrash && !nav.readingId && auth.localMode && vault.status === "open";
