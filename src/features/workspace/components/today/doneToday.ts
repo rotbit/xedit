@@ -1,11 +1,11 @@
 /**
- * 今天页左栏「做完了」与「近一周做完的事」的数据：按天日志里的勾选事件。
+ * 今天页左栏「本周已完成」的数据：按天日志里的勾选事件——今天的、本周往前几天的，以及全部历史的件数。
  * 页面和左栏共用一份结果（页面拿它判断整页是否全空），所以抽成纯函数、每次渲染只读一次日志。
- * 两段用同一套去重规则，回顾里的一天和当天看到的「做完了」口径一致。
+ * 各处用同一套去重规则（doneOn），往前几天和当天看到的口径一致。
  */
 import type { TodoItem } from "@/lib/todos/collect";
-import { shiftDay } from "@/lib/todos/dates";
-import { readDayEvents, type DayEvent } from "@/lib/todos/events";
+import { daysBetween, nextMonday, shiftDay } from "@/lib/todos/dates";
+import { listDayLogKeys, readDayEvents, type DayEvent } from "@/lib/todos/events";
 
 const sameTask = (text: string | undefined, docId: string | undefined) => `${docId ?? ""}|${text ?? ""}`;
 
@@ -36,7 +36,7 @@ export function doneToday(today: string, rows: TodoItem[]): DayEvent[] {
 
 /**
  * 近 days 天（昨天到 days 天前，不含今天——今天归「做完了」）每天做完的事。
- * 没记录的天不进结果，省得展开后一串空标题；按日期倒序，离今天近的在前。
+ * 没记录的天不进结果，省得一串空标题；按日期倒序，离今天近的在前。
  */
 export function doneRecent(
   today: string,
@@ -51,6 +51,27 @@ export function doneRecent(
     if (events.length > 0) out.push({ day, events });
   }
   return out;
+}
+
+/**
+ * 本周（周一起）往前几天做完的事，不含今天——今天的由 doneToday 单列、可撤回。
+ * 今天是周几就往前看几天（周一 0 天，返回空）；按日期倒序，没记录的天不进结果。
+ */
+export function doneThisWeek(today: string, rows: TodoItem[]): { day: string; events: DayEvent[] }[] {
+  // 下周一离今天 7 天说明今天是周一，6 天是周二……反推今天是本周第几天（周一为 0）
+  const weekday = 7 - daysBetween(today, nextMonday(today));
+  return weekday > 0 ? doneRecent(today, rows, weekday) : [];
+}
+
+/**
+ * 本地日志里全部做完过的事有几件：「历史已完成」入口右侧的数。
+ * 每天按 doneOn 去重（同一篇同一句只算最后一次），不排除左栏里的行——这是总账，不管眼下列表。
+ */
+export function doneCountAll(): number {
+  const none = new Set<string>();
+  let n = 0;
+  for (const day of listDayLogKeys()) n += doneOn(day, none).length;
+  return n;
 }
 
 /**

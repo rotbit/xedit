@@ -6,58 +6,27 @@
  * 数据全在客户端：待办从文库正文现算（collectTodos 自带缓存）。
  * 不用 useMemo：汇总有缓存，而触发重算的除了文库还有两个全局事件，挂在 memo 依赖里反而绕。
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "@/components/Toast";
 import { useT } from "@/i18n/useT";
 import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
-import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { isTemplateCategory } from "@/lib/templates";
 import { collectTodos, type TodoItem } from "@/lib/todos/collect";
-import { splitRepeatTag, todayKey } from "@/lib/todos/dates";
-import { DAY_LOG_CHANGED_EVENT, removeDayEvent, type DayEvent } from "@/lib/todos/events";
+import { splitRepeatTag } from "@/lib/todos/dates";
+import { removeDayEvent, type DayEvent } from "@/lib/todos/events";
 import type { DueRange } from "@/lib/todos/parse";
 import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink, setTaskRepeat } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
+import { HISTORY } from "../../constants";
 import { allCategories } from "../../lib/catTree";
 import type { RowActions } from "./parts";
 import type { AddTarget } from "./AddTarget";
-import { doneRecent, doneToday } from "./doneToday";
+import { doneThisWeek, doneToday } from "./doneToday";
 import { TodayMain } from "./TodayMain";
 import { UpcomingColumn } from "./UpcomingColumn";
 import { TodoDragProvider } from "./useTodoDrag";
 import { useTodoOptimism } from "./useTodoOptimism";
-
-/**
- * 订阅「文库变了 / 日志变了」两个事件（含别的标签页改日志），返回一个递增的版本号逼组件重渲染；
- * 顺带把「今天」重取一次——页面开过零点后，下一次任何动静都会把日期纠正过来。
- */
-function useTodaySignals(): string {
-  const [today, setToday] = useState(() => todayKey());
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const bump = () => {
-      setTick((t) => t + 1);
-      setToday(todayKey());
-    };
-    // 别的标签页勾掉的事写进同一份 localStorage，本页收不到自定义事件，只能靠 storage 事件；
-    // key 为 null 是 clear()，日志键也在其中，一并刷新
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === null || e.key.startsWith("xedit-day-log")) bump();
-    };
-    window.addEventListener(DOCS_CHANGED_EVENT, bump);
-    window.addEventListener(DAY_LOG_CHANGED_EVENT, bump);
-    window.addEventListener("storage", onStorage);
-    // 切回标签页时也对一次：隔夜挂着的页面回来就该是新的一天
-    document.addEventListener("visibilitychange", bump);
-    return () => {
-      window.removeEventListener(DOCS_CHANGED_EVENT, bump);
-      window.removeEventListener(DAY_LOG_CHANGED_EVENT, bump);
-      window.removeEventListener("storage", onStorage);
-      document.removeEventListener("visibilitychange", bump);
-    };
-  }, []);
-  return today;
-}
+import { useTodaySignals } from "./useTodaySignals";
 
 export function TodayView({ ws }: { ws: Workspace }) {
   const { library, nav, docActions } = ws;
@@ -164,11 +133,11 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
   // 日志变化由 useTodaySignals 触发重渲染，这里每次渲染现读即可
   const done = doneToday(today, rows);
-  const recent = doneRecent(today, rows);
-  // 右栏展示的是 later 里带日期的；两边都空、今天和近一周也没做完过事才算整页全空——
+  const week = doneThisWeek(today, rows);
+  // 右栏展示的是 later 里带日期的；两边都空、今天和本周也没做完过事才算整页全空——
   // 有回顾可看时左栏换成插画引导会把回顾挤得像误入的内容
   const allEmpty =
-    rows.length === 0 && done.length === 0 && recent.length === 0 && !buckets.later.some((i) => i.due !== null);
+    rows.length === 0 && done.length === 0 && week.length === 0 && !buckets.later.some((i) => i.due !== null);
 
   /**
    * 「做完了」里点勾改回没做：记录只存了文章 + 文字，按这两样找回那条待办
@@ -208,7 +177,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
             today={today}
             rows={rows}
             done={done}
-            recent={recent}
+            week={week}
             isDone={opt.isDone}
             docs={docs ?? []}
             allEmpty={allEmpty}
@@ -217,6 +186,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
             onToggle={(item, checked) => void opt.toggle(item, checked)}
             onUndo={undo}
             onAdd={addToday}
+            onOpenHistory={() => nav.openCategory(HISTORY)}
           />
           <UpcomingColumn
             today={today}
