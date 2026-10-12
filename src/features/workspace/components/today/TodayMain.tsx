@@ -6,7 +6,6 @@
  * 列表下面是「本周已完成」：今天勾掉的事（当日日志，刷新后从列表消失的也还留在这里）与本周往前几天按天列出的；
  * 段末一行「历史已完成」进历史页。「最近打开」在右栏 UpcomingColumn 里，不在这个组件内。
  */
-import { useState } from "react";
 import { CalendarDays, ChevronRight, FileText, Repeat } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
@@ -203,45 +202,8 @@ function DoneRow({ day, e, t, onUndo }: { day: string; e: DayEvent; t: TFn; onUn
 }
 
 /**
- * 可折叠段的标题行：整行是按钮，左标题、右计数 + 箭头（收着朝右、展开转 90°）。
- * 为什么用段标题折叠而不用一句文字链：用户要求形态统一——
- * 两段都是同一种带线的 h2，折叠箭头和侧栏文件夹同一套语言，一眼看得出是能收起的段，而不是一句链接。
- */
-function FoldHeader({
-  label,
-  count,
-  open,
-  onToggle,
-  t,
-}: {
-  label: string;
-  count: number;
-  open: boolean;
-  onToggle: () => void;
-  t: TFn;
-}) {
-  return (
-    <h2>
-      <button
-        type="button"
-        aria-expanded={open}
-        className="flex w-full cursor-pointer items-center justify-between border-b border-[var(--hairline)] pb-2 text-left text-[11.5px] tracking-[.14em] text-[var(--ink-faint)] hover:text-[var(--ink)]"
-        onClick={onToggle}
-      >
-        <span>{label}</span>
-        <span className="flex items-center gap-1 tracking-normal tabular-nums">
-          {t("{n} 件", { n: count, abs: count })}
-          <ChevronRight size={12} className={`transition-transform ${open ? "rotate-90" : ""}`} />
-        </span>
-      </button>
-    </h2>
-  );
-}
-
-/**
  * 「本周已完成」：先是今天勾掉的事（点勾可以改回没做），再按天列本周往前几天做完的（只读）。
- * 默认展开——刚勾掉的事要看得见、能撤回；嫌长时点标题收起，让待办仍是主角。
- * 段末一行是「历史已完成」入口，去历史页看全部；收起时它也一起收。
+ * 有多少列多少，不折叠：用户要一眼看全本周做了什么。段末一行是「历史已完成」入口，去历史页看全部。
  */
 function DoneSection({
   today,
@@ -261,7 +223,6 @@ function DoneSection({
   onUndo: (e: DayEvent) => void;
   onOpenHistory: () => void;
 }) {
-  const [open, setOpen] = useState(true);
   const locale = useLocale();
   if (done.length === 0 && week.length === 0 && total === 0) return null;
   const count = done.length + week.reduce((sum, g) => sum + g.events.length, 0);
@@ -272,46 +233,47 @@ function DoneSection({
       : `${formatWeekday(day, locale)} · ${formatMonthDay(day, today, locale)}`;
   return (
     <div className="mt-12">
-      <FoldHeader label={t("本周已完成")} count={count} open={open} onToggle={() => setOpen((v) => !v)} t={t} />
-      {open ? (
-        <>
-          {done.length > 0 ? (
-            <div className="divide-y divide-[var(--hairline-soft)]">
-              {done.map((e) => (
-                <DoneRow key={e.id} day={today} e={e} t={t} onUndo={() => onUndo(e)} />
-              ))}
-            </div>
-          ) : null}
-          {week.map((g) => (
-            <div key={g.day} className="mt-3 pb-1">
-              <h3 className="border-b border-[var(--hairline-soft)] pb-1.5 text-[11px] tracking-[.14em] tabular-nums text-[var(--ink-faint)]">
-                {dayName(g.day)}
-              </h3>
-              <div className="divide-y divide-[var(--hairline-soft)]">
-                {g.events.map((e) => (
-                  <DoneRow key={e.id} day={g.day} e={e} t={t} />
-                ))}
-              </div>
-            </div>
+      <div className="flex items-baseline justify-between border-b border-[var(--hairline)] pb-2">
+        <h2 className="text-[11.5px] tracking-[.14em] text-[var(--ink-faint)]">{t("本周已完成")}</h2>
+        <span className="text-[11.5px] tabular-nums text-[var(--ink-faint)]">
+          {t("{n} 件", { n: count, abs: count })}
+        </span>
+      </div>
+      {done.length > 0 ? (
+        <div className="divide-y divide-[var(--hairline-soft)]">
+          {done.map((e) => (
+            <DoneRow key={e.id} day={today} e={e} t={t} onUndo={() => onUndo(e)} />
           ))}
-          <button
-            type="button"
-            className={`flex w-full cursor-pointer items-center gap-2.5 px-0.5 py-2 text-left text-[13.5px] text-[var(--ink-soft)] hover:text-[var(--ink)] ${
-              done.length > 0 || week.length > 0 ? "border-t border-[var(--hairline-soft)]" : ""
-            }`}
-            onClick={onOpenHistory}
-          >
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-              <CalendarDays size={14} aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">{t("历史已完成")}</span>
-            <span className="shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">
-              {t("{n} 件", { n: total, abs: total })}
-            </span>
-            <ChevronRight size={12} className="shrink-0 text-[var(--ink-faint)]" aria-hidden />
-          </button>
-        </>
+        </div>
       ) : null}
+      {week.map((g) => (
+        <div key={g.day} className="mt-3 pb-1">
+          <h3 className="border-b border-[var(--hairline-soft)] pb-1.5 text-[11px] tracking-[.14em] tabular-nums text-[var(--ink-faint)]">
+            {dayName(g.day)}
+          </h3>
+          <div className="divide-y divide-[var(--hairline-soft)]">
+            {g.events.map((e) => (
+              <DoneRow key={e.id} day={g.day} e={e} t={t} />
+            ))}
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        className={`flex w-full cursor-pointer items-center gap-2.5 px-0.5 py-2 text-left text-[13.5px] text-[var(--ink-soft)] hover:text-[var(--ink)] ${
+          done.length > 0 || week.length > 0 ? "border-t border-[var(--hairline-soft)]" : ""
+        }`}
+        onClick={onOpenHistory}
+      >
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+          <CalendarDays size={14} aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">{t("历史已完成")}</span>
+        <span className="shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">
+          {t("{n} 件", { n: total, abs: total })}
+        </span>
+        <ChevronRight size={12} className="shrink-0 text-[var(--ink-faint)]" aria-hidden />
+      </button>
     </div>
   );
 }

@@ -19,6 +19,8 @@ const crumbCls =
   "max-w-[220px] cursor-pointer truncate rounded-md px-1.5 py-0.5 text-[13px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 const crumbNow = "truncate px-1.5 py-0.5 text-[13px] font-medium text-[var(--ink)]";
 const sep = <ChevronRight size={12} className="shrink-0 text-[var(--ink-faint)]" />;
+const closeCls =
+  "ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 
 // 顶层只存 key（tk 标记），渲染时才 t()：模块加载时就翻译的话，切换语言后这里不会跟着变
 const VIEW_MODES: [DocView, typeof CalendarDays, string][] = [
@@ -45,11 +47,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
         ) : null}
         <span className={crumbNow}>{readingDoc.title || t(UNTITLED_DOC)}</span>
         {/* 关闭文章：回到打开前所在的目录列表 */}
-        <button
-          className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-          title={t("关闭文章")}
-          onClick={() => setReadingId(null)}
-        >
+        <button className={closeCls} title={t("关闭文章")} onClick={() => setReadingId(null)}>
           <X size={14} />
         </button>
       </>
@@ -67,18 +65,25 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
         </button>
         {sep}
         <span className={crumbNow}>{t("历史已完成")}</span>
-        <button
-          className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-          title={t("回到今天")}
-          onClick={() => openCategory(TODAY)}
-        >
+        <button className={closeCls} title={t("回到今天")} onClick={() => openCategory(TODAY)}>
           <X size={14} />
         </button>
       </>
     );
   if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
-  if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("最近打开")}</span>;
+  if (activeCat === ALL || readingId)
+    return (
+      <>
+        <span className={crumbNow}>{t("最近打开")}</span>
+        {/* 「最近打开」也从今天页进来：给个关闭钮回今天页 */}
+        {!readingId ? (
+          <button className={closeCls} title={t("回到今天")} onClick={() => openCategory(TODAY)}>
+            <X size={14} />
+          </button>
+        ) : null}
+      </>
+    );
 
   // 分类路径按 / 拆成层级，除最后一层外都可点，点中间层就跳到那一层的列表
   const parts = activeCat.split("/");
