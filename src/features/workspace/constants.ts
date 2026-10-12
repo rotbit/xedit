@@ -6,10 +6,12 @@ export const ASSETS = "__assets__";
 export const TODAY = "__today__";
 /** 「历史已完成」：从今天页进入的月历回顾页，按天 / 按周看做完的事与写作量 */
 export const HISTORY = "__history__";
+/** 「设置」：从侧栏头像菜单进入，集中账号、外观、阅读编辑、AI 审查、授权应用等用户设置 */
+export const SETTINGS = "__settings__";
 
 /** 是否为虚拟视图键（而非真实分类路径） */
 export function isVirtualCat(path: string): boolean {
-  return path === ALL || path === TRASH || path === ASSETS || path === TODAY || path === HISTORY;
+  return path === ALL || path === TRASH || path === ASSETS || path === TODAY || path === HISTORY || path === SETTINGS;
 }
 
 /** 无分类文章的归属；同时是保留名，不允许用户新建同名分类。

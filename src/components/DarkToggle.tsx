@@ -10,17 +10,26 @@ import { useT } from "@/i18n/useT";
  */
 const DARK_KEY = "xedit-dark";
 
-/** 切换日间 / 夜间：偏好存 localStorage，data-theme 挂在 <html> 上 */
-export function toggleDark() {
+/** 当前是否夜间：以 <html data-theme> 为准（首屏脚本已按偏好挂好） */
+export function isDark(): boolean {
+  return typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
+}
+
+/** 设定日间 / 夜间：偏好存 localStorage，data-theme 挂在 <html> 上 */
+export function setDark(on: boolean) {
   const el = document.documentElement;
-  const next = el.dataset.theme !== "dark";
-  if (next) el.dataset.theme = "dark";
+  if (on) el.dataset.theme = "dark";
   else delete el.dataset.theme;
   try {
-    localStorage.setItem(DARK_KEY, next ? "1" : "0");
+    localStorage.setItem(DARK_KEY, on ? "1" : "0");
   } catch {
     // 隐私模式下 localStorage 会抛，主题当次生效即可
   }
+}
+
+/** 切换日间 / 夜间 */
+export function toggleDark() {
+  setDark(!isDark());
 }
 
 /** 夜间模式开关按钮；图标显隐交给 CSS dark: 变体 */
