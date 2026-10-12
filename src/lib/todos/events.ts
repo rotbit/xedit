@@ -39,7 +39,8 @@ export const DELETED_KEY = "xedit-day-log-deleted";
 export const DAY_LOG_CURSOR_KEY = "xedit-day-log-cursor";
 /** 同一篇的连续保存在这个间隔内算「一次写作」 */
 export const WRITE_MERGE_MS = 30 * 60_000;
-const KEEP_DAYS = 60;
+/** 本地日志只留这么多天（服务端不清，留着完整历史） */
+export const KEEP_DAYS = 60;
 
 const KINDS = new Set<DayEvent["kind"]>(["write", "create", "version", "task"]);
 

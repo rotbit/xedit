@@ -12,7 +12,7 @@ import {
   collectTodos,
 } from "@/lib/todos/collect";
 import { todayKey } from "@/lib/todos/dates";
-import { ALL, TODAY } from "../constants";
+import { ALL, HISTORY, TODAY } from "../constants";
 import { clampSidebarWidth } from "../hooks/useSidebarPrefs";
 import { CategoryTree } from "./CategoryTree";
 import { NavRow } from "./NavRow";
@@ -27,7 +27,8 @@ import type { Workspace } from "../hooks/useWorkspace";
 export function Sidebar({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, menus, catActions } = ws;
   const t = useT();
-  const todayActive = nav.activeCat === TODAY && !nav.readingId;
+  // 「历史已完成」是今天页的子页，停在那里时「今天」仍高亮
+  const todayActive = (nav.activeCat === TODAY || nav.activeCat === HISTORY) && !nav.readingId;
   /** 「今天」右侧的数：逾期 + 今天到期，含清单里没定日期的。
    *  文库每次自动保存都换引用，collectTodos 按 updatedAt 缓存解析结果，重算只是遍历一遍 */
   const { allDocs } = library;
