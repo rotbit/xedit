@@ -58,7 +58,24 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
   if (activeCat === ASSETS) return <span className={crumbNow}>{t("图片库")}</span>;
   // 带 !readingId：?doc= 直达时文章还没取回来的那一下，别先闪一个「今天」
   if (activeCat === TODAY && !readingId) return <span className={crumbNow}>{t("今天")}</span>;
-  if (activeCat === HISTORY && !readingId) return <span className={crumbNow}>{t("历史已完成")}</span>;
+  // 历史页是今天页的子页：面包屑带上「今天」可点，末尾一个关闭钮，两条路都回今天页
+  if (activeCat === HISTORY && !readingId)
+    return (
+      <>
+        <button className={crumbCls} onClick={() => openCategory(TODAY)}>
+          {t("今天")}
+        </button>
+        {sep}
+        <span className={crumbNow}>{t("历史已完成")}</span>
+        <button
+          className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+          title={t("回到今天")}
+          onClick={() => openCategory(TODAY)}
+        >
+          <X size={14} />
+        </button>
+      </>
+    );
   if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
   // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
   if (activeCat === ALL || readingId) return <span className={crumbNow}>{t("最近打开")}</span>;
