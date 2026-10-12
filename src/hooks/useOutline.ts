@@ -22,20 +22,20 @@ const NO_OUTLINE: OutlineItem[] = [];
  * 分享页与编辑器阅读模式共用，两处大纲的提取口径必然一致。
  *
  * @param rootRef 正文容器（h1~h3 从它的子树里找）
- * @param html    正文 HTML，变一次就重新提取一次
+ * @param content 正文 HTML 或预览块，变一次就重新提取一次
  * @param enabled 这个视图要不要大纲。false 时一次 DOM 查询都不做——
  *                双屏右栏不露大纲，却和阅读模式共用预览组件，正文每变一次就白扫一遍标题
  */
 export function useOutline(
   rootRef: RefObject<HTMLElement | null>,
-  html: string,
+  content: string | readonly unknown[],
   enabled = true
 ) {
   const [outline, setOutline] = useState<OutlineItem[]>(NO_OUTLINE);
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!enabled || !root || !html) {
+    if (!enabled || !root || content.length === 0) {
       setOutline(NO_OUTLINE);
       return;
     }
@@ -45,7 +45,7 @@ export function useOutline(
         text: h.textContent?.trim() ?? "",
       }))
     );
-  }, [rootRef, html, enabled]);
+  }, [rootRef, content, enabled]);
 
   const jumpToHeading = useCallback(
     (index: number) => {
