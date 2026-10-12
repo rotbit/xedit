@@ -252,4 +252,5 @@ export const workspace: Record<string, string> = {
   今年没有记录: "Nothing recorded this year",
   "本周 · 周一到周日": "This week · Mon–Sun",
   "只有最近 {n} 天的记录": "only the last {n} days are kept",
+  逾期: "Overdue",
 };
