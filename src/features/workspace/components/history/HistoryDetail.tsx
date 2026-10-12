@@ -4,17 +4,21 @@
  * 历史页右栏：顶部一行切换本周 / 本月 / 本年，下面是选中那一天或那个范围的明细。
  * 每天先列到期（或时间段覆盖那天）还没做完的待办，再列做完的事（「今天」页里勾掉的那些），
  * 上下顺序同今天页；一个范围时按天分组，本周含今天之后有安排的日子。写过的文章不在这里列。
+ * 本年先按月折叠，只列月份与件数；点开某个月才渲染那个月按天分组的明细。
  */
-import { Check } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronRight } from "lucide-react";
+import type { Locale } from "@/i18n/locale";
 import { tk, type TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import type { TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, formatMonthDay, formatWeekday, relativeDayLabel, shiftDay } from "@/lib/todos/dates";
-import { KEEP_DAYS, type DayEvent } from "@/lib/todos/events";
+import { KEEP_DAYS, listDayLogKeys, type DayEvent } from "@/lib/todos/events";
 import {
   dayDigest,
   earliestLogKey,
+  formatMonthName,
   formatMonthTitle,
   formatYearTitle,
   rangeKeys,
@@ -174,6 +178,123 @@ function RangeTabs({ sel, onSelect, t }: { sel: HistorySel; onSelect: (sel: Hist
   );
 }
 
+interface GroupCtx {
+  dayOf: (key: string) => DayRowsData;
+  today: string;
+  lookup: DocLookup;
+  t: TFn;
+  locale: Locale;
+}
+
+/** 按天分组的一串明细：keys 的顺序即显示顺序，没东西的日子跳过 */
+function DayGroups({
+  keys,
+  empty,
+  className = "mt-3.5 space-y-5",
+  dayOf,
+  today,
+  lookup,
+  t,
+  locale,
+}: GroupCtx & { keys: string[]; empty?: string; className?: string }) {
+  const groups = keys.map(dayOf).filter(hasRows);
+  if (groups.length === 0 && !empty) return null;
+  return (
+    <div className={className}>
+      {groups.length === 0 ? <Empty>{empty}</Empty> : null}
+      {groups.map((day) => {
+        const key = day.d.key;
+        const rel = relLabel(key, today, t);
+        return (
+          <div key={key}>
+            <h3 className="flex justify-between border-b border-[var(--hairline-soft)] pb-1.5 text-[11px] tracking-[.14em] tabular-nums text-[var(--ink-faint)]">
+              <span>
+                {formatWeekday(key, locale)} · {formatMonthDay(key, today, locale)}
+              </span>
+              {rel ? <span>{rel}</span> : null}
+            </h3>
+            <DigestRows day={day} today={today} lookup={lookup} t={t} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * 本年：按月折叠，近的月份在前。件数 = 做完的 + 没做完的；做完的只对有日志的键读 digest（最多 60 天），
+ * 按天的明细只在月份展开时才渲染。
+ */
+function YearGroups({
+  keys,
+  pending,
+  openMonths,
+  onToggle,
+  ...ctx
+}: GroupCtx & {
+  keys: string[];
+  pending: Map<string, TodoItem[]>;
+  openMonths: Set<string>;
+  onToggle: (month: string) => void;
+}) {
+  const { t, locale } = ctx;
+  const logged = new Set(listDayLogKeys());
+  const months = new Map<string, { keys: string[]; count: number }>();
+  for (const k of keys) {
+    const n = (pending.get(k)?.length ?? 0) + (logged.has(k) ? dayDigest(k).tasks.length : 0);
+    if (n === 0) continue;
+    const month = k.slice(0, 7);
+    const m = months.get(month) ?? { keys: [], count: 0 };
+    m.keys.push(k);
+    m.count += n;
+    months.set(month, m);
+  }
+  if (months.size === 0) {
+    return (
+      <div className="mt-3.5">
+        <Empty>{t(EMPTY_ZH.year)}</Empty>
+      </div>
+    );
+  }
+  const list = [...months.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  return (
+    <div className="mt-3.5 space-y-2">
+      {list.map(([month, { keys: mk, count }]) => {
+        const open = openMonths.has(month);
+        return (
+          <div key={month}>
+            <h3>
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => onToggle(month)}
+                className="flex w-full cursor-pointer items-center justify-between border-b border-[var(--hairline)] py-2 text-left text-[13px] text-[var(--ink)]"
+              >
+                <span>{formatMonthName(month, locale)}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[12px] tabular-nums text-[var(--ink-faint)]">
+                    {t("{n} 件", { n: count, abs: count })}
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    aria-hidden
+                    className={`text-[var(--ink-faint)] transition-transform ${open ? "rotate-90" : ""}`}
+                  />
+                </span>
+              </button>
+            </h3>
+            {open ? (
+              <div className="pl-3">
+                <DayGroups keys={[...mk].reverse()} className="mt-3 space-y-5" {...ctx} />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function HistoryDetail({
   ws,
   today,
@@ -189,6 +310,14 @@ export function HistoryDetail({
 }) {
   const t = useT();
   const locale = useLocale();
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
+  const toggleMonth = (month: string) =>
+    setOpenMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(month)) next.delete(month);
+      else next.add(month);
+      return next;
+    });
   const { library, nav } = ws;
   const docs = library.docs ?? [];
   const visible = new Set(docs.map((d) => d.id));
@@ -236,33 +365,17 @@ export function HistoryDetail({
   }
   // 本周按周一到周日顺着看；本月 / 本年一长串，近的放前面，不用滚到底才见最近几天
   const keys = rangeKeys(range, today, undefined, pending.keys());
-  const groups = (range === "week" ? keys : keys.reverse()).map(dayOf).filter(hasRows);
+  const common = { dayOf, today, lookup, t, locale };
 
   return (
     <section className="min-w-0">
       {tabs}
       <Heading main={main} sub={sub} />
-      <div className="mt-3.5 space-y-5">
-        {groups.length === 0 ? (
-          <Empty>{t(EMPTY_ZH[range])}</Empty>
-        ) : (
-          groups.map((day) => {
-            const key = day.d.key;
-            const rel = relLabel(key, today, t);
-            return (
-              <div key={key}>
-                <h3 className="flex justify-between border-b border-[var(--hairline-soft)] pb-1.5 text-[11px] tracking-[.14em] tabular-nums text-[var(--ink-faint)]">
-                  <span>
-                    {formatWeekday(key, locale)} · {formatMonthDay(key, today, locale)}
-                  </span>
-                  {rel ? <span>{rel}</span> : null}
-                </h3>
-                <DigestRows day={day} today={today} lookup={lookup} t={t} />
-              </div>
-            );
-          })
-        )}
-      </div>
+      {range === "year" ? (
+        <YearGroups keys={keys} pending={pending} openMonths={openMonths} onToggle={toggleMonth} {...common} />
+      ) : (
+        <DayGroups keys={range === "week" ? keys : keys.reverse()} empty={t(EMPTY_ZH[range])} {...common} />
+      )}
     </section>
   );
 }
