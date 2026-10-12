@@ -168,11 +168,18 @@ const MAX_SPAN_DAYS = 400;
  */
 export function pendingByDay(items: TodoItem[]): Map<string, TodoItem[]> {
   const out = new Map<string, TodoItem[]>();
+  // 多条任务覆盖同一天时复用日期计算；缓存只活这一轮，日期规则仍统一走 shiftDay。
+  const nextDays = new Map<string, string>();
+  const nextDay = (key: string) => {
+    const next = nextDays.get(key) ?? shiftDay(key, 1);
+    nextDays.set(key, next);
+    return next;
+  };
   for (const item of items) {
     if (item.checked || !item.due || !DAY_KEY.test(item.due)) continue;
     const last = item.end && DAY_KEY.test(item.end) && item.end > item.due ? item.end : item.due;
     let k = item.due;
-    for (let i = 0; i < MAX_SPAN_DAYS && k <= last; i++, k = shiftDay(k, 1)) {
+    for (let i = 0; i < MAX_SPAN_DAYS && k <= last; i++, k = nextDay(k)) {
       const list = out.get(k);
       if (list) list.push(item);
       else out.set(k, [item]);
