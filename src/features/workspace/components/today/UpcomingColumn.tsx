@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * 今天页右栏「接下来」：明天起六天，一天一行（连续的空日子合成一行，点开再分日）；再往后的折在底部「还有 N 件」里，最下面是「最近打开」。
+ * 今天页右栏「接下来」：明天起六天，一天一行（连续的空日子合成一行，点开再分日，末尾一行可收回）；再往后的折在底部「还有 N 件」里，最下面是「最近打开」。
  * 这里只排期不打勾——要做的那天它自然会到左栏；每天末尾可以直接往那天记一件事，
  * 和左栏快速输入一样可选关联一篇文章（交互共用 AddTarget.tsx）：提前排的事常常就是某篇稿子的活。
  */
 import { useCallback, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronUp, X } from "lucide-react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
 import type { TFn } from "@/i18n/t";
@@ -279,10 +279,13 @@ export function UpcomingColumn({
   // 把下面的「最近打开」压出首屏。点任何一段就把所有合并的段一起展开成单日（用户不想一段一段点），才能往其中某一天记事；展开状态只在本次会话里
   const [expanded, setExpanded] = useState(false);
   const groups: { from: number; to: number }[] = [];
+  // 有没有可合并的段：展开后才需要在列表末尾给一行「收起」
+  let foldable = false;
   for (let i = 0; i < days.length; i++) {
     const empty = (byDay.get(days[i])?.length ?? 0) === 0;
     let j = i;
     while (empty && j + 1 < days.length && (byDay.get(days[j + 1])?.length ?? 0) === 0) j++;
+    if (j > i) foldable = true;
     if (j > i && !expanded) {
       groups.push({ from: i, to: j });
       i = j;
@@ -360,6 +363,21 @@ export function UpcomingColumn({
           </div>
         );
       })}
+      {expanded && foldable ? (
+        // 和合并行同一副面孔：空日子展开后这里多出一行，点一下收回去，让「最近打开」回到首屏
+        <button
+          type="button"
+          className="grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)] gap-2.5 border-b border-[var(--hairline-soft)] py-2.5 text-left text-[var(--hairline-strong)] hover:text-[var(--ink-faint)]"
+          onClick={() => setExpanded(false)}
+        >
+          <div className="flex h-[18px] items-center justify-center">
+            <ChevronUp size={14} aria-hidden />
+          </div>
+          <div className={`py-[3px] text-[12px] leading-[12px] ${locale === "en" ? "" : "tracking-[.14em]"}`}>
+            {t("收起空日子")}
+          </div>
+        </button>
+      ) : null}
       <Fold items={beyond} today={today} actions={actions} t={t} />
       <RecentDocsSection docs={docs} nav={nav} />
     </aside>

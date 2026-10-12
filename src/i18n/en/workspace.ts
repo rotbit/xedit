@@ -7,6 +7,7 @@ export const workspace: Record<string, string> = {
   打开侧栏: "Open sidebar",
   展开侧栏: "Expand sidebar",
   展开这几天: "Expand these days",
+  收起空日子: "Collapse empty days",
   在右侧打开: "Open in main pane",
   "搜索文章…": "Search articles…",
   "搜索回收站…": "Search trash…",
