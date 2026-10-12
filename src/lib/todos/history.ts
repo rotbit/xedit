@@ -1,11 +1,14 @@
 /**
- * 「历史已完成」月历回顾页的数据：某一天做完的事与写过的文章，本周 / 本月 / 本年的日期键，月历网格。
+ * 「历史已完成」月历回顾页的数据：某一天做完的事与写过的文章、某一天还没做完的待办，
+ * 本周 / 本月 / 本年的日期键，月历网格。
  *
- * 只读本地日志（只留 60 天），同 stats.ts：更早的日子读到的就是空。
+ * 做完的只读本地日志（只留 60 天），同 stats.ts：更早的日子读到的就是空。
+ * 没做完的来自当前文库里的待办（pendingByDay），不受日志保留天数限制。
  * read 可注入，测试不必碰 localStorage。字数仍在这里算（测试与将来用），界面暂不展示。
  */
 
 import type { Locale } from "@/i18n/locale";
+import type { TodoItem } from "./collect";
 import { shiftDay } from "./dates";
 import { listDayLogKeys, readDayEvents, type DayEvent } from "./events";
 
@@ -133,13 +136,49 @@ export function rangeStart(range: HistoryRange, today: string): string {
   return `${today.slice(0, 4)}-01-01`;
 }
 
+/** 范围的终点：本周日 / 本月最后一天 / 今年 12 月 31 日 */
+export function rangeEnd(range: HistoryRange, today: string): string {
+  if (range === "week") return shiftDay(mondayOf(today), 6);
+  if (range === "month") return monthKeys(today.slice(0, 7)).at(-1)!;
+  return `${today.slice(0, 4)}-12-31`;
+}
+
 /**
- * 范围内有日志的日期键（升序，不晚于 today）。
+ * 范围内要列的日期键（升序、去重）：有日志的日子，加上 extraKeys（有没做完待办的日子，可在今天之后）。
  * 本年可能几百天：从本地已有的日志键里筛，不逐天读 localStorage。
  */
-export function rangeKeys(range: HistoryRange, today: string, logKeys: string[] = listDayLogKeys()): string[] {
+export function rangeKeys(
+  range: HistoryRange,
+  today: string,
+  logKeys: string[] = listDayLogKeys(),
+  extraKeys: Iterable<string> = []
+): string[] {
   const start = rangeStart(range, today);
-  return logKeys.filter((k) => DAY_KEY.test(k) && k >= start && k <= today).sort();
+  const end = rangeEnd(range, today);
+  const all = new Set([...logKeys, ...extraKeys]);
+  return [...all].filter((k) => DAY_KEY.test(k) && k >= start && k <= end).sort();
+}
+
+/** 一条待办最多铺开几天：防住异常的超长时间段把循环拖死 */
+const MAX_SPAN_DAYS = 400;
+
+/**
+ * 没做完的待办按天归组：每条落在 due 到 end（没有就是 due）的每一天，组内保持 items 原顺序。
+ * 没日期的、已勾掉的不收；每日任务的 due 恒为今天，自然只落在今天。
+ */
+export function pendingByDay(items: TodoItem[]): Map<string, TodoItem[]> {
+  const out = new Map<string, TodoItem[]>();
+  for (const item of items) {
+    if (item.checked || !item.due || !DAY_KEY.test(item.due)) continue;
+    const last = item.end && DAY_KEY.test(item.end) && item.end > item.due ? item.end : item.due;
+    let k = item.due;
+    for (let i = 0; i < MAX_SPAN_DAYS && k <= last; i++, k = shiftDay(k, 1)) {
+      const list = out.get(k);
+      if (list) list.push(item);
+      else out.set(k, [item]);
+    }
+  }
+  return out;
 }
 
 /** 月历标题：zh `2026 年 10 月`，en `October 2026` */

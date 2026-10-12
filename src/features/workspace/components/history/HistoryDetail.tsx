@@ -2,12 +2,14 @@
 
 /**
  * 历史页右栏：顶部一行切换本周 / 本月 / 本年，下面是选中那一天或那个范围的明细。
- * 只列做完的事（「今天」页里勾掉的那些），一个范围时按天分组；写过的文章不在这里列。
+ * 每天先列到期（或时间段覆盖那天）还没做完的待办，再列做完的事（「今天」页里勾掉的那些），
+ * 上下顺序同今天页；一个范围时按天分组，本周含今天之后有安排的日子。写过的文章不在这里列。
  */
 import { Check } from "lucide-react";
 import { tk, type TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
+import type { TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, formatMonthDay, formatWeekday, relativeDayLabel, shiftDay } from "@/lib/todos/dates";
 import { KEEP_DAYS, type DayEvent } from "@/lib/todos/events";
 import {
@@ -22,7 +24,7 @@ import {
 } from "@/lib/todos/history";
 import { NOTES_TITLE } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
-import { eventLabel } from "../today/parts";
+import { eventLabel, itemLabel, linkedDoc, rowId, TodoBox } from "../today/parts";
 import type { HistorySel } from "./HistoryView";
 
 const rowCls = "flex items-start gap-2.5 px-0.5 py-[7px] text-[13.5px] leading-[1.45]";
@@ -61,18 +63,64 @@ function TaskRow({ e, lookup, t }: { e: DayEvent; lookup: DocLookup; t: TFn }) {
   );
 }
 
-function DigestRows({ d, lookup, t }: { d: DayDigest; lookup: DocLookup; t: TFn }) {
+/** 没做完的待办：只读展示；那天早于今天的标逾期 */
+function PendingRow({ item, overdue, lookup, t }: { item: TodoItem; overdue: boolean; lookup: DocLookup; t: TFn }) {
+  const label = itemLabel(item, t);
+  const linked = linkedDoc(item, (id) => lookup.titles.get(id) ?? null);
+  // 出处：正文里的注那篇；清单里的有关联文章才注；发布排期文字里已带标题，不注
+  const source = item.source === "doc" ? item.docTitle : (linked?.title ?? null);
+  // 点文字去哪：正文里的、发布排期回那篇；清单里的那篇对用户隐形，关联了文章才可点
+  const openId = item.source === "notes" ? (linked?.id ?? null) : item.docId;
+  return (
+    <div className={rowCls}>
+      <TodoBox done={false} />
+      <div className="min-w-0 flex-1">
+        {openId ? (
+          <button
+            type="button"
+            className="cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)]"
+            onClick={() => lookup.open(openId)}
+          >
+            {label}
+          </button>
+        ) : (
+          <div>{label}</div>
+        )}
+        {source ? (
+          <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{t("《{title}》", { title: source })}</div>
+        ) : null}
+      </div>
+      {overdue ? (
+        <span className="ml-1 mt-[3px] shrink-0 rounded-[4px] bg-[var(--seal-wash)] px-1.5 py-px text-[11px] text-[var(--seal)]">
+          {t("逾期")}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** 一天的明细：没做完的在前、做完的在后，同今天页上下顺序 */
+interface DayRowsData {
+  d: DayDigest;
+  pending: TodoItem[];
+}
+
+function DigestRows({ day, today, lookup, t }: { day: DayRowsData; today: string; lookup: DocLookup; t: TFn }) {
+  const overdue = day.d.key < today;
   return (
     <div className="divide-y divide-[var(--hairline-soft)]">
-      {d.tasks.map((e) => (
+      {day.pending.map((item) => (
+        <PendingRow key={`p:${rowId(item)}`} item={item} overdue={overdue} lookup={lookup} t={t} />
+      ))}
+      {day.d.tasks.map((e) => (
         <TaskRow key={e.id} e={e} lookup={lookup} t={t} />
       ))}
     </div>
   );
 }
 
-// 只看做完的事：写了 / 新建了哪些文章不在这里列（用户要的是「今天」页里勾掉的那些）
-const hasRows = (d: DayDigest) => d.tasks.length > 0;
+// 做完的事加上没做完的待办；写了 / 新建了哪些文章不在这里列
+const hasRows = (day: DayRowsData) => day.pending.length > 0 || day.d.tasks.length > 0;
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="px-0.5 py-2 text-[13px] text-[var(--ink-faint)]">{children}</div>;
@@ -130,11 +178,13 @@ export function HistoryDetail({
   ws,
   today,
   sel,
+  pending,
   onSelect,
 }: {
   ws: Workspace;
   today: string;
   sel: HistorySel;
+  pending: Map<string, TodoItem[]>;
   onSelect: (sel: HistorySel) => void;
 }) {
   const t = useT();
@@ -149,16 +199,23 @@ export function HistoryDetail({
     open: nav.openDoc,
   };
   const tabs = <RangeTabs sel={sel} onSelect={onSelect} t={t} />;
+  const dayOf = (key: string): DayRowsData => ({ d: dayDigest(key), pending: pending.get(key) ?? [] });
 
   if (sel.kind === "day") {
-    const d = dayDigest(sel.key);
+    const day = dayOf(sel.key);
     const title = formatDayTitle(sel.key, locale);
     const rel = relLabel(sel.key, today, t);
     return (
       <section className="min-w-0">
         {tabs}
         <Heading main={title.main} sub={rel ? `${title.sub} · ${rel}` : title.sub} />
-        <div className="mt-3.5">{hasRows(d) ? <DigestRows d={d} lookup={lookup} t={t} /> : <Empty>{t("这天没有记录")}</Empty>}</div>
+        <div className="mt-3.5">
+          {hasRows(day) ? (
+            <DigestRows day={day} today={today} lookup={lookup} t={t} />
+          ) : (
+            <Empty>{t("这天没有记录")}</Empty>
+          )}
+        </div>
       </section>
     );
   }
@@ -178,8 +235,8 @@ export function HistoryDetail({
     if (earliest && start < earliest) sub += ` · ${t("只有最近 {n} 天的记录", { n: KEEP_DAYS, abs: KEEP_DAYS })}`;
   }
   // 本周按周一到周日顺着看；本月 / 本年一长串，近的放前面，不用滚到底才见最近几天
-  const keys = rangeKeys(range, today);
-  const groups = (range === "week" ? keys : keys.reverse()).map((k) => dayDigest(k)).filter(hasRows);
+  const keys = rangeKeys(range, today, undefined, pending.keys());
+  const groups = (range === "week" ? keys : keys.reverse()).map(dayOf).filter(hasRows);
 
   return (
     <section className="min-w-0">
@@ -189,17 +246,18 @@ export function HistoryDetail({
         {groups.length === 0 ? (
           <Empty>{t(EMPTY_ZH[range])}</Empty>
         ) : (
-          groups.map((d) => {
-            const rel = relLabel(d.key, today, t);
+          groups.map((day) => {
+            const key = day.d.key;
+            const rel = relLabel(key, today, t);
             return (
-              <div key={d.key}>
+              <div key={key}>
                 <h3 className="flex justify-between border-b border-[var(--hairline-soft)] pb-1.5 text-[11px] tracking-[.14em] tabular-nums text-[var(--ink-faint)]">
                   <span>
-                    {formatWeekday(d.key, locale)} · {formatMonthDay(d.key, today, locale)}
+                    {formatWeekday(key, locale)} · {formatMonthDay(key, today, locale)}
                   </span>
                   {rel ? <span>{rel}</span> : null}
                 </h3>
-                <DigestRows d={d} lookup={lookup} t={t} />
+                <DigestRows day={day} today={today} lookup={lookup} t={t} />
               </div>
             );
           })
