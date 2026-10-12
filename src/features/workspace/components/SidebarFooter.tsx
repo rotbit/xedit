@@ -25,7 +25,7 @@ import {
   resumeVault,
   type VaultState,
 } from "@/lib/localBackend/vaultSession";
-import { ASSETS, TRASH } from "../constants";
+import { ASSETS, SETTINGS, TRASH } from "../constants";
 import { AccountMenu } from "./AccountMenu";
 import { NavRow } from "./NavRow";
 import type { AuthUser } from "../hooks/useAuthMode";
@@ -210,6 +210,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
                 anchor={menus.accountMenu}
                 user={auth.session?.user}
                 onClose={menus.closeAccountMenu}
+                onOpenSettings={() => ws.nav.openCategory(SETTINGS)}
               />
             ) : null}
           </div>

@@ -160,8 +160,9 @@ function SliderRow({
   );
 }
 
-/** 排版微调区块：字号 / 行高 / 段距三档滑杆 + 一键重置，跟在主题网格后面 */
-function TypographyTuner() {
+/** 排版微调区块：字号 / 行高 / 段距三档滑杆 + 一键重置，跟在主题网格后面；
+ *  设置页也嵌这一份，className 给外层包裹用来适配所在布局（比如抵消行内边距） */
+export function TypographyTuner({ className }: { className?: string } = {}) {
   const tuneFontSize = useStore((s) => s.tuneFontSize);
   const tuneLineHeight = useStore((s) => s.tuneLineHeight);
   const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
@@ -169,7 +170,7 @@ function TypographyTuner() {
   const t = useT();
 
   return (
-    <>
+    <div className={className}>
       <p className="px-3.5 pb-0.5 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]">
         {t("排版微调")}
       </p>
@@ -210,7 +211,7 @@ function TypographyTuner() {
       >
         {t("重置排版微调")}
       </button>
-    </>
+    </div>
   );
 }
 

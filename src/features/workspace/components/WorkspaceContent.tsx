@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
-import { ASSETS, HISTORY, TODAY } from "../constants";
+import { ASSETS, HISTORY, SETTINGS, TODAY } from "../constants";
 import { allCategories } from "../lib/catTree";
 import { ContentHeader } from "./ContentHeader";
 import { DocListEmpty, DocListSkeleton } from "./DocListStates";
@@ -34,6 +34,12 @@ const TodayView = dynamic(() => import("./today/TodayView").then((m) => m.TodayV
 
 /** 「历史已完成」月历回顾页：从今天页进入，同样按需加载 */
 const HistoryView = dynamic(() => import("./history/HistoryView").then((m) => m.HistoryView), {
+  ssr: false,
+  loading: viewLoading,
+});
+
+/** 「设置」页：从头像菜单进入，同样按需加载 */
+const SettingsView = dynamic(() => import("./settings/SettingsView").then((m) => m.SettingsView), {
   ssr: false,
   loading: viewLoading,
 });
@@ -120,6 +126,8 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
         <TodayView ws={ws} />
       ) : activeCat === HISTORY ? (
         <HistoryView ws={ws} />
+      ) : activeCat === SETTINGS ? (
+        <SettingsView ws={ws} />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[960px] px-4 pb-24 pt-6 sm:px-8">

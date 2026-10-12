@@ -1,32 +1,32 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { Languages, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
-import { stashAndDetachMirror } from "@/lib/orphanDrafts";
-import { toast } from "@/components/Toast";
+import { Languages, LogOut, Moon, Settings, ShieldCheck, Sun } from "lucide-react";
 import { toggleDark } from "@/components/DarkToggle";
-import { resetSettings } from "@/hooks/useSettings";
 import { useEscape } from "@/hooks/useEscape";
 import { setLocale } from "@/i18n/locale";
 import { useLocale, useT } from "@/i18n/useT";
 import { menuItemCls, menuPanelCls } from "../constants";
+import { signOutAndClear } from "../lib/signOutAndClear";
 import type { AccountMenuAnchor } from "../hooks/useMenus";
 
 /** 菜单最小宽度：触发行较窄时仍能容下「退出登录」（英文 Sign out 更短，按中文留宽即可） */
 const MIN_WIDTH = 186;
 
 /** 侧栏底部账户菜单：贴着触发行向上弹出。
- *  只管账号本身（主题 / 后台 / 登出）——导入是文库操作，入口在文件树右键菜单与顶栏新建按钮上 */
+ *  只管账号本身（设置 / 主题 / 后台 / 登出）——导入是文库操作，入口在文件树右键菜单与顶栏新建按钮上 */
 export function AccountMenu({
   anchor,
   user,
   onClose,
+  onOpenSettings,
 }: {
   anchor: AccountMenuAnchor;
   user: Session["user"] | undefined;
   onClose: () => void;
+  /** 进入工作区里的「设置」虚拟视图 */
+  onOpenSettings: () => void;
 }) {
   useEscape(onClose);
   const t = useT();
@@ -50,6 +50,10 @@ export function AccountMenu({
         <p className="truncate px-3.5 pb-1 pt-0.5 text-[11px] text-[var(--ink-faint)]">
           {user?.email ?? user?.name}
         </p>
+        <button className={menuItemCls} onClick={run(onOpenSettings)}>
+          <Settings size={14} className="text-[var(--ink-faint)]" />
+          {t("设置")}
+        </button>
         <button className={menuItemCls} onClick={run(toggleDark)}>
           <Moon size={14} className="text-[var(--ink-faint)] dark:hidden" />
           <Sun size={14} className="hidden text-[var(--ink-faint)] dark:block" />
@@ -72,16 +76,7 @@ export function AccountMenu({
         <div className="my-1 border-t border-[var(--hairline)]" />
         <button
           className={menuItemCls}
-          onClick={run(() => {
-            // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章；
-            // 但没推上云的草稿要先挪进孤儿列表，原主人下次登录能自动领回去。
-            // 存不下（配额满）就整份镜像留着不清——稿子比干净更重要。
-            // 设置那份是模块级缓存（GET 只发一次），不一起清的话换账号后
-            // 沿用的还是上一个账号的主题/自定义 CSS
-            if (!stashAndDetachMirror()) toast(t("有未同步草稿，本次未清理本地缓存"), "info");
-            resetSettings();
-            void signOut();
-          })}
+          onClick={run(() => signOutAndClear(t))}
         >
           <LogOut size={14} className="text-[var(--ink-faint)]" />
           {t("退出登录")}

@@ -6,6 +6,7 @@
  * 管理员由服务端按白名单默认全开，这里开关只做展示；封禁账号存着的权限不动，但期间用不了。
  */
 import { useRef, useState } from "react";
+import { Switch } from "@/components/Switch";
 import { toast } from "@/components/Toast";
 import { PERMISSIONS, type Permission } from "@/lib/permissionKeys";
 import type { UserDetailResp } from "./types";
@@ -130,37 +131,6 @@ export function UserPermissionsCard({
         <p className="mt-1.5 text-[12px] text-red-600 dark:text-red-400">封禁期间不能使用以上功能</p>
       ) : null}
     </div>
-  );
-}
-
-/** 小号开关，外观同编辑器菜单里的 ToggleRow，补上 role="switch" 给读屏 */
-function Switch({
-  checked,
-  disabled,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`relative h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-default disabled:opacity-50 ${
-        checked ? "bg-[var(--accent)]" : "bg-[var(--hairline-strong)]"
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${checked ? "left-3.5" : "left-0.5"}`}
-      />
-    </button>
   );
 }
 
