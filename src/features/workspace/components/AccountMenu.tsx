@@ -2,11 +2,9 @@
 
 import { createPortal } from "react-dom";
 import type { Session } from "next-auth";
-import { Languages, LogOut, Moon, Settings, ShieldCheck, Sun } from "lucide-react";
-import { toggleDark } from "@/components/DarkToggle";
+import { LogOut, Settings, ShieldCheck } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
-import { setLocale } from "@/i18n/locale";
-import { useLocale, useT } from "@/i18n/useT";
+import { useT } from "@/i18n/useT";
 import { menuItemCls, menuPanelCls } from "../constants";
 import { signOutAndClear } from "../lib/signOutAndClear";
 import type { AccountMenuAnchor } from "../hooks/useMenus";
@@ -15,7 +13,7 @@ import type { AccountMenuAnchor } from "../hooks/useMenus";
 const MIN_WIDTH = 186;
 
 /** 侧栏底部账户菜单：贴着触发行向上弹出。
- *  只管账号本身（设置 / 主题 / 后台 / 登出）——导入是文库操作，入口在文件树右键菜单与顶栏新建按钮上 */
+ *  只管账号本身（设置 / 后台 / 登出），语言、夜间模式都收进了设置页——导入是文库操作，入口在文件树右键菜单与顶栏新建按钮上 */
 export function AccountMenu({
   anchor,
   user,
@@ -30,7 +28,6 @@ export function AccountMenu({
 }) {
   useEscape(onClose);
   const t = useT();
-  const locale = useLocale();
   const run = (fn: () => void) => () => {
     onClose();
     fn();
@@ -53,19 +50,6 @@ export function AccountMenu({
         <button className={menuItemCls} onClick={run(onOpenSettings)}>
           <Settings size={14} className="text-[var(--ink-faint)]" />
           {t("设置")}
-        </button>
-        <button className={menuItemCls} onClick={run(toggleDark)}>
-          <Moon size={14} className="text-[var(--ink-faint)] dark:hidden" />
-          <Sun size={14} className="hidden text-[var(--ink-faint)] dark:block" />
-          <span className="dark:hidden">{t("夜间模式")}</span>
-          <span className="hidden dark:block">{t("日间模式")}</span>
-        </button>
-        {/* 菜单里放成一行而不是 LangToggle 那种方块按钮，和上面的夜间模式同一形态。
-            文字写目标语言本身的名字：看不懂当前语言的人也认得出自己的语言 */}
-        <button className={menuItemCls} onClick={run(() => setLocale(locale === "zh" ? "en" : "zh"))}>
-          <Languages size={14} className="text-[var(--ink-faint)]" />
-          {/* i18n-ignore 语言名不翻译 */}
-          {locale === "zh" ? "English" : "中文"}
         </button>
         {user?.isAdmin ? (
           <a className={menuItemCls} href="/admin">
