@@ -134,7 +134,8 @@ const EMPTY_ZH: Record<HistoryRange, string> = {
 /** 范围切换：选中某一天时三个都不高亮 */
 function RangeTabs({ sel, onSelect, t }: { sel: HistorySel; onSelect: (sel: HistorySel) => void; t: TFn }) {
   return (
-    <div className="mb-3 flex gap-1 text-[12px]">
+    // 分段控件：描边外框 + 选中项实心，比一行淡字醒目，一眼看出现在在看哪一段
+    <div className="mb-3.5 inline-flex rounded-[7px] border border-[var(--hairline)] p-0.5 text-[12.5px]">
       {RANGES.map(({ range, zh }) => {
         const on = sel.kind === "range" && sel.range === range;
         return (
@@ -143,8 +144,10 @@ function RangeTabs({ sel, onSelect, t }: { sel: HistorySel; onSelect: (sel: Hist
             type="button"
             aria-pressed={on}
             onClick={() => onSelect({ kind: "range", range })}
-            className={`cursor-pointer rounded-[5px] px-1.5 py-0.5 hover:text-[var(--ink)] ${
-              on ? "bg-[var(--accent-wash)] font-medium text-[var(--ink)]" : "text-[var(--ink-faint)]"
+            className={`cursor-pointer rounded-[5px] px-3 py-1 leading-none transition-colors ${
+              on
+                ? "bg-[var(--ink)] font-medium text-[var(--paper)]"
+                : "text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
             }`}
           >
             {t(zh)}
