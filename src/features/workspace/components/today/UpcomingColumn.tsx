@@ -374,7 +374,7 @@ export function UpcomingColumn({
             <ChevronUp size={14} aria-hidden />
           </div>
           <div className={`py-[3px] text-[12px] leading-[12px] ${locale === "en" ? "" : "tracking-[.14em]"}`}>
-            {t("收起空日子")}
+            {t("收起")}
           </div>
         </button>
       ) : null}
