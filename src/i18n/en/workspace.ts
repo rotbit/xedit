@@ -43,8 +43,6 @@ export const workspace: Record<string, string> = {
   清空回收站: "Empty Trash",
 
   // 账户菜单
-  夜间模式: "Dark Mode",
-  日间模式: "Light Mode",
   管理后台: "Admin",
   退出登录: "Sign Out",
   "有未同步草稿，本次未清理本地缓存": "Some drafts haven't synced, so local data was kept",
