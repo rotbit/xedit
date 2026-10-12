@@ -2,10 +2,9 @@
 
 /**
  * 历史页右栏：顶部一行切换本周 / 本月 / 本年，下面是选中那一天或那个范围的明细。
- * 一天：先列写过的文章，再列做完的事；一个范围：按天分组的同样两类行。
- * 不显示字数：回顾看的是做了什么。
+ * 只列做完的事（「今天」页里勾掉的那些），一个范围时按天分组；写过的文章不在这里列。
  */
-import { Check, PenLine } from "lucide-react";
+import { Check } from "lucide-react";
 import { tk, type TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
@@ -19,7 +18,6 @@ import {
   rangeKeys,
   rangeStart,
   type DayDigest,
-  type DigestDoc,
   type HistoryRange,
 } from "@/lib/todos/history";
 import { NOTES_TITLE } from "@/lib/todos/write";
@@ -41,34 +39,6 @@ export interface DocLookup {
 function relLabel(key: string, today: string, t: TFn): string | null {
   const rel = relativeDayLabel(key, today);
   return rel === "today" ? t("今天") : rel === "yesterday" ? t("昨天") : null;
-}
-
-function DocRow({ doc, lookup, t }: { doc: DigestDoc; lookup: DocLookup; t: TFn }) {
-  const current = doc.docId ? lookup.titles.get(doc.docId) : undefined;
-  const name = t("《{title}》", { title: current ?? doc.title ?? t(UNTITLED_DOC) });
-  return (
-    <div className={rowCls}>
-      <PenLine size={14} className="mt-[3px] shrink-0 text-[var(--ink-faint)]" aria-hidden />
-      <div className="min-w-0 flex-1">
-        {current !== undefined && doc.docId ? (
-          <button
-            type="button"
-            className="cursor-pointer text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)]"
-            onClick={() => lookup.open(doc.docId!)}
-          >
-            {name}
-          </button>
-        ) : (
-          <span className="text-[var(--ink-soft)]">{name}</span>
-        )}
-        {doc.created ? (
-          <span className="ml-1.5 rounded-[4px] bg-[var(--accent-wash)] px-1.5 py-px align-[1px] text-[11px] text-[var(--ink-soft)]">
-            {t("新建")}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
 }
 
 function TaskRow({ e, lookup, t }: { e: DayEvent; lookup: DocLookup; t: TFn }) {
@@ -94,9 +64,6 @@ function TaskRow({ e, lookup, t }: { e: DayEvent; lookup: DocLookup; t: TFn }) {
 function DigestRows({ d, lookup, t }: { d: DayDigest; lookup: DocLookup; t: TFn }) {
   return (
     <div className="divide-y divide-[var(--hairline-soft)]">
-      {d.docs.map((doc) => (
-        <DocRow key={`d|${doc.docId ?? doc.title}`} doc={doc} lookup={lookup} t={t} />
-      ))}
       {d.tasks.map((e) => (
         <TaskRow key={e.id} e={e} lookup={lookup} t={t} />
       ))}
@@ -104,7 +71,8 @@ function DigestRows({ d, lookup, t }: { d: DayDigest; lookup: DocLookup; t: TFn 
   );
 }
 
-const hasRows = (d: DayDigest) => d.docs.length > 0 || d.tasks.length > 0;
+// 只看做完的事：写了 / 新建了哪些文章不在这里列（用户要的是「今天」页里勾掉的那些）
+const hasRows = (d: DayDigest) => d.tasks.length > 0;
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="px-0.5 py-2 text-[13px] text-[var(--ink-faint)]">{children}</div>;
