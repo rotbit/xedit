@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AlignLeft, ChevronLeft } from "lucide-react";
 import { BASE_CSS } from "@/lib/themes/base";
 import { usePreviewRender } from "@/hooks/usePreviewRender";
@@ -10,6 +10,7 @@ import { OutlineNav } from "@/components/OutlineNav";
 import { readLocal, writeLocal } from "@/features/workspace/lib/storage";
 import { useT } from "@/i18n/useT";
 import { ReadingMeta, ReadingTitle, ThemeTrigger } from "@/features/editor/components/ReadingChrome";
+import { createPreviewUpdater } from "@/lib/markdown/preview";
 
 /** 阅读模式大纲开合的记忆位（"1" 展开 / "0" 收起，缺省当展开） */
 const OUTLINE_OPEN_KEY = "xedit.readingOutlineOpen";
@@ -36,13 +37,19 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
     if (target) requestOpenWikiLink(target);
   };
   // 渲染管线（含 DOMPurify 消毒）：阅读模式不跟着击键跑，进来即渲染，不必防抖
-  const { html, codeCss, themeCss, themeName, tuneCss, customCss } = usePreviewRender(
+  const { blocks, codeCss, themeCss, themeName, tuneCss, customCss } = usePreviewRender(
     reading ? 0 : 180
   );
   // 大纲只在阅读模式露出。hook 照样两个变体都调（React 不许条件调用），
   // 但双屏传 enabled=false，里面就不去扫 DOM 了
   const sectionRef = useRef<HTMLElement>(null);
-  const { outline, jumpToHeading } = useOutline(sectionRef, html, reading);
+  const updateRef = useRef<ReturnType<typeof createPreviewUpdater> | null>(null);
+  // 在大纲 effect 和浏览器绘制之前更新正文，目录与同步滚动读到的仍是当次内容。
+  useLayoutEffect(() => {
+    updateRef.current ??= createPreviewUpdater(sectionRef.current!);
+    updateRef.current(blocks);
+  }, [blocks]);
+  const { outline, jumpToHeading } = useOutline(sectionRef, blocks, reading);
   // 大纲开合：初值固定 true，localStorage 留到 useEffect 里回读——
   // 惰性初始化会让服务端渲的首帧与客户端不一致，直接踩 hydration
   const [outlineOpen, setOutlineOpen] = useState(true);
@@ -133,7 +140,6 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
               ref={sectionRef}
               data-tool="xedit"
               onClick={onContentClick}
-              dangerouslySetInnerHTML={{ __html: html }}
             />
           </div>
         </div>

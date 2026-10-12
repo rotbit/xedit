@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getLocalBackend, LOCAL_BACKEND_CHANGED_EVENT } from "@/lib/localBackend";
 import { ATTACHMENTS_RESOLVED_EVENT } from "@/lib/localBackend/attachmentUrls";
-import { renderMarkdown } from "@/lib/markdown/renderer";
+import { createPreviewRenderer, type PreviewBlock } from "@/lib/markdown/preview";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
-import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { resolveTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 import { useStore } from "@/store/useStore";
 
@@ -26,7 +25,8 @@ export function usePreviewRender(debounceMs = 180) {
   const tuneLineHeight = useStore((s) => s.tuneLineHeight);
   const tuneParaSpacing = useStore((s) => s.tuneParaSpacing);
 
-  const [html, setHtml] = useState("");
+  const [blocks, setBlocks] = useState<PreviewBlock[]>([]);
+  const [render] = useState(createPreviewRenderer);
   const [codeCss, setCodeCss] = useState("");
   const [mathReady, setMathReady] = useState(false);
 
@@ -79,10 +79,10 @@ export function usePreviewRender(debounceMs = 180) {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setHtml(sanitizeHtml(renderMarkdown(content, { macCode })));
+      setBlocks(render(content, { macCode }));
     }, debounceMs);
     return () => clearTimeout(timer);
-  }, [content, macCode, mathReady, attachmentTick, debounceMs]);
+  }, [content, macCode, mathReady, attachmentTick, debounceMs, render]);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,5 +101,5 @@ export function usePreviewRender(debounceMs = 180) {
     [tuneFontSize, tuneLineHeight, tuneParaSpacing]
   );
 
-  return { html, codeCss, themeCss: theme.css, themeName: theme.name, tuneCss, customCss };
+  return { blocks, codeCss, themeCss: theme.css, themeName: theme.name, tuneCss, customCss };
 }

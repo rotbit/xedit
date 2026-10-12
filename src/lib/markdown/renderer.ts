@@ -36,21 +36,31 @@ export interface RenderEnv {
   lineOffset?: number;
 }
 
-/** fence 高亮结果缓存：预览每次防抖触发都全文重渲，长文里代码高亮是最贵的一段，
- *  而两次渲染之间绝大多数代码块根本没变。键 = 语言+原文，先进先出限量（与 mathjax 缓存同思路） */
+/** 高亮按原文复用；同时限制条数和 UTF-16 字节估算，长代码的历史版本不能占满内存。 */
 const highlightCache = new Map<string, string>();
 const HIGHLIGHT_CACHE_MAX = 300;
+const HIGHLIGHT_CACHE_BYTES = 4 * 1024 * 1024;
+let highlightBytes = 0;
 function highlightFence(lang: string, source: string): string {
   // 语言与源码之间用 NUL 分隔：源码里不可能出现 NUL，换成空格或换行都有可能被内容本身撞出同键。
   const key = `${lang}\0${source}`;
   const hit = highlightCache.get(key);
-  if (hit !== undefined) return hit;
+  if (hit !== undefined) {
+    // 最近用过的移到末尾，持续使用的代码块不会被新条目先淘汰。
+    highlightCache.delete(key);
+    highlightCache.set(key, hit);
+    return hit;
+  }
   const value = hljs.highlight(source, { language: lang, ignoreIllegals: true }).value;
-  if (highlightCache.size >= HIGHLIGHT_CACHE_MAX) {
-    const oldest = highlightCache.keys().next().value;
-    if (oldest !== undefined) highlightCache.delete(oldest);
+  const bytes = (key.length + value.length) * 2;
+  if (bytes > HIGHLIGHT_CACHE_BYTES) return value;
+  while (highlightCache.size >= HIGHLIGHT_CACHE_MAX || highlightBytes + bytes > HIGHLIGHT_CACHE_BYTES) {
+    const [oldKey, oldValue] = highlightCache.entries().next().value!;
+    highlightBytes -= (oldKey.length + oldValue.length) * 2;
+    highlightCache.delete(oldKey);
   }
   highlightCache.set(key, value);
+  highlightBytes += bytes;
   return value;
 }
 
@@ -77,6 +87,14 @@ function createMd(): MarkdownIt {
   // 放在 toc/figure 之后：它们按相邻 token 模式匹配，先插空段落会打断结构
   md.use(blankLinePlugin);
   md.use(lineMapPlugin);
+
+  // 原生 HTML 可能跨 Markdown 块开闭标签，必须整体清洗、整体解析 DOM。
+  // 插在 inline 后、其它插件改造前：目录、空行和任务框生成的完整 HTML 不算原生 HTML。
+  md.core.ruler.after("inline", "raw_html_context", (state) => {
+    state.env.hasRawHtml = state.tokens.some(
+      (token) => token.type === "html_block" || token.children?.some((child) => child.type === "html_inline")
+    );
+  });
 
   md.renderer.rules.fence = (tokens, idx, _options, env: RenderEnv) => {
     const token = tokens[idx];
@@ -109,15 +127,23 @@ function createMd(): MarkdownIt {
 let mdInstance: MarkdownIt | null = null;
 
 /** 把正文渲染成 HTML。src 允许带 frontmatter，会在这里剥掉（行号偏移一并补上）。 */
-export function renderMarkdown(src: string, env: RenderEnv = {}): string {
+export function parseMarkdown(src: string, env: RenderEnv = {}) {
   if (!mdInstance) mdInstance = createMd();
   // frontmatter 是给机器看的元数据，不该出现在公众号正文里：预览、复制、导出共用这一个入口，
   // 一处剥掉就三处干净。剥掉之后 markdown-it 从 0 重新数行，于是把 frontmatter 占的行数
   // 作为 lineOffset 透进去，data-line 仍是编辑器里的真实行号（见 lineMapPlugin），
   // 同步滚动不再整体偏那几行
   const fm = parseFrontmatter(src);
-  if (!fm) return mdInstance.render(src, env);
   // 被剥掉那段里有几个换行就是几行（收尾 `---` 在文末时没有换行，正文也已经空了）
-  const lineOffset = src.slice(0, fm.end).split("\n").length - 1;
-  return mdInstance.render(fm.body, { ...env, lineOffset });
+  const renderEnv: RenderEnv & { hasRawHtml?: boolean } = fm
+    ? { ...env, lineOffset: src.slice(0, fm.end).split("\n").length - 1 }
+    : { ...env };
+  const tokens = mdInstance.parse(fm?.body ?? src, renderEnv);
+  return { md: mdInstance, tokens, env: renderEnv };
+}
+
+/** 复制、导出仍返回完整 HTML，与预览共用同一份解析器和渲染规则。 */
+export function renderMarkdown(src: string, env: RenderEnv = {}): string {
+  const parsed = parseMarkdown(src, env);
+  return parsed.md.renderer.render(parsed.tokens, parsed.md.options, parsed.env);
 }
