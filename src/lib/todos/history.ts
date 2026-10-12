@@ -194,3 +194,10 @@ export function formatMonthTitle(month: string, locale: Locale): string {
 export function formatYearTitle(year: string, locale: Locale): string {
   return locale === "en" ? year : `${year} 年`; // i18n-ignore 中文分支
 }
+
+/** 月份名（本年按月折叠的标题）：zh `10 月`，en `October` */
+export function formatMonthName(month: string, locale: Locale): string {
+  const [y, m] = month.split("-").map(Number);
+  if (locale === "en") return new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date(y, m - 1, 1));
+  return `${m} 月`; // i18n-ignore 中文分支
+}
