@@ -65,8 +65,8 @@ export const workspace: Record<string, string> = {
   取消完成: "Mark as not done",
   删除这条待办: "Delete to-do",
   删除这条记录: "Delete this record",
-  已经完成: "Done",
-  更多: "More",
+  本周已完成: "Done this week",
+  历史已完成: "History",
   "保存失败：浏览器存储空间不足": "Couldn't save: browser storage is full",
   "没记上：存储空间不足或网络异常，稍后再试": "Couldn't add: storage is full or the network is down. Try again later",
   "删除失败：浏览器存储空间不足": "Couldn't delete: browser storage is full",
@@ -88,8 +88,7 @@ export const workspace: Record<string, string> = {
   "＋ 添加到{day}": "+ Add to {day}",
   "还有 {n} 件": "{n} more",
   没定日期: "No date",
-  // 今天页「本月」统计
-  本月: "This Month",
+  本月: "This month",
   完成待办: "To-dos completed",
   新写字数: "Characters written",
   新建的文章: "Articles created",
@@ -240,4 +239,16 @@ export const workspace: Record<string, string> = {
   // 今天页关联文章选择器：常驻的新建入口与选文件夹弹窗
   "新建文章…": "New article…",
   新建文章到哪个文件夹: "Which folder for the new article",
+
+  // 历史已完成
+  上个月: "Previous month",
+  下个月: "Next month",
+  本周: "This week",
+  本年: "This year",
+  这天没有记录: "Nothing recorded this day",
+  这周没有记录: "Nothing recorded this week",
+  这个月没有记录: "Nothing recorded this month",
+  今年没有记录: "Nothing recorded this year",
+  "本周 · 周一到周日": "This week · Mon–Sun",
+  "只有最近 {n} 天的记录": "only the last {n} days are kept",
 };

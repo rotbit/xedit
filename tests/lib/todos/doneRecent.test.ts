@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { storage } from "../../setup";
 import type { TodoItem } from "@/lib/todos/collect";
-import { doneRecent, doneToday } from "@/features/workspace/components/today/doneToday";
+import { doneCountAll, doneRecent, doneThisWeek, doneToday } from "@/features/workspace/components/today/doneToday";
 
 const TODAY = "2026-10-10";
 const ts = (day: string, h: number, m = 0) => {
@@ -78,5 +78,35 @@ describe("doneRecent", () => {
     seed(TODAY, [{ h: 9, text: "今天的" }]);
     expect(texts(doneRecent(TODAY, [], 1))).toEqual([["2026-10-09", ["昨天的"]]]);
     expect(doneToday(TODAY, []).map((e) => e.text)).toEqual(["今天的"]);
+  });
+});
+
+describe("doneThisWeek", () => {
+  it("周一：本周往前没有天，返回空", () => {
+    seed("2026-10-11", [{ h: 9, text: "上周日" }]);
+    expect(doneThisWeek("2026-10-12", [])).toEqual([]);
+  });
+
+  it("周三：只取周二、周一两天，不含今天、不含上周", () => {
+    seed("2026-10-14", [{ h: 9, text: "周三" }]);
+    seed("2026-10-13", [{ h: 9, text: "周二" }]);
+    seed("2026-10-12", [{ h: 9, text: "周一" }]);
+    seed("2026-10-11", [{ h: 9, text: "上周日" }]);
+    expect(texts(doneThisWeek("2026-10-14", []))).toEqual([
+      ["2026-10-13", ["周二"]],
+      ["2026-10-12", ["周一"]],
+    ]);
+  });
+});
+
+describe("doneCountAll", () => {
+  it("数全部日志的 task 事件，每天同一篇同一句只算一次，不看 write", () => {
+    seed("2026-01-02", [
+      { h: 9, text: "改稿", docId: "a" },
+      { h: 10, text: "改稿", docId: "a" },
+      { h: 11, text: "写", kind: "write" },
+    ]);
+    seed("2026-10-09", [{ h: 9, text: "改稿", docId: "a" }, { h: 10, text: "发布" }]);
+    expect(doneCountAll()).toBe(3);
   });
 });

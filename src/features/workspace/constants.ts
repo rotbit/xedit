@@ -4,10 +4,12 @@ export const TRASH = "__trash__";
 export const ASSETS = "__assets__";
 /** 「今天」：待办汇总 + 当日记录，不是文章列表 */
 export const TODAY = "__today__";
+/** 「历史已完成」：从今天页进入的月历回顾页，按天 / 按周看做完的事与写作量 */
+export const HISTORY = "__history__";
 
 /** 是否为虚拟视图键（而非真实分类路径） */
 export function isVirtualCat(path: string): boolean {
-  return path === ALL || path === TRASH || path === ASSETS || path === TODAY;
+  return path === ALL || path === TRASH || path === ASSETS || path === TODAY || path === HISTORY;
 }
 
 /** 无分类文章的归属；同时是保留名，不允许用户新建同名分类。

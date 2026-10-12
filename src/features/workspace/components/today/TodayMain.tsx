@@ -3,11 +3,11 @@
 /**
  * 今天页左栏：日期标题 + 快速输入 + 逾期与今天的待办。
  * 明天以后的都在右栏「接下来」，这里只放今天该处理的事（清单里没定日期的也算今天）。
- * 列表下面是「已经完成」：今天勾掉的事（当日日志），刷新后从列表消失的也还留在这里；
- * 段末一行是默认收起的「这几天做完」，近一周按天回顾。「最近打开」在右栏 UpcomingColumn 里，不在这个组件内。
+ * 列表下面是「本周已完成」：今天勾掉的事（当日日志，刷新后从列表消失的也还留在这里）与本周往前几天按天列出的；
+ * 段末一行「历史已完成」进历史页。「最近打开」在右栏 UpcomingColumn 里，不在这个组件内。
  */
 import { useState } from "react";
-import { ChevronRight, FileText, Repeat } from "lucide-react";
+import { CalendarDays, ChevronRight, FileText, Repeat } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
@@ -36,7 +36,7 @@ import {
   type RowActions,
 } from "./parts";
 import type { AddTarget } from "./AddTarget";
-import { writingToday } from "./doneToday";
+import { doneCountAll, writingToday } from "./doneToday";
 import { QuickAdd } from "./QuickAdd";
 import { dragRowCls, useTodoDrag } from "./useTodoDrag";
 
@@ -239,81 +239,51 @@ function FoldHeader({
 }
 
 /**
- * 「已经完成」：今天勾掉的事；点勾可以改回没做。
- * 默认展开——刚勾掉的事要看得见、能撤回；一天勾掉几十条嫌长时可以收起来，让待办仍是主角。
- * 「这几天做完」（近一周按天回顾）收在这一段末尾的一行里，不再单独成段：
- * 单独成段时它默认收着，就只剩一条带线的标题悬在页面底下，看着像漏了内容。
+ * 「本周已完成」：先是今天勾掉的事（点勾可以改回没做），再按天列本周往前几天做完的（只读）。
+ * 默认展开——刚勾掉的事要看得见、能撤回；嫌长时点标题收起，让待办仍是主角。
+ * 段末一行是「历史已完成」入口，去历史页看全部；收起时它也一起收。
  */
 function DoneSection({
   today,
   done,
-  recent,
+  week,
+  total,
   t,
   onUndo,
+  onOpenHistory,
 }: {
   today: string;
   done: DayEvent[];
-  recent: { day: string; events: DayEvent[] }[];
+  week: { day: string; events: DayEvent[] }[];
+  /** 本地日志里全部做完过的事（doneCountAll） */
+  total: number;
   t: TFn;
   onUndo: (e: DayEvent) => void;
+  onOpenHistory: () => void;
 }) {
   const [open, setOpen] = useState(true);
-  if (done.length === 0 && recent.length === 0) return null;
-  return (
-    <div className="mt-12">
-      <FoldHeader label={t("已经完成")} count={done.length} open={open} onToggle={() => setOpen((v) => !v)} t={t} />
-      {open ? (
-        <div className="divide-y divide-[var(--hairline-soft)]">
-          {done.map((e) => (
-            <DoneRow key={e.id} day={today} e={e} t={t} onUndo={() => onUndo(e)} />
-          ))}
-          <RecentDoneRows today={today} recent={recent} t={t} />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * 「这几天做完」：「已经完成」段末尾的一行，默认收起——它是回头看的，不该和今天的事抢视线。
- * 和上面的勾选行同一网格：勾的位置换成折叠箭头，右边是件数；点开后按天分组列在它下面，
- * 行与「已经完成」完全一致（同一个 DoneRow），删除也落在各自那天的日志上。
- */
-function RecentDoneRows({
-  today,
-  recent,
-  t,
-}: {
-  today: string;
-  recent: { day: string; events: DayEvent[] }[];
-  t: TFn;
-}) {
-  const [open, setOpen] = useState(false);
   const locale = useLocale();
-  if (recent.length === 0) return null;
-  const n = recent.reduce((sum, g) => sum + g.events.length, 0);
+  if (done.length === 0 && week.length === 0 && total === 0) return null;
+  const count = done.length + week.reduce((sum, g) => sum + g.events.length, 0);
   // 昨天说「昨天」更顺口；更早的用「周三 · 10/7」，星期帮人回想、日期防歧义
   const dayName = (day: string) =>
     day === shiftDay(today, -1)
       ? t("昨天")
       : `${formatWeekday(day, locale)} · ${formatMonthDay(day, today, locale)}`;
   return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        className="flex w-full cursor-pointer items-center gap-2.5 px-0.5 py-2 text-left text-[13.5px] text-[var(--ink-faint)] hover:text-[var(--ink)]"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-          <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
-        </span>
-        <span className="min-w-0 flex-1">{t("更多")}</span>
-        <span className="shrink-0 text-[12px] tabular-nums">{t("{n} 件", { n, abs: n })}</span>
-      </button>
-      {open
-        ? recent.map((g) => (
-            <div key={g.day} className="mt-1 pb-2">
+    <div className="mt-12">
+      <FoldHeader label={t("本周已完成")} count={count} open={open} onToggle={() => setOpen((v) => !v)} t={t} />
+      {open ? (
+        <>
+          {done.length > 0 ? (
+            <div className="divide-y divide-[var(--hairline-soft)]">
+              {done.map((e) => (
+                <DoneRow key={e.id} day={today} e={e} t={t} onUndo={() => onUndo(e)} />
+              ))}
+            </div>
+          ) : null}
+          {week.map((g) => (
+            <div key={g.day} className="mt-3 pb-1">
               <h3 className="border-b border-[var(--hairline-soft)] pb-1.5 text-[11px] tracking-[.14em] tabular-nums text-[var(--ink-faint)]">
                 {dayName(g.day)}
               </h3>
@@ -323,8 +293,25 @@ function RecentDoneRows({
                 ))}
               </div>
             </div>
-          ))
-        : null}
+          ))}
+          <button
+            type="button"
+            className={`flex w-full cursor-pointer items-center gap-2.5 px-0.5 py-2 text-left text-[13.5px] text-[var(--ink-soft)] hover:text-[var(--ink)] ${
+              done.length > 0 || week.length > 0 ? "border-t border-[var(--hairline-soft)]" : ""
+            }`}
+            onClick={onOpenHistory}
+          >
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+              <CalendarDays size={14} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">{t("历史已完成")}</span>
+            <span className="shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">
+              {t("{n} 件", { n: total, abs: total })}
+            </span>
+            <ChevronRight size={12} className="shrink-0 text-[var(--ink-faint)]" aria-hidden />
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -333,7 +320,7 @@ export function TodayMain({
   today,
   rows,
   done,
-  recent,
+  week,
   isDone,
   docs,
   allEmpty,
@@ -342,18 +329,19 @@ export function TodayMain({
   onToggle,
   onUndo,
   onAdd,
+  onOpenHistory,
 }: {
   today: string;
   /** 逾期 + 今天 + 这次刚勾掉的 */
   rows: TodoItem[];
   /** 今天勾掉、且已不在 rows 里的事（doneToday 算好传进来） */
   done: DayEvent[];
-  /** 昨天到 7 天前做完的事，按天倒序（doneRecent 算好传进来） */
-  recent: { day: string; events: DayEvent[] }[];
+  /** 本周（周一起）往前几天做完的事，不含今天，按天倒序（doneThisWeek 算好传进来） */
+  week: { day: string; events: DayEvent[] }[];
   isDone: (item: TodoItem) => boolean;
   /** 「关联文章」的候选池：用户看得见的文章（不含待办清单那篇） */
   docs: DocMeta[];
-  /** 右栏也一件没有、今天和近一周也没做完过事：整页全空，左栏换成带插画的引导空态 */
+  /** 右栏也一件没有、今天和本周也没做完过事：整页全空，左栏换成带插画的引导空态 */
   allEmpty: boolean;
   /** 全库是否载完：没载完时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
   ready: boolean;
@@ -362,6 +350,8 @@ export function TodayMain({
   /** 「做完了」里点勾：改回没做，回到列表 */
   onUndo: (e: DayEvent) => void;
   onAdd: (text: string, target: AddTarget) => Promise<boolean>;
+  /** 「历史已完成」入口：去历史页 */
+  onOpenHistory: () => void;
 }) {
   const t = useT();
   // 日期格式化显式传 context 里的语言：服务端渲染时模块变量是各请求共享的，不可靠
@@ -414,7 +404,15 @@ export function TodayMain({
           </div>
         )}
       </div>
-      <DoneSection today={today} done={done} recent={recent} t={t} onUndo={onUndo} />
+      <DoneSection
+        today={today}
+        done={done}
+        week={week}
+        total={doneCountAll()}
+        t={t}
+        onUndo={onUndo}
+        onOpenHistory={onOpenHistory}
+      />
     </div>
   );
 }
