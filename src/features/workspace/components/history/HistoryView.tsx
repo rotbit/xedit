@@ -3,10 +3,9 @@
 /**
  * 「历史已完成」：从今天页进入的月历回顾页。左栏月历（每格列出当天做完的事和还没做完的待办），
  * 右栏是选中那一天的明细，或按本周 / 本月 / 本年看。
- * 数据同今天页：渲染期现读本地日志与全库待办（都很便宜，待办有缓存），
- * 由 useTodaySignals 在日志 / 文库变化时触发重渲染。
+ * 数据同今天页；日志变化刷新明细，文库变化 / 跨天才重算待办，切换选中项复用结果。
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { collectTodos } from "@/lib/todos/collect";
 import { pendingByDay, type HistoryRange } from "@/lib/todos/history";
 import type { Workspace } from "../../hooks/useWorkspace";
@@ -17,12 +16,17 @@ import { MonthCalendar } from "./MonthCalendar";
 export type HistorySel = { kind: "day"; key: string } | { kind: "range"; range: HistoryRange };
 
 export function HistoryView({ ws }: { ws: Workspace }) {
-  const today = useTodaySignals();
+  const signals = useTodaySignals();
+  const { today } = signals;
   const [month, setMonth] = useState(() => today.slice(0, 7));
   // 翻月不改变选中：右栏一直是用户点过的那天 / 那个范围
   const [sel, setSel] = useState<HistorySel>(() => ({ kind: "day", key: today }));
   // 没做完的待办按到期日（时间段覆盖的每一天）归组，左右两栏共用
-  const pending = pendingByDay(collectTodos(ws.library.allDocs ?? [], today));
+  const { allDocs } = ws.library;
+  const pending = useMemo(
+    () => pendingByDay(collectTodos(allDocs ?? [], signals.today)),
+    [allDocs, signals]
+  );
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">

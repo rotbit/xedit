@@ -33,7 +33,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const t = useT();
   // 待办汇总与写回看全库（含隐藏的待办清单那篇）；选择器的候选池只给用户看得见的文章
   const { docs, allDocs } = library;
-  const today = useTodaySignals();
+  const { today } = useTodaySignals();
   const [menuId, setMenuId] = useState<string | null>(null);
 
   /** 写回失败（存储写满）只提示不抛：界面由 useTodoOptimism 据返回值回滚 */
