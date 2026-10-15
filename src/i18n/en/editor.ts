@@ -61,11 +61,14 @@ export const editor: Record<string, string> = {
   "导出 Markdown": "Export Markdown",
   "导出 HTML": "Export HTML",
   "导出 Word（可导入飞书）": "Export Word (Feishu-compatible)",
-  "导出 PDF（打印）": "Export PDF (Print)",
+  "导出 PDF": "Export PDF",
   "导出长图（PNG）": "Export Long Image (PNG)",
   "正在生成 Word 文档…": "Generating Word document…",
   "正在生成长图…": "Generating image…",
   "长图生成失败（外链图片可能跨域受限）": "Couldn't generate image (external images may be blocked by CORS)",
+  "正在生成 PDF…": "Generating PDF…",
+  "PDF 生成失败（外链图片可能跨域受限）": "Couldn't generate PDF (external images may be blocked by CORS)",
+  "PDF 已导出": "PDF exported",
 
   // 发送到公众号草稿（本机草稿服务回报的状态与警告是中文原文，原样显示，不在这里）
   "没连上本机草稿服务，请重启 xEdit 再试": "Couldn't reach the local draft service. Restart xEdit and try again",
