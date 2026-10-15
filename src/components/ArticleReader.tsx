@@ -6,7 +6,7 @@ import { CoverPicker, COVER_KEY } from "@/features/editor/components/CoverPicker
 import { setFrontmatterValue } from "@/lib/frontmatter";
 import { AlignLeft, Loader2, Folder, ChevronDown, RefreshCw } from "lucide-react";
 import { askCategoryPick, CREATE_CATEGORY } from "./CategoryPickDialog";
-import { CHARS_PER_MINUTE, wordCount } from "@/lib/wordCount";
+import { wordCount } from "@/lib/wordCount";
 import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { askInput } from "./PromptDialog";
 import { toast } from "./Toast";
@@ -466,12 +466,6 @@ export function ArticleReader({
                       )}
                       <span>·</span>
                       <span>{t("{n} 字", { n: chars, abs: chars })}</span>
-                      {chars > 0 ? (
-                        <>
-                          <span>·</span>
-                          <span>{t("约 {n} 分钟读完", { n: Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE)) })}</span>
-                        </>
-                      ) : null}
                       <DocTimestamps meta={docs?.find((d) => d.id === docId)} />
                       <span>·</span>
                       <CoverPicker content={content} onPick={pickCover} />

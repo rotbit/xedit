@@ -7,7 +7,7 @@ import { useMemo } from "react";
 import { Palette } from "lucide-react";
 import { Dropdown } from "@/components/Dropdown";
 import { ThemePickerPanel } from "@/components/ThemePicker";
-import { CHARS_PER_MINUTE, wordCount } from "@/lib/wordCount";
+import { wordCount } from "@/lib/wordCount";
 import { useT } from "@/i18n/useT";
 import { useStore } from "@/store/useStore";
 
@@ -33,7 +33,7 @@ export function ThemeTrigger({ themeName }: { themeName: string }) {
   );
 }
 
-/** 阅读模式顶栏右侧：字数 · 预计阅读时长 */
+/** 阅读模式顶栏右侧：字数 */
 export function ReadingMeta() {
   const t = useT();
   const content = useStore((s) => s.content);
@@ -43,9 +43,6 @@ export function ReadingMeta() {
   return (
     <span className="flex items-center gap-2 text-[12px] text-[var(--ink-faint)]">
       <span>{t("{n} 字", { n: chars, abs: chars })}</span>
-      {chars > 0 ? (
-        <span>{t("· 约 {m} 分钟读完", { m: Math.max(1, Math.ceil(chars / CHARS_PER_MINUTE)) })}</span>
-      ) : null}
     </span>
   );
 }

@@ -35,7 +35,6 @@ export const editor: Record<string, string> = {
 
   // 阅读模式外围
   切换排版主题: "Change theme",
-  "· 约 {m} 分钟读完": "· {m} min read",
 
   // 命令面板：格式 / 视图 / 文章 / 复制导出
   格式: "Format",
