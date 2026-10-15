@@ -51,10 +51,9 @@ function paginate(root: HTMLElement, pageLimit: number): HTMLElement[][] {
 export async function exportPdf(
   title: string,
   markdown: string,
-  opts: WechatBuildOptions,
-  onBegin?: () => void
+  opts: WechatBuildOptions
 ): Promise<boolean> {
-  return saveExport(title, ".pdf", "application/pdf", () => renderPdf(markdown, opts), onBegin);
+  return saveExport(title, ".pdf", "application/pdf", () => renderPdf(markdown, opts));
 }
 
 async function renderPdf(markdown: string, opts: WechatBuildOptions): Promise<Blob> {

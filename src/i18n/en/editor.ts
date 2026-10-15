@@ -63,10 +63,7 @@ export const editor: Record<string, string> = {
   "导出 Word（可导入飞书）": "Export Word (Feishu-compatible)",
   "导出 PDF": "Export PDF",
   "导出长图（PNG）": "Export Long Image (PNG)",
-  "正在生成 Word 文档…": "Generating Word document…",
-  "正在生成长图…": "Generating image…",
   "长图生成失败（外链图片可能跨域受限）": "Couldn't generate image (external images may be blocked by CORS)",
-  "正在生成 PDF…": "Generating PDF…",
   "PDF 生成失败（外链图片可能跨域受限）": "Couldn't generate PDF (external images may be blocked by CORS)",
   "PDF 已导出": "PDF exported",
 
