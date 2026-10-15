@@ -1,5 +1,5 @@
 import { buildWechatHtml, type WechatBuildOptions } from "./copy/wechat";
-import { downloadFile } from "./export";
+import { saveExport } from "./export";
 
 // A4 竖版，单位 pt
 const PAGE_W = 595.28;
@@ -45,14 +45,19 @@ function paginate(root: HTMLElement, pageLimit: number): HTMLElement[][] {
   return pages;
 }
 
-/** 导出 PDF：按顶层块分页、逐页截图后拼成 A4 栅格 PDF 直接下载。
+/** 导出 PDF：按顶层块分页、逐页截图后拼成 A4 栅格 PDF 保存。返回 false 表示用户取消了「另存为」。
  *  不整篇截一张长图再切：长文会撞浏览器 canvas 尺寸上限，且切口会落在文字行中间。
  *  失败（多是跨域外链图片让 html-to-image 整张失败）直接抛错，由调用方提示 —— lib 不认识 UI 层 */
 export async function exportPdf(
   title: string,
   markdown: string,
-  opts: WechatBuildOptions
-): Promise<void> {
+  opts: WechatBuildOptions,
+  onBegin?: () => void
+): Promise<boolean> {
+  return saveExport(title, ".pdf", "application/pdf", () => renderPdf(markdown, opts), onBegin);
+}
+
+async function renderPdf(markdown: string, opts: WechatBuildOptions): Promise<Blob> {
   const html = await buildWechatHtml(markdown, opts);
   const holder = document.createElement("div");
   holder.style.cssText = `position:fixed;left:-10000px;top:0;width:${RENDER_W}px;background:#fff;z-index:-1;`;
@@ -131,7 +136,7 @@ export async function exportPdf(
       }
     }
 
-    downloadFile(`${title || "untitled"}.pdf`, pdf.output("blob"), "application/pdf");
+    return pdf.output("blob");
   } finally {
     holder.remove();
   }
