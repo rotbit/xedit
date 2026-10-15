@@ -27,6 +27,7 @@ import { wikiLinkExtension } from "@/lib/wikiLink/parser";
 import { wikiLinkMenu, type WikiMenuState } from "@/lib/wikiLink/menu";
 import type { SelectionInfo } from "@/lib/editor/types";
 import type { DocMeta } from "@/features/workspace/types";
+import { intrawordStarExtension } from "@/lib/markdown/intrawordStar";
 
 interface EditorExtensionOptions {
   live: boolean;
@@ -70,6 +71,8 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
         // 代码块的底色、等宽字由 livePreview 的行级类负责，行内代码不受影响。
         { props: [styleTags({ CodeText: tags.content })] },
         wikiLinkExtension,
+        // `3*2` 这种字词中间的单个 * 按字面处理，与 renderer.ts 一致
+        intrawordStarExtension,
       ],
     }),
     syntaxHighlighting(mdHighlight),

@@ -2,6 +2,7 @@ import MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
 import { feishuFontColorOf } from "./colors";
 import { CODE_LANG } from "./markdown";
+import { intrawordStarPlugin } from "@/lib/markdown/intrawordStar";
 
 /**
  * Markdown → 飞书 docx 块树（markdown.ts 的反向）。
@@ -435,6 +436,7 @@ export function collectSubtree(build: MdBuild, id: string, out: OutBlock[]): voi
 export function markdownToFeishuBlocks(source: string): MdBuild {
   const md = new MarkdownIt({ html: true, linkify: false });
   md.disable("lheading"); // 与编辑器、预览一致，不认 Setext 下划线标题
+  md.use(intrawordStarPlugin); // 同上：`3*2` 的单个 * 是乘号
   const tokens = md.parse(source, {});
   return new Builder().build(buildTree(tokens));
 }
