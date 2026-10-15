@@ -69,18 +69,16 @@ export async function openSaveTarget(
   };
 }
 
-/** 导出统一流程：先选位置（取消返回 false，不提示），确定后才调 onBegin（UI 层借此弹「正在生成…」），
- *  再生成并写入；生成或写入失败时清掉空文件后把错误继续抛给调用方 */
+/** 导出统一流程：先选位置（取消返回 false，不提示），再生成并写入；
+ *  生成或写入失败时清掉空文件后把错误继续抛给调用方 */
 export async function saveExport(
   title: string,
   ext: string,
   mime: string,
-  produce: () => Promise<BlobPart>,
-  onBegin?: () => void
+  produce: () => Promise<BlobPart>
 ): Promise<boolean> {
   const target = await openSaveTarget(`${title || "untitled"}${ext}`, mime, ext);
   if (!target) return false;
-  onBegin?.();
   try {
     await target.write(await produce(), mime);
   } catch (e) {
@@ -134,10 +132,9 @@ export async function exportHtml(
 export async function exportImage(
   title: string,
   markdown: string,
-  opts: WechatBuildOptions,
-  onBegin?: () => void
+  opts: WechatBuildOptions
 ): Promise<boolean> {
-  return saveExport(title, ".png", "image/png", () => renderPng(markdown, opts), onBegin);
+  return saveExport(title, ".png", "image/png", () => renderPng(markdown, opts));
 }
 
 async function renderPng(markdown: string, opts: WechatBuildOptions): Promise<Blob> {

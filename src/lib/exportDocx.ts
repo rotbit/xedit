@@ -63,8 +63,7 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
  *  因为「部分图片没嵌进去」只有生成过程知道 */
 export async function exportDocx(
   title: string,
-  markdown: string,
-  onBegin?: () => void
+  markdown: string
 ): Promise<boolean> {
   let failed = 0;
   try {
@@ -76,8 +75,7 @@ export async function exportDocx(
         const r = await buildDocx(markdown);
         failed = r.failed;
         return r.blob;
-      },
-      onBegin
+      }
     );
     if (!saved) return false;
     if (failed) toast(t("已导出，但 {n} 个图片未能嵌入（获取失败）", { n: failed }), "error");
