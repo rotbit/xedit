@@ -1,5 +1,5 @@
 import { useStore } from "@/store/useStore";
-import { exportMarkdown, exportHtml, exportPdf, exportImage } from "@/lib/export";
+import { exportMarkdown, exportHtml, exportImage } from "@/lib/export";
 import { toast } from "@/components/Toast";
 import { t, tk } from "@/i18n/t";
 import { buildRenderOptions } from "./renderOptions";
@@ -11,7 +11,7 @@ export const EXPORT_ITEMS: { kind: ExportKind; label: string }[] = [
   { kind: "md", label: tk("导出 Markdown") },
   { kind: "html", label: tk("导出 HTML") },
   { kind: "docx", label: tk("导出 Word（可导入飞书）") },
-  { kind: "pdf", label: tk("导出 PDF（打印）") },
+  { kind: "pdf", label: tk("导出 PDF") },
   { kind: "image", label: tk("导出长图（PNG）") },
 ];
 
@@ -31,7 +31,19 @@ export async function runExport(kind: ExportKind): Promise<void> {
   }
   const opts = await buildRenderOptions();
   if (kind === "html") await exportHtml(s.title, s.content, opts);
-  else if (kind === "pdf") await exportPdf(s.title, s.content, opts);
+  else if (kind === "pdf") {
+    // jspdf 体积不小，点了才加载，不进首屏 bundle
+    toast(t("正在生成 PDF…"));
+    try {
+      const { exportPdf } = await import("@/lib/exportPdf");
+      await exportPdf(s.title, s.content, opts);
+      toast(t("PDF 已导出"));
+    } catch (e) {
+      // 原因留在控制台，不然用户反馈「导不出来」时无从查起
+      console.error("exportPdf failed", e);
+      toast(t("PDF 生成失败（外链图片可能跨域受限）"), "error");
+    }
+  }
   else {
     toast(t("正在生成长图…"));
     try {

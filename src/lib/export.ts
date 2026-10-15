@@ -50,48 +50,6 @@ export async function exportHtml(
   );
 }
 
-/** 通过隐藏 iframe 打印预览内容，用户在系统对话框中选择“存储为 PDF” */
-export async function exportPdf(
-  title: string,
-  markdown: string,
-  opts: WechatBuildOptions
-): Promise<void> {
-  const html = await buildStandaloneHtml(title, markdown, opts);
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "none";
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument;
-  if (!doc) {
-    // 拿不到文档就写不进内容，可 iframe 已经插进 body 了，先摘掉再退出，别留个空壳
-    iframe.remove();
-    return;
-  }
-  // 打印只该发生一次，下面两条触发路径都从这里收口
-  let printed = false;
-  const printOnce = () => {
-    if (printed) return;
-    printed = true;
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
-    setTimeout(() => iframe.remove(), 60_000);
-  };
-  // onload 要挂在 doc.open() 之前：正文没有外链资源时 load 可能在 close() 里就派发掉，
-  // 挂晚了这个回调永远不跑 —— 表现是「导出 PDF 点了没反应」，还漏一个 iframe 在 body 上。
-  // 再拿 readyState 兜一道底，覆盖 load 已经错过的情况。
-  iframe.onload = printOnce;
-  doc.open();
-  doc.write(html);
-  doc.close();
-  requestAnimationFrame(() => {
-    if (doc.readyState === "complete") printOnce();
-  });
-}
-
 /** 导出长图：以 750px 宽渲染内联样式版全文，转 PNG 下载。
  *  失败（多是跨域外链图片）时直接抛错，由调用方决定怎么提示 —— lib 不认识 UI 层 */
 export async function exportImage(
