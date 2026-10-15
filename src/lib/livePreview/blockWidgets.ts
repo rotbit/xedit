@@ -1,4 +1,5 @@
 import MarkdownIt from "markdown-it";
+import { intrawordStarPlugin } from "@/lib/markdown/intrawordStar";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { texToSvg } from "@/lib/markdown/mathjax";
@@ -12,7 +13,7 @@ import { editOnClick } from "@/lib/livePreview/widgetUtils";
  *  实例懒建一次，编辑器里每次重排都复用 */
 let inlineMd: MarkdownIt | null = null;
 function renderCell(source: string): string {
-  if (!inlineMd) inlineMd = new MarkdownIt({ html: false });
+  if (!inlineMd) inlineMd = new MarkdownIt({ html: false }).use(intrawordStarPlugin);
   return sanitizeHtml(inlineMd.renderInline(source));
 }
 

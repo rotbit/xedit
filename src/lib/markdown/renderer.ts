@@ -18,6 +18,7 @@ hljs.registerLanguage("http", http);
 hljs.registerLanguage("nginx", nginx);
 import { parseFrontmatter } from "@/lib/frontmatter";
 import { mathPlugin } from "./math";
+import { intrawordStarPlugin } from "./intrawordStar";
 import {
   headingPlugin,
   figurePlugin,
@@ -75,6 +76,8 @@ function createMd(): MarkdownIt {
   // 与编辑器解析器保持一致：不认 Setext 下划线标题（详见 editorExtensions.ts）
   md.disable("lheading");
 
+  // 与编辑器解析器同步：`3*2` 里的单个 * 是乘号不是斜体（见 intrawordStar.ts）
+  md.use(intrawordStarPlugin);
   md.use(footnote);
   md.use(taskLists, { label: false });
   md.use(mathPlugin);
