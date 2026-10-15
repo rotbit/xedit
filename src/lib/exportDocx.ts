@@ -3,7 +3,7 @@ import { renderMarkdown } from "@/lib/markdown/renderer";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { inlineAttachments } from "@/lib/localBackend/attachmentUrls";
-import { downloadFile } from "@/lib/export";
+import { saveExport } from "@/lib/export";
 import { toast } from "@/components/Toast";
 import { childBlocks } from "./docx/block";
 import { prepareMedia, stripSpaceAfterBreaks } from "./docx/media";
@@ -57,30 +57,52 @@ const STYLES = {
   },
 };
 
-export async function exportDocx(title: string, markdown: string): Promise<void> {
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/** 返回 false 表示用户取消了「另存为」（不提示）；成功/失败的提示在这里自己弹，
+ *  因为「部分图片没嵌进去」只有生成过程知道 */
+export async function exportDocx(
+  title: string,
+  markdown: string,
+  onBegin?: () => void
+): Promise<boolean> {
+  let failed = 0;
   try {
-    // 公式渲染依赖 MathJax；未加载成功时降级为 TeX 文本
-    if (markdown.includes("$")) await ensureMathJax().catch(() => undefined);
-    // 磁盘文库的本地图片先内联成 base64，prepareMedia 才拿得到字节
-    const html = sanitizeHtml(renderMarkdown(await inlineAttachments(markdown), {}));
-    const body = new DOMParser().parseFromString(html, "text/html").body;
-    stripSpaceAfterBreaks(body);
-    const b: Build = { images: new Map(), math: new Map(), frames: new Map(), olInstance: 0, failed: 0 };
-    await prepareMedia(body, b);
-    const children = childBlocks(body, { quote: 0 }, b);
-    const doc = new Document({
-      numbering: NUMBERING,
-      styles: STYLES,
-      sections: [{ children: children.length ? children : [new Paragraph({})] }],
-    });
-    downloadFile(
-      `${title || "untitled"}.docx`,
-      await Packer.toBlob(doc),
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    const saved = await saveExport(
+      title,
+      ".docx",
+      DOCX_MIME,
+      async () => {
+        const r = await buildDocx(markdown);
+        failed = r.failed;
+        return r.blob;
+      },
+      onBegin
     );
-    if (b.failed) toast(t("已导出，但 {n} 个图片未能嵌入（获取失败）", { n: b.failed }), "error");
+    if (!saved) return false;
+    if (failed) toast(t("已导出，但 {n} 个图片未能嵌入（获取失败）", { n: failed }), "error");
     else toast(t("Word 文档已导出"));
+    return true;
   } catch {
     toast(t("Word 生成失败"), "error");
+    return false;
   }
+}
+
+async function buildDocx(markdown: string): Promise<{ blob: Blob; failed: number }> {
+  // 公式渲染依赖 MathJax；未加载成功时降级为 TeX 文本
+  if (markdown.includes("$")) await ensureMathJax().catch(() => undefined);
+  // 磁盘文库的本地图片先内联成 base64，prepareMedia 才拿得到字节
+  const html = sanitizeHtml(renderMarkdown(await inlineAttachments(markdown), {}));
+  const body = new DOMParser().parseFromString(html, "text/html").body;
+  stripSpaceAfterBreaks(body);
+  const b: Build = { images: new Map(), math: new Map(), frames: new Map(), olInstance: 0, failed: 0 };
+  await prepareMedia(body, b);
+  const children = childBlocks(body, { quote: 0 }, b);
+  const doc = new Document({
+    numbering: NUMBERING,
+    styles: STYLES,
+    sections: [{ children: children.length ? children : [new Paragraph({})] }],
+  });
+  return { blob: await Packer.toBlob(doc), failed: b.failed };
 }

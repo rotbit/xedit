@@ -15,29 +15,29 @@ export const EXPORT_ITEMS: { kind: ExportKind; label: string }[] = [
   { kind: "image", label: tk("导出长图（PNG）") },
 ];
 
-/** 按当前主题与排版设置导出全文 */
+/** 按当前主题与排版设置导出全文。
+ *  各导出函数先弹「另存为」再生成：用户取消时它们返回 false，这里什么都不提示；
+ *  「正在生成…」通过 onBegin 在用户确定保存位置之后才弹，免得对话框还开着就说在生成 */
 export async function runExport(kind: ExportKind): Promise<void> {
   const s = useStore.getState();
   if (kind === "md") {
-    exportMarkdown(s.title, s.content);
+    await exportMarkdown(s.title, s.content);
     return;
   }
   if (kind === "docx") {
-    // Word 导出不吃主题样式（飞书/Word 导入会重排视觉），无需渲染选项
-    toast(t("正在生成 Word 文档…"));
+    // Word 导出不吃主题样式（飞书/Word 导入会重排视觉），无需渲染选项；成功/失败提示由 exportDocx 自己弹
     const { exportDocx } = await import("@/lib/exportDocx");
-    await exportDocx(s.title, s.content);
+    await exportDocx(s.title, s.content, () => toast(t("正在生成 Word 文档…")));
     return;
   }
   const opts = await buildRenderOptions();
   if (kind === "html") await exportHtml(s.title, s.content, opts);
   else if (kind === "pdf") {
-    // jspdf 体积不小，点了才加载，不进首屏 bundle
-    toast(t("正在生成 PDF…"));
     try {
+      // jspdf 体积不小，点了才加载，不进首屏 bundle
       const { exportPdf } = await import("@/lib/exportPdf");
-      await exportPdf(s.title, s.content, opts);
-      toast(t("PDF 已导出"));
+      const saved = await exportPdf(s.title, s.content, opts, () => toast(t("正在生成 PDF…")));
+      if (saved) toast(t("PDF 已导出"));
     } catch (e) {
       // 原因留在控制台，不然用户反馈「导不出来」时无从查起
       console.error("exportPdf failed", e);
@@ -45,9 +45,8 @@ export async function runExport(kind: ExportKind): Promise<void> {
     }
   }
   else {
-    toast(t("正在生成长图…"));
     try {
-      await exportImage(s.title, s.content, opts);
+      await exportImage(s.title, s.content, opts, () => toast(t("正在生成长图…")));
     } catch {
       // 跨域外链图片会让 html-to-image 整张失败，给用户一个能看懂的原因
       toast(t("长图生成失败（外链图片可能跨域受限）"), "error");
