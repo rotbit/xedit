@@ -493,17 +493,19 @@ export function ArticleReader({
                       scrollParent={scrollEl}
                     />
                   </div>
-                  {/* 意见：摆得下就在右边站一栏，摆不下就只给选中的那条浮一张 */}
+                  {/* 意见：摆得下就在右边站一栏，摆不下就只给选中的那条浮一张；
+                      不论哪种，鼠标停在标注上都就地浮出那条 */}
                   {reviewOn ? (
-                    showColumn ? (
-                      <ReviewCards
-                        api={reviewApi}
-                        onOpenSettings={openReviewSettings}
-                        onOpenSummary={openReviewSummary}
-                      />
-                    ) : (
-                      <ReviewPopover api={reviewApi} />
-                    )
+                    <>
+                      {showColumn ? (
+                        <ReviewCards
+                          api={reviewApi}
+                          onOpenSettings={openReviewSettings}
+                          onOpenSummary={openReviewSummary}
+                        />
+                      ) : null}
+                      <ReviewPopover api={reviewApi} pinActive={!showColumn} />
+                    </>
                   ) : null}
                 </div>
               </div>

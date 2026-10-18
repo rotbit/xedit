@@ -14,6 +14,7 @@ import { ReviewCard } from "./ReviewCard";
 import { layoutCards } from "./locate";
 import { CARD_COL_WIDTH, CARD_GAP } from "./useReviewLayout";
 import { useElapsedSeconds } from "./ReviewToolbar";
+import { useReviewHover } from "./useReviewHover";
 import type { ReviewApi } from "./useReview";
 import type { ReviewItemView } from "./types";
 import { useT } from "@/i18n/useT";
@@ -248,16 +249,20 @@ export function ReviewCards({
 }
 
 /**
- * 摆不下意见栏时的兜底：选中哪条，就在那句话底下浮出哪张卡片。
- * 位置用 coordsAtPos（只有选中的这一条要定位，它一定在视口里），
+ * 那句话底下浮出的一张卡片：鼠标停在标注上就出哪条；
+ * 摆不下意见栏时（pinActive）也兜底显示选中的那条。
+ * 位置用 coordsAtPos（只有这一条要定位，它一定在视口里），
  * 相对自己的 offsetParent（正文与意见栏共用的那一层，审核模式下是 relative）。
  */
-export function ReviewPopover({ api }: { api: ReviewApi }) {
+export function ReviewPopover({ api, pinActive }: { api: ReviewApi; pinActive: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const item = api.cards.find((c) => c.id === api.activeId);
-
   const { spanOf, editorView, tick, clearActive } = api;
+  const hover = useReviewHover(editorView());
+  const dismissHover = hover.dismiss;
+  const shownId = hover.hoverId ?? (pinActive ? api.activeId : null);
+  const item = api.cards.find((c) => c.id === shownId);
+
   const itemId = item?.id;
   const itemLine = item?.line;
   const catOf = useMemo(() => new Map(api.categories.map((c) => [c.id, c])), [api.categories]);
@@ -292,9 +297,10 @@ export function ReviewPopover({ api }: { api: ReviewApi }) {
       const target = e.target as HTMLElement | null;
       if (!target || ref.current?.contains(target)) return;
       if (target.closest?.("[data-review-id]")) return;
-      clearActive();
+      dismissHover();
+      if (pinActive) clearActive();
     },
-    [clearActive]
+    [clearActive, dismissHover, pinActive]
   );
   useEffect(() => {
     if (!itemId) return;
@@ -307,6 +313,8 @@ export function ReviewPopover({ api }: { api: ReviewApi }) {
     <div
       ref={ref}
       className="float-pop absolute z-20 rounded-lg"
+      onMouseEnter={hover.hold}
+      onMouseLeave={hover.release}
       style={{
         width: CARD_COL_WIDTH,
         top: pos?.top ?? 0,
@@ -319,9 +327,18 @@ export function ReviewPopover({ api }: { api: ReviewApi }) {
         category={catOf.get(item.category)}
         active
         onActivate={() => {}}
-        onAccept={() => api.accept(item.id)}
-        onIgnore={() => api.ignore(item.id)}
-        onAck={() => api.ack(item.id)}
+        onAccept={() => {
+          api.accept(item.id);
+          hover.dismiss();
+        }}
+        onIgnore={() => {
+          api.ignore(item.id);
+          hover.dismiss();
+        }}
+        onAck={() => {
+          api.ack(item.id);
+          hover.dismiss();
+        }}
       />
     </div>
   );
