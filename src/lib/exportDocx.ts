@@ -81,7 +81,8 @@ export async function exportDocx(
     if (failed) toast(t("已导出，但 {n} 个图片未能嵌入（获取失败）", { n: failed }), "error");
     else toast(t("Word 文档已导出"));
     return true;
-  } catch {
+  } catch (e) {
+    console.error("[exportDocx]", e);
     toast(t("Word 生成失败"), "error");
     return false;
   }

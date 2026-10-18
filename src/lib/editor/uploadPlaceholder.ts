@@ -29,7 +29,29 @@ const dropChip = StateEffect.define<number>();
 
 let nextId = 1;
 
-/** 转圈的小牌子。eq 只比 id：同一枚牌子重排位置时不重建 DOM，动画不会被打断 */
+/** 小牌子上的文件名：中间省略、保留扩展名，长截图名不至于把牌子撑到折行 */
+export function shortenFileName(name: string, max = 24): string {
+  if (name.length <= max) return name;
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot) : "";
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  const keep = Math.max(4, max - ext.length - 1);
+  const head = Math.ceil(keep * 0.6);
+  const tail = Math.floor(keep * 0.4);
+  return `${base.slice(0, head)}…${base.slice(base.length - tail)}${ext}`;
+}
+
+const IMAGE_ICON =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<rect x="2" y="3" width="12" height="10" rx="2"/><circle cx="6" cy="6.5" r="1.2"/><path d="M14 11l-3.2-3.2a1 1 0 0 0-1.4 0L4 13"/></svg>';
+const VIDEO_ICON =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<rect x="2" y="3.5" width="9" height="9" rx="2"/><path d="M11 7l3-2v6l-3-2z"/></svg>';
+
+const isVideoName = (name: string) => /\.(mp4|webm|mov|m4v)$/i.test(name);
+
+/** 落点上的小牌子：图标 + 文件名 + 「上传中…」，底色缓缓扫光表示在忙。
+ *  eq 只比 id：同一枚牌子重排位置时不重建 DOM，动画不会被打断 */
 class UploadChipWidget extends WidgetType {
   constructor(
     readonly id: number,
@@ -44,11 +66,17 @@ class UploadChipWidget extends WidgetType {
     const wrap = document.createElement("span");
     wrap.className = "cm-upload-chip";
     wrap.setAttribute("aria-label", t("正在上传 {name}", { name: this.name }));
-    const spin = document.createElement("span");
-    spin.className = "cm-upload-chip-spin";
+    const icon = document.createElement("span");
+    icon.className = "cm-upload-chip-icon";
+    icon.innerHTML = isVideoName(this.name) ? VIDEO_ICON : IMAGE_ICON;
     const label = document.createElement("span");
-    label.textContent = t("上传中 {name}", { name: this.name });
-    wrap.append(spin, label);
+    label.className = "cm-upload-chip-name";
+    label.textContent = shortenFileName(this.name);
+    label.title = this.name;
+    const status = document.createElement("span");
+    status.className = "cm-upload-chip-status";
+    status.textContent = t("上传中");
+    wrap.append(icon, label, status);
     return wrap;
   }
   ignoreEvent() {
@@ -117,26 +145,49 @@ const chipTheme = EditorView.baseTheme({
     display: "inline-flex",
     alignItems: "center",
     gap: "6px",
-    margin: "0 2px",
-    padding: "1px 8px",
-    borderRadius: "6px",
-    background: "var(--accent-wash)",
-    color: "var(--ink-faint)",
+    margin: "0 3px",
+    padding: "0 10px 0 7px",
+    height: "24px",
+    maxWidth: "260px",
+    borderRadius: "999px",
+    border: "1px solid var(--hairline)",
+    // 两档纸灰之间来回扫一道浅光：比转圈安静，又看得出「还在传」
+    background:
+      "linear-gradient(100deg, var(--sidebar) 35%, var(--accent-wash) 50%, var(--sidebar) 65%) 0 0 / 250% 100%",
+    animation: "cm-upload-chip-shimmer 1.6s linear infinite",
+    color: "var(--ink-soft)",
     fontSize: "12px",
-    verticalAlign: "baseline",
+    lineHeight: "1",
+    whiteSpace: "nowrap",
+    verticalAlign: "-6px",
     userSelect: "none",
   },
-  ".cm-upload-chip-spin": {
-    width: "9px",
-    height: "9px",
-    borderRadius: "50%",
-    border: "1.5px solid var(--hairline-strong)",
-    borderTopColor: "var(--ink-faint)",
-    animation: "cm-upload-chip-spin 0.7s linear infinite",
+  ".cm-upload-chip-icon": {
+    display: "inline-flex",
+    width: "13px",
+    height: "13px",
+    flex: "none",
+    color: "var(--ink-faint)",
   },
-  "@keyframes cm-upload-chip-spin": {
-    "0%": { transform: "rotate(0deg)" },
-    "100%": { transform: "rotate(360deg)" },
+  ".cm-upload-chip-icon svg": { width: "100%", height: "100%" },
+  ".cm-upload-chip-name": { overflow: "hidden", textOverflow: "ellipsis" },
+  ".cm-upload-chip-status": { color: "var(--ink-faint)" },
+  ".cm-upload-chip-status::after": {
+    content: '""',
+    display: "inline-block",
+    width: "1.2em",
+    textAlign: "left",
+    animation: "cm-upload-chip-dots 1.2s steps(4) infinite",
+  },
+  "@keyframes cm-upload-chip-shimmer": {
+    from: { backgroundPosition: "100% 0" },
+    to: { backgroundPosition: "-100% 0" },
+  },
+  "@keyframes cm-upload-chip-dots": {
+    "0%": { content: '""' },
+    "25%": { content: '"."' },
+    "50%": { content: '".."' },
+    "75%": { content: '"..."' },
   },
 });
 

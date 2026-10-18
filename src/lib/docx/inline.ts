@@ -52,9 +52,20 @@ function fit(pi: PreparedImage, maxW: number): { width: number; height: number }
   return { width: Math.round(pi.width * scale), height: Math.round(pi.height * scale) };
 }
 
-/** 把预备好的位图包成 ImageRun，宽度默认压到正文宽。 */
-export function imageRun(pi: PreparedImage, maxW = CONTENT_W): ImageRun {
-  return new ImageRun({ type: pi.type, data: pi.data, transformation: fit(pi, maxW) });
+let imageSeq = 0;
+
+/** 把预备好的位图包成 ImageRun，宽度默认压到正文宽。
+ *  docPr/cNvPr 的 name 与 descr 不留空：Word 自己不在乎，但部分导入器（飞书、WPS、Tiptap 等）
+ *  按这两个属性识别图片与读取替代文字，空字符串在它们那里有被当作无效图片的风险。 */
+export function imageRun(pi: PreparedImage, maxW = CONTENT_W, alt = ""): ImageRun {
+  imageSeq += 1;
+  const name = `image${imageSeq}`;
+  return new ImageRun({
+    type: pi.type,
+    data: pi.data,
+    transformation: fit(pi, maxW),
+    altText: { name, description: alt || name, title: alt || name },
+  });
 }
 
 /** Word 放不了视频，退化成一个指向源地址的超链接。 */
@@ -126,9 +137,9 @@ export function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Buil
     case "IMG": {
       const src = el.getAttribute("src") ?? "";
       const pi = src ? b.images.get(src) : null;
-      if (pi) out.push(imageRun(pi));
+      const alt = el.getAttribute("alt");
+      if (pi) out.push(imageRun(pi, CONTENT_W, alt ?? ""));
       else {
-        const alt = el.getAttribute("alt");
         out.push(makeRun(`[图片${alt ? `：${alt}` : ""}]`, { ...st, color: GRAY })); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
       }
       return;

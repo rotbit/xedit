@@ -13,7 +13,7 @@ import {
   WidthType,
 } from "docx";
 import { imageRun, inlineOf, mathImage, pushInline, videoLink } from "./inline";
-import { BLOCK_TAGS, GRAY, HEADINGS, MONO_FONT, OL_REF } from "./types";
+import { BLOCK_TAGS, GRAY, HEADINGS, MONO_FONT, OL_REF, CONTENT_W } from "./types";
 import type { Build, BlockChild, InlineChild, PreparedImage } from "./types";
 
 // —— 版式尺寸 ——
@@ -55,10 +55,10 @@ function captionPara(text: string): Paragraph {
   });
 }
 
-function imagePara(pi: PreparedImage): Paragraph {
+function imagePara(pi: PreparedImage, alt = ""): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.CENTER,
-    children: [imageRun(pi)],
+    children: [imageRun(pi, CONTENT_W, alt)],
     spacing: { before: 120, after: 120 },
   });
 }
@@ -76,7 +76,7 @@ function videoBlocks(video: Element, caption: string, b: Build): Paragraph[] {
   if (!src) return [];
   const out: Paragraph[] = [];
   const posterImg = b.frames.get(video);
-  if (posterImg) out.push(imagePara(posterImg));
+  if (posterImg) out.push(imagePara(posterImg, caption));
   out.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -103,10 +103,10 @@ function figureBlocks(el: Element, ctx: Ctx, b: Build): BlockChild[] {
   if (img) {
     const src = img.getAttribute("src") ?? "";
     const pi = src ? b.images.get(src) : null;
+    const alt = img.getAttribute("alt");
     const out: Paragraph[] = [];
-    if (pi) out.push(imagePara(pi));
+    if (pi) out.push(imagePara(pi, alt ?? caption));
     else {
-      const alt = img.getAttribute("alt");
       out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`)); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
     }
     if (caption) out.push(captionPara(caption));
@@ -247,9 +247,9 @@ function splitMediaParagraph(el: Element, ctx: Ctx, b: Build): BlockChild[] {
       flushText();
       const src = child.getAttribute("src") ?? "";
       const pi = src ? b.images.get(src) : null;
-      if (pi) out.push(imagePara(pi));
+      const alt = child.getAttribute("alt");
+      if (pi) out.push(imagePara(pi, alt ?? ""));
       else {
-        const alt = child.getAttribute("alt");
         out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`)); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
       }
     } else {

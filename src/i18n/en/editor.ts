@@ -179,7 +179,7 @@ export const editor: Record<string, string> = {
   未命名文件: "Untitled file",
   "「{name}」的插入位置已被删掉，没有插入": "The spot for “{name}” was deleted, so it wasn't inserted",
   "正在上传 {name}": "Uploading {name}",
-  "上传中 {name}": "Uploading {name}",
+  "上传中": "Uploading",
   加粗文字: "bold text",
   斜体文字: "italic text",
   图片描述: "image description",
