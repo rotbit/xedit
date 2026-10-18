@@ -115,7 +115,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   const kind = reviewKindsLabel(fromHistory && record ? record.kinds : cfg.kinds, t);
 
   return (
-    <div className="relative flex h-9 shrink-0 items-center gap-2 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4 text-[12px] text-[var(--ink-soft)]">
+    <div className="@container relative flex h-9 shrink-0 items-center gap-2 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4 text-[12px] text-[var(--ink-soft)]">
       {/* 标注的配色跟着结果走（分类是服务端给的），所以 CSS 在这里现生成 */}
       <style>{reviewMarkCss(categories)}</style>
 
@@ -144,11 +144,14 @@ export const ReviewToolbar = memo(function ReviewToolbar({
           </button>
         </span>
       ) : (
-        <span className="shrink-0 whitespace-nowrap">
+        <span
+          className="shrink-0 whitespace-nowrap"
+          title={fromHistory && record ? t("{time} 的记录", { time: formatRecordTime(record.createdAt) }) : undefined}
+        >
           {t("{n} 条建议", { n: total })}
           {handled > 0 ? <span className="text-[var(--ink-faint)]"> · {t("已处理 {n}", { n: handled })}</span> : null}
           {fromHistory && record ? (
-            <span className="text-[var(--ink-faint)]"> · {t("{time} 的记录", { time: formatRecordTime(record.createdAt) })}</span>
+            <span className="hidden text-[var(--ink-faint)] @5xl:inline"> · {t("{time} 的记录", { time: formatRecordTime(record.createdAt) })}</span>
           ) : null}
         </span>
       )}
@@ -168,7 +171,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
 
       {/* 按类型筛：胶囊上的数字是「还待处理」的条数，处理掉一条就少一个 */}
       {phase === "done" && total > 0 ? (
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-4 [mask-image:linear-gradient(to_right,black_calc(100%-16px),transparent)] [scrollbar-width:none]">
           <button
             className={`${chip} ${
               filter === null
@@ -210,11 +213,11 @@ export const ReviewToolbar = memo(function ReviewToolbar({
           className={`mr-1 flex max-w-[260px] shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
             settingsOpen ? "text-[var(--accent)]" : "text-[var(--ink-faint)]"
           }`}
-          title={t("审核类型")}
+          title={`${t("审核类型")}：${kind}`}
           onClick={() => onSettingsOpen(!settingsOpen)}
         >
           <Settings2 size={12} className="shrink-0" />
-          <span className="truncate">{kind}</span>
+          <span className="hidden truncate @4xl:inline">{kind}</span>
         </button>
         <button className={navBtn} title={t("上一条（⌥↑）")} onClick={onPrev} disabled={!canPrev}>
           <ChevronUp size={14} />
@@ -224,7 +227,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         </button>
         <button
           data-menu-trigger
-          className={`${navBtn} ${historyOpen ? "bg-[var(--accent-wash)] text-[var(--ink)]" : ""}`}
+          className={`${navBtn} ${historyOpen ? "bg-[var(--accent-wash)] text-[var(--ink)]" : fromHistory ? "text-[var(--accent)]" : ""}`}
           title={t("审核历史")}
           onClick={() => setHistoryOpen((v) => !v)}
         >

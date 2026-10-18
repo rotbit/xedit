@@ -287,7 +287,8 @@ export function useReview({
     const spans = new Map<string, SourceSpan>();
     const marks: ReviewMark[] = [];
     for (const it of items) {
-      if (it.status !== "open") continue;
+      // 按类型筛了，正文里也只留这一类的标注，免得别的颜色混在里面找不着
+      if (it.status !== "open" || !matchFilter(it)) continue;
       const span = locateQuote(it, doc);
       if (!span) continue;
       spans.set(it.id, span);
@@ -301,7 +302,7 @@ export function useReview({
     }
     spansRef.current = spans;
     pushReviewMarks(view, marks);
-  }, [active, items, activeId, docKey, editorRef, bump]);
+  }, [active, items, matchFilter, activeId, docKey, editorRef, bump]);
 
   // —— 联动：选中一条，标注与卡片一起走过去 ——
 
@@ -342,6 +343,25 @@ export function useReview({
     [revealInEditor]
   );
   const clearActive = useCallback(() => setActiveId(null), []);
+
+  /**
+   * 点类型胶囊：筛出这一类，并直接跳到它在正文里的第一处（按位置排，不按结果顺序）。
+   * 光筛不跳，作者还得自己往下翻着找那几个颜色。
+   */
+  const applyFilter = useCallback(
+    (next: string | null) => {
+      setFilter(next);
+      if (next === null) return;
+      const doc = editorRef.current?.view()?.state.doc.toString() ?? "";
+      const first = itemsRef.current
+        .filter((it) => it.status === "open" && it.category === next)
+        .map((it) => ({ id: it.id, at: locateQuote(it, doc)?.from ?? Infinity }))
+        .sort((a, b) => a.at - b.at)[0];
+      if (first) activate(first.id);
+      else setActiveId(null);
+    },
+    [editorRef, activate]
+  );
 
   /** 点正文里的标注就选中那条意见：装饰上带着 data-review-id，在内容层上做一次委托即可 */
   useEffect(() => {
@@ -436,7 +456,7 @@ export function useReview({
     total: items.length,
     handled,
     filter,
-    setFilter,
+    setFilter: applyFilter,
     activeId,
     activate,
     clearActive,
