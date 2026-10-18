@@ -161,6 +161,14 @@ function tableBlock(tableEl: Element, b: Build): Table {
   });
 }
 
+/** 去掉一段行内节点首尾的换行/空白（源码里 `项目二\n<ul>` 的那个换行会变成 Word 里的尾随空格） */
+function trimEdgeWhitespace(nodes: Node[]): void {
+  const first = nodes[0];
+  if (first?.nodeType === Node.TEXT_NODE) first.textContent = (first.textContent ?? "").replace(/^\s+/, "");
+  const last = nodes[nodes.length - 1];
+  if (last?.nodeType === Node.TEXT_NODE) last.textContent = (last.textContent ?? "").replace(/\s+$/, "");
+}
+
 function listBlocks(listEl: Element, level: number, b: Build): BlockChild[] {
   const ordered = listEl.tagName === "OL";
   const instance = ordered ? b.olInstance++ : 0;
@@ -176,11 +184,15 @@ function listBlocks(listEl: Element, level: number, b: Build): BlockChild[] {
 
   for (const li of Array.from(listEl.children)) {
     if (li.tagName !== "LI") continue;
-    // li 内容切块：行内内容聚为段落，嵌套列表与块级元素单独处理
+    // li 内容切块：行内内容聚为段落，嵌套列表与块级元素单独处理。
+    // markdown-it 在 <li> 里的 <p>/<ul> 前后会输出换行（宽松列表每项都包 <p>），
+    // 这些纯空白文本节点不是内容：当成一段会让编号落在空行上、正文掉到下一行且丢编号
     const chunks: (Node[] | Element)[] = [];
     let acc: Node[] = [];
     const flush = () => {
-      if (acc.length) chunks.push(acc);
+      if (acc.some((n) => n.nodeType === Node.ELEMENT_NODE || n.textContent?.trim())) {
+        chunks.push(acc);
+      }
       acc = [];
     };
     for (const child of Array.from(li.childNodes)) {
@@ -194,9 +206,10 @@ function listBlocks(listEl: Element, level: number, b: Build): BlockChild[] {
     let first = true;
     for (const chunk of chunks) {
       if (Array.isArray(chunk) || chunk.tagName === "P") {
+        const nodes = Array.isArray(chunk) ? chunk : Array.from(chunk.childNodes);
+        trimEdgeWhitespace(nodes);
         const runs: InlineChild[] = [];
-        if (Array.isArray(chunk)) chunk.forEach((n) => pushInline(n, {}, runs, b));
-        else chunk.childNodes.forEach((n) => pushInline(n, {}, runs, b));
+        nodes.forEach((n) => pushInline(n, {}, runs, b));
         if (!runs.length && !first) continue;
         out.push(new Paragraph({ children: runs, ...marker(first), spacing: { after: 60 } }));
         first = false;
