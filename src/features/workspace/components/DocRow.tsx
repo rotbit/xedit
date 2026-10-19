@@ -8,7 +8,7 @@ import { iconTone } from "./NavRow";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 侧栏分类树里的文章行；同时是排序落点（拖到上/下半区插到前/后） */
+/** Document row in the sidebar category tree; also a reorder drop target (drop on the top/bottom half to insert before/after) */
 export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth: number }) {
   const { nav, menus, drag, docActions } = ws;
   const active = nav.readingId === doc.id;
@@ -28,7 +28,7 @@ export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth:
     >
       <button
         className={`flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${rowCls(active)}`}
-        // 外边距缩进同 CategoryRow；14px 图标位 + gap-2，与同层文件夹行的图标、文字左缘对齐
+        // Margin indent same as CategoryRow; 14px icon slot + gap-2 aligns with the icon and text left edges of sibling folder rows
         style={{
           marginLeft: `${rowInset(depth)}px`,
           width: `calc(100% - ${rowInset(depth)}px)`,

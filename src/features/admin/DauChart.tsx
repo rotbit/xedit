@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 后台的活跃用户曲线。数据来自 /api/admin/dau，按天/周/月三种粒度分别取一次。
- * 折线是手写 SVG path，没引图表库：全站只有这一处图表，为它多打一个库进包不值。
- * 坐标都在 640x200 的 viewBox 里算，缩放由 viewBox 负责，所以不需要监听容器尺寸变化。
+ * Admin active users chart. Data comes from /api/admin/dau, fetched once each for day/week/month granularity.
+ * The line is a hand-written SVG path with no chart library: it's the only chart on the site, not worth bundling a library for.
+ * Coordinates are computed in a 640x200 viewBox, which handles scaling, so there's no need to watch the container size.
  */
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -14,19 +14,19 @@ interface Point {
   count: number;
 }
 
-// hint 里的区间是接口写死的取数窗口（见 /api/admin/dau），那边改了这里的文案要跟着改
+// The ranges in hint are the API's hard-coded windows (see /api/admin/dau); if those change, update this copy too
 const TABS: { key: Gran; label: string; hint: string }[] = [
   { key: "day", label: "按天", hint: "近 30 天" },
   { key: "week", label: "按周", hint: "近 12 周" },
   { key: "month", label: "按月", hint: "近 12 个月" },
 ];
 
-/** 画布尺寸与内边距（viewBox 坐标系，等比缩放到容器宽度） */
+/** Canvas size and padding (viewBox coordinates, scaled proportionally to the container width) */
 const W = 640;
 const H = 200;
 const PAD = { top: 14, right: 12, bottom: 24, left: 34 };
 
-/** 气泡上的日期文案。key 是接口给的日期字符串，这里直接切字符串而不是 new Date，免得按 UTC 解析后整体差一天。 */
+/** Date label in the tooltip. key is the API's date string; slice the string directly instead of new Date, which parses as UTC and shifts it a day. */
 function tooltipLabel(gran: Gran, key: string): string {
   if (gran === "month") return `${key.slice(0, 4)} 年 ${Number(key.slice(5))} 月`;
   const text = `${Number(key.slice(5, 7))} 月 ${Number(key.slice(8))} 日`;
@@ -37,15 +37,15 @@ function axisLabel(gran: Gran, key: string): string {
   return gran === "month" ? `${Number(key.slice(5))}月` : key.slice(5);
 }
 
-/** 活跃用户曲线：单序列面积折线，悬停出十字线与数值气泡 */
+/** Active users chart: single-series area line, with crosshair and value tooltip on hover */
 export function DauChart() {
   const [gran, setGran] = useState<Gran>("day");
-  // 各粒度各缓存一份，切换不闪加载
+  // One cache per granularity, so switching doesn't flash a loading state
   const [cache, setCache] = useState<Partial<Record<Gran, Point[]>>>({});
   const [hover, setHover] = useState<number | null>(null);
 
   useEffect(() => {
-    // 命中缓存就不再请求。依赖里带着 cache 会让 setCache 重跑本 effect，靠这一句挡住，不会变成死循环
+    // Don't refetch on a cache hit. Having cache in the deps makes setCache re-run this effect; this line stops it from looping
     if (cache[gran]) return;
     let cancelled = false;
     void fetch(`/api/admin/dau?g=${gran}`)
@@ -65,11 +65,11 @@ export function DauChart() {
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
 
-  // y 轴取整到 4 的倍数，保证 0 / 中值 / 顶值三条刻度都是整数
+  // Round the y-axis up to a multiple of 4 so the 0 / middle / top ticks are all integers
   const maxCount = points ? Math.max(1, ...points.map((p) => p.count)) : 1;
   const yMax = Math.max(4, Math.ceil(maxCount / 4) * 4);
 
-  // 只有一个点时把它放在中间：否则 i/(length-1) 会除以 0
+  // With a single point, put it in the middle: otherwise i/(length-1) divides by 0
   const xOf = (i: number): number =>
     PAD.left + (points && points.length > 1 ? (i / (points.length - 1)) * innerW : innerW / 2);
   const yOf = (count: number): number => PAD.top + innerH - (count / yMax) * innerH;
@@ -81,13 +81,13 @@ export function DauChart() {
     ? `${linePath}L${xOf(points.length - 1).toFixed(1)},${PAD.top + innerH}L${xOf(0).toFixed(1)},${PAD.top + innerH}Z`
     : "";
 
-  // x 轴稀疏刻度：首、末与中间约 3 个
+  // Sparse x-axis ticks: first, last and about 3 in between
   const xTicks = points
-    // 去重是必要的：点数少于 5 个时，几个刻度会算到同一个下标
+    // Dedup is necessary: with fewer than 5 points, several ticks land on the same index
     ? Array.from(new Set([0, 1, 2, 3, 4].map((k) => Math.round((k * (points.length - 1)) / 4))))
     : [];
 
-  // 由鼠标横坐标反推最近的数据点，而不是给每个点挂一块 hover 热区：点多时那样要多出几十个节点
+  // Derive the nearest data point from the mouse x instead of giving each point a hover zone: with many points that would add dozens of nodes
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!points || points.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -139,7 +139,7 @@ export function DauChart() {
             onMouseMove={onMove}
             onMouseLeave={() => setHover(null)}
           >
-            {/* 横向网格与 y 刻度（0 / 中 / 顶），保持退后 */}
+            {/* Horizontal grid and y ticks (0 / middle / top), kept in the background */}
             {[0, yMax / 2, yMax].map((v) => (
               <g key={v}>
                 <line
@@ -161,7 +161,7 @@ export function DauChart() {
                 </text>
               </g>
             ))}
-            {/* x 刻度 */}
+            {/* x ticks */}
             {xTicks.map((i) => (
               <text
                 key={i}
@@ -183,7 +183,7 @@ export function DauChart() {
               strokeLinejoin="round"
               strokeLinecap="round"
             />
-            {/* 悬停：十字线 + 带底色描边的标记点 */}
+            {/* Hover: crosshair + marker dot with a background-colored stroke */}
             {hovered && hover !== null ? (
               <g>
                 <line
@@ -210,7 +210,7 @@ export function DauChart() {
               className="pointer-events-none absolute -translate-x-1/2 rounded-md bg-[var(--ink)] px-2.5 py-1 text-[11.5px] whitespace-nowrap text-[var(--paper)] shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
               style={{
                 left: `${(xOf(hover) / W) * 100}%`,
-                // 减 34px 把气泡抬到标记点上方，数值等于气泡自身高度加间距，改字号得重新量
+                // Subtract 34px to lift the tooltip above the marker; the value is the tooltip's own height plus a gap, so re-measure if the font size changes
                 top: `calc(${(yOf(hovered.count) / H) * 100}% - 34px)`,
               }}
             >

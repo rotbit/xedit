@@ -8,11 +8,11 @@ import {
 } from "@/lib/coverGenerate/replicate";
 
 /**
- * 服务端生图：填空清洗、提示词模板、Replicate 调用与轮询、入参自适应（换模型后 422 的那些字段）、
- * 错误码映射、Token 不外泄。全程假 fetch，绝不真的打 Replicate。
+ * Server-side image generation: input sanitizing, prompt templates, Replicate calls and polling, adaptive inputs (fields that 422 after a model change),
+ * error code mapping, and no token leakage. Fake fetch throughout; never actually hits Replicate.
  */
 
-/** 一个显眼的假 Token：任何返回、任何错误文案里出现它都算泄漏 */
+/** A conspicuous fake token: it showing up in any response or error message counts as a leak */
 const TOKEN = "r8_TESTTOKEN_SHOULD_NOT_LEAK";
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const IMG = "https://replicate.delivery/pbxt/abc.jpg";
@@ -40,7 +40,7 @@ interface Call {
   headers: Record<string, string | undefined>;
 }
 
-/** 按顺序回放若干个响应，同时把每次请求记下来 */
+/** Replay responses in order while recording every request */
 function mockFetch(...responses: unknown[]) {
   const calls: Call[] = [];
   const impl = (async (url: string, init: RequestInit = {}) => {
@@ -59,13 +59,13 @@ type Args = {
   right?: unknown;
 };
 
-/** 大多数用例不关心填了什么，用这份最省事的：一个标题 + 一个产品 */
+/** Most cases don't care what's filled in, so use the simplest one: one title + one product */
 const ONE = { title: "猫", left: { name: "Claude", color: "blue" } };
 
 const run = (args: Args, fetchImpl: typeof fetch) =>
   generateCovers(args, { fetchImpl, pollMs: 1 });
 
-/** 取出失败：测的全是失败路径，成功反而是 bug */
+/** Extract the failure: everything tested here is a failure path, so success would be a bug */
 async function fails(promise: Promise<unknown>): Promise<CoverError> {
   const e = await promise.then(
     () => new Error("本该失败却成功了"),
@@ -75,13 +75,13 @@ async function fails(promise: Promise<unknown>): Promise<CoverError> {
   return e as CoverError;
 }
 
-/** 某次调用第 i 发请求的 input（POST 出去的那份） */
+/** The input (the POSTed payload) of the i-th request in a call */
 const inputOf = (calls: Call[], i: number) =>
   JSON.parse(calls[i].init.body as string).input as Record<string, unknown>;
 
 beforeEach(() => {
   vi.stubEnv("REPLICATE_API_TOKEN", TOKEN);
-  // 入参适配是按模型记在模块级 Map 里的，不清掉会串到下一个用例
+  // Input adaptation is recorded per model in a module-level Map; if not cleared it leaks into the next case
   __resetCoverModelsForTests();
 });
 
@@ -101,7 +101,7 @@ describe("填空清洗", () => {
     expect(fields.title).toBe("标 题 里带引号 和 空白");
     expect(fields.highlights).toEqual(["重 点", "第二个"]);
     expect(fields.left?.name).toBe("A 名");
-    // 不认识的色号退回深灰，不因为一个错字整单失败
+    // Unknown color codes fall back to dark gray rather than failing the whole request over a typo
     expect(fields.right?.color).toBe("gray");
   });
 
@@ -137,13 +137,13 @@ describe("填空清洗", () => {
       expect(fields.right).toBeUndefined();
       expect(fields.accent).toBe("gray");
     }
-    // 名字空了主题色也照取
+    // Theme color is still taken when the name is empty
     const noName = coverFields({ title: "标题", left: { name: " ", color: "purple" } });
     expect(noName.left).toBeUndefined();
     expect(noName.accent).toBe("purple");
     const blankRight = coverFields({ title: "标题", left: { name: "A" }, right: { name: " " } });
     expect(blankRight.right).toBeUndefined();
-    // 没传 color 也算数：按不认识处理，退回深灰
+    // Omitting color counts too: treated as unknown, falls back to dark gray
     expect(coverFields({ title: "标题", left: { name: "A" } }).left?.color).toBe("gray");
   });
 
@@ -182,7 +182,7 @@ describe("buildPrompt", () => {
     expect(p).toContain("每张卡片只保留：");
     expect(p).toContain("两张卡片中间可以放一个简洁的 VS");
     expect(p).toContain("Claude vs GPT");
-    // 比例是可选参数，默认还是 21:9
+    // Aspect ratio is optional and still defaults to 21:9
     expect(buildPrompt(two)).toContain("比例 21:9");
   });
 
@@ -208,7 +208,7 @@ describe("buildPrompt", () => {
     expect(p).toContain("关键词与几何装饰使用紫色，其他文字使用深灰。");
     expect(p).toContain("「纯标题封面」");
     expect(p).toContain("几何");
-    // 除了版式那句明说「不放产品卡片，不放 Logo」，别处一概不提卡片和 Logo
+    // Apart from the layout line explicitly saying 「不放产品卡片，不放 Logo」 (no product card, no logo), cards and logos aren't mentioned anywhere
     const rest = p.replace("不放产品卡片，不放 Logo", "");
     expect(rest).not.toContain("卡片");
     expect(rest).not.toContain("Logo");
@@ -247,7 +247,7 @@ describe("generateCovers", () => {
       f: input.output_format,
       q: input.output_quality,
     }).toEqual({ a: "21:9", n: 1, f: "jpg", q: 90 });
-    // 图片在 CDN 上，Token 不该跟过去
+    // The image is on a CDN; the token shouldn't follow it there
     expect(calls[1].url).toBe(IMG);
     expect(calls[1].headers.Authorization).toBeUndefined();
     expect(JSON.stringify(calls.slice(1))).not.toContain(TOKEN);
@@ -267,7 +267,7 @@ describe("generateCovers", () => {
   it("一次点击只生一张：模型只给一张也不会再补一发", async () => {
     const { impl, calls } = mockFetch(jsonRes(200, { status: "succeeded", output: [IMG] }), imgRes());
     expect(await run(ONE, impl)).toHaveLength(1);
-    // 一发创建 + 一次下载就完了：不够就补的那段已经去掉，不满意由用户自己再点一次
+    // One create + one download and done: the top-up-if-not-enough step is gone; if unsatisfied, the user clicks again
     expect(calls).toHaveLength(2);
     expect(calls.filter((c) => c.init.method === "POST")).toHaveLength(1);
   });
@@ -311,7 +311,7 @@ describe("generateCovers", () => {
     );
     const err = await fails(run(ONE, impl));
     expect(err.code).toBe("failed");
-    expect(calls).toHaveLength(1); // 只发了第一次请求，没去 evil.example
+    expect(calls).toHaveLength(1); // Only the first request was sent; it never went to evil.example
   });
 
   it("错误码映射", async () => {
@@ -343,7 +343,7 @@ describe("generateCovers", () => {
     const { impl } = mockFetch(jsonRes(200, {}));
     expect((await fails(run(ONE, impl))).code).toBe("no_token");
 
-    // 路由那边已经挡过一道，这里再挡一道：谁调用都不放过，且一次上游都不碰
+    // The route already guards this; guard again here: no caller gets through, and upstream is never touched
     vi.stubEnv("REPLICATE_API_TOKEN", TOKEN);
     const missing: Args[] = [
       { title: "", left: { name: "A", color: "blue" } },
@@ -382,7 +382,7 @@ describe("generateCovers", () => {
 
   it("超时：停下并尽力取消", async () => {
     vi.stubEnv("COVER_GENERATE_TIMEOUT_SEC", "0.01");
-    // 一直回 processing，怎么轮询都等不到结果，只能被超时截停
+    // Always returns processing, so polling never gets a result and only the timeout can stop it
     const urls = {
       get: "https://api.replicate.com/v1/predictions/p1",
       cancel: "https://api.replicate.com/v1/predictions/p1/cancel",
@@ -425,7 +425,7 @@ describe("generateCovers", () => {
 });
 
 describe("入参自适应：换了模型，入参跟着模型的脾气走", () => {
-  /** 线上第一次真实调用时 Replicate 回的那段 detail，原样拿来测 */
+  /** The detail Replicate returned on the first real production call, used verbatim */
   const ASPECT_DETAIL =
     '- input.aspect_ratio: aspect_ratio must be one of the following: "1:1", "3:2", "2:3", ' +
     '"4:3", "3:4", "16:9", "9:16", "auto", "1024x1024", "1536x1024", "1024x1536", ' +
@@ -440,7 +440,7 @@ describe("入参自适应：换了模型，入参跟着模型的脾气走", () =
     const images = await run(ONE, impl);
     expect(images).toHaveLength(1);
     expect(inputOf(calls, 0).aspect_ratio).toBe("21:9");
-    // 1536x1024 这类像素写法和 auto 都不算比例；3:2、4:3 都比 16:9 窄
+    // Pixel forms like 1536x1024 and auto aren't ratios; 3:2 and 4:3 are both narrower than 16:9
     expect(inputOf(calls, 1).aspect_ratio).toBe("16:9");
     expect(inputOf(calls, 1).prompt).toContain("比例 16:9");
     expect(inputOf(calls, 1).prompt).not.toContain("21:9");
@@ -451,7 +451,7 @@ describe("入参自适应：换了模型，入参跟着模型的脾气走", () =
     const { impl, calls } = mockFetch(jsonRes(422, { detail }));
     const err = await fails(run(ONE, impl));
     expect(err.code).toBe("bad_input");
-    expect(err.message).toContain("1:1"); // 给用户看的还是上游原话
+    expect(err.message).toContain("1:1"); // The user still sees the upstream's original message
     expect(calls).toHaveLength(1);
   });
 
@@ -465,7 +465,7 @@ describe("入参自适应：换了模型，入参跟着模型的脾气走", () =
     expect(images).toHaveLength(1);
     expect(inputOf(calls, 0).num_outputs).toBe(1);
     expect(inputOf(calls, 1)).not.toHaveProperty("num_outputs");
-    // 没被点名的字段一个都别动
+    // Fields not named must be left untouched
     expect(inputOf(calls, 1).aspect_ratio).toBe("21:9");
     expect(inputOf(calls, 1).output_format).toBe("jpg");
     expect(calls).toHaveLength(3);
@@ -483,7 +483,7 @@ describe("入参自适应：换了模型，入参跟着模型的脾气走", () =
     const again = mockFetch(jsonRes(200, { status: "succeeded", output: [IMG] }), imgRes());
     await run({ ...ONE, title: "狗" }, again.impl);
     expect(inputOf(again.calls, 0).aspect_ratio).toBe("16:9");
-    expect(again.calls).toHaveLength(2); // 没再白撞一次 422
+    expect(again.calls).toHaveLength(2); // Didn't hit another pointless 422
   });
 
   it("重试有上限：上游一直挑刺也最多改 3 次就放弃", async () => {

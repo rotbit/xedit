@@ -7,7 +7,7 @@ import { tk } from "@/i18n/t";
 
 export const runtime = "nodejs";
 
-/** 掩码：前端「不改动 App Secret」时回传的哨兵值 */
+/** Mask: sentinel the frontend sends back to mean "leave App Secret unchanged" */
 const KEY_MASK = "__keep__";
 
 async function buildView(userId: string) {
@@ -25,7 +25,7 @@ async function buildView(userId: string) {
   };
 }
 
-/** 飞书连接状态：设置对话框的数据源 */
+/** Feishu connection status: data source for the settings dialog */
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -34,7 +34,7 @@ export async function GET() {
   return NextResponse.json(await buildView(session.user.id));
 }
 
-/** 保存账号自己的飞书应用凭证；换了 App ID 则旧授权一并作废 */
+/** Save the account's own Feishu app credentials; changing App ID invalidates the old authorization too */
 export async function PUT(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -60,11 +60,11 @@ export async function PUT(req: Request) {
     feishuName?: string;
     scopes?: string;
   } = { appId };
-  // Secret：缺省/掩码 → 保留原值；有值 → 加密覆盖
+  // Secret: missing/mask → keep the existing value; a value → encrypt and overwrite
   if (typeof body.appSecret === "string" && body.appSecret !== KEY_MASK) {
     data.appSecretEnc = encryptSecret(body.appSecret.trim());
   }
-  // 应用换了，旧应用签发的 token 不再可用，连带授权一起清掉
+  // The app changed, so tokens issued by the old app are unusable; clear the authorization along with them
   if (existing && existing.appId !== appId) {
     data.accessTokenEnc = "";
     data.refreshTokenEnc = "";
@@ -80,13 +80,13 @@ export async function PUT(req: Request) {
   return NextResponse.json(await buildView(userId));
 }
 
-/** 断开授权：只清 token，应用凭证与同步映射保留——重连一键完成、不会重复建档 */
+/** Disconnect: clear only the token, keeping app credentials and sync mappings, so reconnecting is one click and no duplicate docs are created */
 export async function DELETE() {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: tk("未登录") }, { status: 401 });
   }
-  // 清 token 也是写操作，只读封禁一样要拦（与 PUT 同一条守卫）
+  // Clearing the token is also a write, so read-only bans must block it too (same guard as PUT)
   const denied = await readOnlyGuard(session.user.id);
   if (denied) return denied;
   await prisma.feishuConnection.updateMany({

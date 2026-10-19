@@ -1,30 +1,30 @@
 /**
- * YAML frontmatter 的纯解析层：编辑器、预览、导出共用同一套口径。
+ * Pure parsing layer for YAML frontmatter: editor, preview, and export share the same rules.
  *
- * 只认极简 YAML（`key: 值` / `key: [a, b]` / `key:` + `- x` 列表）而不引一个 YAML 库：
- * 公众号写作用到的 frontmatter 就是标题、作者、日期这几行，
- * 引一个解析器要多打包几十 KB，还会把锚点、别名这些谁也不写的语法一起带进来。
+ * Only minimal YAML is supported (`key: value` / `key: [a, b]` / `key:` + `- x` lists) rather than pulling in a YAML library:
+ * frontmatter in WeChat articles is just a few lines like title, author, date;
+ * a parser would add tens of KB to the bundle and bring along anchors, aliases, and other syntax nobody writes.
  */
 
 export interface Frontmatter {
-  /** 解析出的键值；数组写法与列表写法都归一成 string[] */
+  /** Parsed key-values; both array and list forms are normalized to string[] */
   data: Record<string, string | string[]>;
-  /** frontmatter 之后的正文 */
+  /** Body after the frontmatter */
   body: string;
-  /** frontmatter 结束处的偏移（含收尾 `---` 行及其换行） */
+  /** Offset where the frontmatter ends (including the closing `---` line and its newline) */
   end: number;
 }
 
-/** 起止分隔行：只认单独成行的 `---`（尾随空格无所谓） */
+/** Delimiter line: only a standalone `---` (trailing spaces are fine) */
 const FENCE = /^---[ \t]*$/;
 
-/** 去掉值两侧成对的引号 */
+/** Strip matching quotes around a value */
 function unquote(value: string): string {
   const m = /^(["'])([\s\S]*)\1$/.exec(value);
   return m ? m[2] : value;
 }
 
-/** 极简 YAML：只处理顶层 `key: 值` / `key: [a, b]` / `key:` + `- x`，其余整行忽略 */
+/** Minimal YAML: only top-level `key: value` / `key: [a, b]` / `key:` + `- x`; other lines are ignored */
 function parseEntries(lines: string[]): Record<string, string | string[]> {
   const data: Record<string, string | string[]> = {};
   let listKey: string | null = null;
@@ -32,9 +32,9 @@ function parseEntries(lines: string[]): Record<string, string | string[]> {
   for (const raw of lines) {
     const line = raw.replace(/\r$/, "");
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue; // 空行与注释
+    if (!trimmed || trimmed.startsWith("#")) continue; // blank lines and comments
 
-    // `- x`：归到上一个空值键下；`key:` 后没跟列表就保持空串
+    // `- x`: belongs to the previous empty-valued key; if no list follows `key:`, it stays an empty string
     if (listKey && /^-(\s|$)/.test(trimmed)) {
       const value = unquote(trimmed.slice(1).trim());
       if (value) {
@@ -45,7 +45,7 @@ function parseEntries(lines: string[]): Record<string, string | string[]> {
       continue;
     }
 
-    if (/^\s/.test(line)) continue; // 缩进的非列表行＝嵌套结构，不支持
+    if (/^\s/.test(line)) continue; // indented non-list line = nested structure, unsupported
     const at = line.indexOf(":");
     const key = at > 0 ? line.slice(0, at).trim() : "";
     if (!key) continue;
@@ -53,7 +53,7 @@ function parseEntries(lines: string[]): Record<string, string | string[]> {
     const value = line.slice(at + 1).trim();
     if (!value) {
       data[key] = "";
-      listKey = key; // 等着后面的 `- x`
+      listKey = key; // wait for the following `- x`
       continue;
     }
     listKey = null;
@@ -68,7 +68,7 @@ function parseEntries(lines: string[]): Record<string, string | string[]> {
   return data;
 }
 
-/** 解析文档最开头的 frontmatter；不是以 `---` 开头、或没有收尾 `---` 都返回 null */
+/** Parse frontmatter at the very start of the document; returns null if it doesn't start with `---` or has no closing `---` */
 export function parseFrontmatter(md: string): Frontmatter | null {
   if (!md.startsWith("---")) return null;
   const lines = md.split("\n");
@@ -84,19 +84,19 @@ export function parseFrontmatter(md: string): Frontmatter | null {
   if (close === -1) return null;
 
   let end = 0;
-  for (let i = 0; i <= close; i++) end += lines[i].length + 1; // +1 是被 split 吃掉的换行
-  end = Math.min(end, md.length); // 收尾 `---` 就是文末时没有那个换行
+  for (let i = 0; i <= close; i++) end += lines[i].length + 1; // +1 for the newline consumed by split
+  end = Math.min(end, md.length); // no trailing newline when the closing `---` is at the end of the doc
   return { data: parseEntries(lines.slice(1, close)), body: md.slice(end), end };
 }
 
-/** 去掉 frontmatter，只留正文；没有 frontmatter 时原样返回 */
+/** Strip frontmatter, keeping only the body; returned as-is when there's no frontmatter */
 export function stripFrontmatter(md: string): string {
   return parseFrontmatter(md)?.body ?? md;
 }
 
 /**
- * 写入 / 删除一个顶层标量键（value 传 null = 删除），其余行原样保留。
- * 没有 frontmatter 时在文首新建；删完只剩空壳就把整块 frontmatter 一起拿掉。
+ * Set / delete a top-level scalar key (value null = delete); other lines are preserved as-is.
+ * Creates frontmatter at the top if there is none; if deletion leaves an empty shell, removes the whole frontmatter block.
  */
 export function setFrontmatterValue(md: string, key: string, value: string | null): string {
   const fm = parseFrontmatter(md);
@@ -109,7 +109,7 @@ export function setFrontmatterValue(md: string, key: string, value: string | nul
     if (value === null) return md;
     inner.push(`${key}: ${value}`);
   } else {
-    // 这个键原来若是列表写法，连同它名下的 `- x` / 缩进行一起换掉
+    // If this key used list form, replace it along with its `- x` / indented lines
     let span = 1;
     while (at + span < inner.length && /^(\s|-(\s|$))/.test(inner[at + span])) span++;
     inner.splice(at, span, ...(value === null ? [] : [`${key}: ${value}`]));

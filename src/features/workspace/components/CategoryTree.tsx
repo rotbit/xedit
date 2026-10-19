@@ -5,9 +5,9 @@ import { CategoryRow } from "./CategoryRow";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /**
- * 分类树：各分类顶格平铺，没有「最近打开」根行（Obsidian 文件树同款）。
- * 树下方留一块空白区当根级落点——分类拖上去提为顶级、文章拖上去移入未分类，
- * 右键它出根级菜单（新建文章 / 新建文件夹 / 刷新列表 / 导入）。
+ * Category tree: categories are laid out flush with no 「最近打开」 (Recent) root row (like Obsidian's file tree).
+ * An empty area below the tree serves as the root-level drop target: dropping a category promotes it to top level, dropping a document moves it to uncategorized,
+ * and right-clicking it opens the root menu (new document / new folder / refresh / import).
  */
 export function CategoryTree({ ws }: { ws: Workspace }) {
   const { menus, drag, tree } = ws;
@@ -18,7 +18,7 @@ export function CategoryTree({ ws }: { ws: Workspace }) {
       {tree.map((n) => (
         <CategoryRow key={n.path} ws={ws} node={n} depth={0} />
       ))}
-      {/* 撑满剩余高度，树再短也有一块能接拖拽与右键的根级空白 */}
+      {/* Fill the remaining height so even a short tree has a root-level blank area for drag-and-drop and right-click */}
       <div
         className={`min-h-10 flex-1 rounded-md ${rootDrop ? DROP_HL : ""}`}
         {...drag.dropProps(ALL)}

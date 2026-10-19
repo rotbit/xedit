@@ -1,15 +1,15 @@
 "use client";
 
 /**
- * 「要做」栏顶上的快速输入：点那一行就地变成输入行，写完回车即记下。
+ * Quick add at the top of the "To do" column: click the row to turn it into an input in place; type and press Enter to record.
  *
- * 默认是独立待办——日常要做的事不一定属于哪篇文章，记的时候不该被逼着选「记到哪」。
- * 独立待办仍落在一篇隐藏的待办清单文章里：借文章的存储与同步，跨设备免费，
- * 而那篇在文库层就被滤掉了，用户看不见它。
- * 关联文章是可选的次级动作：右侧「关联文章」点开才出搜索，有的事明确属于某篇稿子
- * （「补第三节的数据」）就关联上那篇——任务仍记在清单里，行尾带 `[[docId]]`，
- * 今天页上点它能跳过去；也可以就地新建一篇（选好文件夹）再关联。
- * 关联目标的状态与右侧控件在 AddTarget.tsx，与右栏每天末尾的输入行共用。
+ * Defaults to a standalone todo — everyday tasks don't necessarily belong to a doc, and noting one shouldn't force picking "where to put it".
+ * Standalone todos still live in a hidden todo-list doc: reusing doc storage and sync gives cross-device for free,
+ * and that doc is filtered out at the library layer so the user never sees it.
+ * Linking a doc is an optional secondary action: "Link doc" on the right opens search. When a task clearly belongs to a draft
+ * ("fill in the data for section 3"), link it — the task is still stored in the list, with `[[docId]]` at the end of the line,
+ * and clicking it on the Today page jumps there; you can also create a new doc in place (choosing a folder) and link it.
+ * The link-target state and right-side controls live in AddTarget.tsx, shared with the per-day input rows in the right column.
  */
 import { useRef, useState } from "react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
@@ -19,7 +19,7 @@ import type { DocMeta } from "../../types";
 import { Picker, TargetControl, useAddTarget, type AddTarget } from "./AddTarget";
 
 /**
- * 打开态的输入行（连同选择器）。关掉即卸载，下次打开是全新的状态，目标也回到独立待办。
+ * The open-state input row (with the picker). Closing unmounts it; next open starts fresh and the target resets to standalone.
  */
 function InputRow({
   docs,
@@ -38,9 +38,9 @@ function InputRow({
   const { target, targetLabel, picking, setPicking, choosingFolder, pick, detach } = useAddTarget(inputRef, categories);
   const [pending, setPending] = useState(false);
   const t = useT();
-  // 文件夹弹窗开着时挂起：点弹窗、按 Esc 都是弹窗自己的事，不能顺手把输入行收掉
+  // Suspend while the folder dialog is open: clicks on the dialog and Esc belong to it and must not collapse the input row
   useDismissMenu(rowRef, onClose, !choosingFolder);
-  // Esc 分两级：选择器开着先只关选择器，回到输入行；否则关掉整个输入行
+  // Esc has two levels: if the picker is open, close just the picker and go back to the input; otherwise close the whole row
   useEscape(() => {
     if (picking) {
       setPicking(false);
@@ -50,12 +50,12 @@ function InputRow({
 
   const submit = async () => {
     if (pending || !text.trim()) return;
-    // 提交中锁住：清单那篇还没建好时连敲两次回车会建出两篇「待办清单」
+    // Lock while submitting: hitting Enter twice before the todo-list doc exists would create two 「待办清单」 docs
     setPending(true);
     const ok = await onSubmit(text, target);
     setPending(false);
     if (ok) onClose();
-    else inputRef.current?.focus(); // 失败不关、字不清，焦点回去方便重试
+    else inputRef.current?.focus(); // On failure don't close or clear the text; return focus for an easy retry
   };
 
   return (
@@ -75,7 +75,7 @@ function InputRow({
           disabled={pending}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            // 输入法组字时的回车是选词，不能当提交
+            // Enter during IME composition selects a candidate, not a submit
             if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
             e.preventDefault();
             void submit();
@@ -97,8 +97,8 @@ function InputRow({
 }
 
 /**
- * 占位行 + 打开态的输入行。
- * 全库没载完时锁住（disabled）：此时找不到清单那篇，提交会误建一篇新的。
+ * Placeholder row + open-state input row.
+ * Locked (disabled) until the whole library has loaded: the todo-list doc can't be found yet, and submitting would create a new one by mistake.
  */
 export function QuickAdd({
   disabled,
@@ -108,7 +108,7 @@ export function QuickAdd({
 }: {
   disabled: boolean;
   docs: DocMeta[];
-  /** 「新建文章」可落的文件夹（已滤掉模板分类） */
+  /** Folders a "New document" can go into (template categories filtered out) */
   categories: string[];
   onSubmit: (text: string, target: AddTarget) => Promise<boolean>;
 }) {
@@ -121,7 +121,7 @@ export function QuickAdd({
       ) : (
         <button
           type="button"
-          // 标成菜单触发器：外部关闭逻辑放它一马，开关由这里自己 toggle
+          // Marked as a menu trigger: the outside-dismiss logic lets it through and it toggles itself
           data-menu-trigger
           className="flex w-full cursor-pointer items-center gap-2.5 border-b border-[var(--hairline)] px-0.5 py-2 text-left text-[14px] text-[var(--ink-faint)] hover:text-[var(--ink-soft)] disabled:cursor-default disabled:opacity-60"
           disabled={disabled}

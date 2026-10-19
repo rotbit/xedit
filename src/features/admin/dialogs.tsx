@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * 后台的两个动作弹窗：只读封禁（BanDialog）与存储配额（QuotaDialog）。
- * 两者都不自己发请求，提交交给 AdminDashboard 的 patchUser，成功与否由那边提示。
- * 配额的取值约定贯穿前后端：null=跟随全局默认，0=不限制，其余为字节数。
+ * The two admin action dialogs: read-only ban (BanDialog) and storage quota (QuotaDialog).
+ * Neither makes requests itself; submission goes to AdminDashboard's patchUser, which reports success or failure.
+ * The quota value convention spans frontend and backend: null = follow the global default, 0 = unlimited, otherwise a byte count.
  */
 import { useState } from "react";
 import { useEscape } from "@/hooks/useEscape";
 import { formatBytes, quotaLabel } from "./format";
 import type { AdminUser } from "./types";
 
-// 这层外壳等于 components/Modal 里的 PaperDialog 再加一行标题，遮罩与面板样式是照它抄的；改视觉时两处都要动
-/** 后台弹窗的公共外壳（视觉与 PromptDialog 一致） */
+// This shell equals PaperDialog from components/Modal plus a title row, with the backdrop and panel styles copied from it; visual changes must touch both
+/** Shared shell for admin dialogs (visually matching PromptDialog) */
 function Modal({
   title,
   children,
@@ -47,7 +47,7 @@ const cancelBtnCls =
 const inputCls =
   "h-10 w-full rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[14px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]";
 
-/** 只读封禁：可附一句原因，会随 403 提示展示给被封用户 */
+/** Read-only ban: an optional reason, shown to the banned user with the 403 notice */
 export function BanDialog({
   user,
   onClose,
@@ -103,7 +103,7 @@ export function BanDialog({
   );
 }
 
-/** 调整存储配额：自定义 MB 数，或恢复默认 / 设为不限制 */
+/** Adjust storage quota: a custom MB value, or restore default / set unlimited */
 export function QuotaDialog({
   user,
   defaultQuota,
@@ -113,10 +113,10 @@ export function QuotaDialog({
   user: AdminUser;
   defaultQuota: number;
   onClose: () => void;
-  /** quota 为字节；null=恢复默认，0=不限制 */
+  /** quota in bytes; null = restore default, 0 = unlimited */
   onSubmit: (quota: number | null) => Promise<void>;
 }) {
-  // 输入框预填「当前生效」的配额：账号没单独设（null）或设成不限（0）时，填全局默认值，给人一个可改的起点
+  // Prefill the input with the effective quota: when the account has no override (null) or is unlimited (0), use the global default as an editable starting point
   const currentMb =
     user.storageQuota != null && user.storageQuota > 0
       ? Math.round(user.storageQuota / 1024 / 1024)
@@ -135,7 +135,7 @@ export function QuotaDialog({
 
   const submitCustom = () => {
     const n = Number(mb);
-    // 输入已经过滤成纯数字，这里再挡一道空串和超长数字转出来的 NaN/Infinity；服务端也会校验 0~1TB
+    // Input is already filtered to digits; this also guards against empty strings and NaN/Infinity from overlong numbers. The server validates 0–1TB too
     if (!Number.isFinite(n) || n < 0) return;
     void run(Math.round(n) * 1024 * 1024);
   };

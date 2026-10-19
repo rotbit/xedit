@@ -1,6 +1,6 @@
 "use client";
 
-// 大纲导航（桌面）：从渲染结果提取 h1~h3，点击平滑跳转（分享页与阅读模式共用）
+// Outline navigation (desktop): extracts h1–h3 from the rendered output, click to smooth-scroll (shared by the share page and reading mode)
 
 import { ChevronsLeft } from "lucide-react";
 import { outlineIndent } from "@/hooks/useOutline";
@@ -14,16 +14,16 @@ export function OutlineNav({
 }: {
   outline: { level: number; text: string }[];
   onJump: (index: number) => void;
-  /** 传了才出收起按钮（阅读模式可收，分享页常驻） */
+  /** Only when provided does the collapse button appear (collapsible in reading mode, always shown on the share page) */
   onClose?: () => void;
-  /** 覆盖 <nav> 的外层类名（宽度 / 显隐 / 收缩），默认桌面 190px 窄列 */
+  /** Overrides the outer class of <nav> (width / visibility / shrink); defaults to a 190px narrow desktop column */
   className?: string;
 }) {
   const t = useT();
   return (
     <nav className={className}>
       <div className="sticky top-0 pt-1">
-        {/* 标题行：可收起时右边挂《，与滚动区左上角的浮动入口对调 */}
+        {/* Title row: when collapsible, a 《 sits on the right, swapping with the floating entry at the scroll area's top-left */}
         {onClose ? (
           <div className="mb-3 flex items-center justify-between">
             <p className="text-[12px] tracking-[0.15em] text-[var(--ink-faint)]">{t("大纲")}</p>

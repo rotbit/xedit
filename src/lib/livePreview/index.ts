@@ -34,28 +34,28 @@ import { colorSpanKeys } from "@/lib/editor/colorSpanKeys";
 import { requestOpenWikiLink } from "@/lib/wikiLink";
 
 /**
- * 即时渲染（类 Obsidian Live Preview）——节点级还原策略：
- * 隐藏语法标记、行内渲染图片/引用/任务清单，但还原粒度是「语法节点」而非「整行」，
- * 保证光标的被动移动（上下键路过、点击定位）不引起正文位移：
- * - 行内标记（**、`、~~、链接）：光标进入该语法范围内才显示标记，位移只发生在焦点处
- * - 行首标记（#、>）：光标不在该行时完全不占位；在该行时以零宽悬挂盒挂到正文左缘之外，
- *   两种状态下正文左缘都不动
- * - 整体部件（图片/视频/分割线/表格/公式）：光标一碰到两侧边界就展开源码（点击部件、
- *   上下键路过都算），碰不到时 atomicRanges 让光标整体跳过；图片展开时源码原样显示、
- *   图片改挂到源码下方 —— 整张图消失版面会塌一块（见 inline.ts 的 Image 分支）。
- *   一律只认光标不认横扫而过的选区：⌘A/拖选要是把全篇部件都炸成源码，版面会整个跳一次
- * - 任务清单：`- ` 始终隐藏、`[ ]` 只在光标进到记号里才现出，Home/← 走到行首零位移
+ * Live rendering (like Obsidian Live Preview) — node-level reveal strategy:
+ * hide syntax markers and render images/quotes/task lists inline, but reveal per "syntax node" rather than "whole line",
+ * so passive cursor movement (arrowing past, click positioning) never shifts the text:
+ * - inline markers (**, `, ~~, links): shown only when the cursor enters that syntax range, so shifts happen only at the focus point
+ * - line-start markers (#, >): take no space when the cursor isn't on the line; on the line they hang in a zero-width box outside the text's left edge,
+ *   so the text's left edge stays put in both states
+ * - whole widgets (images/video/dividers/tables/math): source expands as soon as the cursor touches either boundary (clicking the widget
+ *   or arrowing past both count); otherwise atomicRanges makes the cursor skip over them; when an image expands its source shows as-is
+ *   and the image moves below the source — if the image vanished, the layout would collapse (see the Image branch in inline.ts).
+ *   Always cursor only, never sweeping selections: if ⌘A/drag burst every widget into source, the whole layout would jump
+ * - task lists: `- ` is always hidden, `[ ]` appears only when the cursor enters the marker, so Home/← to line start causes zero shift
  *
- * 跨行替换（表格、$$ 公式）不在这个插件里 —— CodeMirror 禁止插件提供跨行 replace，
- * 见 blocks.ts 的状态字段。
+ * Multi-line replacements (tables, $$ math) aren't in this plugin — CodeMirror forbids plugins from providing multi-line replace;
+ * see the state field in blocks.ts.
  */
 
-/** 行首标记（#、>）连同其后空格：不在焦点行时整段隐藏，在焦点行时淡灰缩小显示 */
+/** Line-start marker (#, >) plus its trailing space: hidden entirely off the focus line, shown small and faint gray on it */
 function headMark(ctx: LpContext, from: number, to: number) {
   const end = ctx.state.sliceDoc(to, to + 1) === " " ? to + 1 : to;
   if (from >= end) return;
   if (ctx.lineActive(from)) {
-    // 盒宽按字符数定死（等宽字体），CSS 据此用负 margin 把整段挂到正文左缘之外
+    // Box width is fixed by character count (monospace), and CSS uses a negative margin to hang it outside the text's left edge
     ctx.decos.push(
       Decoration.mark({
         class: "cm-lp-mark",
@@ -67,12 +67,12 @@ function headMark(ctx: LpContext, from: number, to: number) {
   }
 }
 
-/** 列表条目首行的前缀装饰：
- *  - 每个祖先条目的缩进段打 cm-lp-indent，按字符数定宽（N ch），并记下起始列 --lp-col，
- *    CSS 据此把引导竖线画在祖先圆点正下方；
- *  - 圆点后的那个空格打 cm-lp-gap（1ch 定宽），前缀总宽度于是恰为「前缀字符数 × 1ch」；
- *  - 行级 cm-lp-hang 记下前缀宽度 --lp-hang，CSS 用它做悬挂缩进，续行与正文左缘对齐。
- *  同一行里既有外层标记又有内层标记（如 "- - a"）时前缀不是纯空白，整套都不做。 */
+/** Prefix decorations on a list item's first line:
+ *  - each ancestor item's indent segment gets cm-lp-indent, sized by char count (N ch), recording its start column as --lp-col,
+ *    which CSS uses to draw the guide line right below the ancestor's bullet;
+ *  - the space after the bullet gets cm-lp-gap (fixed 1ch), so the prefix's total width is exactly "prefix chars × 1ch";
+ *  - the line-level cm-lp-hang records the prefix width as --lp-hang, which CSS uses for hanging indent so wrapped lines align with the text.
+ *  When one line has both outer and inner markers (e.g. "- - a"), the prefix isn't pure whitespace, so none of this is applied. */
 function listPrefix(ctx: LpContext, state: EditorState, item: SyntaxNode) {
   const mark = item.getChild("ListMark");
   if (!mark) return;
@@ -101,7 +101,7 @@ function listPrefix(ctx: LpContext, state: EditorState, item: SyntaxNode) {
   if (hasGap) {
     ctx.decos.push(Decoration.mark({ class: "cm-lp-gap" }).range(mark.to, mark.to + 1));
   }
-  // 任务项的 "- " 会被整段隐藏、复选框宽度不是 ch 的整数倍，续行只对齐到缩进处
+  // A task item's "- " is hidden entirely and the checkbox width isn't a whole number of ch, so wrapped lines only align to the indent
   const hang = task ? ownCol : mark.to - line.from + (hasGap ? 1 : 0);
   if (hang > 0) {
     ctx.decos.push(
@@ -113,15 +113,15 @@ function listPrefix(ctx: LpContext, state: EditorState, item: SyntaxNode) {
 }
 
 /**
- * 提示块（`> [!tip] 标题`）：整块按类型着色，首行的 `[!tip]` 记号换成类型徽标。
- * 命中返回 true，调用方据此跳过普通引用的处理；QuoteMark 分支不受影响，
- * 每行的 `>` 照旧由 headMark 收走。
+ * Callouts (`> [!tip] Title`): the whole block is colored by type, and the `[!tip]` marker on the first line becomes a type badge.
+ * Returns true on match so the caller skips normal quote handling; the QuoteMark branch is unaffected,
+ * and each line's `>` is still taken by headMark.
  */
 function calloutDecorations(ctx: LpContext, from: number, to: number): boolean {
   const { state } = ctx;
   const line = state.doc.lineAt(from);
-  // 从 `>` 切到行尾再剥掉一层记号：嵌套引用（`> > [!tip]`）里只有内层节点能命中，
-  // 外层剥掉一个 `>` 之后仍以 `>` 开头，自然落回普通引用
+  // Slice from `>` to line end and strip one marker level: in nested quotes (`> > [!tip]`) only the inner node can match;
+  // the outer one still starts with `>` after stripping one, so it naturally falls back to a normal quote
   const rest = state.sliceDoc(from, line.to);
   const quote = /^>[ \t]?/.exec(rest);
   if (!quote) return false;
@@ -132,7 +132,7 @@ function calloutDecorations(ctx: LpContext, from: number, to: number): boolean {
 
   const markFrom = from + quote[0].length;
   const markTo = markFrom + head.markEnd;
-  // 自定义标题只加粗、不替换：字形宽度不随光标进出变化，首行不会跳动
+  // A custom title is just bolded, not replaced: glyph widths don't change as the cursor enters/leaves, so the first line doesn't jump
   if (head.custom) {
     let titleStart = quote[0].length + head.markEnd;
     while (titleStart < rest.length && (rest[titleStart] === " " || rest[titleStart] === "\t")) {
@@ -144,7 +144,7 @@ function calloutDecorations(ctx: LpContext, from: number, to: number): boolean {
       );
     }
   }
-  // 光标或选区落在首行时不替换：与行首记号（#、>）同一套规矩，要改类型总得先看见源码
+  // Not replaced when the cursor or selection is on the first line: same rule as line-start markers (#, >) — to change the type you need to see the source
   if (!ctx.lineActive(line.from)) {
     ctx.decos.push(
       Decoration.replace({
@@ -155,7 +155,7 @@ function calloutDecorations(ctx: LpContext, from: number, to: number): boolean {
   return true;
 }
 
-/** 空行保持统一高度，包括光标所在行；移动光标不能推动后面的正文。 */
+/** Blank lines keep a uniform height, including the cursor line; moving the cursor mustn't push the text below. */
 function scanBlankLines(ctx: LpContext, view: EditorView) {
   const { state } = ctx;
   const blocks = renderedBlockRanges(state);
@@ -165,7 +165,7 @@ function scanBlankLines(ctx: LpContext, view: EditorView) {
     for (let n = first; n <= last; n++) {
       const line = state.doc.line(n);
       if (line.length !== 0) continue;
-      // 代码块里的空行是代码的一部分；被块级部件替换掉的行压根不显示
+      // Blank lines in code blocks are part of the code; lines replaced by block widgets aren't shown at all
       if (inCodeRanges(ctx.codeRanges, line.from) || inCodeRanges(blocks, line.from)) continue;
       ctx.lineClass(line.from, "cm-lp-blank");
     }
@@ -174,20 +174,20 @@ function scanBlankLines(ctx: LpContext, view: EditorView) {
 
 interface Built {
   decorations: DecorationSet;
-  /** 此刻以部件形态渲染的替换范围（图片/视频/分割线/围栏行）：光标移动按整体跳过，不落入内部 */
+  /** Replaced ranges currently rendered as widgets (images/video/dividers/fence lines): the cursor skips them whole and never lands inside */
   atomics: DecorationSet;
 }
 
-/** 只用到 view 的 state 与 visibleRanges；单测拿一个最小假 view 驱动（见 tests/livePreview） */
+/** Uses only the view's state and visibleRanges; unit tests drive it with a minimal fake view (see tests/livePreview) */
 export function buildDecorations(view: EditorView, caret: number[]): Built {
   const { state } = view;
-  // 行级装饰只算可见区：引用/列表/围栏块动辄几千行，只要有一行落进视口，
-  // 以前就得把整块逐行铺一遍（3000 行代码块 = 3000 条行级装饰），光标每动一下重来
+  // Line decorations cover only the visible range: quotes/lists/fenced blocks can run thousands of lines, and as soon as one line hit the viewport
+  // we used to lay out the whole block line by line (3,000-line code block = 3,000 line decorations), redone on every cursor move
   const ctx = createLpContext(state, caret, visibleLineRanges(state, view.visibleRanges));
 
-  // 按原文逐行扫的两样东西先做：行内公式 `$…$`（lezer 不认 `$`）与脚注定义行。
-  // 公式必须排在语法树那一趟之前——扫出来的区间要先登记到 ctx，
-  // 里面的 `*`、`[` 才不会被当成 Markdown 标记再藏一次（见 context.ts 的 inMath）
+  // First the two things scanned line by line from source: inline math `$…$` (lezer doesn't know `$`) and footnote definition lines.
+  // Math must come before the syntax tree pass — the found ranges have to be registered in ctx first,
+  // so the `*` and `[` inside aren't hidden again as Markdown markers (see inMath in context.ts)
   scanVisibleLines(view, (line, guards) => {
     inlineMathLine(ctx, view, line, guards);
     footnoteDefLine(ctx, line, guards);
@@ -199,26 +199,26 @@ export function buildDecorations(view: EditorView, caret: number[]): Built {
       to: range.to,
       enter: (node) => {
         const { name } = node;
-        // 脚注定义行 `[^id]: 内容`，内容不含空格时会被 lezer 整行当成链接引用定义，
-        // 内容还成了 URL 节点。整棵子树跳过：行首标签已由 footnoteDefLine 换成小标签，
-        // 再进去只会把正文染成一条点不开的假链接
+        // A footnote definition line `[^id]: text` whose content has no spaces is parsed by lezer as a whole-line link reference definition,
+        // with the content becoming a URL node. Skip the whole subtree: the leading label is already a small badge via footnoteDefLine,
+        // and descending would just color the text as an unclickable fake link
         if (name === "LinkReference" && isFootnoteDefLine(state, node.from)) return false;
         if (INLINE_NODE_NAMES.has(name)) return inlineDecorations(ctx, node);
 
         if (/^ATXHeading[1-6]$/.test(name)) {
-          // 标题行级样式（层级字号、块级呼吸空间）——静态类，不随光标变化
+          // Heading line styles (per-level font size, block spacing) — static classes, independent of the cursor
           const level = Math.min(4, Number(name.slice(-1)));
           const line = state.doc.lineAt(node.from);
           ctx.lineClass(line.from, `cm-lp-h${level}`);
-          // 文档第一行是标题时上方没有正文可拉开，留白改成固定值（见 cm-lp-first），
-          // 让标题输入框到正文 H1 正好是 16px
+          // When the doc's first line is a heading there's no text above to push away, so the top spacing is fixed (see cm-lp-first),
+          // making the gap from the title input to the body H1 exactly 16px
           if (line.number === 1) ctx.lineClass(line.from, "cm-lp-first");
           const mark = node.node.getChild("HeaderMark");
           if (mark) headMark(ctx, mark.from, mark.to);
           return;
         }
-        // 下划线式的 Setext 标题不必处理：markdown 扩展已 remove: ["SetextHeading"]
-        // （见 src/lib/editor/extensions.ts），语法树里压根不会出现这两个节点
+        // Setext underline headings need no handling: the markdown extension already has remove: ["SetextHeading"]
+        // (see src/lib/editor/extensions.ts), so these two nodes never appear in the tree
         if (name === "Blockquote") {
           if (calloutDecorations(ctx, node.from, node.to)) return;
           ctx.eachLine(node.from, node.to, () => "cm-lp-quote");
@@ -229,20 +229,20 @@ export function buildDecorations(view: EditorView, caret: number[]): Built {
           return;
         }
         if (name === "ListItem") {
-          // 列表行距比正文紧一档：条目本来就短，按正文行距排会散
+          // List line spacing is a notch tighter than body text: items are short, and body spacing would look loose
           ctx.eachLine(node.from, node.to, () => "cm-lp-li");
           listPrefix(ctx, state, node.node);
           return;
         }
         if (name === "FencedCode") {
           fencedCodeDecorations(ctx, node);
-          // 代码高亮由独立扩展负责；即时排版只处理围栏与行背景，不遍历内嵌语言语法树。
+          // Code highlighting is handled by a separate extension; live layout only handles fences and line backgrounds, without walking embedded language trees.
           return false;
         }
         if (name === "ListMark") {
           const listType = node.node.parent?.parent?.name;
           if (listType === "OrderedList") {
-            // 数字保留原文可编辑，只弱化成等宽编号；盒宽按字符数定死，前缀宽度可精确推算
+            // The number stays as editable source, just muted into a monospace label; box width is fixed by char count so the prefix width can be computed exactly
             ctx.decos.push(
               Decoration.mark({
                 class: "cm-lp-olnum",
@@ -253,19 +253,19 @@ export function buildDecorations(view: EditorView, caret: number[]): Built {
           }
           if (listType !== "BulletList") return;
           if (/^ \[[ xX]\]/.test(state.sliceDoc(node.to, node.to + 4))) {
-            // 任务项的 "- " 一律整段隐藏，光标停在行首/"-"后/"["前也不现出：复选框顶替的是
-            // "[ ]"，"- " 在渲染形态里没有对应物，一现出就是净 2ch 的位移——按 Home 回行首
-            // 整行往右挪两格正是这么来的。这三个位置的光标本就都画在行首同一点，看不出区别；
-            // 记号照常可删可改，改到不再是任务项时整行会落回源码，反馈是看得见的
+            // A task item's "- " is always hidden entirely, even with the cursor at line start / after "-" / before "[": the checkbox stands in for
+            // "[ ]", and "- " has no counterpart in the rendered form, so revealing it is a net 2ch shift — that's exactly how pressing Home
+            // used to shove the whole line two columns right. The cursor at these three positions is drawn at the same spot anyway, so there's no visible difference;
+            // the marker can still be deleted or edited, and once it's no longer a task item the line falls back to source, so feedback is visible
             ctx.hide(node.from, node.to + 1);
             return;
           }
           if (caretTouches(caret, node.from, node.to)) {
-            // 光标在本行时露出原始 "-"，也占 1ch（与圆点同宽），光标进出行时正文零位移
+            // With the cursor on this line the original "-" shows, also 1ch (same width as the bullet), so entering/leaving the line shifts nothing
             ctx.decos.push(Decoration.mark({ class: "cm-lp-rawmark" }).range(node.from, node.to));
             return;
           }
-          // 嵌套深度决定圆点形态（实心/空心/方点循环），与 Notion 的层级语汇一致
+          // Nesting depth decides the bullet style (filled/hollow/square cycle), matching Notion's hierarchy vocabulary
           let depth = 0;
           for (let p = node.node.parent; p; p = p.parent)
             if (p.name === "BulletList" || p.name === "OrderedList") depth++;
@@ -276,9 +276,9 @@ export function buildDecorations(view: EditorView, caret: number[]): Built {
           return;
         }
         if (name === "TaskMarker") {
-          // 左闭右开（caretAtStartOrInside）：光标停在 `]` 之后仍显示复选框——那是从正文
-          // 首字按 ← 过来的落点，也是最常停的位置，含右边界的话一按左键复选框就翻成
-          // `[x]` 文字、整行跟着跳。落在 `[` 之前或方括号内部才现出源码，那是有意进记号里改
+          // Left-closed, right-open (caretAtStartOrInside): the cursor after `]` still shows the checkbox — that's where ← from the
+          // first text character lands and the most common resting spot; including the right boundary would flip the checkbox to
+          // `[x]` text on a single left arrow and make the line jump. Source appears only before `[` or inside the brackets, i.e. deliberately editing the marker
           if (!caretAtStartOrInside(caret, node.from, node.to)) {
             const checked = /x/i.test(state.sliceDoc(node.from, node.to));
             ctx.decos.push(
@@ -299,20 +299,20 @@ export function buildDecorations(view: EditorView, caret: number[]): Built {
   };
 }
 
-/** 深色终端卡里墨色光标会隐身，要换成浅色实心光标；光标层是绝对定位的独立图层，
-    CSS 选不到“代码块里的光标”，只能在编辑器根元素上打标记类。
-    而根元素的标记类必须走 editorAttributes，不能手动 classList：CodeMirror 同步根元素属性时
-    是整串 setAttribute("class")，别处任何一次属性重算（比如选区状态类切换）都会把手动加的类
-    抹掉 —— 光标进代码块后“消失”就是这么来的：类被抹，墨色光标隐进炭黑卡里 */
+/** In the dark terminal card an ink-colored cursor disappears, so swap in a light solid cursor; the cursor layer is a separate absolutely positioned layer,
+    and CSS can't target "the cursor inside a code block", so we have to put a marker class on the editor root.
+    The root's marker class must go through editorAttributes, not manual classList: CodeMirror syncs root attributes
+    with a whole-string setAttribute("class"), so any attribute recompute elsewhere (e.g. a selection-state class toggle) wipes manually added classes
+    — that's how the cursor "vanished" inside code blocks: the class got wiped and the ink cursor hid in the charcoal card */
 const caretInCodeAttr = EditorView.editorAttributes.compute(["selection", "doc"], (state) => ({
   class: caretInFencedCode(state) ? "cm-caret-in-code" : "",
 }));
 
 /**
- * 解冻拖选布局的信号。mouseup 之外还要多几道保险：拖到窗口外松手、拖到一半切走应用，
- * mouseup 根本不会派到这个窗口，冻结标志就永远留着——此后所有光标移动都不再重建装饰，
- * 整个即时渲染像是“卡住了”。blur（含捕获阶段的元素失焦）、下一次 pointerdown
- * （规范里先于 mousedown，所以不会误伤本次手势）、下一次 keydown 各补一刀。
+ * Signals that unfreeze the drag-selection layout. Beyond mouseup we need extra safeguards: releasing outside the window or switching apps mid-drag
+ * means mouseup is never dispatched to this window, so the freeze flag stays forever — after that no cursor move rebuilds decorations,
+ * and live rendering looks "stuck". blur (including element focus loss in the capture phase), the next pointerdown
+ * (fires before mousedown per spec, so it won't hit the current gesture), and the next keydown each act as a backstop.
  */
 const SELECTION_END_EVENTS = ["mouseup", "blur", "pointerdown", "keydown"] as const;
 
@@ -336,7 +336,7 @@ const livePreviewPlugin = ViewPlugin.fromClass(
         transaction.effects.some((effect) => effect.is(refreshLivePreview))
       );
 
-      // 文档变化会让旧位置失效；单光标移动则切换需要还原源码的语法节点。
+      // Doc changes invalidate old positions; single-cursor moves switch which syntax nodes reveal source.
       if (
         update.docChanged ||
         (update.selectionSet && !this.selectingWithMouse && !hasTextSelection(update.state))
@@ -344,11 +344,11 @@ const livePreviewPlugin = ViewPlugin.fromClass(
         this.caret = caretPositions(update.state);
       }
 
-      // 鼠标拖选期间不因 selectionSet 重建装饰（布局冻结，避免拖选中途跳动）；
-      // 键盘扩选/全选也要重建：选区扫到围栏行时得现出被隐藏的 ``` 原文。
-      // viewport 变化仍按冻结的光标位置补齐新进入视口的装饰。
+      // Don't rebuild decorations on selectionSet during mouse drag-select (layout frozen to avoid mid-drag jumps);
+      // keyboard extend/select-all must rebuild: when the selection reaches fence lines the hidden ``` source must appear.
+      // On viewport changes, still fill in decorations for newly visible lines using the frozen cursor position.
       const selectionNeedsRebuild = update.selectionSet && !this.selectingWithMouse;
-      // 后台解析补完时文本和视口可能都没变，新识别出的 Markdown 也需要更新排版。
+      // When background parsing completes, text and viewport may be unchanged, but newly recognized Markdown still needs relayout.
       const treeChanged = syntaxTree(update.startState) !== syntaxTree(update.state);
       if (update.docChanged || update.viewportChanged || selectionNeedsRebuild || treeChanged || forced) {
         const built = buildDecorations(update.view, this.caret);
@@ -376,9 +376,9 @@ const livePreviewPlugin = ViewPlugin.fromClass(
       this.removeMouseListeners?.();
       this.removeMouseListeners = null;
 
-      // 单击定位光标后再按节点还原；拖选/双击结束时同样重算一次，
-      // 让选区覆盖到的围栏行现出原文（拖选过程中仍冻结布局）。
-      // 光标位置只在空选区时更新：留住选择前的还原状态，选完不跳动。
+      // After a click positions the cursor, reveal by node; also recompute when a drag/double-click ends,
+      // so fence lines covered by the selection show their source (layout stays frozen during the drag).
+      // Caret positions update only on empty selections: keep the reveal state from before selecting so nothing jumps afterwards.
       if (!hasTextSelection(view.state)) this.caret = caretPositions(view.state);
       view.dispatch({ effects: refreshLivePreview.of(null) });
     }
@@ -408,8 +408,8 @@ const livePreviewPlugin = ViewPlugin.fromClass(
 );
 
 /**
- * 本地文库的附件图片是异步读出来的：读到一批就空转一次事务，
- * 装饰重建时图片部件拿到新的 object URL（src 变了 eq 不成立，部件随之重建）。
+ * Attachment images in the local library are read asynchronously: each loaded batch triggers an empty transaction,
+ * and on decoration rebuild the image widget gets the new object URL (src changed, eq fails, so the widget rebuilds).
  */
 const attachmentRefresh = ViewPlugin.define((view) => {
   const onResolved = () => view.dispatch({ effects: refreshLivePreview.of(null) });
@@ -426,33 +426,33 @@ export const livePreview: Extension = [
   attachmentRefresh,
   caretInCodeAttr,
   livePreviewBlocks,
-  // 部件按整体跳过：上下键路过时光标停在两侧边界，不会落进被替换掉的源码里。
-  // 登记的只有此刻真以部件形态渲染的区间——光标贴上来把源码展开之后，这一段就不再 atomic，
-  // 删除键于是按字符走（退一次只掉一个 `-`，而不是整条分割线无声消失）
+  // Widgets are skipped whole: when arrowing past, the cursor stops at the boundaries and never lands in the replaced source.
+  // Only ranges currently rendered as widgets are registered — once the cursor touches and expands the source, that span is no longer atomic,
+  // so delete keys go character by character (one backspace removes a single `-`, rather than the whole divider silently vanishing)
   EditorView.atomicRanges.of((view) => view.plugin(livePreviewPlugin)?.atomics ?? RangeSet.empty),
   EditorView.editorAttributes.of({ class: "cm-live-preview" }),
   EditorView.domEventHandlers({
-    // 修饰键按着点链接：先把 mousedown 截下来，否则 CodeMirror 已经把光标放进链接里
-    // （源码当场炸开、⌘ 还可能多加一个光标），等 click 再打开时版面已经跳过一次
+    // Modifier-click on a link: intercept mousedown first, otherwise CodeMirror has already put the cursor in the link
+    // (the source bursts open, and ⌘ might add an extra cursor), and by the time click opens it the layout has already jumped
     mousedown: (e) => {
       if (!linkTargetAt(e)) return false;
       e.preventDefault();
       return true;
     },
-    // 打开动作放在 click 而不是 mousedown：从链接文字起手拖选时只有 mousedown，
-    // 松手前浏览器不会派 click，拖选于是绝不会误跳转
+    // Open on click rather than mousedown: drag-selecting from link text only fires mousedown,
+    // and the browser won't dispatch click before release, so a drag never navigates by mistake
     click: (e) => {
       const target = linkTargetAt(e);
       if (!target) return false;
       if (target.wiki) requestOpenWikiLink(target.wiki);
-      // noopener 必须给：新窗口能通过 opener 反向操纵本页
+      // noopener is required: otherwise the new window could manipulate this page via opener
       else if (target.href) window.open(target.href, "_blank", "noopener");
       e.preventDefault();
       return true;
     },
   }),
-  // 围栏代码块的删除键接管：开栏/闭栏行是 atomic 的，默认删除会把 ``` 删穿
+  // Delete-key takeover for fenced code blocks: opening/closing fence lines are atomic, and default deletion would punch through ```
   fenceKeymap,
-  // 颜色 span 同理：首尾标签常隐且 atomic，删除键要跳过它们，被删剩一半时还要收拾孤儿
+  // Same for color spans: the opening/closing tags are usually hidden and atomic, so delete keys skip them and clean up orphans when half is deleted
   colorSpanKeys,
 ];

@@ -2,15 +2,15 @@
 
 import { countCls, rowCls } from "../constants";
 
-/** 侧栏行图标的颜色：未选中比文字浅半档，选中与文字同色 */
+/** Sidebar row icon color: half a step lighter than text when unselected, same as text when selected */
 export function iconTone(active: boolean): string {
   return active ? "text-[var(--accent-deep)]" : "text-[var(--ink-soft)]";
 }
 
 /**
- * 侧栏的视图/工具入口行（今天、图片库、回收站）。
- * 与文件夹行共用一套网格：左内边距 8px + 14px 图标位 + 8px 间距 + 文字，
- * 整条侧栏的图标左缘、文字左缘因此落在同一条竖线上。
+ * Sidebar view/tool entry rows (Today, image library, trash).
+ * Shares a grid with folder rows: 8px left padding + 14px icon slot + 8px gap + text,
+ * so icon and text left edges line up on the same vertical line across the whole sidebar.
  */
 export function NavRow({
   icon,
@@ -24,7 +24,7 @@ export function NavRow({
   icon: React.ReactNode;
   label: string;
   active: boolean;
-  /** 0 或不传就不画数字 */
+  /** 0 or omitted draws no number */
   count?: number | null;
   disabled?: boolean;
   onClick: () => void;

@@ -1,24 +1,24 @@
-// Obsidian 式提示块（Callout）的类型表与首行解析。
+// Type table and first-line parsing for Obsidian-style callouts.
 //
-// 为什么单独成一个纯模块：编辑器（即时渲染）、markdown-it（预览/复制）两条管线
-// 必须认同一套类型名、别名与默认标题，任何一边多认或少认一个别名，
-// 用户就会看到「编辑器里是提示块、复制出去变普通引用」这种对不上的结果。
-// 这里不 import 任何渲染层依赖，两边都能安全引用。
+// Why a standalone pure module: the editor (live rendering) and markdown-it (preview/copy) pipelines
+// must agree on the same type names, aliases and default titles; if either side recognizes one alias more or less,
+// users get mismatches like "a callout in the editor that turns into a plain blockquote when copied".
+// Nothing render-layer is imported here, so both sides can use it safely.
 
 export interface CalloutStyle {
-  /** 未写标题时用的默认中文标题 */
+  /** Default Chinese title used when none is written */
   title: string;
-  /** 语义主色：左边框、标题文字 */
+  /** Semantic accent color: left border, title text */
   color: string;
-  /** 语义底色 */
+  /** Semantic background color */
   background: string;
 }
 
 /**
- * 支持的类型表。色值写死而不用 CSS 变量：复制到公众号走的是样式内联
- * （见 lib/copy/inline.ts），内联那一刻 var() 取不到值，整条声明会被丢掉。
+ * Supported types. Colors are hardcoded rather than CSS variables: copying to WeChat inlines styles
+ * (see lib/copy/inline.ts), and var() has no value at inlining time, so the whole declaration would be dropped.
  */
-// 默认标题会写进预览与复制到公众号的正文，属于内容格式，本阶段保持中文
+// Default titles end up in the preview and in content copied to WeChat, so they're content format and stay Chinese for now
 export const CALLOUT_TYPES: Record<string, CalloutStyle> = {
   note: { title: "备注", color: "#4a6a85", background: "#f3f6fa" }, // i18n-ignore
   tip: { title: "提示", color: "#2f8f5b", background: "#eef8f2" }, // i18n-ignore
@@ -31,7 +31,7 @@ export const CALLOUT_TYPES: Record<string, CalloutStyle> = {
   success: { title: "完成", color: "#2f8f5b", background: "#eef8f2" }, // i18n-ignore
 };
 
-/** 别名 → 正式类型：与 Obsidian 的写法保持一致，用户从 Obsidian 粘过来不用改 */
+/** Alias → canonical type: matches Obsidian's syntax so content pasted from Obsidian needs no changes */
 const CALLOUT_ALIASES: Record<string, string> = {
   hint: "tip",
   important: "info",
@@ -47,7 +47,7 @@ const CALLOUT_ALIASES: Record<string, string> = {
   done: "success",
 };
 
-/** 未知类型一律落到 note：宁可按普通提示块渲染，也不要整块退化成引用让用户以为语法错了 */
+/** Unknown types fall back to note: better to render a normal callout than degrade the whole block to a quote and make users think the syntax is wrong */
 export const DEFAULT_CALLOUT_TYPE = "note";
 
 export function resolveCalloutType(raw: string): string {
@@ -61,23 +61,23 @@ export function calloutStyle(type: string): CalloutStyle {
 }
 
 export interface CalloutHead {
-  /** 归一后的类型名（别名已解析，未知类型落到 note） */
+  /** Normalized type name (aliases resolved, unknown types fall back to note) */
   type: string;
-  /** 显示标题：用户写了就用用户写的，没写用类型默认标题 */
+  /** Display title: the user's own if written, otherwise the type's default title */
   title: string;
-  /** 用户是否写了自定义标题 —— 编辑器据此决定是把标题交给徽标还是保留原文 */
+  /** Whether the user wrote a custom title -- the editor uses this to decide between handing the title to the badge or keeping the original text */
   custom: boolean;
-  /** `[!type]` 记号在传入文本里的结束下标（不含其后空格），编辑器据此定位替换范围 */
+  /** End index of the `[!type]` marker in the input text (excluding trailing spaces); the editor uses it to locate the replacement range */
   markEnd: number;
 }
 
-// `[!tip]`、`[!TIP]+`、`[!tip]- 标题` 都认。尾部的 +/- 是 Obsidian 的折叠开关，
-// 我们不做折叠，但必须认得出来，否则从 Obsidian 抄来的折叠写法会整块退化成引用。
+// `[!tip]`, `[!TIP]+` and `[!tip]- Title` are all recognized. The trailing +/- is Obsidian's fold toggle;
+// we don't fold, but must recognize it, or folded callouts copied from Obsidian would degrade into plain quotes.
 const HEAD_RE = /^\[!([A-Za-z][A-Za-z0-9_-]*)\]([+-]?)[ \t]*(.*)$/;
 
 /**
- * 解析提示块首行（已剥掉 `>` 与其后空白的那段文本），不是提示块返回 null。
- * 只看一行：正文里的换行由调用方自己切开（markdown-it 侧首段可能带着后续正文）。
+ * Parses a callout's first line (text with the `>` and following whitespace already stripped); returns null if it's not a callout.
+ * Only looks at one line: the caller splits on newlines itself (on the markdown-it side the first paragraph may carry following body text).
  */
 export function parseCalloutHead(line: string): CalloutHead | null {
   const m = HEAD_RE.exec(line);
@@ -88,7 +88,7 @@ export function parseCalloutHead(line: string): CalloutHead | null {
     type,
     title: custom || calloutStyle(type).title,
     custom: custom.length > 0,
-    // m[1] 两侧的 `[!` `]` 共 3 字符，再加可选的折叠开关
+    // The `[!` and `]` around m[1] are 3 characters, plus the optional fold toggle
     markEnd: m[1].length + 3 + m[2].length,
   };
 }

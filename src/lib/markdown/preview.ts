@@ -2,15 +2,15 @@ import { parseMarkdown, type RenderEnv } from "./renderer";
 import { sanitizeFragment, sanitizeHtml } from "./sanitize";
 
 export interface PreviewBlock {
-  /** 已清洗的完整块；行号相对 lineOffset，插入换行不会让后续块的缓存失效。 */
+  /** Fully sanitized block; line numbers are relative to lineOffset so inserting a line doesn't invalidate later blocks' cache. */
   html: string;
-  /** 原生 HTML 以 null 表示：其中用户自写的 data-line 必须原样保留。 */
+  /** Raw HTML is null: user-written data-line inside it must be kept as-is. */
   lineOffset: number | null;
 }
 
 /**
- * 先解析全文，保留目录、脚注和引用链接的跨块语义，再按顶层 token 分组。
- * 列表、表格、引用等始终整块渲染；不增加容器，主题的父子选择器保持原样。
+ * Parse the whole document first to keep cross-block semantics of TOC, footnotes and reference links, then group by top-level token.
+ * Lists, tables, quotes etc. always render as whole blocks; no containers are added, so themes' parent/child selectors stay intact.
  */
 function renderBlocks(source: string, env: RenderEnv): PreviewBlock[] {
   const parsed = parseMarkdown(source, env);
@@ -35,7 +35,7 @@ function renderBlocks(source: string, env: RenderEnv): PreviewBlock[] {
   return blocks;
 }
 
-/** 每个预览只保留当前这版的清洗结果，卸载即释放，不积攒编辑历史。 */
+/** Each preview keeps only the current version's sanitized output, released on unmount, accumulating no edit history. */
 export function createPreviewRenderer() {
   let cache = new Map<string, string>();
   return (source: string, env: RenderEnv = {}): PreviewBlock[] => {
@@ -46,8 +46,8 @@ export function createPreviewRenderer() {
       next.set(html, cache.get(html) ?? sanitizeHtml(html));
     } else {
       const missing = [...new Set(raw.map((block) => block.html).filter((html) => !cache.has(html)))];
-      // 首次打开一次清洗整批，避免每个小段落都创建一个 DOMPurify 文档。
-      // section 只在离屏拆分时使用，绝不会进入预览；原生 HTML 不走这条分块路径。
+      // On first open sanitize the whole batch at once, rather than creating a DOMPurify document per small paragraph.
+      // The section is only used for offscreen splitting and never enters the preview; raw HTML doesn't take this chunked path.
       if (missing.length > 0) {
         const fragment = sanitizeFragment(missing.map((html) => `<section>${html}</section>`).join(""));
         Array.from(fragment.children).forEach((el, i) => next.set(missing[i], el.innerHTML));
@@ -65,7 +65,7 @@ interface MountedBlock extends PreviewBlock {
   anchors: { el: Element; line: number }[];
 }
 
-/** 从已清洗的 HTML 建立 DOM 和相对行号索引；后续移行只改属性，不重建图片/视频。 */
+/** Build DOM and a relative line index from sanitized HTML; later line shifts only touch attributes, not rebuilding images/videos. */
 function mountBlock(block: PreviewBlock, fragment: ParentNode): MountedBlock {
   const anchors = block.lineOffset === null ? [] : Array.from(fragment.querySelectorAll("[data-line]"), (el) => ({
     el,
@@ -74,7 +74,7 @@ function mountBlock(block: PreviewBlock, fragment: ParentNode): MountedBlock {
   return { ...block, lineOffset: null, nodes: Array.from(fragment.childNodes), anchors };
 }
 
-/** 新块也一次解析成离屏节点，长文首屏不会为几千个小块分别调用 HTML 解析器。 */
+/** New blocks are also parsed offscreen in one go, so a long document's first paint doesn't invoke the HTML parser for thousands of small blocks. */
 function mountBlocks(root: HTMLElement, blocks: PreviewBlock[]): MountedBlock[] {
   if (blocks.length === 0) return [];
   const range = root.ownerDocument.createRange();
@@ -87,8 +87,8 @@ function mountBlocks(root: HTMLElement, blocks: PreviewBlock[]): MountedBlock[] 
 }
 
 /**
- * 复用相同块的 DOM，只插入/移除变化部分。相同内容按原顺序配对，重复段落不会串位。
- * 不插入包装元素或定位注释，最终 DOM 与原来的整篇 innerHTML 一致。
+ * Reuse DOM for identical blocks and insert/remove only what changed. Identical content pairs up in order, so duplicate paragraphs don't swap.
+ * No wrapper elements or marker comments are inserted; the final DOM matches the original whole-document innerHTML.
  */
 export function createPreviewUpdater(root: HTMLElement) {
   let mounted: MountedBlock[] = [];
@@ -115,7 +115,7 @@ export function createPreviewUpdater(root: HTMLElement) {
       }
       return entry;
     });
-    // 先移走已变化的旧块；否则一个段落变了会把后面的所有未变节点逐个搬到它前面。
+    // Remove changed old blocks first; otherwise one changed paragraph would drag every unchanged node after it in front, one by one.
     const retained = new Set(next);
     for (const block of mounted) {
       if (!retained.has(block)) for (const node of block.nodes) root.removeChild(node);

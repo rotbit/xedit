@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 分享设置弹窗，对应 /api/documents/[id]/share 的 GET/POST/PATCH。
- * 所有动作都走 call()：每次都用接口返回的整份状态覆盖本地，不做乐观更新——
- * 关闭再开启会换一个新 token，乐观更新容易让界面上的链接和真实链接不是同一个。
+ * Share settings dialog, backed by GET/POST/PATCH on /api/documents/[id]/share.
+ * Every action goes through call(): each time the full state returned by the API overwrites local state, no optimistic updates;
+ * turning sharing off and on again issues a new token, and optimistic updates could easily show a link that isn't the real one.
  */
 import { useCallback, useEffect, useState } from "react";
 import { Copy, ExternalLink, Loader2, X } from "lucide-react";
@@ -22,21 +22,21 @@ interface ShareState {
 }
 
 /**
- * 分享设置弹窗：开启后生成永久有效的公开链接（只由作者手动关闭），
- * 访客打开即看到公众号真实渲染效果，无需登录即可选中文字批注。
+ * Share settings dialog: once enabled it generates a permanent public link (closed only manually by the author);
+ * visitors see the real WeChat rendering and can select text to annotate without logging in.
  */
 export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => void }) {
   const t = useT();
   const [state, setState] = useState<ShareState | null>(null);
   const [busy, setBusy] = useState(false);
-  /** 尚未开启时的批注意向：开启那一刻随请求带上，省得开完再回来勾一次 */
+  /** Annotation preference before sharing is enabled: sent along with the enabling request, so you don't have to come back and tick it */
   const [wantComment, setWantComment] = useState(true);
   useEscape(onClose);
 
   const load = useCallback(async (): Promise<ShareState | null> => {
     const res = await fetch(`/api/documents/${docId}/share`);
     if (!res.ok) {
-      // 在 useCallback 里，用模块级 translate 免得把 t 塞进依赖、切语言时重新拉一遍
+      // Inside useCallback, use the module-level translate so t doesn't go into deps and trigger a refetch on language change
       toast(translate("加载分享状态失败", getLocale()), "error");
       return null;
     }
@@ -53,7 +53,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
     };
   }, [load]);
 
-  /** 跑一次分享接口。忙碌期间的重复点击直接丢弃，成功后用响应体整份替换状态。 */
+  /** Run one share API call. Repeat clicks while busy are dropped; on success the response body replaces the state wholesale. */
   const call = async (fn: () => Promise<Response>, okMsg?: string) => {
     if (busy) return;
     setBusy(true);
@@ -98,7 +98,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
       })
     );
 
-  // 用 window.location.origin 拼链接而不是写死域名（自部署的域名不固定）；也因此本组件只能在客户端渲染
+  // Build the link from window.location.origin rather than a hardcoded domain (self-hosted domains vary); that's also why this component is client-only
   const url = state?.token ? `${window.location.origin}/s/${state.token}` : "";
   const copyUrl = async () => {
     await navigator.clipboard.writeText(url);
@@ -107,7 +107,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
 
   return (
     <div
-      // z 只有 90，低于通用弹窗外壳的 110：从这里弹出的确认框要能压在它上面
+      // z is only 90, below the generic dialog shell's 110: confirm dialogs opened from here must stack above it
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
       onClick={onClose}
     >
@@ -173,7 +173,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
                   readOnly
                   className="h-9 min-w-0 flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--paper)] px-3 text-[12px] text-[var(--ink)] outline-none"
                   value={url}
-                  // 只读 + 聚焦全选：不想用复制按钮的人可以直接手动复制，同时链接不会被改坏
+                  // Read-only + select all on focus: people who'd rather not use the copy button can copy by hand, and the link can't get mangled
                   onFocus={(e) => e.target.select()}
                 />
                 <button
@@ -202,7 +202,7 @@ export function ShareDialog({ docId, onClose }: { docId: string; onClose: () => 
                 <input
                   type="checkbox"
                   className="h-4 w-4 cursor-pointer accent-[var(--accent)]"
-                  // 接口只在分享已开启时给这个字段，取不到时按「允许」显示，与数据库默认值一致
+                  // The API only returns this field when sharing is on; if missing, show 「允许」 (Allowed), matching the database default
                   checked={state.allowComment ?? true}
                   disabled={busy}
                   onChange={(e) => void setAllowComment(e.target.checked)}

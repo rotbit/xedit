@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * 审核设置那张表：只选审核类型（可多选，勾了几类就一起审）。
+ * The review settings form: just picks review types (multi-select; all checked types are reviewed together).
  *
- * 只有这一份。顶栏「审核」按钮弹出的启动面板（ReviewLaunchPopover）和审核条上
- * 那颗胶囊点开的面板（ReviewAiSettings）都嵌它——两处各写一遍的话，
- * 迟早会一处能选、另一处不能。
+ * There's only one copy. Both the launch panel from the top bar's 「审核」 (Review) button (ReviewLaunchPopover) and the panel
+ * from the pill on the review bar (ReviewAiSettings) embed it; with two separate copies,
+ * sooner or later one would allow a choice the other doesn't.
  *
- * 用哪家的哪个模型、key 是什么，都由管理员在后台的「AI 设置」里定，这里不给选也看不到。
- * 表单只管收设置，收完存进本机（见 aiConfig.ts），什么时候真去跑由外面的按钮说了算。
+ * Which provider, which model and what key are set by the admin under 「AI 设置」 (AI settings) in the backend; they're neither selectable nor visible here.
+ * The form only collects settings and saves them locally (see aiConfig.ts); the outside button decides when to actually run.
  */
 import { REVIEW_KINDS } from "@/lib/ai/reviewKinds";
 import { useAppConfig } from "@/features/workspace/hooks/useAppConfig";
@@ -17,15 +17,15 @@ import { useT } from "@/i18n/useT";
 
 const label = "mb-1 block text-[11px] text-[var(--ink-faint)]";
 
-/** 面板外壳：两处弹出的面板同一副样子（宽度、圆角、影子都跟仓库里其他下拉一致） */
+/** Panel shell: both popovers look the same (width, radius and shadow match the other dropdowns in the repo) */
 export const reviewPanel =
   "w-[300px] rounded-lg border border-[var(--hairline)] bg-[var(--panel)] p-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]";
 
 /**
- * 现在能不能开审：后台选定的那家模型配了 token 才行（/api/config 的 aiReview 报出来的）。
+ * Whether review can start now: only if the backend's chosen model has a token configured (reported by aiReview in /api/config).
  *
- * 登录 / 管理员 / 限量都在服务端判，这里不替它猜——放行，
- * 让服务端的 401 / 403 带着自己的说法回来，比前端猜一个理由诚实。
+ * Login / admin / rate limits are all checked server-side; don't guess for it here. Let it through
+ * and let the server's 401 / 403 come back with its own explanation; more honest than the frontend guessing a reason.
  */
 export function useReviewKeyReady(): { ready: boolean; hint: string } {
   const t = useT();
@@ -36,7 +36,7 @@ export function useReviewKeyReady(): { ready: boolean; hint: string } {
   };
 }
 
-/** 审核类型：一类一行，可多选；名字底下一句话说清楚它看的是什么 */
+/** Review types: one per row, multi-select; a line under each name says what it checks */
 function KindRows() {
   const t = useT();
   const [cfg, set] = useAiConfig();
@@ -45,7 +45,7 @@ function KindRows() {
       <span className={label}>{t("审核类型（可多选，一起审）")}</span>
       {REVIEW_KINDS.map((k) => {
         const on = cfg.kinds.includes(k.id);
-        // 至少留一类：最后那一个勾不掉
+        // Keep at least one type: the last checkbox can't be unchecked
         const last = on && cfg.kinds.length === 1;
         return (
           <label
@@ -56,7 +56,7 @@ function KindRows() {
                 : "border-[var(--hairline)] hover:bg-[var(--paper)]"
             }`}
           >
-            {/* 用原生 checkbox：多选语义、空格切换、读屏都是白给的 */}
+            {/* Native checkbox: multi-select semantics, space to toggle and screen reader support come for free */}
             <input
               type="checkbox"
               className="mt-[3px] shrink-0 accent-[var(--accent)]"
@@ -84,7 +84,7 @@ function KindRows() {
   );
 }
 
-/** 整张表：现在只有审核类型一项 */
+/** The whole form: currently just the review types */
 export function ReviewSettingsFields() {
   return <KindRows />;
 }

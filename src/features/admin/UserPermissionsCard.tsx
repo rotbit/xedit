@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 账号明细抽屉里的「功能权限」卡：逐项开关 AI 功能，并可单独给这个账号设每日次数上限。
- * 开关点了立刻 PATCH（先改界面，失败再拨回去）；上限在失焦或回车时才存，没改动不发请求。
- * 管理员由服务端按白名单默认全开，这里开关只做展示；封禁账号存着的权限不动，但期间用不了。
+ * The 「功能权限」 (Feature permissions) card in the account detail drawer: toggle each AI feature, and optionally set a per-account daily cap.
+ * Toggles PATCH immediately (UI first, reverted on failure); caps are saved on blur or Enter, and nothing is sent if unchanged.
+ * Admins have everything on by default via the server allowlist, so toggles here are display-only; a banned account keeps its stored permissions but can't use them meanwhile.
  */
 import { useRef, useState } from "react";
 import { Switch } from "@/components/Switch";
@@ -13,13 +13,13 @@ import type { UserDetailResp } from "./types";
 
 type LimitField = "aiReviewDailyLimit" | "aiCoverDailyLimit";
 
-/** 权限 → 它的每日上限字段；加新权限时这里也要补一行 */
+/** Permission → its daily cap field; add a line here when adding a new permission */
 const LIMIT_FIELD: Record<Permission, LimitField> = {
   ai_review: "aiReviewDailyLimit",
   ai_cover: "aiCoverDailyLimit",
 };
 
-/** 与服务端校验一致：1..10000 的整数，留空=站点默认 */
+/** Matches server validation: an integer 1..10000, blank = site default */
 const LIMIT_MAX = 10000;
 
 export function UserPermissionsCard({
@@ -32,9 +32,9 @@ export function UserPermissionsCard({
   onChanged?: () => void;
 }) {
   const [perms, setPerms] = useState<Permission[]>(user.permissions);
-  // 连点两个开关时，第二次要在第一次的乐观结果上改，所以另存一份不受闭包影响的最新值
+  // When two toggles are clicked in a row, the second must build on the first's optimistic result, so keep a latest value that's immune to closures
   const permsRef = useRef(perms);
-  // 已存下的上限（服务端认可的值），输入框失焦时拿它比对有没有改
+  // The saved cap (the value the server accepted), compared on blur to see if it changed
   const [limits, setLimits] = useState<Record<LimitField, number | null>>({
     aiReviewDailyLimit: user.aiReviewDailyLimit,
     aiCoverDailyLimit: user.aiCoverDailyLimit,
@@ -66,7 +66,7 @@ export function UserPermissionsCard({
 
   const toggle = async (key: Permission, label: string, on: boolean) => {
     const prev = permsRef.current;
-    // 按 PERMISSIONS 的顺序重排，存进库里的数组顺序稳定，列表徽标的提示文字也不会忽前忽后
+    // Reorder by PERMISSIONS so the stored array order is stable and the list badge's tooltip doesn't shuffle around
     const next = PERMISSIONS.map((p) => p.key).filter((k) =>
       k === key ? on : prev.includes(k)
     );
@@ -75,7 +75,7 @@ export function UserPermissionsCard({
     if (await patch({ permissions: next })) {
       toast(on ? `已开通「${label}」` : `已关闭「${label}」`, "success");
     } else {
-      // 只拨回这一项：期间若又点了别的开关，别把那一次也冲掉
+      // Revert only this one: if another toggle was clicked meanwhile, don't wipe that one too
       const rolled = PERMISSIONS.map((p) => p.key).filter((k) =>
         k === key ? !on : permsRef.current.includes(k)
       );
@@ -84,7 +84,7 @@ export function UserPermissionsCard({
     }
   };
 
-  /** 返回是否被接受：不合法或保存失败时由输入框自己把字改回去 */
+  /** Returns whether it was accepted: on invalid input or save failure the input reverts its own text */
   const saveLimit = async (field: LimitField, value: number | null): Promise<boolean> => {
     if (value === limits[field]) return true;
     if (!(await patch({ [field]: value }))) return false;
@@ -134,7 +134,7 @@ export function UserPermissionsCard({
   );
 }
 
-/** 每日上限输入框：留空=站点默认；失焦或回车才存，Esc 放弃这次修改 */
+/** Daily cap input: blank = site default; saved on blur or Enter, Esc discards the edit */
 function LimitInput({
   saved,
   fallback,
@@ -169,13 +169,13 @@ function LimitInput({
         className="h-7 w-[84px] rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-2 text-[12.5px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
         placeholder={`默认 ${fallback}`}
         value={draft}
-        // 只收数字：粘进来的「20 次」之类直接滤成 20，免得失焦时才报格式错
+        // Digits only: pasted text like 「20 次」 is filtered to 20, rather than erroring on blur
         onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ""))}
         onBlur={() => void commit()}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
           if (e.key === "Escape") {
-            // 抽屉在 window 上听 Esc 关闭，这里拦住冒泡，只撤销输入；草稿回到已存值，之后失焦也不会发请求
+            // The drawer listens for Esc on window to close; stop propagation here so it only cancels the edit. The draft reverts to the saved value, so a later blur sends nothing
             e.stopPropagation();
             reset();
           }

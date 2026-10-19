@@ -1,29 +1,29 @@
 /**
- * 文章模板（纯函数，无 React）。
+ * Article templates (pure functions, no React).
  *
- * 学 Obsidian 的做法：模板不是另一种实体，就是放在「模板」分类里的普通文章。
- * 于是不必新增存储、不必做管理界面 —— 编辑模板＝编辑那篇文章，
- * 删除、移动、同步、搜索全部沿用文章自己那一套。
+ * Borrowed from Obsidian: a template isn't a separate entity, just an ordinary article in the 「模板」 (Templates) category.
+ * So no new storage and no management UI: editing a template = editing that article,
+ * and delete, move, sync and search all reuse the article's own machinery.
  */
 
 import type { DocMeta } from "@/features/workspace/types";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 
-/** 模板所在的分类名；子分类（如「模板/周报」）同样算模板 */
-export const TEMPLATE_CATEGORY = "模板"; // i18n-ignore 保留分类名，存进数据；显示处 t()
+/** Category name for templates; subcategories (e.g. 「模板/周报」) count as templates too */
+export const TEMPLATE_CATEGORY = "模板"; // i18n-ignore reserved category name stored in data; displayed via t()
 
-/** 分类路径是否落在模板目录下 */
+/** Whether a category path falls under the templates folder */
 export function isTemplateCategory(category?: string | null): boolean {
   if (!category) return false;
   return category === TEMPLATE_CATEGORY || category.startsWith(`${TEMPLATE_CATEGORY}/`);
 }
 
-/** 这篇文章是不是模板 */
+/** Whether this article is a template */
 export function isTemplateDoc(doc: Pick<DocMeta, "category">): boolean {
   return isTemplateCategory(doc.category);
 }
 
-/** 模板列表：按标题排序，好让下拉菜单的次序稳定（而不是跟着编辑时间乱跳） */
+/** Template list sorted by title so the dropdown order is stable (rather than jumping around with edit times) */
 export function listTemplates(docs: readonly DocMeta[] | null | undefined): DocMeta[] {
   return (docs ?? [])
     .filter(isTemplateDoc)
@@ -31,26 +31,26 @@ export function listTemplates(docs: readonly DocMeta[] | null | undefined): DocM
     .sort((a, b) => a.title.localeCompare(b.title, "zh-Hans-CN"));
 }
 
-/** 从模板标题推出新文章的默认标题：「周报模板」→「周报」 */
+/** Derive a new article's default title from the template title: 「周报模板」 → 「周报」 */
 export function defaultTitleFromTemplate(templateTitle: string): string {
   return templateTitle.replaceAll(TEMPLATE_CATEGORY, "").trim() || UNTITLED_DOC;
 }
 
-const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"]; // i18n-ignore 模板变量 {{weekday}} 的取值，写进正文，属于内容
+const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"]; // i18n-ignore values of the {{weekday}} template variable, written into the body as content
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export interface TemplateContext {
-  /** 新文章的标题，对应 `{{title}}` */
+  /** The new article's title, for `{{title}}` */
   title: string;
-  /** 注入时间，缺省取当下；留出参数只为可测 */
+  /** Injected time, defaulting to now; the parameter exists only for testability */
   now?: Date;
 }
 
 /**
- * `{{变量}}` 只认下面这几个，名字不区分大小写、两边允许空格（`{{ Date }}` 也算）。
- * 认不出的原样留着 —— 模板里写 `{{foo}}` 多半是作者自己的占位符，替成空串反而是帮倒忙。
- * 整篇字符串一起替换，所以 frontmatter 里的 `date: {{date}}` 同样生效。
+ * Only the `{{variables}}` below are recognized; names are case-insensitive with optional surrounding spaces (`{{ Date }}` counts).
+ * Unrecognized ones stay as-is: a `{{foo}}` in a template is most likely the author's own placeholder, and blanking it would do more harm than good.
+ * Replacement runs over the whole string, so `date: {{date}}` in frontmatter works too.
  */
 const VAR = /\{\{[ \t]*([^{}\r\n]*?)[ \t]*\}\}/g;
 
@@ -66,7 +66,7 @@ export function applyTemplate(content: string, ctx: TemplateContext): string {
     year: String(now.getFullYear()),
     month: pad(now.getMonth() + 1),
     day: pad(now.getDate()),
-    weekday: `星期${WEEKDAYS[now.getDay()]}`, // i18n-ignore 模板变量 {{weekday}} 的取值，写进正文，属于内容
+    weekday: `星期${WEEKDAYS[now.getDay()]}`, // i18n-ignore values of the {{weekday}} template variable, written into the body as content
   };
   return content.replace(VAR, (whole, name: string) => {
     const value = values[name.toLowerCase()];

@@ -1,23 +1,23 @@
 /**
- * 媒体上传的位置占位。
+ * Positional placeholder for media uploads.
  *
- * 老做法是「先上传、传完再往光标处插」，于是：等的这几秒里用户接着打字，图片就插进了
- * 刚敲的字中间；一次粘多张，谁先传完谁先落笔，正文顺序全凭网速；传失败则正文里什么
- * 都没有，用户不知道刚才那张去哪了。
+ * The old approach was "upload first, insert at the cursor when done", so: if the user kept typing during the wait, the image
+ * landed in the middle of the new text; when pasting several at once, whichever finished first was inserted first, so order depended on
+ * network speed; and on failure nothing appeared at all, leaving the user wondering where the image went.
  *
- * 现在改成粘贴/拖入的那一刻先在落点挂一枚「上传中」的小牌子，上传回来再把最终 Markdown
- * 插到小牌子当下所在的位置。小牌子是 StateField 里的部件装饰（widget decoration），
- * 不是正文文本，因此：
- * - 位置随后续编辑一起映射，用户接着打字/删字都不会把图片插错地方；
- * - 自动保存与导出看到的永远是真正文，不可能把 `uploading:` 这种假地址写进文档；
- * - 装饰只由 effect 增删，不进历史，撤销不会把已经消失的小牌子招回来。
+ * Now, at the moment of paste/drop, we pin an "uploading" badge at the drop point, and when the upload returns we insert the final Markdown
+ * wherever the badge currently is. The badge is a widget decoration in a StateField,
+ * not document text, so:
+ * - its position is mapped through subsequent edits, so typing/deleting never misplaces the image;
+ * - autosave and export always see the real text, so a fake `uploading:` URL can never be written into the document;
+ * - decorations are added/removed only via effects and stay out of history, so undo won't resurrect a badge that's already gone.
  */
 
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 import { MapMode, StateEffect, StateField, type Extension } from "@codemirror/state";
 import { t } from "@/i18n/t";
 
-/** 一枚待落笔的占位：id 用来在映射后的装饰集合里找回自己 */
+/** A pending placeholder: the id is used to find itself again in the mapped decoration set */
 interface Slot {
   id: number;
   pos: number;
@@ -29,7 +29,7 @@ const dropChip = StateEffect.define<number>();
 
 let nextId = 1;
 
-/** 小牌子上的文件名：中间省略、保留扩展名，长截图名不至于把牌子撑到折行 */
+/** File name on the badge: middle-truncated keeping the extension, so long screenshot names don't wrap the badge */
 export function shortenFileName(name: string, max = 24): string {
   if (name.length <= max) return name;
   const dot = name.lastIndexOf(".");
@@ -50,8 +50,8 @@ const VIDEO_ICON =
 
 const isVideoName = (name: string) => /\.(mp4|webm|mov|m4v)$/i.test(name);
 
-/** 落点上的小牌子：图标 + 文件名 + 「上传中…」，底色缓缓扫光表示在忙。
- *  eq 只比 id：同一枚牌子重排位置时不重建 DOM，动画不会被打断 */
+/** Badge at the drop point: icon + file name + 「上传中…」 (Uploading…), with a slow shimmer to show it's busy.
+ *  eq compares only id: when the same badge is repositioned the DOM isn't rebuilt, so the animation isn't interrupted */
 class UploadChipWidget extends WidgetType {
   constructor(
     readonly id: number,
@@ -89,8 +89,8 @@ interface ChipState {
   readonly decos: DecorationSet;
 }
 
-/** 同位置的多枚牌子一律 side=1（画在光标之后），先后顺序交给数组顺序——
- *  Decoration.set 的排序是稳定的，数组顺序即用户选文件的顺序 */
+/** Multiple badges at the same position all use side=1 (drawn after the cursor); their order comes from array order —
+ *  Decoration.set sorts stably, so array order is the order the user picked the files */
 function buildDecos(slots: readonly Slot[]): DecorationSet {
   return Decoration.set(
     slots.map((s) =>
@@ -110,9 +110,9 @@ const chipField = StateField.define<ChipState>({
     if (tr.docChanged && slots.length > 0) {
       const mapped: Slot[] = [];
       for (const slot of slots) {
-        // assoc=1：牌子画在光标右边，用户在原地继续打字时它得跟着挪到新字后面，
-        // 最终插进来的图片才不会把这段刚敲的字劈成两半。
-        // TrackDel：落点整段被删掉就返回 null，这一张干脆不插（见 UploadSlot.resolve）
+        // assoc=1: the badge sits to the right of the cursor, so when the user keeps typing in place it moves after the new text,
+        // and the final image won't split what was just typed in half.
+        // TrackDel: if the whole drop point is deleted this returns null and that image is simply not inserted (see UploadSlot.resolve)
         const pos = tr.changes.mapPos(slot.pos, 1, MapMode.TrackDel);
         if (pos === null) {
           changed = true;
@@ -151,7 +151,7 @@ const chipTheme = EditorView.baseTheme({
     maxWidth: "260px",
     borderRadius: "999px",
     border: "1px solid var(--hairline)",
-    // 两档纸灰之间来回扫一道浅光：比转圈安静，又看得出「还在传」
+    // A faint light sweeps between two paper-gray tones: quieter than a spinner, yet clearly "still uploading"
     background:
       "linear-gradient(100deg, var(--sidebar) 35%, var(--accent-wash) 50%, var(--sidebar) 65%) 0 0 / 250% 100%",
     animation: "cm-upload-chip-shimmer 1.6s linear infinite",
@@ -191,12 +191,12 @@ const chipTheme = EditorView.baseTheme({
   },
 });
 
-/** 上传完成后的落笔句柄，一个文件一枚 */
+/** Insertion handle after an upload completes, one per file */
 export interface UploadSlot {
-  /** 传成功：把 Markdown 插到牌子当下所在的位置并撤牌。
-   *  返回 false 表示落点已被用户删掉（或已切走文档），这一张没有插入 */
+  /** Success: insert the Markdown wherever the badge currently is and remove the badge.
+   *  Returns false if the drop point was deleted by the user (or the document was switched); nothing is inserted */
   resolve(markdown: string): boolean;
-  /** 传失败/取消：只撤牌，正文不动 */
+  /** Failure/cancel: remove the badge only, leave the text untouched */
   cancel(): void;
 }
 
@@ -206,11 +206,11 @@ function livePos(view: EditorView, id: number): number | null {
 }
 
 /**
- * 在 `at` 处按顺序挂上一串「上传中」小牌子，返回与 names 一一对应的落笔句柄。
- * 调用方负责让 resolve 按文件顺序依次发生（上传可以并行，落笔必须排队）。
+ * Pin a series of "uploading" badges at `at` in order, returning insertion handles matching `names` one-to-one.
+ * The caller must make the resolves happen in file order (uploads can run in parallel, insertion must be queued).
  */
 export function reserveUploadSlots(view: EditorView, at: number, names: string[]): UploadSlot[] {
-  // 扩展没装上时退化成「按登记位置插入」：位置不再跟随编辑，但至少不会把内容丢掉
+  // Without the extension installed, fall back to "insert at the registered position": no longer follows edits, but at least nothing is lost
   const installed = view.state.field(chipField, false) !== undefined;
   const pos = Math.max(0, Math.min(at, view.state.doc.length));
   const slots: Slot[] = names.map((name) => ({ id: nextId++, pos, name }));

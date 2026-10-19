@@ -1,19 +1,19 @@
-// 导出 Word · 行内转换：行内 DOM 节点（文本、加粗/斜体/删除线、链接、图片、公式、SPAN 字体颜色等）→ TextRun / ImageRun / 超链接。
+// Word export · inline conversion: inline DOM nodes (text, bold/italic/strikethrough, links, images, formulas, SPAN font colors, etc.) → TextRun / ImageRun / hyperlinks.
 
 /**
- * 导出 Word 的行内层：把渲染好的 HTML 里的行内节点翻译成 docx 的 TextRun / ImageRun / 超链接。
- * 输入就是预览用的那棵 DOM，所以这里认的是渲染产物的类名（math、prefix/suffix、footnote-backref…）——
- * 改 Markdown 渲染的输出结构时，这个文件的分支要跟着核对一遍。
- * 图片和公式的位图由上层预先备好塞进 Build（b.images / b.math），本文件只取用，不发任何请求。
+ * Inline layer of Word export: translates inline nodes in the rendered HTML into docx TextRun / ImageRun / hyperlinks.
+ * The input is the same DOM used for preview, so this matches class names from the rendered output (math, prefix/suffix, footnote-backref…);
+ * when changing the Markdown renderer's output structure, recheck the branches in this file.
+ * Image and formula bitmaps are prepared upstream and put into Build (b.images / b.math); this file only reads them and makes no requests.
  */
 import { ExternalHyperlink, ImageRun, ShadingType, TextRun } from "docx";
 import { CONTENT_W, GRAY, LINK_BLUE, MONO_FONT } from "./types";
 import type { Build, InlineChild, PreparedImage, RunStyle } from "./types";
 
-// —— 行内节点 → TextRun / ImageRun / 超链接 ——
+// -- Inline nodes → TextRun / ImageRun / hyperlinks --
 
-/** 内联 style 的 CSS 颜色 → docx 十六进制（不带 #）；认不出的形态返回 undefined。
- *  浏览器会把 style 属性里的 hex 规范化成 rgb() 形态，两种都要接 */
+/** CSS color from inline style → docx hex (without #); unrecognized forms return undefined.
+ *  Browsers normalize hex in the style attribute to rgb(), so both must be handled */
 function cssColorToHex(css: string): string | undefined {
   const rgb = css.match(/^rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/);
   if (rgb) {
@@ -29,7 +29,7 @@ function cssColorToHex(css: string): string | undefined {
   return (h.length === 3 ? [...h].map((c) => c + c).join("") : h).toUpperCase();
 }
 
-/** 造一个文本 run。行内代码要同时换等宽字体、底纹和字号，所以 code 分支在三处各出现一次。 */
+/** Build a text run. Inline code needs a monospace font, shading, and font size together, so the code branch appears in three places. */
 function makeRun(text: string, st: RunStyle): TextRun {
   return new TextRun({
     text,
@@ -46,7 +46,7 @@ function makeRun(text: string, st: RunStyle): TextRun {
   });
 }
 
-/** 等比缩到正文宽度内。只缩不放——小图放大在 Word 里会糊成一片。 */
+/** Scale proportionally to fit the body width. Only shrinks, never enlarges: upscaled small images look blurry in Word. */
 function fit(pi: PreparedImage, maxW: number): { width: number; height: number } {
   const scale = Math.min(1, maxW / pi.width);
   return { width: Math.round(pi.width * scale), height: Math.round(pi.height * scale) };
@@ -54,9 +54,9 @@ function fit(pi: PreparedImage, maxW: number): { width: number; height: number }
 
 let imageSeq = 0;
 
-/** 把预备好的位图包成 ImageRun，宽度默认压到正文宽。
- *  docPr/cNvPr 的 name 与 descr 不留空：Word 自己不在乎，但部分导入器（飞书、WPS、Tiptap 等）
- *  按这两个属性识别图片与读取替代文字，空字符串在它们那里有被当作无效图片的风险。 */
+/** Wrap a prepared bitmap in an ImageRun, defaulting to body width.
+ *  docPr/cNvPr name and descr are never left empty: Word doesn't care, but some importers (Feishu, WPS, Tiptap, etc.)
+ *  use these attributes to identify images and read alt text, and empty strings risk being treated as invalid images there. */
 export function imageRun(pi: PreparedImage, maxW = CONTENT_W, alt = ""): ImageRun {
   imageSeq += 1;
   const name = `image${imageSeq}`;
@@ -68,15 +68,15 @@ export function imageRun(pi: PreparedImage, maxW = CONTENT_W, alt = ""): ImageRu
   });
 }
 
-/** Word 放不了视频，退化成一个指向源地址的超链接。 */
+/** Word can't hold videos, so fall back to a hyperlink to the source URL. */
 export function videoLink(src: string): ExternalHyperlink {
   return new ExternalHyperlink({
     link: src,
-    children: [new TextRun({ text: "▶ 点击观看视频", bold: true, color: LINK_BLUE, underline: {} })], // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+    children: [new TextRun({ text: "▶ 点击观看视频", bold: true, color: LINK_BLUE, underline: {} })], // i18n-ignore part of the exported/copied content format; stays Chinese for now
   });
 }
 
-/** 公式优先用预渲染的位图；没备到（例如取图失败）就退回斜体的 TeX 原文，至少不丢信息。 */
+/** Formulas prefer the pre-rendered bitmap; if unavailable (e.g. fetching failed), fall back to italic TeX source so no information is lost. */
 export function mathImage(el: Element, st: RunStyle, b: Build): InlineChild {
   const pi = b.math.get(el);
   if (pi) return imageRun(pi);
@@ -84,7 +84,7 @@ export function mathImage(el: Element, st: RunStyle, b: Build): InlineChild {
   return makeRun(tex, { ...st, italics: true });
 }
 
-/** 递归展开一个行内节点，结果推进 out。st 是从祖先继承下来的样式，逐层叠加而不是每层重算。 */
+/** Recursively expand an inline node, pushing results into out. st is the style inherited from ancestors, layered per level instead of recomputed each time. */
 export function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Build): void {
   if (node.nodeType === Node.TEXT_NODE) {
     const text = (node.textContent ?? "").replace(/\n/g, " ");
@@ -95,13 +95,13 @@ export function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Buil
   const el = node as Element;
   const tag = el.tagName.toUpperCase();
 
-  if (tag === "SVG") return; // 裸 SVG 只在公式里出现，公式已整体转图
+  if (tag === "SVG") return; // Bare SVG only appears in formulas, which are already converted to images whole
   if (el.classList.contains("math")) {
     out.push(mathImage(el, st, b));
     return;
   }
-  if (el.classList.contains("prefix") || el.classList.contains("suffix")) return; // 标题装饰
-  if (el.classList.contains("footnote-backref")) return; // 文内锚点在 Word 里无意义
+  if (el.classList.contains("prefix") || el.classList.contains("suffix")) return; // Heading decoration
+  if (el.classList.contains("footnote-backref")) return; // In-document anchors are meaningless in Word
 
   switch (tag) {
     case "BR":
@@ -128,7 +128,7 @@ export function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Buil
       return recurse({ ...st, sub: true });
     case "A": {
       const href = el.getAttribute("href") ?? "";
-      if (!href || href.startsWith("#")) return recurse(st); // 文内锚点降级为纯文本
+      if (!href || href.startsWith("#")) return recurse(st); // In-document anchors degrade to plain text
       const kids: InlineChild[] = [];
       el.childNodes.forEach((n) => pushInline(n, { ...st, color: LINK_BLUE, underline: true }, kids, b));
       if (kids.length) out.push(new ExternalHyperlink({ link: href, children: kids }));
@@ -140,7 +140,7 @@ export function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Buil
       const alt = el.getAttribute("alt");
       if (pi) out.push(imageRun(pi, CONTENT_W, alt ?? ""));
       else {
-        out.push(makeRun(`[图片${alt ? `：${alt}` : ""}]`, { ...st, color: GRAY })); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+        out.push(makeRun(`[图片${alt ? `：${alt}` : ""}]`, { ...st, color: GRAY })); // i18n-ignore part of the exported/copied content format; stays Chinese for now
       }
       return;
     }
@@ -150,14 +150,14 @@ export function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Buil
       return;
     }
     case "INPUT": {
-      // 任务列表复选框
+      // Task list checkbox
       if (el.getAttribute("type") === "checkbox") {
         out.push(makeRun(el.hasAttribute("checked") ? "☑ " : "☐ ", st));
       }
       return;
     }
     case "SPAN": {
-      // 编辑器字体颜色（<span style="color:…">）落进 Word 字色
+      // Editor font color (<span style="color:…">) maps to Word font color
       const c = (el as HTMLElement).style?.color;
       const hex = c ? cssColorToHex(c) : undefined;
       return recurse(hex ? { ...st, color: hex } : st);
@@ -166,13 +166,13 @@ export function pushInline(node: Node, st: RunStyle, out: InlineChild[], b: Buil
       return recurse(st);
   }
 
-  // 声明放在 switch 之后、靠函数提升供上面各分支使用，这样每个分支只需要一行 return recurse(...)
+  // Declared after the switch and hoisted for use by the branches above, so each branch needs only one line: return recurse(...)
   function recurse(next: RunStyle): void {
     el.childNodes.forEach((n) => pushInline(n, next, out, b));
   }
 }
 
-/** 取一个元素的全部行内内容。上层的段落、表格单元格都从这里拿 children。 */
+/** Get all inline content of an element. Paragraphs and table cells upstream get their children from here. */
 export function inlineOf(el: Element, b: Build, st: RunStyle = {}): InlineChild[] {
   const out: InlineChild[] = [];
   el.childNodes.forEach((n) => pushInline(n, st, out, b));

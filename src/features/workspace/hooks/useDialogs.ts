@@ -3,20 +3,20 @@
 import { useCallback, useState } from "react";
 import type { ImportMode } from "./useImportDocs";
 
-/** 一次导入请求：mode 决定选文件还是选整个文件夹；
- *  cat 是指定的落点（右键某个文件夹发起时带上），不带就跟着当前分类走 */
+/** One import request: mode decides whether to pick files or a whole folder;
+ *  cat is the explicit target (set when started from a folder's context menu); without it, follow the current category */
 export interface ImportRequest {
   mode: ImportMode;
   cat?: string;
 }
 
 /**
- * 工作台那几个全局弹窗的开关。挂在 ws 上而不是留在 Home 里：
- * 导入入口散在文件树右键菜单、顶栏新建按钮、桌面壳的 ?action= 三处，
- * 状态留在 Home 就得把回调一层层透传到侧栏深处（之前正是这么干的）。
+ * Open/close state for the workspace's global dialogs. Lives on ws rather than in Home:
+ * import entry points are spread across the file tree context menu, the top-bar New button and the desktop shell's ?action=,
+ * and keeping the state in Home would mean threading callbacks deep into the sidebar (which is exactly what we used to do).
  *
- * 回调全部 useCallback 稳住：菜单组件把它们塞进 onClick 闭包，
- * 每渲染换一份新函数会让依赖它们的子树白重渲一轮。
+ * All callbacks are stabilized with useCallback: menu components put them into onClick closures,
+ * and a new function every render would needlessly re-render the subtrees depending on them.
  */
 export function useDialogs() {
   const [importRequest, setImportRequest] = useState<ImportRequest | null>(null);

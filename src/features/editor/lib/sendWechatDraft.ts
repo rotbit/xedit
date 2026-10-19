@@ -8,14 +8,14 @@ import { coverOf } from "../components/CoverPicker";
 import { buildRenderOptions } from "./renderOptions";
 
 /**
- * 「发送到公众号草稿」：把标题和按当前主题排好的 HTML 交给本机的草稿服务
- * （xedit-desktop/wechat-draft-service，只监听 127.0.0.1），由它驱动 Chrome 填进公众号后台（默认只填好、不保存，保存由用户自己点）。
- * 网页这边只交内容、轮询状态；不碰公众号登录态，也拿不到服务那边的 API Key。
- * 发表永远由用户自己在公众号后台点。
- * 入口只在桌面壳里露出（见 ReaderActions 的 isDesktopShell 判断）：服务由桌面 app 自己拉起，
- * 纯浏览器里点了只会弹「没连上」，还会莫名其妙冒出一个 Chrome 窗口。
+ * 「发送到公众号草稿」 (Send to WeChat draft): hand the title and HTML laid out with the current theme to the local draft service
+ * (xedit-desktop/wechat-draft-service, listening only on 127.0.0.1), which drives Chrome to fill the WeChat Official Account backend (by default it only fills, doesn't save; the user clicks save).
+ * The web side only submits content and polls status; it never touches the WeChat login session and can't see the service's API key.
+ * Publishing is always clicked by the user in the WeChat backend.
+ * The entry only appears in the desktop shell (see the isDesktopShell check in ReaderActions): the service is launched by the desktop app,
+ * and in a plain browser clicking would only show 「没连上」 (Not connected), plus a mysterious Chrome window popping up.
  */
-/** 本机草稿服务（只监听 127.0.0.1） */
+/** Local draft service (listening only on 127.0.0.1) */
 const DRAFT_SERVICE = "http://127.0.0.1:17831";
 const POLL_MS = 1000;
 const NOT_RUNNING = tk("没连上本机草稿服务，请重启 xEdit 再试");
@@ -24,7 +24,7 @@ type JobState = "running" | "done" | "failed" | "uncertain";
 interface JobView {
   jobId: string;
   state: JobState;
-  /** "filled" = 只填好了标题/正文/封面，还没保存（服务默认如此，保存由用户自己点） */
+  /** "filled" = title/body/cover filled in but not saved (the service's default; the user clicks save) */
   step?: string;
   message: string;
   warnings: string[];
@@ -43,7 +43,7 @@ async function post(body: unknown): Promise<{ status: number; data: DraftReply }
   return { status: res.status, data: (await res.json()) as DraftReply };
 }
 
-/** 桌面壳自己在顶栏里显示进度胶囊（xedit-desktop/tabs.js），这时网页就不再一条条弹提示 */
+/** The desktop shell shows its own progress pill in the top bar (xedit-desktop/tabs.js), so the web page stops showing toast after toast */
 const shellShowsProgress = (): boolean => desktopShell()?.draftProgress === true;
 
 const decoded = (s: string): string => {
@@ -55,9 +55,9 @@ const decoded = (s: string): string => {
 };
 
 /**
- * 封面是排好版的 HTML 里的第几张 <img>（服务那边按序号去「从正文选择」里点）。
- * 不能直接拿地址去比：本地图片在排版时被内联成了 base64，视频还会多出一张占位封面图，
- * 所以让封面地址走一遍同样的内联，再到成品 HTML 里找。找不到返回 null。
+ * Which <img> in the laid-out HTML is the cover (the service clicks it by index in 「从正文选择」 (Choose from body)).
+ * URLs can't be compared directly: local images are inlined as base64 during layout, and videos add an extra placeholder cover image,
+ * so run the cover URL through the same inlining and look for it in the final HTML. Returns null if not found.
  */
 async function coverIndexIn(html: string, cover: string): Promise<number | null> {
   const probe = await inlineAttachments(`![](${cover})`);
@@ -67,12 +67,12 @@ async function coverIndexIn(html: string, cover: string): Promise<number | null>
   return at === -1 ? null : at;
 }
 
-/** 封面不在正文里（上传的 / AI 生成的）时连图一起发过去，服务那边走「上传封面」 */
+/** When the cover isn't in the body (uploaded / AI generated), send the image along; the service uses 「上传封面」 (Upload cover) */
 type CoverImage = { dataUrl: string } | { url: string };
 
 /**
- * 本地附件走内联拿 base64（和正文图片同一套办法），网图只给地址、由服务自己下载——
- * 浏览器这边 fetch 别人家的图会撞跨域。都拿不到就返回 null，让调用方提醒用户手动选。
+ * Local attachments are inlined to get base64 (same approach as body images); web images just pass the URL and the service downloads them —
+ * fetching other sites' images from the browser hits CORS. If neither works return null, so the caller can ask the user to pick manually.
  */
 async function coverImageOf(cover: string): Promise<CoverImage | null> {
   if (isAttachmentSrc(cover)) {
@@ -85,7 +85,7 @@ async function coverImageOf(cover: string): Promise<CoverImage | null> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** onStatus 收到的是进行中的一句话状态；结束（无论成败）时收到 null */
+/** onStatus receives a one-line in-progress status; null when finished (success or failure) */
 export async function sendWechatDraft(onStatus: (message: string | null) => void): Promise<void> {
   try {
     const s = useStore.getState();
@@ -98,10 +98,10 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
     const html = await buildWechatHtml(s.content, await buildRenderOptions());
     const cover = coverOf(s.content);
     const coverIndex = cover ? await coverIndexIn(html, cover) : null;
-    // 正文里有这张图就只报序号（服务去「从正文选择」里点，最省事）；不在正文里才连图一起发
+    // If the image is in the body, just send its index (the service clicks it in 「从正文选择」, simplest); only send the image itself when it's not in the body
     const coverImage = cover && coverIndex === null ? await coverImageOf(cover) : null;
     const coverSent = coverIndex !== null || coverImage !== null;
-    // 视频粘不进公众号，排版时已降级成占位块；这里数一下，结束时提醒人去后台补
+    // Videos can't be pasted into WeChat and were downgraded to placeholders during layout; count them here to remind the user to add them in the backend at the end
     const videoCount = countVideoPlaceholders(html);
     const payload = {
       title,
@@ -113,9 +113,9 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
     let reply: { status: number; data: DraftReply };
     try {
       reply = await post(payload);
-      // 同一篇已经存过（或上次结果不确定）：再发会多出一篇草稿，必须用户自己点头
+      // This article was already saved (or the last result was uncertain): sending again creates another draft, so the user must confirm
       if (reply.status === 409 && reply.data.error === "duplicate") {
-        // reply.data.message 来自本机草稿服务（中文）：命中字典就翻，否则原样
+        // reply.data.message comes from the local draft service (in Chinese): translate on a dictionary hit, otherwise show as-is
         if (!window.confirm(`${reply.data.message ? t(reply.data.message) : t("这篇内容可能已有草稿。")}\n\n${t("仍要再发送一次吗？")}`)) return;
         reply = await post({ ...payload, force: true });
       }
@@ -139,7 +139,7 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
         job = ((await res.json()) as { job: JobView | null }).job;
         misses = 0;
       } catch {
-        // 服务中途没了：草稿可能已经建了一半，不重发，让用户去后台看
+        // The service went away midway: the draft may be half-created, so don't resend; send the user to the backend to check
         if (++misses < 5) continue;
         toast(t("与本机草稿服务断开了。请到公众号草稿箱确认是否已有这篇，不要直接重发"), "error");
         return;
@@ -156,14 +156,14 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
         }
         continue;
       }
-      // toast 单行截断、几秒就收，装不下失败原因和图片警告——这些必须让人看完，用弹窗
-      // 没选封面时服务照例会提醒一句「封面未设置」，那不算问题；选了却没设上才要说
-      // 服务回报的警告是中文原文，按关键字筛；下面 push 进来的是本地翻译过的句子，
-      // coverDone 只在 coverSent 为真时才看关键字，那时不会有这句，翻译不影响判断
+      // Toasts truncate to one line and vanish in seconds, too small for failure reasons and image warnings — these must be read in full, so use a dialog
+      // With no cover chosen, the service routinely warns 「封面未设置」 (Cover not set), which isn't a problem; only warn if one was chosen but didn't get set
+      // Warnings from the service are in the original Chinese and filtered by keyword; sentences pushed below are locally translated,
+      // and coverDone only checks keywords when coverSent is true, when that sentence won't be present, so translation doesn't affect the check
       const problems = job.warnings.filter((w) => w.includes("图片") || (coverSent && w.includes("封面"))); // i18n-ignore
       if (cover && !coverSent) problems.push(t("封面图片读不出来，没有自动设置，请手动选择"));
       const coverDone = coverSent && !problems.some((w) => w.includes("封面")); // i18n-ignore
-      // 视频跟封面没关系，coverDone 算完再加，这句也刻意不含「封面」二字，免得被上面那行误判
+      // Video has nothing to do with the cover, so it's added after coverDone is computed, and this sentence deliberately omits 「封面」 so the line above can't misjudge it
       if (videoCount > 0) {
         problems.push(
           t("文章里有 {n} 个视频没有带过去，占位块已标黄，请在公众号后台手动「插入视频」", { n: videoCount })
@@ -171,7 +171,7 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
       }
       const filled = job.step === "filled";
       const head = filled ? t("已填进公众号后台，尚未保存") : t("草稿已保存");
-      // 封面没设上时下一步要多一句「设置封面」：整句分开写，英文没法靠替换中文词拼出来
+      // When the cover wasn't set, the next step gets an extra 「设置封面」 (Set cover): written as separate full sentences, since English can't be assembled by swapping Chinese words
       const next = filled
         ? coverDone
           ? t("请在公众号页检查后手动保存、发表")
@@ -190,7 +190,7 @@ export async function sendWechatDraft(onStatus: (message: string | null) => void
           `${t("{head}，但有几处需要你在公众号后台检查：", { head })}\n\n${problems.join("\n")}${coverDone ? "" : `\n\n${t("封面需要手动设置。")}`}`
         );
       } else if (job.state === "uncertain") {
-        // job.message 是草稿服务回报的中文原文，原样插进去
+        // job.message is the draft service's original Chinese, inserted as-is
         window.alert(
           `${t("结果不确定：{message}", { message: job.message })}\n\n${t("公众号草稿箱里可能已经有这篇，请先去核对，不要直接重发。")}`
         );

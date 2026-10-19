@@ -70,7 +70,7 @@ describe("每日任务分桶", () => {
       ["背单词", "daily", T, null, true],
       ["读书", "daily", T, null, false],
     ]);
-    // 换一天再算：昨天做了的今天又回到没做
+    // Recompute on another day: what was done yesterday is back to not done today
     const tomorrow = collectTodos(listMirrorDocs(), "2026-10-09").filter((i) => i.docId === "r");
     const b = bucketTodos(tomorrow, "2026-10-09");
     expect(b.today.map((i) => i.text)).toEqual(["跑步", "背单词", "读书"]);
@@ -111,7 +111,7 @@ describe("collectTodos", () => {
     collectTodos(list, T);
     storage.resetStats();
     const again = collectTodos(list, "2026-10-09");
-    // 元信息没变：正文一次没读
+    // Metadata unchanged: the body was never read
     expect(storage.stats.get).toBe(0);
     expect(again[0].due).toBe("2026-10-10");
 

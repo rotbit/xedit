@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 「今天」页（打开应用的首页）：左栏今天（逾期 + 今天，含清单里没定日期的）与做完的，
- * 右栏接下来六天、再往后的，以及最近打开的文章。
- * 数据全在客户端：待办从文库正文现算（collectTodos 自带缓存）。
- * 不用 useMemo：汇总有缓存，而触发重算的除了文库还有两个全局事件，挂在 memo 依赖里反而绕。
+ * The "Today" page (home when the app opens): the left column has today (overdue + today, including undated list items) and done items;
+ * the right column has the next six days, anything later, and recently opened docs.
+ * All data is client-side: todos are computed from library bodies (collectTodos has its own cache).
+ * No useMemo: the aggregation is cached, and recomputes are triggered by two global events besides the library, which would be awkward as memo deps.
  */
 import { useState } from "react";
 import { toast } from "@/components/Toast";
@@ -31,12 +31,12 @@ import { useTodaySignals } from "./useTodaySignals";
 export function TodayView({ ws }: { ws: Workspace }) {
   const { library, nav, docActions } = ws;
   const t = useT();
-  // 待办汇总与写回看全库（含隐藏的待办清单那篇）；选择器的候选池只给用户看得见的文章
+  // Aggregation and write-back see the whole library (including the hidden todo-list doc); the picker's candidates are only user-visible docs
   const { docs, allDocs } = library;
   const { today } = useTodaySignals();
   const [menuId, setMenuId] = useState<string | null>(null);
 
-  /** 写回失败（存储写满）只提示不抛：界面由 useTodoOptimism 据返回值回滚 */
+  /** Write-back failures (storage full) only show a toast, no throw: useTodoOptimism rolls back the UI from the return value */
   const toggle = async (item: TodoItem, checked: boolean): Promise<boolean> => {
     try {
       await setTaskChecked(item, checked);
@@ -48,11 +48,11 @@ export function TodayView({ ws }: { ws: Workspace }) {
   };
 
   /**
-   * 记一件事：一律记进待办清单那篇。行的拼法集中在这里，顺序固定为 `文字 [[docId]] @日期`——
-   * 日期标签只认行尾，关联标记要在它前面。目标是「新建」就先静默建好那篇（落到选好的文件夹，
-   * 没给标题就用任务文字），再关联上。
-   * 自己敲了 `@每天` 的是每日任务：标签就用它的、不再补日期（右栏选的那天也不管），
-   * 关联标记照样插在标签前面，排成 `文字 [[docId]] @每天`。
+   * Record a task: always into the todo-list doc. Line building is centralized here, in the fixed order `text [[docId]] @date` —
+   * the date tag is only recognized at the end of the line, so the link marker goes before it. If the target is "New", silently create that doc first
+   * (in the chosen folder, using the task text if no title was given), then link it.
+   * If the user typed `@每天`, it's a daily task: keep its tag and don't add a date (ignore the day picked in the right column too);
+   * the link marker still goes before the tag, giving `text [[docId]] @每天`.
    */
   const add = async (text: string, target: AddTarget, due: string): Promise<boolean> => {
     try {
@@ -66,7 +66,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
       await addNoteTask(line, allDocs ?? [], docActions.createDocQuietly);
       return true;
     } catch {
-      // 本地写满或云端建稿失败都落到这里；面板不关、字不清，方便重试
+      // Local storage full or cloud doc creation failed both end up here; keep the panel open and the text, for an easy retry
       toast(t("没记上：存储空间不足或网络异常，稍后再试"), "error");
       return false;
     }
@@ -92,7 +92,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
-  /** 同 link：写完文库会换引用、触发重算，不必乐观更新 */
+  /** Same as link: writing the library swaps references and triggers a recompute, so no optimistic update needed */
   const repeat = async (item: TodoItem, on: boolean): Promise<void> => {
     try {
       await setTaskRepeat(item, on);
@@ -101,7 +101,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
-  /** 写完文库会换引用、触发重算，不必乐观更新 */
+  /** Writing the library swaps references and triggers a recompute, so no optimistic update needed */
   const link = async (item: TodoItem, id: string | null): Promise<void> => {
     try {
       await setTaskLink(item, id);
@@ -121,7 +121,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
     await link(item, id);
   };
 
-  // 「新建文章」可落的文件夹：模板分类不收正经稿子；文库还空着时至少留个「未分类」，弹窗不至于无处可选
+  // Folders a "New document" can go into: template categories don't take real drafts; with an empty library keep at least 「未分类」 so the dialog has an option
   const cats = allCategories(library.customCats, library.docs).filter((c) => !isTemplateCategory(c));
   const categories = cats.length > 0 ? cats : [UNCATEGORIZED];
 
@@ -131,18 +131,18 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const opt = useTodoOptimism(all, today, { toggle, remove, move });
   const { buckets } = opt;
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
-  // 日志变化由 useTodaySignals 触发重渲染，这里每次渲染现读即可
+  // Log changes trigger re-renders via useTodaySignals, so reading fresh on every render is fine
   const done = doneToday(today, rows);
   const week = doneThisWeek(today, rows);
-  // 右栏展示的是 later 里带日期的；两边都空、今天和本周也没做完过事才算整页全空——
-  // 有回顾可看时左栏换成插画引导会把回顾挤得像误入的内容
+  // The right column shows dated items from `later`. The page is only fully empty when both sides are empty and nothing was done today or this week —
+  // when there's a review to show, switching the left column to the illustrated onboarding would make the review look out of place
   const allEmpty =
     rows.length === 0 && done.length === 0 && week.length === 0 && !buckets.later.some((i) => i.due !== null);
 
   /**
-   * 「做完了」里点勾改回没做：记录只存了文章 + 文字，按这两样找回那条待办
-   * （文章里已勾上的，或刚勾掉还没落盘、只在乐观状态里的），把行改回 `[ ]`；
-   * 记录先删，这行即刻从「做完了」消失。找不到（那行已从文章里删了）就只删记录
+   * Clicking the check in "Done" to mark it undone: the record only stores doc + text, so use those to find the todo
+   * (checked in the doc, or just checked and not yet saved, living only in optimistic state) and change the line back to `[ ]`;
+   * the record is deleted first so the row leaves "Done" immediately. If not found (the line was deleted from the doc), just delete the record
    */
   const undo = (e: DayEvent) => {
     removeDayEvent(today, e.id);
@@ -163,14 +163,14 @@ export function TodayView({ ws }: { ws: Workspace }) {
     setMenuId,
   };
 
-  // 左栏的输入框是「今天」的，记下的事带上今天的日期标签，过了今天就成逾期、不会悄悄消失
+  // The left-column input is for "today": new items get today's date tag, so they become overdue after today instead of quietly disappearing
   const addToday = (text: string, target: AddTarget) => add(text, target, today);
-  // 往某一天记：带绝对日期标签写进待办清单那篇（parseDueTag 认 @YYYY-MM-DD），关联与左栏同样处理
+  // Add to a specific day: write into the todo-list doc with an absolute date tag (parseDueTag accepts @YYYY-MM-DD); linking works as in the left column
   const addOnDay = (text: string, day: string, target: AddTarget) => add(text, target, day);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      {/* 拖动待办改日期：拖源和落点分散在两栏，状态在这里统一提供 */}
+      {/* Drag a todo to change its date: drag sources and drop targets span both columns, so the state is provided here */}
       <TodoDragProvider actions={actions}>
         <div className="mx-auto grid w-full max-w-[880px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-12">
           <TodayMain

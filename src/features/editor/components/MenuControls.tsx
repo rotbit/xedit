@@ -2,7 +2,7 @@
 
 import { menuItemCls } from "@/components/menuStyles";
 
-/** 菜单里的开关行：点击不关闭菜单，便于连续切换 */
+/** Toggle row in a menu: clicking doesn't close the menu, so you can toggle several in a row */
 export function ToggleRow({
   label,
   value,

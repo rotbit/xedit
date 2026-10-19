@@ -1,9 +1,9 @@
-# 自托管一键起：PostgreSQL + xEdit。
+# One-command self-hosting: PostgreSQL + xEdit.
 #
-#   cp .env.example .env      # 至少填 AUTH_SECRET 与 POSTGRES_PASSWORD
+#   cp .env.example .env      # set at least AUTH_SECRET and POSTGRES_PASSWORD
 #   docker compose up -d --build
 #
-# 应用容器启动时会自动执行 prisma migrate deploy 建表/迁移。
+# The app container runs prisma migrate deploy on startup to create/migrate tables.
 
 services:
   db:
@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: xedit
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 里设置 POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: xedit
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -25,7 +25,7 @@ services:
     build:
       context: .
       args:
-        # NEXT_PUBLIC_* 构建期内联，必须在这里传，运行时改无效
+        # NEXT_PUBLIC_* are inlined at build time, so they must be passed here; changing them at runtime has no effect
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
     restart: unless-stopped
     depends_on:
@@ -35,7 +35,7 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       DATABASE_URL: postgresql://xedit:${POSTGRES_PASSWORD}@db:5432/xedit
-      AUTH_SECRET: ${AUTH_SECRET:?请在 .env 里设置 AUTH_SECRET，用 openssl rand -base64 32 生成}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env (generate one with openssl rand -base64 32)}
       AUTH_URL: ${AUTH_URL:-}
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID:-}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET:-}

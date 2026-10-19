@@ -1,7 +1,7 @@
 "use client";
 
-// 飞书对话框的连接与同步状态：从 FeishuDialog 搬出，集中管理应用凭证、OAuth 连接、
-// 知识空间列表与同步发起，组件里只留渲染
+// Connection and sync state for the Feishu dialog: moved out of FeishuDialog, centralizing app credentials, OAuth connection,
+// wiki space list and starting syncs; the component keeps only rendering
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -14,11 +14,11 @@ import {
 import { t, tk } from "@/i18n/t";
 import { toast } from "../Toast";
 
-/** 回调地址随站点部署固定，订阅无需做任何事，故 subscribe 返回空清理函数 */
+/** The callback URL is fixed per deployment, so there's nothing to subscribe to and subscribe returns a no-op cleanup */
 const subscribeNoop = () => () => {};
 const getCallbackUrl = () => `${window.location.origin}/api/feishu/callback`;
 
-/** 掩码：不改动 App Secret 时回传的哨兵值，服务端识别后保留原值 */
+/** Mask: sentinel sent back when the App Secret isn't changed; the server recognizes it and keeps the original value */
 const KEY_MASK = "__keep__";
 
 interface ConnectionView {
@@ -38,8 +38,8 @@ interface SpaceOption {
 }
 
 /**
- * 飞书知识库导入：每个账号配置自己的飞书应用凭证，连接（用户身份 OAuth）后
- * 选择知识空间分批增量同步为 xedit 文章。同步幂等——飞书侧没改动的文档整篇跳过。
+ * Feishu wiki import: each account configures its own Feishu app credentials, connects (user-identity OAuth), then
+ * picks a wiki space to sync incrementally in batches into xedit articles. Sync is idempotent — documents unchanged on the Feishu side are skipped entirely.
  */
 export function useFeishuConnection(onSynced: () => void) {
   const [loading, setLoading] = useState(true);
@@ -53,13 +53,13 @@ export function useFeishuConnection(onSynced: () => void) {
   const [spaces, setSpaces] = useState<SpaceOption[] | null>(null);
   const [spaceId, setSpaceId] = useState("");
   const [disconnecting, setDisconnecting] = useState(false);
-  // 同步循环与进度在模块层跑：关掉对话框不打断，重开还能接上
+  // The sync loop and progress run at module level: closing the dialog doesn't interrupt them, and reopening picks back up
   const sync = useFeishuSync();
   const syncing = sync.syncing;
   const progress = sync.progress;
-  // 焦点回落会重新拉状态，此时别把用户还没保存的凭证草稿冲掉
+  // Refocusing refetches state; don't wipe the user's unsaved credential draft when it does
   const appDirtyRef = useRef(false);
-  // origin 只有浏览器里才有；服务端快照给空串，避免水合不一致
+  // origin only exists in the browser; the server snapshot returns an empty string to avoid a hydration mismatch
   const callbackUrl = useSyncExternalStore(subscribeNoop, getCallbackUrl, () => "");
 
   const markAppDirty = useCallback(() => {
@@ -76,7 +76,7 @@ export function useFeishuConnection(onSynced: () => void) {
       }
       const data: ConnectionView = await res.json();
       setConn(data);
-      // 有未保存的草稿就只更新连接态，输入框留给用户（切标签复制 Secret 时会触发这里）
+      // With an unsaved draft, only update connection state and leave the inputs to the user (switching tabs to copy the Secret triggers this)
       if (!appDirtyRef.current) {
         setAppId(data.appId);
         setAppSecret("");
@@ -96,7 +96,7 @@ export function useFeishuConnection(onSynced: () => void) {
     })();
   }, [loadConnection]);
 
-  // 授权弹窗完成后会 postMessage 通知；用户手动关掉弹窗则靠焦点回落兜底刷新
+  // The auth popup sends a postMessage when done; if the user closes it manually, a refresh on refocus covers it
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.origin === window.location.origin && e.data?.type === "xedit-feishu-connected") {
@@ -115,17 +115,17 @@ export function useFeishuConnection(onSynced: () => void) {
     };
   }, [loadConnection]);
 
-  // 授权失效（refresh_token 过期/被撤销）时回到「连接飞书」状态，引导重新授权
+  // When authorization is invalid (refresh_token expired/revoked), go back to the 「连接飞书」 (Connect Feishu) state to prompt re-authorization
   const handleReconnect = useCallback(() => {
     setConn((c) => (c ? { ...c, connected: false } : c));
     setSpaces(null);
   }, []);
 
-  // 同步循环发现授权失效时在 store 里留了标记（对话框可能当时是关着的），
-  // 这里把它并进「已连接」判定，重新授权成功后由 postMessage 回调清除
+  // When the sync loop finds authorization invalid it leaves a flag in the store (the dialog may have been closed then);
+  // fold it into the "connected" check here; the postMessage callback clears it after successful re-authorization
   const connected = Boolean(conn?.connected) && !sync.reconnectRequired;
 
-  // 已连接时拉取可选的知识空间列表
+  // When connected, fetch the list of selectable wiki spaces
   useEffect(() => {
     if (!connected) return;
     let cancelled = false;
@@ -142,7 +142,7 @@ export function useFeishuConnection(onSynced: () => void) {
       } catch (e) {
         if (!cancelled) {
           setSpaces([]);
-          // 服务端的错误文案是中文原文，t() 命中字典就翻、没命中原样显示
+          // Server error messages are in the original Chinese; t() translates dictionary hits and shows the rest as-is
           toast(e instanceof Error ? t(e.message) : t("加载知识空间失败"), "error");
         }
       }
@@ -213,7 +213,7 @@ export function useFeishuConnection(onSynced: () => void) {
       toast(t("请先选择要导入的知识库"), "error");
       return;
     }
-    // 完成回调即使对话框已关闭也有效：onSynced 属于外层工作台，loadConnection 卸载后是空操作
+    // The completion callback works even if the dialog is closed: onSynced belongs to the outer workspace, and loadConnection is a no-op after unmount
     void startFeishuSync(space, () => {
       onSynced();
       void loadConnection();

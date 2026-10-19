@@ -8,7 +8,7 @@ vi.mock("next-auth/react", () => ({ getSession: vi.fn(async () => null) }));
 
 const USER = { id: "u-a", email: "a@example.com" };
 
-/** 探测发出的那趟请求：手里攥着 resolve/reject，想什么时候回就什么时候回 */
+/** The probe's in-flight request: holds resolve/reject so we can answer whenever we like */
 interface Pending {
   settle: (body: unknown, status?: number) => void;
   aborted: boolean;
@@ -39,7 +39,7 @@ function stubFetch(): { calls: number; last: () => Pending } {
   };
 }
 
-/** 把挂起的微任务跑完（fake timers 下 await 一次不够） */
+/** Drain pending microtasks (a single await isn't enough under fake timers) */
 async function flush() {
   for (let i = 0; i < 8; i++) await Promise.resolve();
 }
@@ -64,12 +64,12 @@ describe("会话探测", () => {
     await flush();
     expect(net.calls).toBe(1);
 
-    // 8s 上限到点，请求被掐断
+    // The 8s cap hits and the request is aborted
     await vi.advanceTimersByTimeAsync(8_000);
     expect(getProbeState()).toBe("pending");
     expect(readAuthSnapshot()).not.toBeNull();
 
-    // 退避 15s 后照常再探一次（inFlight 没被超时卡死）
+    // After the 15s backoff it probes again as usual (inFlight isn't stuck from the timeout)
     await vi.advanceTimersByTimeAsync(15_000);
     expect(net.calls).toBe(2);
   });
@@ -81,7 +81,7 @@ describe("会话探测", () => {
     await flush();
 
     stop();
-    net.last().settle(null); // 服务器回「没有会话」，但这趟已经作废了
+    net.last().settle(null); // The server says "no session", but this request is already stale
     await flush();
 
     expect(getProbeState()).toBe("pending");
@@ -96,7 +96,7 @@ describe("会话探测", () => {
     await flush();
 
     await vi.advanceTimersByTimeAsync(1_000);
-    saveAuthSnapshot(USER); // 这中间重新登录了一次，快照被重写
+    saveAuthSnapshot(USER); // A re-login happened in between and the snapshot was rewritten
     net.last().settle(null);
     await flush();
 

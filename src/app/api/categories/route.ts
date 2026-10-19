@@ -7,9 +7,9 @@ import { UNCATEGORIZED } from "@/lib/docDefaults";
 import { tk } from "@/i18n/t";
 
 /**
- * 分类批量操作（支持「父/子」多级路径，重命名/删除会级联到子分类）：
- * - rename: 该路径及其子孙路径整体改名，自建分类列表同步
- * - remove: 该路径子树下的文章并入「未分类」，自建分类移除子树
+ * Bulk category operations (supports multi-level 「父/子」 (parent/child) paths; rename/delete cascade to subcategories):
+ * - rename: rename the path and all descendant paths, syncing the custom category list
+ * - remove: articles under the path's subtree move to 「未分类」 (Uncategorized); the subtree is removed from custom categories
  */
 export async function POST(req: Request) {
   const session = await auth();
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const body = await req.json().catch(() => ({}));
-  // 请求体是外来的，标成 unknown 再逐个校验；标 string 只是骗过编译器，值该是什么还是什么
+  // The request body is external, so type it unknown and validate each field; typing it string only fools the compiler
   const action: unknown = body?.action;
   const from: string = typeof body?.from === "string" ? body.from.trim() : "";
   const to: string = typeof body?.to === "string" ? body.to.trim().slice(0, 100) : "";
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: tk("参数缺失") }, { status: 400 });
   }
 
-  // 命中该路径及其子孙的文章
+  // Articles matching the path or its descendants
   const affected = await prisma.document.findMany({
     where: {
       userId,
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   const mapTo = (cat: string): string =>
     action === "remove" ? UNCATEGORIZED : cat === from ? to : to + cat.slice(from.length);
 
-  // 按目标分类分组批量更新
+  // Batch update grouped by target category
   const groups = new Map<string, string[]>();
   for (const a of affected) {
     const target = mapTo(a.category);
@@ -52,8 +52,8 @@ export async function POST(req: Request) {
     list.push(a.id);
     groups.set(target, list);
   }
-  // 文章改分类与自建分类列表落库要一起成或一起不成：中途失败会留下
-  // 「文章已经改名、侧栏分类还是旧的」这种谁也修不动的半截状态，所以攒到一个事务里
+  // Recategorizing articles and saving the custom category list must succeed or fail together: a mid-way failure leaves
+  // an unfixable half state where "articles are renamed but the sidebar categories are old", so it's all one transaction
   const ops: Prisma.PrismaPromise<unknown>[] = [];
   for (const [target, ids] of groups) {
     ops.push(
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // 同步自建分类列表（子树整体处理）
+  // Sync the custom category list (whole subtree at once)
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   let categories: string[] = [];
   try {

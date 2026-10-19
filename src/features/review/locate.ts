@@ -1,9 +1,9 @@
 /**
- * 审核意见的「对位」纯函数：在源码里找引文、意见卡片的避让排版。
+ * Pure functions for "aligning" review comments: finding quotes in the source, and the collision-avoiding layout of comment cards.
  *
- * 为什么一律按引文文字找，而不是记字符偏移：意见是异步算出来的，回来时作者可能已经
- * 在别处改过几个字，任何偏移都废了；而引文本身只要还在，作者一眼就知道说的是哪一句。
- * line 只当提示用（同一句话在全文出现好几次时挑离它最近的那处），找不到就退到全文搜。
+ * Why always search by quote text instead of storing character offsets: comments are computed asynchronously, and by the time they return the author may
+ * have edited a few characters elsewhere, invalidating any offset; whereas as long as the quote is still there, the author knows at a glance which sentence it means.
+ * line is only a hint (when the same sentence appears several times, pick the nearest occurrence); if not found, fall back to a full-text search.
  */
 
 export interface SourceSpan {
@@ -12,12 +12,12 @@ export interface SourceSpan {
 }
 
 /**
- * 在 Markdown 源码里找引文，返回字符区间；找不到返回 null（= 原文已被改过）。
+ * Find a quote in the Markdown source and return its character range; returns null if not found (= the original was edited).
  *
- * 同一段文字出现多次时取离 lineHint 最近的那一处。行号是边扫边数的：
- * 每次只从上一处匹配接着往后数换行，整篇最多走一遍，不会退化成「每命中一次重数全文」。
+ * When the text occurs several times, take the one nearest lineHint. Line numbers are counted while scanning:
+ * each step only counts newlines onward from the previous match, so the whole doc is walked at most once rather than recounting it per hit.
  *
- * @param lineHint 0 基行号，与渲染结果里的 data-line 同一口径
+ * @param lineHint 0-based line number, same convention as data-line in the rendered output
  */
 export function locateInSource(source: string, quote: string, lineHint: number): SourceSpan | null {
   if (!quote) return null;
@@ -35,23 +35,23 @@ export function locateInSource(source: string, quote: string, lineHint: number):
       bestDist = dist;
       best = { from: at, to: at + quote.length };
     }
-    if (dist === 0) break; // 正落在提示行上，不可能有更近的了
+    if (dist === 0) break; // Right on the hint line; nothing can be closer
   }
   return best;
 }
 
 /**
- * 意见卡片的避让排版（Word 批注栏那套）。
+ * Collision-avoiding layout for comment cards (like Word's comment pane).
  *
- * 每张卡都想贴着自己引文的高度站，站不下就往下让：
- * - 常规情况下后来的被前面的顶下去，顺序不变；
- * - 选中的那张享有特权，回到它自己的锚点，上方的卡片依次往上挤给它让位；
- * - 上方实在挤不下（顶到 0 了），只好让选中的那张也往下走——位置不够就是不够。
+ * Every card wants to sit at its quote's height, and moves down if there's no room:
+ * - normally later cards get pushed down by earlier ones, order unchanged;
+ * - the selected card is privileged: it returns to its own anchor and the cards above squeeze upward to make room;
+ * - if there's truly no room above (hit 0), the selected card has to move down too; not enough space is not enough space.
  *
- * @param anchors 每张卡想站的位置（相对卡片列顶端）
- * @param heights 每张卡的实际高度，与 anchors 一一对应
- * @param active  选中卡的下标，没有选中传 -1
- * @param gap     卡片之间的最小间距
+ * @param anchors where each card wants to sit (relative to the top of the card column)
+ * @param heights each card's actual height, matching anchors one to one
+ * @param active  index of the selected card, -1 if none
+ * @param gap     minimum gap between cards
  */
 export function layoutCards(
   anchors: number[],
@@ -63,7 +63,7 @@ export function layoutCards(
   if (n === 0) return [];
   const tops = anchors.map((t) => Math.max(0, t));
 
-  /** 从 from 起顺着往下压平重叠 */
+  /** Flatten overlaps going downward from `from` */
   const pushDown = (from: number) => {
     for (let i = Math.max(1, from); i < n; i++) {
       tops[i] = Math.max(tops[i], tops[i - 1] + heights[i - 1] + gap);
@@ -77,7 +77,7 @@ export function layoutCards(
     tops[i] = Math.min(tops[i], tops[i + 1] - heights[i] - gap);
   }
   if (tops[0] < 0) {
-    // 上方让不出这么多空间：顶端归零，重新顺着压一遍（选中的那张也跟着被顶下去）
+    // The space above can't be freed: reset the top to 0 and push down again in order (the selected card gets pushed down too)
     tops[0] = 0;
     pushDown(1);
   } else {

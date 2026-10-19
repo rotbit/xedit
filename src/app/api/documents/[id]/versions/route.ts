@@ -7,12 +7,12 @@ import { wordCount } from "@/lib/wordCount";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** 版本列表（不含正文，附字数便于展示） */
+/** Version list (no body, with word counts for display) */
 export async function GET(_req: Request, { params }: Params) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
   const { id } = await params;
-  // 列版本只要确认这篇归你，文档本身的字段一个都用不上
+  // Listing versions only needs to confirm you own this doc; none of the doc's own fields are needed
   const doc = await requireOwnedDoc(id, userId);
   if (isResponse(doc)) return doc;
 
@@ -32,21 +32,21 @@ export async function GET(_req: Request, { params }: Params) {
   );
 }
 
-/** 存档当前内容（手动，或前端空闲定时器触发的 auto） */
+/** Snapshot the current content (manual, or auto from the frontend idle timer) */
 export async function POST(req: Request, { params }: Params) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
   const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const { id } = await params;
-  // 存档要把当前标题与正文定格下来，这两个字段得取
+  // Snapshotting freezes the current title and body, so those two fields are needed
   const doc = await requireOwnedDoc(id, userId, {
     select: { id: true, title: true, content: true },
   });
   if (isResponse(doc)) return doc;
 
   const body = await req.json().catch(() => ({}));
-  // auto 来自前端的停笔 / 关页面兜底，要节流；manual 是用户明确点了「存档」，只去重
+  // auto comes from the frontend's pause-in-typing / page-close fallback and is throttled; manual means the user explicitly clicked 「存档」 (Save version), so only dedupe
   const created =
     body?.kind === "auto"
       ? await autoSnapshot(id, doc.title, doc.content, IDLE_RULE)

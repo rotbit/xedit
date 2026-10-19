@@ -1,16 +1,16 @@
 import { HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 
-/** 编辑器的语法高亮配色。从 MarkdownEditor.tsx 抽出来只为控制单文件长度。 */
+/** Editor syntax highlighting colors. Pulled out of MarkdownEditor.tsx only to keep file length in check. */
 
-/** 三级及以下标题的墨色：比正文墨稍退，明暗两套主题都跟着变量走 */
+/** Ink color for H3 and below: slightly lighter than body ink; both light and dark themes follow the variable */
 const HEADING_SUB = "color-mix(in srgb, var(--ink) 88%, var(--ink-soft))";
 
 export const mdHighlight = HighlightStyle.define([
-  // 标题只在这里定颜色：字号字重两种模式各管各的
-  // （即时渲染走 .cm-lp-h* 行级类，源码模式走下面的 sourceHeadingHighlight）
-  // H1/H2 是文章骨架，用满墨色；H3 起退半档，让层级除了字号还有明度差
-  // （四级以下字号已退回正文，颜色就是唯一的层级信号）
+  // Headings only get color here: font size and weight are handled separately per mode
+  // (live preview uses .cm-lp-h* line classes, source mode uses sourceHeadingHighlight below)
+  // H1/H2 are the document's skeleton and use full ink; from H3 it steps back half a notch, so levels differ in lightness as well as size
+  // (below H4 the size is back to body text, so color is the only level signal)
   { tag: tags.heading1, color: "var(--ink)" },
   { tag: tags.heading2, color: "var(--ink)" },
   { tag: tags.heading3, color: HEADING_SUB },
@@ -23,8 +23,8 @@ export const mdHighlight = HighlightStyle.define([
   { tag: tags.link, color: "var(--md-link)" },
   { tag: tags.url, color: "var(--md-link)" },
   {
-    // 底色用半透明：这层背景画在选区（drawSelection 的负层级）之上，
-    // 不透光就会把代码上的选中高亮整块挡掉，看着像选不中
+    // Semi-transparent background: this layer is painted above the selection (drawSelection's negative z-layer),
+    // so an opaque one would hide the selection highlight on code entirely, making it look unselectable
     tag: tags.monospace,
     color: "var(--md-code)",
     background: "var(--md-code-tint)",
@@ -37,8 +37,8 @@ export const mdHighlight = HighlightStyle.define([
   { tag: tags.contentSeparator, color: "var(--accent)", fontWeight: "700" },
 ]);
 
-/** 源码模式专属的标题字号字重：即时渲染下由 .cm-lp-h* 行级类接管，
- *  两套互不干扰——改排版节奏时不必担心弄乱源码视图 */
+/** Source-mode-only heading sizes and weights: in live preview .cm-lp-h* line classes take over,
+ *  and the two don't interfere, so changing typographic rhythm won't mess up the source view */
 export const sourceHeadingHighlight = HighlightStyle.define([
   { tag: tags.heading1, fontSize: "1.5em", fontWeight: "700" },
   { tag: tags.heading2, fontSize: "1.25em", fontWeight: "700" },
@@ -46,8 +46,8 @@ export const sourceHeadingHighlight = HighlightStyle.define([
   { tag: tags.heading4, fontWeight: "700" },
 ]);
 
-/** 代码块内嵌语言的 token 配色：随主题变量明暗切换。
- *  这些 tag 只由围栏里的嵌套语法树产出，Markdown 自身的标记不受影响 */
+/** Token colors for embedded languages in code blocks: switch with theme variables for light/dark.
+ *  These tags only come from the nested syntax tree inside fences; Markdown's own markup is unaffected */
 export const codeHighlight = HighlightStyle.define([
   {
     tag: [tags.keyword, tags.operatorKeyword, tags.modifier, tags.self],

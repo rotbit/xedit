@@ -10,7 +10,7 @@ const ts = (day: string, h: number, m = 0) => {
 };
 
 let seq = 0;
-/** 直接写原始日志：绕开 logEvent，事件的 id / ts 都由测试掌控 */
+/** Write raw logs directly: bypass logEvent so the test controls event id / ts */
 function seed(day: string, events: { h: number; m?: number; text: string; docId?: string; kind?: string }[]) {
   const list = events.map((e) => ({
     id: `e${++seq}`,

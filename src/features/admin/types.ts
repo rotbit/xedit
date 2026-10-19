@@ -1,4 +1,4 @@
-/** /api/admin/* 的响应形状（服务端已把 BigInt 转成 number） */
+/** Response shapes of /api/admin/* (the server has already converted BigInt to number) */
 
 import type { Permission } from "@/lib/permissionKeys";
 
@@ -14,19 +14,19 @@ export interface AdminUser {
   email: string | null;
   image: string | null;
   createdAt: string;
-  /** 最近一次登录时间；从未登录过（含 signIn 事件上线前的老用户）为 null */
+  /** Last sign-in time; null if never signed in (including old users from before the signIn event shipped) */
   lastLoginAt: string | null;
-  /** 最近活跃日期（东八区 YYYY-MM-DD）；从未打过点为 null */
+  /** Last active date (UTC+8 YYYY-MM-DD); null if never recorded */
   lastActiveDate: string | null;
   bannedAt: string | null;
   banReason: string | null;
-  /** 字节；null=用全局默认，0=不限制 */
+  /** Bytes; null = use the global default, 0 = unlimited */
   storageQuota: number | null;
   storageUsed: number;
   docCount: number;
   assetCount: number;
   admin: boolean;
-  /** 库里存的开通项（不含管理员「默认全开」的推导，列表上据此标 AI 徽标） */
+  /** Enabled features stored in the DB (excluding the derived "all on by default" for admins); the list uses this for the AI badge */
   permissions: Permission[];
 }
 
@@ -45,18 +45,18 @@ export interface UserDetailResp {
     email: string | null;
     image: string | null;
     createdAt: string;
-    /** 最近一次登录时间；从未登录过（含 signIn 事件上线前的老用户）为 null */
+    /** Last sign-in time; null if never signed in (including old users from before the signIn event shipped) */
     lastLoginAt: string | null;
-    /** 最近活跃日期（东八区 YYYY-MM-DD）；从未打过点为 null */
+    /** Last active date (UTC+8 YYYY-MM-DD); null if never recorded */
     lastActiveDate: string | null;
     bannedAt: string | null;
     banReason: string | null;
     storageQuota: number | null;
     admin: boolean;
     logins: string[];
-    /** 库里存的开通项；管理员不看这个，默认全开 */
+    /** Enabled features stored in the DB; admins ignore this and have everything on by default */
     permissions: Permission[];
-    /** 每日次数上限；null=用站点默认（见 totals 里的 default*） */
+    /** Daily usage cap; null = use the site default (see default* in totals) */
     aiReviewDailyLimit: number | null;
     aiCoverDailyLimit: number | null;
   };

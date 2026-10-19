@@ -1,8 +1,8 @@
 /**
- * 今天页「本月」统计：把当月每天的本地记录汇成逐日数字和月合计。
+ * 「本月」 (This month) stats on the Today page: roll each day's local records this month into daily numbers and a monthly total.
  *
- * 只读本地日志（只留 60 天），不上云：这是给自己看的节奏感，不是精确报表；
- * 读不到的旧日子自然就是 0。read 可注入，测试不必碰 localStorage。
+ * Reads only the local log (kept 60 days), no cloud: this is a personal sense of rhythm, not a precise report;
+ * older days that can't be read are simply 0. read is injectable so tests don't touch localStorage.
  */
 
 import { readDayEvents, type DayEvent } from "./events";
@@ -29,13 +29,13 @@ export interface MonthStats {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** 日期键所在月份：键本身就是补零的 YYYY-MM-DD，截前 7 位即可 */
+/** Month of a date key: the key is already zero-padded YYYY-MM-DD, so take the first 7 chars */
 export function monthOf(dayKey: string): string {
   return dayKey.slice(0, 7);
 }
 
 function dayStat(key: string, today: string, read: (key: string) => DayEvent[]): DayStat {
-  // 未来的日子不可能有记录，也就不去读存储
+  // Future days can't have records, so don't read storage for them
   if (key > today) return { key, chars: 0, tasks: 0, created: 0, versions: 0, active: false, future: true };
   const events = read(key);
   let chars = 0;
@@ -43,8 +43,8 @@ function dayStat(key: string, today: string, read: (key: string) => DayEvent[]):
   let created = 0;
   let versions = 0;
   for (const e of events) {
-    // 删字也算动过笔（active），但不算产出：每条写作记录的负增量按 0 计，
-    // 免得一次大删把整天的字数抵成负数、柱子画不出来
+    // Deleting text still counts as writing (active) but not as output: negative deltas per write entry count as 0,
+    // so one big deletion doesn't drag the whole day's count negative and break the bar chart
     if (e.kind === "write") chars += Math.max(0, e.chars ?? 0);
     else if (e.kind === "task") tasks++;
     else if (e.kind === "create") created++;
@@ -59,7 +59,7 @@ export function monthStats(
   read: (key: string) => DayEvent[] = readDayEvents
 ): MonthStats {
   const [y, m] = month.split("-").map(Number);
-  // 第 0 天会退回上个月最后一天，正好是 m 月的天数（闰年 2 月由 Date 处理）
+  // Day 0 rolls back to the last day of the previous month, which is exactly the day count of month m (Date handles leap Februaries)
   const count = new Date(y, m, 0).getDate();
   const days: DayStat[] = [];
   for (let d = 1; d <= count; d++) days.push(dayStat(`${y}-${pad(m)}-${pad(d)}`, today, read));

@@ -1,21 +1,21 @@
-/* 即时渲染（类 Obsidian Live Preview）的排版规则。
-   整块从 globals.css 搬来（语义未变）——这一段最长也最常改，独立成文件便于定位；
-   文件末尾是第一期新增的版式节奏，表格/公式等块级渲染另见 live-blocks.css。 */
+/* Typography rules for live rendering (Obsidian Live Preview-style).
+   Moved wholesale from globals.css (semantics unchanged); this part is the longest and most edited, so its own file makes it easier to find;
+   the end of the file holds the Phase 1 layout rhythm additions; block rendering like tables/math is in live-blocks.css. */
 
-/* —— 即时渲染（类 Obsidian Live Preview）：编辑区内直接呈现排版 —— */
+/* —— Live rendering (Obsidian Live Preview-style): typography shown directly in the editor —— */
 .cm-live-preview .cm-content {
   font-family: var(--sans);
   font-size: 16px;
 }
-/* 行首标记（#、>）：永远占位但淡化缩小 —— 光标经过零位移，且保留级别信息 */
+/* Line-start markers (#, >): always take space but faded and shrunk; zero shift as the cursor passes, and the level stays visible */
 .cm-live-preview .cm-lp-mark {
   opacity: 0.3;
   font-size: 12px;
   font-weight: 400;
 }
-/* 标题：无衬线粗体（与正文同族，屏显干净）+ 层级呼吸空间
-   （静态行级类，不随光标变化，零位移）。字号字重由语法高亮的 em 值控制，
-   这里只负责块级节奏；宋体刊物气质留给品牌处（刊头/落地页/卡片名） */
+/* Headings: bold sans-serif (same family as the body, clean on screen) + breathing room per level
+   (static line-level classes that don't change with the cursor, zero shift). Size and weight come from the syntax highlighting em values;
+   this only handles block rhythm; the Song-face publication feel is reserved for branding (masthead/landing page/card names) */
 .cm-live-preview .cm-line.cm-lp-h1 {
   padding-top: 22px;
   padding-bottom: 6px;
@@ -29,17 +29,17 @@
   padding-top: 12px;
   padding-bottom: 2px;
 }
-/* 引用块：左侧竖线 */
+/* Blockquote: left vertical bar */
 .cm-live-preview .cm-lp-quote {
   border-left: 2px solid var(--hairline-strong);
   color: var(--ink-soft);
 }
-/* 代码块：随主题走的浅色/深色卡片——纸面上一张略深的卡，安静地待着不抢眼。
-   卡片左右缘与正文文字列对齐（正文行内缩 28px，卡的底色伪元素也从 28px 起画），
-   代码文字在卡内再缩 16px；正文列之外不再有东西，块才不会比标题和段落更"宽"。
-   底色一律画在伪元素上并压到 z-index -3——drawSelection 画的选区是 .cm-scroller 里的
-   负层级（-2），直接给 .cm-line / 行内 span 上背景会盖住它：选中后看不见高亮，
-   用起来就像“代码块选不中、复制不了”。伪元素比选区层更低一层，选区才浮得上来。 */
+/* Code blocks: light/dark cards following the theme, a slightly darker card on the paper, sitting quietly.
+   The card's left/right edges align with the body text column (body line padding is 28px, and the card's background pseudo-element also starts at 28px),
+   and code text is indented a further 16px inside the card; nothing extends past the body column, so blocks aren't "wider" than headings and paragraphs.
+   Backgrounds are always drawn on pseudo-elements pushed to z-index -3: drawSelection's selection sits on a negative layer (-2)
+   in .cm-scroller, so a background on .cm-line / inline spans would cover it, hiding the highlight when selected,
+   which feels like "code blocks can't be selected or copied". The pseudo-element sits one layer below the selection so the selection shows on top. */
 .cm-live-preview .cm-line.cm-lp-code {
   position: relative;
   font-family: var(--mono);
@@ -55,7 +55,7 @@
   z-index: -3;
   background: var(--codeblock-bg);
 }
-/* 卡片描边同样画在底色伪元素上：中间行只有左右两条，首尾行各补一条封口 */
+/* Card borders are also drawn on the background pseudo-element: middle lines get only left and right edges, first/last lines each add a cap */
 .cm-live-preview .cm-line.cm-lp-code-mid::before,
 .cm-live-preview .cm-line.cm-lp-code-first::before,
 .cm-live-preview .cm-line.cm-lp-code-last::before {
@@ -68,13 +68,13 @@
 .cm-live-preview .cm-line.cm-lp-code-last::before {
   border-bottom: 1px solid var(--codeblock-border);
 }
-/* 围栏行（``` 与语言标记）弱化成结构注记，不再像裸露的符号 */
+/* Fence lines (``` and the language tag) are muted into structural notes instead of looking like bare symbols */
 .cm-live-preview .cm-line.cm-lp-code-first,
 .cm-live-preview .cm-line.cm-lp-code-last {
   font-size: 11px;
   color: var(--codeblock-faint);
 }
-/* 开栏行不再是块顶留白，而是块的标题条（行高在文末的节奏段里钉死） */
+/* The opening fence line is no longer top padding but the block's title bar (its line height is pinned in the rhythm section at the end) */
 .cm-live-preview .cm-line.cm-lp-code-first {
   padding-bottom: 2px;
 }
@@ -87,11 +87,11 @@
 .cm-live-preview .cm-line.cm-lp-code-last::before {
   border-radius: 0 0 8px 8px;
 }
-/* 代码块开栏行的语言下拉：替代裸露的 ```lang。
-   贴着代码左缘挂在块顶（开栏行是 position:relative 的容器），整行读作卡片的标题条：
-   默认只是块底色上的一枚灰字，悬停只把字和箭头压深提示可点——不再铺底色，
-   卡片上再叠一块实心灰会显得又厚又重；
-   光标点到那一行仍会还原 ``` 源码 */
+/* Language dropdown on the code block's opening line: replaces the bare ```lang.
+   Hangs at the block top against the code's left edge (the opening line is a position:relative container), so the whole line reads as the card's title bar:
+   by default just gray text on the block background; hover only darkens the text and arrow to hint it's clickable, no background fill,
+   since another solid gray block on the card would look thick and heavy;
+   clicking the cursor onto that line still reveals the ``` source */
 .cm-live-preview .cm-lp-codefence {
   position: absolute;
   top: 50%;
@@ -113,7 +113,7 @@
 .cm-live-preview .cm-lp-codefence:hover .cm-lp-codefence-label {
   color: var(--codeblock-fg);
 }
-/* 原生 select 透明铺满整个标签（文字 + 箭头 + 内衬），只负责接点击和弹菜单 */
+/* A transparent native select covers the whole label (text + arrow + padding), only handling clicks and opening the menu */
 .cm-live-preview .cm-lp-codefence select {
   position: absolute;
   inset: 0;
@@ -126,8 +126,8 @@
   cursor: pointer;
   font-size: 11px;
 }
-/* 删除整块的按钮：独占块的右上角（与左侧的语言下拉分居标题条两端），
-   常态隐形，悬停开栏行或下拉获得焦点才现身 —— 围栏被渲染掉之后，删除得有个明摆着的入口 */
+/* Delete-block button: owns the block's top-right corner (opposite the language dropdown on the title bar),
+   hidden normally, shown on hovering the opening line or when the dropdown has focus; once the fence is rendered away, deletion needs an obvious entry */
 .cm-live-preview .cm-lp-codefence-del {
   position: absolute;
   top: 50%;
@@ -153,7 +153,7 @@
 .cm-live-preview .cm-lp-codefence-del:hover {
   color: var(--codeblock-fg);
 }
-/* 下拉箭头：边框画的标准 chevron，随 flex 垂直居中（字形三角在不同字体下会歪） */
+/* Dropdown arrow: a standard chevron drawn with borders, vertically centered by flex (glyph triangles skew across fonts) */
 .cm-live-preview .cm-lp-codefence::after {
   content: "";
   width: 5px;
@@ -172,7 +172,7 @@
   border-color: var(--codeblock-fg);
 }
 
-/* 行内代码：小胶囊（配色来自语法高亮，这里补底色、内衬与圆角） */
+/* Inline code: a small pill (colors come from syntax highlighting; this adds background, padding and radius) */
 .cm-live-preview .cm-lp-ic {
   position: relative;
   border-radius: 4px;
@@ -188,7 +188,7 @@
   border-radius: 4px;
   background: var(--md-code-bg);
 }
-/* 行内渲染的图片 */
+/* Inline-rendered images */
 .cm-live-preview .cm-lp-image img {
   display: block;
   max-width: 100%;
@@ -197,11 +197,11 @@
   border-radius: 8px;
   cursor: pointer;
 }
-/* 夜间：图片压一点亮度，融入深色环境更护眼 */
+/* Dark mode: dim images slightly so they blend into the dark surroundings and are easier on the eyes */
 [data-theme="dark"] .cm-live-preview .cm-lp-image img {
   filter: brightness(0.88);
 }
-/* 图片加载失败：收起破图标，换成虚线占位签 */
+/* Image failed to load: hide the broken icon and show a dashed placeholder tag instead */
 .cm-live-preview .cm-lp-image-fallback {
   display: none;
 }
@@ -219,7 +219,7 @@
   font-size: 13px;
   cursor: pointer;
 }
-/* 行内渲染的视频：播放条交互交给原生控件，编辑入口在下方说明栏 */
+/* Inline-rendered videos: playback controls are left to native controls; the edit entry is in the caption bar below */
 .cm-live-preview .cm-lp-video {
   display: block;
   margin: 8px 0;
@@ -246,10 +246,10 @@
   background: var(--accent-wash);
 }
 
-/* 编辑图片/视频源码时挂在源码下方的预览：源码还在原地，预览另起一行跟在后面
-   （block 会把同行剩下的内容挤到再下一行）。规则放在图片/视频之后才压得住它们的
-   margin —— 同为两级选择器，靠书写顺序决出胜负。
-   点它不进编辑（源码已经现出来了），光标样式也就不该是手型 */
+/* Preview hung below the source while editing image/video source: the source stays in place and the preview follows on its own line
+   (block pushes the rest of the line down to the next one). The rules come after the image/video ones so they override their
+   margin; both are two-level selectors, so source order decides.
+   Clicking it doesn't enter editing (the source is already shown), so the cursor shouldn't be a pointer */
 .cm-live-preview .cm-lp-media-below {
   display: block;
   margin: 0.35em 0 0;
@@ -260,7 +260,7 @@
   cursor: default;
 }
 
-/* 分割线 */
+/* Horizontal rule */
 .cm-live-preview .cm-lp-hr {
   display: inline-block;
   width: 100%;
@@ -268,11 +268,11 @@
   border-top: 1px solid var(--hairline-strong);
   vertical-align: middle;
 }
-/* 无序列表圆点：CSS 自绘、对行垂直居中，层级用形态区分（实心 → 空心 → 方点），
-   不再依赖字体里 "•" 的大小与基线（各字体差异大，显得又小又沉） */
+/* Unordered list bullets: CSS-drawn, vertically centered on the line, levels distinguished by shape (filled → hollow → square),
+   no longer relying on the size and baseline of the font's "•" (which vary widely across fonts and look small and low) */
 .cm-live-preview .cm-lp-bullet {
-  /* inline-block 空盒的基线就是盒底，垂直位置可精确推算；
-     盒高 1em、下沉 0.125em 后盒中心恰好落在汉字的视觉中心（基线上方约 0.375em） */
+  /* An empty inline-block's baseline is its bottom, so its vertical position can be computed exactly;
+     with a 1em box sunk by 0.125em, the box center lands exactly on the visual center of Chinese characters (about 0.375em above the baseline) */
   display: inline-block;
   position: relative;
   width: 1ch;
@@ -303,15 +303,15 @@
   height: 0.28em;
   border-radius: 1px;
 }
-/* 列表前缀全部按 ch 定宽，位置可精确推算：
-   - .cm-lp-indent：祖先条目的缩进段，宽度与起始列由行内 style 给出（width / --lp-col）；
-     ::before 是引导竖线，横坐标 = 行基础内边距 + (起始列 + 0.5) ch，正好在祖先圆点正下方；
-     绝对定位挂在行盒（.cm-lp-li 设了 relative）上，top/bottom 贴行盒上下沿，相邻行首尾相接，
-     折行时也贯穿整条续行。left 必须显式算，静态位置会被行的负 text-indent 一起偏移。
-   - .cm-lp-gap：圆点后的空格；.cm-lp-rawmark：光标在本行时露出的原始 "-"，与圆点同宽不位移。
-   - 行内块会继承行的负 text-indent，必须归零，否则内容被推出盒子。
-   - 只定最小宽度、禁止换行，不能定死宽度再 overflow hidden：输入法组合中的文字会被浏览器
-     直接塞进光标所在的这些盒子里（装饰要等组合结束才重算），定死 1ch 就会一字一行竖着折。 */
+/* All list prefixes are sized in ch, so positions can be computed exactly:
+   - .cm-lp-indent: indent segment for ancestor items; width and start column come from inline style (width / --lp-col);
+       ::before is the guide line, x = line base padding + (start column + 0.5) ch, right under the ancestor bullet;
+       absolutely positioned on the line box (.cm-lp-li is relative), top/bottom flush with the line box edges so adjacent lines join end to end,
+       spanning all continuation lines when wrapped. left must be computed explicitly, since the static position shifts with the line's negative text-indent.
+   - .cm-lp-gap: the space after the bullet; .cm-lp-rawmark: the raw "-" shown when the cursor is on the line, same width as the bullet so nothing shifts.
+   - Inline blocks inherit the line's negative text-indent and must reset it to zero, or content gets pushed out of the box.
+   - Set only a min width with no wrapping; don't fix the width with overflow hidden: the browser puts IME composition text
+       directly into these boxes at the cursor (decorations are recomputed only after composition ends), and a fixed 1ch would wrap it one character per line. */
 .cm-live-preview .cm-lp-indent {
   display: inline-block;
   white-space: nowrap;
@@ -338,12 +338,12 @@
   text-align: center;
   color: var(--ink-soft);
 }
-/* 悬挂缩进：行的左内边距在 editor.css 里已加上 --lp-hang，这里把首行拉回同样的量，
-   前缀于是仍从基础内边距起排，续行则对齐到正文左缘 */
+/* Hanging indent: the line's left padding already includes --lp-hang in editor.css; here the first line is pulled back by the same amount,
+   so the prefix still starts at the base padding and continuation lines align with the body's left edge */
 .cm-live-preview .cm-line.cm-lp-hang {
   text-indent: calc(-1 * var(--lp-hang));
 }
-/* 有序列表编号：保留原文数字，弱化上色 + 等宽数字对齐（宽度由行内 style 按字符数给） */
+/* Ordered list numbers: keep the source digits, muted color + tabular figures (width given by inline style per character count) */
 .cm-live-preview .cm-lp-olnum {
   display: inline-block;
   white-space: nowrap;
@@ -351,15 +351,15 @@
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
-/* 任务清单复选框（可点击勾选） */
+/* Task list checkboxes (clickable) */
 .cm-live-preview .cm-lp-checkbox {
   margin: 0 2px 0 0;
   vertical-align: middle;
   accent-color: var(--accent);
   cursor: pointer;
 }
-/* 链接文字：只靠链接色示意可交互，不画下划线（长 URL 带下划线很花）；
-   悬停时再淡淡加一条，提示这是条链接（单击落笔改字，⌘/Ctrl+点击才打开） */
+/* Link text: interactivity is signaled by link color alone, no underline (long underlined URLs look busy);
+   a faint underline appears on hover to hint it's a link (a click places the cursor to edit; ⌘/Ctrl+click opens it) */
 .cm-live-preview .cm-lp-link {
   cursor: pointer;
   text-decoration: none;
@@ -370,9 +370,9 @@
   text-underline-offset: 3px;
 }
 
-/* [[双向链接]]：与外链同色，但底下常驻一条虚线——
-   虚线是「站内跳转」的通用语汇（Obsidian / Roam 都这么画），
-   一眼能和打开浏览器的外链区分开；悬停转实线表示可点 */
+/* [[Wiki links]]: same color as external links, but with a permanent dashed underline;
+   a dashed line is the common idiom for "internal jump" (Obsidian / Roam both draw it this way),
+   so they're easy to tell apart from external links that open the browser; hover turns it solid to show it's clickable */
 .cm-live-preview .cm-lp-wikilink {
   color: var(--md-link);
   cursor: pointer;
@@ -382,24 +382,24 @@
   border-bottom-style: solid;
 }
 
-/* ================= 第一期：版式节奏重建 ================= */
+/* ================= Phase 1: layout rhythm rebuild ================= */
 
-/* 正文基准：字号 16px、行高 1.75。
-   段落之间的呼吸交给固定高度的空行（.cm-lp-blank），而不是靠每一行的大行距——
-   后者会把整篇拉散，读起来像 diff 而不像文章 */
+/* Body baseline: 16px font size, 1.75 line height.
+   Breathing room between paragraphs comes from fixed-height blank lines (.cm-lp-blank) rather than large leading on every line;
+   the latter spreads the whole piece out and reads like a diff rather than an article */
 .cm-live-preview .cm-content {
   font-size: 16px;
   line-height: 1.75;
 }
 
-/* 空行留出正常光标高度，聚焦前后使用相同段间距，避免推动下方正文。 */
+/* Blank lines keep normal cursor height and use the same paragraph spacing before and after focus, so text below doesn't move. */
 .cm-live-preview .cm-line.cm-lp-blank {
   line-height: 1;
   min-height: 0;
 }
 
-/* 标题：字号字重从语法高亮挪到行级类上（源码模式另走 sourceHeadingHighlight），
-   两套互不干扰。上留白远大于下留白——标题要跟着下文走，层级才读得出来 */
+/* Headings: size and weight moved from syntax highlighting to line-level classes (source mode uses sourceHeadingHighlight),
+   so the two don't interfere. Top spacing is much larger than bottom: a heading belongs with the text after it, which makes the hierarchy readable */
 .cm-live-preview .cm-line.cm-lp-h1 {
   font-size: 1.75em;
   font-weight: 700;
@@ -422,40 +422,40 @@
   padding-top: 0.9em;
   padding-bottom: 0.1em;
 }
-/* H4 及以下（livePreview 把 5/6 级也归到这里）：字号退回正文，只靠字重与颜色区分，
-   否则四五级标题挤在一起全是似大非大的字号，层次反而糊了 */
+/* H4 and below (livePreview groups levels 5/6 here too): font size falls back to body size, distinguished only by weight and color,
+   otherwise levels 4 and 5 crowd together at almost-but-not-quite-larger sizes and the hierarchy blurs */
 .cm-live-preview .cm-line.cm-lp-h4 {
   font-size: 1em;
   font-weight: 600;
   padding-top: 0.6em;
   padding-bottom: 0;
 }
-/* 文档首行的标题上方没有正文可拉开，留白改成固定 12px：
-   加上 .cm-content 顶部的 4px，正好是标题区分隔线到 H1 的 16px */
+/* A heading on the doc's first line has no body above to separate from, so top spacing is a fixed 12px:
+   plus the 4px at the top of .cm-content, that's exactly 16px from the title area divider to the H1 */
 .cm-live-preview .cm-line.cm-lp-first {
   padding-top: 12px;
 }
 
-/* 列表行比正文略紧，相邻条目才会读成一组而不是各自成段；
-   relative 同时给缩进引导线（.cm-lp-indent::before）当定位参照 */
+/* List lines are slightly tighter than body text so adjacent items read as a group rather than separate paragraphs;
+   relative also serves as the positioning reference for the indent guides (.cm-lp-indent::before) */
 .cm-live-preview .cm-line.cm-lp-li {
   position: relative;
   line-height: 1.65;
 }
 
-/* 引用：竖线加粗到 3px（2px 在夜间几乎看不见），上下各留 2px 与正文脱开 */
+/* Blockquote: bar thickened to 3px (2px is nearly invisible at night), with 2px above and below to separate it from the body */
 .cm-live-preview .cm-line.cm-lp-quote {
   padding-top: 2px;
   padding-bottom: 2px;
   border-left-width: 3px;
 }
 
-/* 行首标记（# 与 >）：光标不在本行时整段被 Decoration.replace 收掉，不占任何宽度。
-   光标进来时才现出源码——为了让「出现/消失」都不推动正文，盒子按记号字符数定宽
-   （--lp-mark 由 livePreview 按 N ch 写入），再用等量负 margin 把它整个挪到文字左缘
-   之外，对行内布局的净贡献为零（行内缩留的 28px 正好接住）。
-   不能用 direction:rtl 的零宽盒来做左溢出：rtl 盒的逻辑末尾在视觉左侧，
-   标题行为空时光标停在 "# " 之后会被画到 # 的左边，一打字又跳回右边 */
+/* Line-start markers (# and >): when the cursor isn't on the line, Decoration.replace removes them entirely, taking no width.
+   The source appears only when the cursor enters; so neither appearing nor disappearing pushes the body, the box is sized by the marker's character count
+   (--lp-mark is written by livePreview as N ch), then an equal negative margin moves it entirely past the text's left edge,
+   for a net zero contribution to inline layout (the 28px line padding catches it exactly).
+   Don't use a zero-width direction:rtl box for the left overflow: an rtl box's logical end is on the visual left,
+   so on an empty heading line the cursor after "# " would be drawn left of the #, then jump back right on typing */
 .cm-live-preview .cm-lp-mark {
   display: inline-block;
   box-sizing: content-box;
@@ -472,26 +472,26 @@
   opacity: 0.45;
 }
 
-/* 行内标记（**、*、~~、`）：光标进来才现出，缩小 + 挤字距把它占的宽度压到最小，
-   同行文字被推开的距离随之减半。字号是 em，无单位 line-height 跟着缩，行高不变 */
+/* Inline markers (**, *, ~~, `): shown only when the cursor enters, shrunk + tightly tracked to minimize their width,
+   halving how far same-line text gets pushed. Font size is in em, and the unitless line-height scales with it, so line height doesn't change */
 .cm-live-preview .cm-lp-mark-inline {
   font-size: 0.75em;
   opacity: 0.45;
   letter-spacing: -0.05em;
   color: var(--ink-faint);
 }
-/* 链接的 "](url)" 段：必须保持可编辑（不截断、不 replace），只弱化成脚注体量 */
+/* A link's "](url)" part: must stay editable (no truncation, no replace), just muted to footnote size */
 .cm-live-preview .cm-lp-url {
   font-size: 0.8em;
   opacity: 0.6;
 }
 
-/* 代码块：行高钉成整数像素，行与行之间不再攒出半像素的缝；
-   中间行的底色伪元素上下各溢出 1px 与相邻行叠住，把亚像素缝彻底盖死 */
+/* Code blocks: line height pinned to whole pixels so half-pixel gaps don't accumulate between lines;
+   middle lines' background pseudo-elements overflow 1px above and below to overlap neighbors, sealing sub-pixel gaps completely */
 .cm-live-preview .cm-line.cm-lp-code {
   line-height: 22px;
 }
-/* 开栏行比代码行高一档，撑成卡片的标题条（必须写在上一条之后才压得住） */
+/* The opening line is one step taller than code lines, forming the card's title bar (must come after the previous rule to override it) */
 .cm-live-preview .cm-line.cm-lp-code-first {
   line-height: 30px;
 }
@@ -499,7 +499,7 @@
   top: -1px;
   bottom: -1px;
 }
-/* 首尾行只往块内侧溢出，圆角边缘保持干净 */
+/* First and last lines overflow only toward the block's inside, keeping rounded edges clean */
 .cm-live-preview .cm-line.cm-lp-code-first::before {
   top: 0;
   bottom: -1px;
@@ -508,31 +508,31 @@
   top: -1px;
   bottom: 0;
 }
-/* 收尾围栏行：不能 display:none（CodeMirror 要能量到每一行的高度），于是把行盒钉成 12px，
-   看上去就是代码卡的下留白而不是一道空行。高度与光标在不在这一行无关——光标落上来时
-   ``` 原文就在这 12px 里以 11px 淡字现出（字号、颜色由上面的 .cm-lp-code-last 给），
-   看得见也改得动，块底不动分毫；以前类只在隐藏态下发，光标一进来下文就被顶开二十来像素 */
+/* Closing fence line: can't be display:none (CodeMirror must measure every line's height), so the line box is pinned to 12px,
+   looking like the code card's bottom padding rather than a blank line. The height is independent of whether the cursor is on it: when the cursor lands there
+   the raw ``` appears within those 12px in faint 11px text (size and color from .cm-lp-code-last above),
+   visible and editable without the block bottom moving at all; previously the class only applied when hidden, so the cursor entering pushed text below down twenty-some pixels */
 .cm-live-preview .cm-line.cm-lp-code-close {
   line-height: 12px;
   padding-top: 0;
   padding-bottom: 0;
 }
 
-/* —— 行内公式 —— */
-/* SVG 字形是 currentColor 填充的，容器给正文墨色即可，夜间自动跟着翻 */
+/* —— Inline math —— */
+/* SVG glyphs are filled with currentColor, so giving the container body ink is enough and dark mode follows automatically */
 .cm-live-preview .cm-lp-imath {
   color: var(--ink);
   cursor: text;
 }
-/* Tailwind 的 preflight 把 svg 设成了 display:block —— 行内公式必须掰回 inline-block，
-   MathJax 写在 svg 上的 vertical-align 才生效；同时不给固定高度，
-   基线由那条 vertical-align 负责，行距不会被公式撑开 */
+/* Tailwind's preflight sets svg to display:block; inline math must be forced back to inline-block
+   for MathJax's vertical-align on the svg to take effect; also no fixed height,
+   since that vertical-align handles the baseline, so formulas don't stretch the line spacing */
 .cm-live-preview .cm-lp-imath svg {
   display: inline-block;
   max-width: 100%;
 }
-/* 光标停进公式：源码现出并垫一层极淡的底，一眼看出这一段是公式而不是掺了美元号的文字。
-   底色画在 ::before 且 z-index 低于 drawSelection(-2)，拖选时选中色仍盖得住（同 .cm-lp-ic） */
+/* Cursor inside a formula: the source appears on a very faint background, so it's obvious this is math rather than text with dollar signs.
+   The background is on ::before with a z-index below drawSelection (-2), so the selection color still covers it when dragging (same as .cm-lp-ic) */
 .cm-live-preview .cm-lp-math-src {
   position: relative;
   font-family: var(--mono);
@@ -546,22 +546,22 @@
   border-radius: 3px;
   background: var(--accent-wash);
 }
-/* TeX 解析不了时不吞内容：源码原样留着，底下补一条红波浪线提示没渲染成 */
+/* When TeX can't be parsed, don't swallow content: keep the source as-is with a red wavy underline signaling it didn't render */
 .cm-live-preview .cm-lp-math-bad {
   text-decoration: underline wavy rgb(224 72 76 / 0.75);
   text-underline-offset: 3px;
 }
 
-/* —— 脚注 —— */
-/* 引用 `[^1]`：藏掉方括号只留编号，排成上标小字，颜色取链接色标明它是可跳转的记号 */
+/* —— Footnotes —— */
+/* Reference `[^1]`: hide the brackets and keep only the number, set as small superscript in link color to mark it as a jump target */
 .cm-live-preview .cm-lp-fn-ref {
   vertical-align: super;
   font-size: 0.72em;
   color: var(--md-link);
   cursor: text;
 }
-/* 定义行行首的 `[^1]:` 缩成一枚小号弱化的 `1.`：正文才是这一行的主体。
-   源码里 `:` 后面的空格没被替换掉，间距由它顶着，这里不再补外边距 */
+/* The `[^1]:` at the start of a definition line shrinks to a small muted `1.`: the body text is the main content of the line.
+   The space after `:` in the source isn't replaced and provides the spacing, so no extra margin is added here */
 .cm-live-preview .cm-lp-fn-def {
   font-size: 0.85em;
   color: var(--ink-faint);

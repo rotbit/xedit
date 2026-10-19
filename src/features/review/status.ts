@@ -1,20 +1,20 @@
 /**
- * 一条意见此刻算什么状态——尽量从正文本身推，不另存一份会走样的副本。
+ * What state a comment is in right now, derived from the body itself as much as possible rather than a separate copy that drifts.
  *
- * 只有「忽略」和「知道了」是纯粹的用户动作，必须记；「采纳」不记：
- * 采纳就是把 quote 换成了 suggestion，于是「quote 找不到了、suggestion 在原处」
- * 本身就是采纳的证据。这样 ⌘Z 撤销之后，quote 一回来这条意见自己就活过来了。
+ * Only 「忽略」 (Ignore) and 「知道了」 (Got it) are pure user actions and must be recorded; 「采纳」 (Accept) isn't:
+ * accepting replaces quote with suggestion, so "quote not found, suggestion in its place"
+ * is itself the evidence of acceptance. That way after ⌘Z undo, the comment comes back to life as soon as the quote returns.
  */
 
 import { locateInSource, type SourceSpan } from "./locate";
 import type { ReviewAction, ReviewItem, ReviewStatus } from "./types";
 
 /**
- * 这条意见的引文此刻在源码里的位置——「还等着处理」意义上的位置。
+ * Where this comment's quote currently is in the source, in the "still awaiting action" sense.
  *
- * 建议常常只是在引文上添几个字（「正确」→「正确性」），采纳之后引文照样能搜到，
- * 只不过它已经躺在建议里了。那种情况不算「还在」，否则采纳按钮会一直亮着，
- * 每按一次再补一个「性」。
+ * Suggestions often just add a few characters to the quote (「正确」→「正确性」), so after accepting, the quote is still found,
+ * but now sitting inside the suggestion. That case doesn't count as "still there", otherwise the accept button would stay lit
+ * and each press would append another 「性」.
  */
 export function locateQuote(item: ReviewItem, source: string): SourceSpan | null {
   const span = locateInSource(source, item.quote, item.line);
@@ -36,17 +36,17 @@ export function deriveStatus(
   if (locateQuote(item, source)) {
     return action === "acked" ? "acked" : "open";
   }
-  // quote 没了：是被换成建议了（采纳），还是作者自己改了（失效）
+  // The quote is gone: was it replaced by the suggestion (accepted), or did the author edit it (stale)?
   if (item.suggestion && locateInSource(source, item.suggestion, item.line)) return "accepted";
   return "stale";
 }
 
-/** 还等着作者处理的：只有它们上高亮、参与上一条/下一条、算进分类计数 */
+/** Still awaiting the author: only these get highlights, take part in previous/next, and count toward categories */
 export function isOpen(status: ReviewStatus): boolean {
   return status === "open";
 }
 
-/** 已处理（顶栏计数里的「已处理 M」） */
+/** Handled (the 「已处理 M」 (M handled) in the top bar count) */
 export function isHandled(status: ReviewStatus): boolean {
   return status === "accepted" || status === "acked" || status === "ignored";
 }

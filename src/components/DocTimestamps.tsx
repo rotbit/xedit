@@ -5,9 +5,9 @@ import { useT } from "@/i18n/useT";
 import type { DocMeta } from "@/features/workspace/types";
 
 /**
- * 元信息栏里的「· 创建于 … · 更新于 …」一段。单拆出来是因为 ArticleReader 已经超长；
- * 自带前导分隔点，两个时间都没有时整段（含分隔点）不渲染，调用方不用再判断。
- * 行内只显示省掉当年年份的短格式，悬停给带年份的完整时间。
+ * The "· Created … · Updated …" segment in the meta bar. Split out because ArticleReader is already too long;
+ * it brings its own leading separator, and when neither time exists the whole segment (separator included) doesn't render, so callers needn't check.
+ * Inline it shows a short format that omits the current year; hovering shows the full time with year.
  */
 export function DocTimestamps({ meta }: { meta?: DocMeta }) {
   const t = useT();

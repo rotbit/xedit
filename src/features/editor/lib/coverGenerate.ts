@@ -1,29 +1,29 @@
 /**
- * AI 生封面：请求本站的 /api/cover/generate 用生图模型画一张，不满意就再点一次。
- * 提示词是服务端写死的一份中文模板，网页这边只管把几个填空收齐发过去、把结果变成 File；
- * Replicate Token 在服务端，浏览器碰不到。
- * 纯函数，不认识 React，也不弹提示——错误一律抛出，由界面决定怎么显示。
+ * AI cover generation: ask the site's /api/cover/generate to draw one with an image model; if unsatisfied, click again.
+ * The prompt is a fixed Chinese template on the server; the web side just collects the blanks, sends them, and turns the result into a File;
+ * the Replicate token stays server-side, out of the browser's reach.
+ * Pure functions with no React and no toasts — errors are always thrown, and the UI decides how to show them.
  */
 
 import { t, tk } from "@/i18n/t";
 import { IMAGE_EXT } from "@/lib/media";
 
-/** 生封面接口。同源，浏览器默认就把登录 cookie 带上 */
+/** Cover generation endpoint. Same-origin, so the browser sends the session cookie by default */
 const GENERATE_API = "/api/cover/generate";
 
-/** 连不上服务器时的说法：和「站点没配置」是两回事，界面上给的下一步动作也不同 */
+/** Message for when the server is unreachable: distinct from "site not configured", and the UI offers a different next step */
 const OFFLINE = tk("现在连不上服务器，稍后再试");
 
-/** 与服务端 lib/coverGenerate/replicate 那份白名单一一对应，改了要两边一起改 */
+/** Mirrors the allowlist in the server's lib/coverGenerate/replicate one-to-one; change both together */
 export type CoverColor = "blue" | "orange" | "green" | "purple" | "red" | "teal" | "gray";
 
-/** 要对比的一方：名字 + 它在图里用的主题色 */
+/** One side of the comparison: a name + its theme color in the image */
 export interface CoverProduct {
   name: string;
   color: CoverColor;
 }
 
-/** 带服务端错误码的失败，界面据此分流（如 403 要改口说「账号没开通」）；连不上时是 offline */
+/** A failure carrying the server's error code, which the UI branches on (e.g. 403 should say the account isn't enabled); offline when unreachable */
 export class CoverGenerateError extends Error {
   code: string;
   constructor(message: string, code: string) {
@@ -33,8 +33,8 @@ export class CoverGenerateError extends Error {
 }
 
 /**
- * 配色选项：id 是与服务约定的值，label 给界面用（存中文原文，显示处 t()），css 只是色点画出来的样子——
- * 真正进提示词的是服务端那份中文说法（「暖橙 / 陶土色」之类），这里的色值不下发。
+ * Color options: id is the value agreed with the service, label is for the UI (stored as the Chinese source, t() at display), css is just how the dot looks —
+ * what actually goes into the prompt is the server's Chinese wording (like 「暖橙 / 陶土色」); these color values aren't sent.
  */
 export const COVER_COLORS: { id: CoverColor; label: string; css: string }[] = [
   { id: "blue", label: tk("蓝色"), css: "#2f6fed" },
@@ -46,21 +46,21 @@ export const COVER_COLORS: { id: CoverColor; label: string; css: string }[] = [
   { id: "gray", label: tk("深灰"), css: "#5a6270" },
 ];
 
-/** 从 localStorage 之类读回来的色号得先验一遍，不认识的按调用方的默认值走 */
+/** Color ids read back from localStorage and the like must be validated first; unknown ones fall back to the caller's default */
 export function isCoverColor(value: unknown): value is CoverColor {
   return COVER_COLORS.some((c) => c.id === value);
 }
 
 /**
- * 生封面能不能用：
- *   offline      连不上服务器（离线壳、断网、反代挂了）
- *   unconfigured 站点没配生图 Token
- *   forbidden    配了，但当前账号没开通「AI 生成封面」（生图花的是站点的钱）
- *   ready        可以生成
+ * Whether cover generation is available:
+ *   offline      server unreachable (offline shell, no network, reverse proxy down)
+ *   unconfigured the site has no image generation token configured
+ *   forbidden    configured, but this account doesn't have 「AI 生成封面」 (AI cover generation) enabled (it costs the site money)
+ *   ready        can generate
  */
 export type CoverServiceState = "offline" | "unconfigured" | "forbidden" | "ready";
 
-/** allowed 由调用方从 useCan("ai_cover") 取；服务端另有一道判定，这里只决定界面显示什么 */
+/** allowed comes from the caller via useCan("ai_cover"); the server checks separately, this only decides what the UI shows */
 export async function coverServiceState(
   allowed: boolean,
   signal?: AbortSignal
@@ -69,19 +69,19 @@ export async function coverServiceState(
     const res = await fetch("/api/config", { signal });
     if (!res.ok) return "offline";
     const data = (await res.json()) as { coverGenerate?: unknown };
-    // 站点压根没开这个功能就先说没开：先提权限、进去了再说「没配置」是白折腾一趟
+    // If the site hasn't enabled the feature at all, say so first: asking for permission only to then say "not configured" wastes a trip
     if (data?.coverGenerate !== true) return "unconfigured";
   } catch {
-    // 连不上、答的不是 JSON（被网关拦了）都按「够不着服务器」处理
+    // Unreachable, or a non-JSON response (blocked by a gateway), both count as "can't reach the server"
     return "offline";
   }
   return allowed ? "ready" : "forbidden";
 }
 
 /**
- * 生成封面，返回 dataURL 数组（服务端一次只生一张，所以里面就一个元素）。
- * 生图要几十秒，调用方务必传 signal，面板一关就 abort。
- * 失败抛出 Error，message 直接是能给用户看的一句话。
+ * Generate a cover, returning an array of dataURLs (the server generates one at a time, so it holds a single element).
+ * Generation takes tens of seconds; callers must pass a signal and abort when the panel closes.
+ * Throws an Error on failure, whose message is a user-facing sentence.
  */
 export async function generateCovers(
   req: {
@@ -99,7 +99,7 @@ export async function generateCovers(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: req.title,
-        // 没填的字段干脆不发：服务端那边缺了就是「让模型自己从标题里挑」
+        // Omit empty fields entirely: on the server a missing one means "let the model pick from the title"
         ...(req.highlights?.length ? { highlights: req.highlights } : {}),
         left: req.left,
         ...(req.right ? { right: req.right } : {}),
@@ -107,7 +107,7 @@ export async function generateCovers(
       signal,
     });
   } catch (e) {
-    // abort 要原样往上抛，否则界面分不清「用户关了面板」和「连不上服务器」
+    // Rethrow aborts unchanged, otherwise the UI can't tell "user closed the panel" from "server unreachable"
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new CoverGenerateError(t(OFFLINE), "offline");
   }
@@ -115,7 +115,7 @@ export async function generateCovers(
     | { images?: unknown; error?: unknown; message?: unknown }
     | null;
   if (!res.ok) {
-    // 限流、权限这些说法服务端已经写成人话了，原样显示
+    // Rate limit and permission messages are already human-readable from the server, so show them as-is
     const message = typeof data?.message === "string" ? data.message : "";
     const code = typeof data?.error === "string" ? data.error : "failed";
     throw new CoverGenerateError(message || t("生成失败（{status}）", { status: res.status }), code);
@@ -134,7 +134,7 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
-/** dataURL → File：生成结果是 dataURL，而存图那条路（文库 / 云端）要的是 File */
+/** dataURL → File: generation returns a dataURL, while the save path (library / cloud) needs a File */
 export function dataUrlToFile(dataUrl: string, name?: string): File {
   const m = dataUrl.match(/^data:([^;,]+)(;base64)?,([\s\S]*)$/);
   if (!m) throw new Error(t("生成结果不是图片数据"));

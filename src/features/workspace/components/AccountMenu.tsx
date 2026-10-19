@@ -9,11 +9,11 @@ import { menuItemCls, menuPanelCls } from "../constants";
 import { signOutAndClear } from "../lib/signOutAndClear";
 import type { AccountMenuAnchor } from "../hooks/useMenus";
 
-/** 菜单最小宽度：触发行较窄时仍能容下「退出登录」（英文 Sign out 更短，按中文留宽即可） */
+/** Minimum menu width: still fits 「退出登录」 (Sign out) when the trigger row is narrow (English "Sign out" is shorter, so sizing for Chinese is enough) */
 const MIN_WIDTH = 186;
 
-/** 侧栏底部账户菜单：贴着触发行向上弹出。
- *  只管账号本身（设置 / 后台 / 登出），语言、夜间模式都收进了设置页——导入是文库操作，入口在文件树右键菜单与顶栏新建按钮上 */
+/** Account menu at the bottom of the sidebar: pops up just above the trigger row.
+ *  Only handles the account itself (settings / admin / sign out); language and dark mode moved into the settings page. Import is a library action, found in the file tree context menu and the top bar's new button */
 export function AccountMenu({
   anchor,
   user,
@@ -23,7 +23,7 @@ export function AccountMenu({
   anchor: AccountMenuAnchor;
   user: Session["user"] | undefined;
   onClose: () => void;
-  /** 进入工作区里的「设置」虚拟视图 */
+  /** Open the 「设置」 (Settings) virtual view in the workspace */
   onOpenSettings: () => void;
 }) {
   useEscape(onClose);

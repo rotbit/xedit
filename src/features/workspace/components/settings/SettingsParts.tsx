@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * 设置页的通用小部件：分段标题（Section）、一行设置（Row）、分段控件（Seg）、次要按钮（LinkBtn）。
- * 只管样子，不碰任何状态；开关直接复用 components/Switch。
+ * Shared widgets for the settings page: section header (Section), a setting row (Row), segmented control (Seg), secondary button (LinkBtn).
+ * Presentation only, no state; toggles reuse components/Switch directly.
  */
 import { btnSecondary } from "@/components/Modal";
 
 export { Switch } from "@/components/Switch";
 
-/** 一段设置：小号字距拉开的段名 + 细线分隔的若干行 */
+/** A settings section: a small letter-spaced section name + several rows separated by hairlines */
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
@@ -20,7 +20,7 @@ export function Section({ title, children }: { title: string; children: React.Re
   );
 }
 
-/** 一行设置：左边名称（可带一句说明），右边控件 */
+/** A setting row: name on the left (optionally with a one-line description), control on the right */
 export function Row({
   label,
   hint,
@@ -41,7 +41,7 @@ export function Row({
   );
 }
 
-/** 分段控件：样子同历史页的范围切换（描边外框 + 选中项实心） */
+/** Segmented control: looks like the range switcher on the history page (outlined frame + solid selected item) */
 export function Seg<T extends string>({
   value,
   options,
@@ -75,7 +75,7 @@ export function Seg<T extends string>({
   );
 }
 
-/** 次要按钮：弹窗里那款描边按钮 */
+/** Secondary button: the outlined button style used in dialogs */
 export function LinkBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" className={btnSecondary} onClick={onClick}>

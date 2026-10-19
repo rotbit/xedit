@@ -1,44 +1,44 @@
 
-/** 文章列表项：本地库与云端镜像共用的元信息 */
+/** Doc list item: metadata shared by the local library and the cloud mirror */
 export interface DocMeta {
   id: string;
   title: string;
   category?: string;
-  /** 创建时间（ISO）。老镜像、Vault 磁盘文件可能没有 */
+  /** Creation time (ISO). Old mirrors and Vault disk files may lack it */
   createdAt?: string;
   updatedAt: string;
   excerpt?: string;
   chars?: number;
 }
 
-/** /api/config 暴露的部署能力开关（第三方登录按钮、图片库入口据此显隐） */
+/** Deployment capability flags exposed by /api/config (third-party login buttons and the image library entry show/hide based on these) */
 export interface AppConfig {
   github: boolean;
   google: boolean;
   wechat: boolean;
   oss: boolean;
-  /** 站点配了生图 Token（「AI 生成」封面是否可用还要看是不是管理员） */
+  /** The site has an image-generation token configured (whether "AI generate" covers are available also depends on being an admin) */
   coverGenerate: boolean;
   /**
-   * AI 审核此刻能不能跑：管理后台选定的那家模型有没有配 token。
-   * 审核面板据此决定「开始审核」是不是灰的；能不能用由服务端的 401 / 403 说。旧版本的回答里没有这个字段，所以是可选的。
+   * Whether AI review can run right now: whether the model provider selected in the admin panel has a token configured.
+   * The review panel uses this to decide if "Start review" is grayed out; actual permission is decided by the server's 401 / 403. Older responses lack this field, so it's optional.
    */
   aiReview?: boolean;
 }
 
-/** 分类树节点：docs 为直属文章，count 含子孙分类 */
+/** Category tree node: docs are direct docs, count includes descendant categories */
 export interface CatNode {
   name: string;
   path: string;
   children: CatNode[];
   docs: DocMeta[];
-  /** 子分类与直属文章的显示序列（两者可混排）；children/docs 仍保留供计数、查找使用 */
+  /** Display sequence of subcategories and direct docs (can be interleaved); children/docs are still kept for counting and lookup */
   items: CatItem[];
   count: number;
 }
 
-/** 分类节点下的一项：子分类或直属文章 */
+/** One item under a category node: a subcategory or a direct doc */
 export type CatItem = { kind: "cat"; node: CatNode } | { kind: "doc"; doc: DocMeta };
 
-/** 正在拖拽的对象：文章，或分类（分类连同子树与其中文章整体随迁） */
+/** The object being dragged: a doc, or a category (moved as a whole with its subtree and docs) */
 export type DragItem = { kind: "doc"; id: string } | { kind: "cat"; path: string };

@@ -19,18 +19,18 @@ export function Providers({
   locale,
 }: {
   children: React.ReactNode;
-  /** 服务端 auth() 解出的会话，注入后 SessionProvider 不再于首帧发起客户端请求 */
+  /** Session resolved by server-side auth(); once injected, SessionProvider doesn't make a client request on the first frame */
   session: Session | null;
-  /** 服务端按 cookie / Accept-Language 判定的界面语言 */
+  /** UI language determined server-side from cookie / Accept-Language */
   locale: Locale;
 }) {
-  // refetchWhenOffline={false}：断网时别去拉会话，拉了也只会拿到 null，
-  // 白白把 useSession 打成未登录。回前台重拉照常保留——那正是恢复在线的途径之一，
-  // 误判由 useAuthMode 的服务器探测兜住
+  // refetchWhenOffline={false}: don't fetch the session while offline; it would only return null
+  // and needlessly flip useSession to signed-out. Refetching on returning to the foreground stays — that's one way of recovering online,
+  // and misjudgments are caught by useAuthMode's server probe
   return (
     <LocaleProvider locale={locale}>
       <SessionProvider session={session} refetchWhenOffline={false}>
-        {/* 全站功能图标共用圆润细线；Logo 与第三方品牌标记不走这套配置。 */}
+        {/* Site-wide feature icons share a rounded thin stroke; the logo and third-party brand marks don't use this config. */}
         <LucideProvider size={16} strokeWidth={1.8}>
           <SwRegister />
           <ScrollbarReveal />

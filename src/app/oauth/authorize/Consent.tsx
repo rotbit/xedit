@@ -14,8 +14,8 @@ interface ConsentParams {
 }
 
 /**
- * 授权同意页：登录后展示，让用户确认是否把文档访问权授予该 MCP 客户端。
- * 服务端组件（表单直接挂 server action），语言由 page 按请求判定后传进来。
+ * Consent page: shown after login so the user confirms whether to grant this MCP client access to their documents.
+ * Server component (the form posts straight to a server action); the locale is resolved by page from the request and passed in.
  */
 export default function Consent({
   clientName,

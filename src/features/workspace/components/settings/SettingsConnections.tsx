@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 设置页「已授权的应用」段：列出通过 OAuth 连上 xEdit（MCP）的客户端，可逐个撤销。
- * 数据来自 GET /api/oauth/connections，撤销是 DELETE 同一地址带 { clientId }；
- * 撤销成功后只在本地把那一行去掉，不再整表重拉。
+ * The 「已授权的应用」 (Authorized apps) section of settings: lists clients connected to xEdit via OAuth (MCP), each revocable.
+ * Data comes from GET /api/oauth/connections; revoking is a DELETE to the same URL with { clientId };
+ * after a successful revoke, just remove that row locally instead of refetching the whole list.
  */
 import { useEffect, useState } from "react";
 import { askConfirm } from "@/components/PromptDialog";
@@ -15,11 +15,11 @@ import { Section } from "./SettingsParts";
 interface Connection {
   clientId: string;
   name: string;
-  /** 序列化后的 ISO 时间串 */
+  /** Serialized ISO time string */
   since: string;
 }
 
-/** 服务端给没名字的客户端兜底的名字（存的是中文 key），显示时再翻译 */
+/** The fallback name the server gives unnamed clients (stored as a Chinese key), translated at display time */
 const UNNAMED = tk("未命名应用");
 
 export function SettingsConnections() {

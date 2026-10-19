@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { createAuthCode, getClient, parseRedirectUris } from "@/lib/oauth/store";
 
-/** 再次校验客户端与回调地址（server action 不信任隐藏表单里的任何东西） */
+/** Re-validate the client and redirect URI (a server action trusts nothing in hidden form fields) */
 async function validate(clientId: string, redirectUri: string) {
   const client = clientId ? await getClient(clientId) : null;
   if (!client) return null;
@@ -18,7 +18,7 @@ function backTo(redirectUri: string, params: Record<string, string>): never {
   redirect(u.toString());
 }
 
-/** 用户点「允许」：签发一次性授权码并按 state 回跳到客户端 */
+/** User clicks 「允许」 (Allow): issue a one-time authorization code and redirect back to the client with state */
 export async function approveAuthorization(formData: FormData): Promise<void> {
   const clientId = String(formData.get("client_id") || "");
   const redirectUri = String(formData.get("redirect_uri") || "");
@@ -28,13 +28,13 @@ export async function approveAuthorization(formData: FormData): Promise<void> {
   const resource = String(formData.get("resource") || "");
   const state = String(formData.get("state") || "");
 
-  // userId 只从会话取，绝不从表单取
+  // userId comes only from the session, never from the form
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) redirect("/");
 
   const client = await validate(clientId, redirectUri);
-  if (!client) redirect("/"); // 回调地址不可信则不回跳，回首页
+  if (!client) redirect("/"); // untrusted redirect URI: don't redirect back, go home
 
   const code = await createAuthCode({
     clientId,
@@ -48,7 +48,7 @@ export async function approveAuthorization(formData: FormData): Promise<void> {
   backTo(redirectUri, { code, state });
 }
 
-/** 用户点「拒绝」：按 OAuth 规范回跳 error=access_denied */
+/** User clicks 「拒绝」 (Deny): redirect back with error=access_denied per the OAuth spec */
 export async function denyAuthorization(formData: FormData): Promise<void> {
   const clientId = String(formData.get("client_id") || "");
   const redirectUri = String(formData.get("redirect_uri") || "");

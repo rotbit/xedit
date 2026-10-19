@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createCoverLimiter } from "@/lib/coverGenerate/limit";
 
-/** 时钟注入进去，日子随便拨 */
+/** Clock is injected, so dates can be set freely */
 function limiterAt(start: number) {
   let now = start;
   return { limiter: createCoverLimiter(() => now), jump: (ms: number) => (now += ms) };
 }
 
 const DAY = 24 * 3600_000;
-/** 2026-09-19 12:00 东八区 */
+/** 2026-09-19 12:00 UTC+8 */
 const NOON = Date.parse("2026-09-19T04:00:00.000Z");
 
 describe("生封面限流", () => {
@@ -17,7 +17,7 @@ describe("生封面限流", () => {
     const first = limiter.take("u1", 10);
     expect(first.ok).toBe(true);
     expect(limiter.take("u1", 10)).toEqual({ ok: false, reason: "busy" });
-    // 别人不受影响
+    // Other users are unaffected
     expect(limiter.take("u2", 10).ok).toBe(true);
 
     if (first.ok) first.release();
@@ -37,13 +37,13 @@ describe("生封面限流", () => {
   it("被拦下的请求不计次：撞上 busy 不该白扣一次额度", () => {
     const { limiter } = limiterAt(NOON);
     const first = limiter.take("u1", 2);
-    expect(limiter.take("u1", 2)).toEqual({ ok: false, reason: "busy" }); // 这一次不算数
+    expect(limiter.take("u1", 2)).toEqual({ ok: false, reason: "busy" }); // This one doesn't count
     if (first.ok) first.release();
 
     const second = limiter.take("u1", 2);
     expect(second.ok).toBe(true);
     if (second.ok) second.release();
-    // 真正发起过的是两次，第三次才该被限额挡住
+    // Only two were actually started, so it's the third that should hit the limit
     expect(limiter.take("u1", 2)).toEqual({ ok: false, reason: "rate_limited" });
   });
 
@@ -53,10 +53,10 @@ describe("生封面限流", () => {
     if (slot.ok) slot.release();
     expect(limiter.take("u1", 1)).toEqual({ ok: false, reason: "rate_limited" });
 
-    // 还在同一天的 23:59（东八区）：照旧被挡
+    // Still the same day at 23:59 (UTC+8): still blocked
     jump(11 * 3600_000 + 59 * 60_000);
     expect(limiter.take("u1", 1)).toEqual({ ok: false, reason: "rate_limited" });
-    // 跨过零点就重新开始
+    // Past midnight it starts over
     jump(60_000);
     expect(limiter.take("u1", 1).ok).toBe(true);
   });
@@ -67,7 +67,7 @@ describe("生封面限流", () => {
     if (old.ok) old.release();
     jump(DAY);
     expect(limiter.take("u2", 1).ok).toBe(true);
-    // u1 昨天的计数没跟到今天来
+    // u1's count from yesterday didn't carry over to today
     expect(limiter.take("u1", 1).ok).toBe(true);
   });
 

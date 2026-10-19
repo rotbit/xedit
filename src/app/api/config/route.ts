@@ -4,19 +4,19 @@ import { aiReviewReady } from "@/lib/ai/siteSettings";
 import { coverGenerateConfigured } from "@/lib/coverGenerate/replicate";
 import { ossConfigured } from "@/lib/oss";
 
-/** 前端据此提示哪些能力尚未配置。除 aiReview 要问一下库（有内存缓存）外全是模块级常量 */
+/** Tells the frontend which capabilities aren't configured yet. All module-level constants except aiReview, which asks the DB (memory-cached) */
 export async function GET() {
-  // 库挂了不该连累整个配置接口：当作「审核还没配好」处理
+  // A DB outage shouldn't take down the whole config API: treat it as "review not configured yet"
   const aiReview = await aiReviewReady().catch(() => false);
   return NextResponse.json({
     github: githubConfigured,
     google: googleConfigured,
     wechat: wechatConfigured,
-    // 判定口径与上传路径共用一处，别在这儿再抄一遍 OSS_* 清单
+    // Same check as the upload path; don't copy the OSS_* list here again
     oss: ossConfigured(),
-    // 站点配没配生图 Token；这个账号开没开通 AI 生成封面另走 /api/me/permissions，接口自己也会拦
+    // Whether the site has an image-generation token; whether this account may AI-generate covers is via /api/me/permissions, and the API enforces it too
     coverGenerate: coverGenerateConfigured(),
-    // AI 审核此刻能不能跑（后台选定的那家有没有 token）；只报一个布尔，用哪家、key 是什么都不下发
+    // Whether AI review can run right now (does the admin-selected provider have a token); only a boolean, never which provider or key
     aiReview,
   });
 }

@@ -1,13 +1,13 @@
 /**
- * 空列表项 / 空引用行上的回车：退出，而不是再续一条。
+ * Enter on an empty list item / empty quote line: exit instead of continuing another one.
  *
- * lang-markdown 自带的 insertNewlineContinueMarkup 在这两种情形下表现很怪：
- * 嵌套列表 "  - " 上回车会插出一行"只有一个空格"的脏行，标记还照样续着，要连按三四下
- * 才退得出来；"> " 上回车则永远退不出引用（一直续 "> "）。
+ * lang-markdown's built-in insertNewlineContinueMarkup behaves oddly in these two cases:
+ * Enter on a nested list "  - " inserts a junk line with just one space and still continues the marker, needing three or four presses
+ * to get out; Enter on "> " never exits the quote (keeps continuing "> ").
  *
- * 所以在它前面（Prec.highest，markdownKeymap 是 Prec.high）截一手：只处理"整行除了
- * 标记什么都没有"这一种情况——有缩进就退一层，顶层就把标记摘掉留一行干净空行；
- * 其余一律返回 false 交回默认行为（正常续列表、续引用都还归它管）。
+ * So intercept before it (Prec.highest; markdownKeymap is Prec.high), handling only the case where "the line has nothing but
+ * the marker": with indentation, outdent one level; at top level, strip the marker and leave a clean blank line;
+ * everything else returns false to the default behavior (normal list and quote continuation stay with it).
  */
 
 import { Prec, type EditorState, type Extension, type Line } from "@codemirror/state";
@@ -15,14 +15,14 @@ import { EditorView, keymap } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { caretInFencedCode } from "@/lib/livePreview/context";
 
-/** 整行只有列表标记（含任务项的 `- [ ]`），后面最多跟些空白 */
+/** The line has only a list marker (including a task item's `- [ ]`), followed by at most whitespace */
 const EMPTY_ITEM = /^([ \t]*)((?:[-*+]|\d+[.)])(?:[ \t]+\[[ xX]\])?)[ \t]*$/;
-/** 整行只有引用标记：`>`、`> `、`> > ` 都算 */
+/** The line has only quote markers: `>`, `> `, `> > ` all count */
 const EMPTY_QUOTE = /^([ \t]*)((?:>[ \t]*)+)$/;
-/** 任意一条列表项的行首，用来找上一层的缩进量 */
+/** Start of any list item line, used to find the parent level's indent */
 const ITEM_HEAD = /^([ \t]*)(?:[-*+]|\d+[.)])[ \t]/;
 
-/** 整行替换成 text，光标停在行尾（text 为空时即行首） */
+/** Replace the whole line with text, cursor at line end (line start when text is empty) */
 function replaceLine(view: EditorView, line: Line, text: string): true {
   view.dispatch({
     changes: { from: line.from, to: line.to, insert: text },
@@ -34,13 +34,13 @@ function replaceLine(view: EditorView, line: Line, text: string): true {
 }
 
 /**
- * 退一层用的缩进：照抄上文最近的、比自己浅的那条列表项。
- * 不直接按 indentUnit 砍固定格数——别处粘进来的列表常是 4 空格缩进，砍 2 格会卡在半层上。
+ * Indent for outdenting one level: copy the nearest preceding list item that's shallower than this one.
+ * Don't just cut a fixed indentUnit: lists pasted from elsewhere often use 4-space indents, and cutting 2 would leave it half a level in.
  */
 function outerIndent(state: EditorState, line: Line, indent: string): string {
   for (let n = line.number - 1; n >= 1; n--) {
     const text = state.doc.line(n).text;
-    if (!text.trim()) break; // 空行 = 上一段列表已经断了，没有可对齐的上一层
+    if (!text.trim()) break; // Blank line = the previous list has ended, so there's no parent level to align with
     const m = text.match(ITEM_HEAD);
     if (m && m[1].length < indent.length) return m[1];
   }
@@ -53,7 +53,7 @@ function exitEmptyBlock(view: EditorView): boolean {
   const { state } = view;
   const range = state.selection.main;
   if (!range.empty) return false;
-  // 围栏代码里的 "- " 只是代码文本，回车该换行就换行
+  // "- " inside fenced code is just code text; Enter should simply insert a newline
   if (caretInFencedCode(state)) return false;
   const line = state.doc.lineAt(range.head);
 
@@ -68,13 +68,13 @@ function exitEmptyBlock(view: EditorView): boolean {
   if (quote) {
     const [, indent, markers] = quote;
     const levels = (markers.match(/>/g) ?? []).length;
-    // 嵌套引用一层一层退，退到最外层才真的离开引用
+    // Nested quotes unwind one level at a time; only leaving the outermost actually exits the quote
     return replaceLine(view, line, levels > 1 ? `${indent}${"> ".repeat(levels - 1)}` : "");
   }
 
   return false;
 }
 
-/** Tab / Shift-Tab 不在这里接管：indentWithTab 走的 indentMore/indentLess 正好是
- *  "在行首加/减一个 indentUnit"，对列表项就是缩进一层，行为已经是对的 */
+/** Tab / Shift-Tab aren't handled here: indentMore/indentLess used by indentWithTab are exactly
+ *  "add/remove one indentUnit at line start", which for list items is one indent level, so the behavior is already right */
 export const listKeymap: Extension = Prec.highest(keymap.of([{ key: "Enter", run: exitEmptyBlock }]));

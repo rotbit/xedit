@@ -5,7 +5,7 @@ import JSZip from "jszip";
 import { childBlocks } from "@/lib/docx/block";
 import type { Build } from "@/lib/docx/types";
 
-/** 1x1 PNG 的最小字节，足够让 docx 库当作图片打包 */
+/** Minimal bytes of a 1x1 PNG, enough for the docx library to package as an image */
 const PNG = new Uint8Array([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
   0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
@@ -36,7 +36,7 @@ describe("导出 Word 的图片", () => {
       '<p><img src="b.png" alt="">说明文字</p>' +
       '<p>前文 <img src="c.png" alt="行内"> 后文</p>';
     const { xml, media } = await render(html, { "a.png": "封面", "b.png": "", "c.png": "行内" });
-    // 三张图字节相同，docx 库按内容去重只存一份媒体文件；正文里仍是三处绘图
+    // The three images have identical bytes, so the docx library dedupes by content and stores one media file; the body still has three drawings
     expect(media.length).toBeGreaterThanOrEqual(1);
     expect((xml.match(/<w:drawing>/g) ?? []).length).toBe(3);
     expect(xml).not.toMatch(/<wp:docPr [^>]*name=""/);

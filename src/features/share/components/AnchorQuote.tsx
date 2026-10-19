@@ -1,11 +1,11 @@
 "use client";
 
-// 批注引用区：文字锚点截取原文，媒体锚点显示缩略图/类型标签（从 SharedArticle 搬出）
+// Annotation quote area: text anchors show an excerpt of the original, media anchors show a thumbnail/type label (moved out of SharedArticle)
 
 import { isVideoUrl } from "@/lib/media";
 import type { AnchorType } from "../types";
 
-/** 引用区：文字锚点截取原文，媒体锚点显示缩略图/类型标签 */
+/** Quote area: text anchors show an excerpt of the original, media anchors show a thumbnail/type label */
 export function AnchorQuote({ anchorType, anchorText }: { anchorType: AnchorType; anchorText: string }) {
   if (anchorType === "media") {
     const video = isVideoUrl(anchorText);

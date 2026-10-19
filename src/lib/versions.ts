@@ -1,24 +1,24 @@
 import { prisma } from "@/lib/prisma";
 
-/** 每篇文档最多保留的版本数，超出删除最旧的 */
+/** Max versions kept per document; the oldest are deleted beyond that */
 const MAX_VERSIONS_PER_DOC = 100;
 
-/** 自动留版的节流规则 */
+/** Throttling rules for automatic versions */
 export type AutoRule = {
-  /** 距上一个版本至少这么久，才值得再留一版 */
+  /** Minimum time since the last version before another is worth keeping */
   minIntervalMs: number;
-  /** 且与上一个版本的改动量要达到这个字数 */
+  /** And the change since the last version must reach this many characters */
   minChars: number;
 };
 
-/** 自动保存触发：写作过程中每隔一段时间把当前内容定格一版 */
+/** Autosave trigger: snapshot the current content at intervals while writing */
 export const AUTOSAVE_RULE: AutoRule = { minIntervalMs: 10 * 60_000, minChars: 20 };
-/** 停笔 / 离开页面触发：把这一段写作的最终状态定格下来，只做轻度节流 */
+/** Pause / leaving the page trigger: capture the final state of this writing session, with only light throttling */
 export const IDLE_RULE: AutoRule = { minIntervalMs: 60_000, minChars: 20 };
 
 export async function pruneVersions(documentId: string): Promise<void> {
-  // 绝大多数文档一辈子也到不了上限，而这里每留一版就要跑一次。
-  // 先 count（只读索引、不取行），没超上限就到此为止，不必再翻分页查要删的那批
+  // The vast majority of docs never reach the limit, yet this runs on every version saved.
+  // count first (index only, no rows); if under the limit stop here, no need to page through the ones to delete
   const total = await prisma.documentVersion.count({ where: { documentId } });
   if (total <= MAX_VERSIONS_PER_DOC) return;
   const extras = await prisma.documentVersion.findMany({
@@ -34,7 +34,7 @@ export async function pruneVersions(documentId: string): Promise<void> {
   }
 }
 
-/** 改动规模：去掉公共前后缀后剩下的字数，比单纯比长度更能识别「原地改写」 */
+/** Change size: characters remaining after removing the common prefix and suffix; better at spotting in-place rewrites than comparing lengths */
 function changedChars(a: string, b: string): number {
   const min = Math.min(a.length, b.length);
   let head = 0;
@@ -44,7 +44,7 @@ function changedChars(a: string, b: string): number {
   return Math.max(a.length, b.length) - head - tail;
 }
 
-/** 无条件建一版并顺手修剪；去重/节流都在调用方判完了，这里不会「没建成」 */
+/** Unconditionally create a version and prune; dedupe/throttling is decided by the caller, so this never "fails to create" */
 async function createVersion(
   documentId: string,
   title: string,
@@ -56,8 +56,8 @@ async function createVersion(
 }
 
 /**
- * 留存一个版本快照；与最近版本内容相同时跳过（去重）。
- * 返回是否真正创建了新版本。
+ * Save a version snapshot; skipped if identical to the latest version (dedupe).
+ * Returns whether a new version was actually created.
  */
 export async function snapshot(
   documentId: string,
@@ -77,9 +77,9 @@ export async function snapshot(
 }
 
 /**
- * 自动留版：文档还没有任何版本时先留个底；之后按「间隔 + 改动量」节流。
- * 先只查最近版本的时间（走索引、不读正文），到点了才拉正文比对改动量，
- * 这样每次自动保存的额外开销可以忽略。
+ * Automatic versioning: if the doc has no versions yet, save a baseline; after that, throttle by interval + change size.
+ * Query only the latest version's time first (index, no body), and fetch the body to measure changes only when the interval has passed,
+ * so the extra cost per autosave is negligible.
  */
 export async function autoSnapshot(
   documentId: string,

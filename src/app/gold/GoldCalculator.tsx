@@ -1,34 +1,34 @@
 "use client";
 
 /**
- * 挂在 /gold 的黄金换算小工具，和 xedit 的编辑功能没有关系，是一页独立的自用工具。
- * 系数与换算记录只写浏览器 localStorage：不上云、不区分账号，换设备就没了。
- * 换算系数不联网取，由使用者自己填或从预设里挑，所以这一页没有任何请求。
+ * A gold conversion utility at /gold, unrelated to xedit's editing features; a standalone page for personal use.
+ * The coefficient and conversion history are stored only in browser localStorage: no cloud, no per-account split, gone on a new device.
+ * The coefficient isn't fetched online; the user enters it or picks a preset, so this page makes no requests.
  */
 import { useState, useSyncExternalStore } from "react";
 
-/** 一条换算记录：结果文本 / 当时生效的系数 / 时间戳 */
+/** One conversion record: result text / coefficient in effect at the time / timestamp */
 type Rec = { txt: string; c: number; t: number };
 
-/** 落盘的全部状态 */
+/** All persisted state */
 type Saved = { coef: number; his: Rec[] };
 
 const COEF_KEY = "goldCoef";
 const HIS_KEY = "goldHis";
-// 285 只是个起手值，实际系数随行情变，使用者自己调；不要把它当准确常数用
+// 285 is just a starting value; the real coefficient moves with the market and the user adjusts it, don't treat it as an exact constant
 const DEFAULT_COEF = 285;
-// 四个常用档位，正好排满下面那行 grid-cols-4；增删档位要连同栅格列数一起改
+// Four common presets, exactly filling the grid-cols-4 row below; adding/removing presets means changing the grid column count too
 const PRESETS = [284, 284.5, 285, 285.5];
-// 记录只留 20 条：localStorage 总量有限，更早的换算结果也没人回看
+// Keep only 20 records: localStorage space is limited and nobody looks back at older results
 const MAX_HIS = 20;
-// 这一页的金色写死不走主题变量，深浅色下都一样；同一个色值在 INPUT_CLS 和几处 class 里也各出现一次，改色要一起改
+// The gold color on this page is hardcoded rather than a theme variable, same in light and dark; the same value also appears in INPUT_CLS and a few classes, so change them together
 const GOLD = "#b8860b";
 const DEFAULT_SAVED: Saved = { coef: DEFAULT_COEF, his: [] };
 
 const INPUT_CLS =
   "w-full rounded-[10px] border border-[var(--hairline-strong)] bg-[var(--paper)] px-3 py-2.5 text-[16px] text-[var(--ink)] outline-none transition-colors focus:border-[#b8860b]";
 
-/** 只接受正有限数，空串、0、负数、乱码一律当「没输入」 */
+/** Accept only positive finite numbers; empty string, 0, negatives and garbage all mean "no input" */
 function parsePositive(raw: string): number | null {
   const t = raw.trim();
   if (!t) return null;
@@ -36,7 +36,7 @@ function parsePositive(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** localStorage 里读出来的是 unknown，逐条校验后才收敛成 Rec[]，脏数据直接丢 */
+/** What's read from localStorage is unknown; validate each entry before narrowing to Rec[], dropping bad data */
 function toRecords(raw: unknown): Rec[] {
   if (!Array.isArray(raw)) return [];
   const out: Rec[] = [];
@@ -50,10 +50,10 @@ function toRecords(raw: unknown): Rec[] {
   return out.slice(0, MAX_HIS);
 }
 
-/* ── localStorage 当外部 store 订阅 ──────────────────────────────
-   服务端快照给默认值、客户端快照给存储值，hydration 之后 React 自己补一次
-   渲染。这样既不会首帧不一致，也不用在 effect 里 setState（本仓库 lint
-   禁止，见 src/hooks/useHydrated.ts 里同样的取舍）。 */
+/* ── localStorage as an external store subscription ──────────────
+   The server snapshot gives defaults and the client snapshot gives stored values; after hydration React re-renders
+   once on its own. That avoids a first-frame mismatch without calling setState in an effect (the repo's lint
+   forbids it; see the same trade-off in src/hooks/useHydrated.ts). */
 
 let cache: Saved | null = null;
 const listeners = new Set<() => void>();
@@ -66,11 +66,11 @@ function readSaved(): Saved {
       his: rawHis ? toRecords(JSON.parse(rawHis)) : [],
     };
   } catch {
-    return DEFAULT_SAVED; // 隐私模式禁用存储 / JSON 损坏：走默认值
+    return DEFAULT_SAVED; // storage disabled in private mode / corrupt JSON: use defaults
   }
 }
 
-/** 快照引用必须稳定，否则 useSyncExternalStore 会一直重渲染 */
+/** The snapshot reference must be stable, or useSyncExternalStore re-renders forever */
 function getSnapshot(): Saved {
   cache ??= readSaved();
   return cache;
@@ -80,7 +80,7 @@ function getServerSnapshot(): Saved {
   return DEFAULT_SAVED;
 }
 
-// 本页是唯一的写入方，所以不监听 storage 事件：同时开两个标签页时，两边的记录不会互相同步
+// This page is the only writer, so it doesn't listen for storage events: with two tabs open, their records won't sync with each other
 function subscribe(fn: () => void): () => void {
   listeners.add(fn);
   return () => {
@@ -88,14 +88,14 @@ function subscribe(fn: () => void): () => void {
   };
 }
 
-/** 落盘并通知订阅者。先换掉 cache 再写存储，写失败（隐私模式）时界面仍按新值显示。 */
+/** Persist and notify subscribers. Swap the cache before writing storage, so if the write fails (private mode) the UI still shows the new value. */
 function save(next: Saved): void {
   cache = next;
   try {
     localStorage.setItem(COEF_KEY, String(next.coef));
     localStorage.setItem(HIS_KEY, JSON.stringify(next.his));
   } catch {
-    // 写不进去不影响本次会话内的展示
+    // A failed write doesn't affect what's shown in this session
   }
   for (const fn of listeners) fn();
 }
@@ -112,7 +112,7 @@ function CardTitle({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[14px] font-medium text-[var(--ink)]">{children}</h2>;
 }
 
-/** 淡金底结果条：有结果时用正文墨色，等待输入时压到最淡一档 */
+/** Pale gold result bar: body ink color when there's a result, faintest tone while waiting for input */
 function Result({ text, waiting }: { text: string; waiting: boolean }) {
   return (
     <p
@@ -125,11 +125,11 @@ function Result({ text, waiting }: { text: string; waiting: boolean }) {
   );
 }
 
-/** 换算器整页：系数卡 + 两个方向的换算卡 + 本地记录。 */
+/** The whole converter page: coefficient card + two conversion-direction cards + local history. */
 export function GoldCalculator() {
   const saved = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const { coef, his } = saved;
-  // 系数输入框的草稿：null 表示「跟随已生效的系数」，省掉一次派生态同步
+  // Draft for the coefficient input: null means "follow the coefficient in effect", saving a derived-state sync
   const [draft, setDraft] = useState<string | null>(null);
   const [nav, setNav] = useState("");
   const [gram, setGram] = useState("");
@@ -143,11 +143,11 @@ export function GoldCalculator() {
 
   const saveCoef = () => {
     const v = parsePositive(coefDraft);
-    setDraft(null); // 无效输入直接回滚成当前生效值
+    setDraft(null); // invalid input rolls straight back to the value in effect
     if (v !== null) applyCoef(v);
   };
 
-  /** 失焦 / 回车时落一条记录；与最近一条完全相同则跳过，避免反复失焦刷屏 */
+  /** Record an entry on blur / Enter; skip if identical to the latest one to avoid flooding on repeated blur */
   const pushRecord = (txt: string) => {
     if (his[0]?.txt === txt) return;
     save({ ...saved, his: [{ txt, c: coef, t: Date.now() }, ...his].slice(0, MAX_HIS) });
@@ -176,7 +176,7 @@ export function GoldCalculator() {
         </header>
 
         <div className="space-y-3">
-          {/* 1 换算系数 */}
+          {/* 1 Conversion coefficient */}
           <Card>
             <div className="flex items-baseline justify-between">
               <CardTitle>换算系数</CardTitle>
@@ -210,7 +210,7 @@ export function GoldCalculator() {
             </div>
             <div className="mt-2 grid grid-cols-4 gap-2">
               {PRESETS.map((v) => {
-                // 预设值带小数，浮点数不能直接比相等，用一个极小误差判断是否选中
+                // Presets have decimals and floats can't be compared for equality directly, so use a tiny epsilon to tell if one is selected
                 const on = Math.abs(coef - v) < 1e-9;
                 return (
                   <button
@@ -232,7 +232,7 @@ export function GoldCalculator() {
             </div>
           </Card>
 
-          {/* 2 净值 → 单克价格 */}
+          {/* 2 NAV → price per gram */}
           <Card>
             <CardTitle>净值 → 单克价格</CardTitle>
             <p className="mt-1 text-[11.5px] text-[var(--ink-faint)]">
@@ -256,7 +256,7 @@ export function GoldCalculator() {
             </p>
           </Card>
 
-          {/* 3 单克价格 → 反推净值 */}
+          {/* 3 Price per gram → implied NAV */}
           <Card>
             <CardTitle>单克价格 → 反推净值</CardTitle>
             <input
@@ -274,7 +274,7 @@ export function GoldCalculator() {
             <Result text={gramResult ?? "等待输入克价"} waiting={gramResult === null} />
           </Card>
 
-          {/* 4 换算记录 */}
+          {/* 4 Conversion history */}
           <Card>
             <CardTitle>换算记录（本地保存，最多 {MAX_HIS} 条）</CardTitle>
             {his.length === 0 ? (

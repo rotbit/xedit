@@ -19,11 +19,11 @@ import {
 import { COVER_RATIO, coverTileCls } from "./coverStyles";
 
 /**
- * 封面选择器的「AI 生成」页签：填好标题、重点词和要对比的两个产品，交给本站的
- * /api/cover/generate 生图（提示词是服务端写死的模板，这里只提供填空）。
- * 一次只生一张，不行就再点一次「再来一次」；看中了就走存图那条路。
- * Replicate Token 在服务端（浏览器拿不到），生图又花的是站点的钱、只对开通了的账号开放，
- * 所以这里先问一句站点配没配、自己够不够格。
+ * The cover picker's 「AI 生成」 (AI generate) tab: fill in the title, key words and the two products to compare, then hand them to the site's
+ * /api/cover/generate for image generation (the prompt is a fixed server-side template; this only provides the blanks).
+ * One image at a time; if it's no good, click 「再来一次」 (Try again); if you like it, it goes down the image-saving path.
+ * The Replicate token is server-side (out of the browser's reach), and generation costs the site money and is only open to enabled accounts,
+ * so first check whether the site has it configured and whether this account qualifies.
  */
 
 const tip = "px-3 pb-3 pt-2 text-[12px] leading-relaxed text-[var(--ink-soft,var(--ink-faint))]";
@@ -31,7 +31,7 @@ const tip = "px-3 pb-3 pt-2 text-[12px] leading-relaxed text-[var(--ink-soft,var
 const inputCls =
   "h-7 w-full min-w-0 rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-2 text-[12px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--hairline-strong)]";
 
-/** 记在本地的那几项：产品名和配色多半几篇文章都一样，标题和重点词每篇都不同，不记 */
+/** The fields remembered locally: product names and colors are usually the same across articles; title and key words differ each time, so they aren't stored */
 const SAVED_KEY = "xedit-cover-ai";
 
 interface Saved {
@@ -48,7 +48,7 @@ const DEFAULT_SAVED: Saved = {
   rightColor: "orange",
 };
 
-/** 读不出来、存不进去（隐私模式、配额满了）都当没记过，表单照常能用 */
+/** Unreadable or unwritable storage (private mode, quota full) is treated as nothing stored; the form still works */
 function readSaved(): Saved {
   if (typeof window === "undefined") return DEFAULT_SAVED;
   try {
@@ -70,11 +70,11 @@ function writeSaved(saved: Saved): void {
   try {
     localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
   } catch {
-    // 记不住下次重填就是了，不值得打断生成
+    // If it can't be remembered, it just gets refilled next time; not worth interrupting generation
   }
 }
 
-/** 一排小圆色点，选中的那个套一圈环 */
+/** A row of small color dots; the selected one gets a ring */
 function Swatches({ value, onPick }: { value: CoverColor; onPick: (color: CoverColor) => void }) {
   const t = useT();
   return (
@@ -95,7 +95,7 @@ function Swatches({ value, onPick }: { value: CoverColor; onPick: (color: CoverC
 }
 
 export function CoverAiTab({
-  /** 挑中的图交给调用方去存（有文库存文库，否则传云端）并设为封面；失败它自己弹提示 */
+  /** The chosen image is handed to the caller to save (to the library if there is one, otherwise to the cloud) and set as cover; it shows its own error toast */
   onUse,
 }: {
   onUse: (file: File) => Promise<void>;
@@ -103,19 +103,19 @@ export function CoverAiTab({
   const t = useT();
   const canCover = useCan("ai_cover");
   const [service, setService] = useState<CoverServiceState | "checking">("checking");
-  /** forbidden 那一屏上显示的话：接口回过就用服务端的说法，没有就用默认那句 */
+  /** Text shown on the forbidden screen: the server's wording if the API returned one, otherwise the default */
   const [denied, setDenied] = useState("");
-  // 标题只在打开页签时从文章那边预填一次：封面上的标题可以和文章标题不一样，改过就不该被冲掉
+  // The title is prefilled from the article only once when the tab opens: the cover title may differ from the article's, and edits shouldn't be overwritten
   const [title, setTitle] = useState(() => useStore.getState().title);
   const [highlights, setHighlights] = useState<[string, string]>(["", ""]);
   const [saved, setSaved] = useState<Saved>(readSaved);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  /** 这一轮生出来的那张（空串 = 还没生过）*/
+  /** The image generated this round (empty string = none yet) */
   const [image, setImage] = useState("");
-  /** 正在存这张：转圈要盖在图上 */
+  /** Saving this one: the spinner overlays the image */
   const [saving, setSaving] = useState(false);
-  // 生图要几十秒，面板一关（组件卸载）就掐掉，别让请求在后台空跑
+  // Generation takes tens of seconds; abort it once the panel closes (component unmounts) so the request doesn't keep running in the background
   const running = useRef<AbortController | null>(null);
   useEffect(() => () => running.current?.abort(), []);
 
@@ -134,7 +134,7 @@ export function CoverAiTab({
     setBusy(true);
     setError("");
     setImage("");
-    // 真按了生成才记：同一个人接着写下一篇，多半还是这两个产品、这两个颜色
+    // Only remember once Generate is actually pressed: the same person writing the next article likely uses the same two products and colors
     writeSaved(saved);
     const right = saved.rightName.trim();
     try {
@@ -149,9 +149,9 @@ export function CoverAiTab({
       );
       setImage(one);
     } catch (e) {
-      // 自己被 abort 掉（关面板、点了「再来一次」）不是错，不用报
+      // Being aborted ourselves (panel closed, 「再来一次」 clicked) isn't an error, no need to report it
       if (ctrl.signal.aborted) return;
-      // 资格被收回（后台关了权限、会话过期）：再点也没用，直接换成那一屏，别留个还能点的按钮
+      // Eligibility revoked (permission turned off in admin, session expired): clicking again won't help, so switch to that screen instead of leaving a clickable button
       if (e instanceof CoverGenerateError && (e.code === "forbidden" || e.code === "unauthorized")) {
         setDenied(e.message);
         setService("forbidden");

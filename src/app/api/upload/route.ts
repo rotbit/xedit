@@ -8,8 +8,8 @@ import { serverError } from "@/lib/routeAuth";
 import { tk, translate } from "@/i18n/t";
 import { localeOfRequest } from "@/i18n/server";
 
-/** 服务端中转上传：直传不可用（如 Bucket 未配 CORS）时的兜底通道。
- *  仅图片——视频体积大，中转要整个读进内存还会撞请求体上限，只走直传。 */
+/** Server-relayed upload: fallback when direct upload isn't available (e.g. the bucket lacks CORS).
+ *  Images only: videos are large, relaying would read them fully into memory and hit the body size limit, so they go direct only. */
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   const blocked = await uploadBlocked(session.user.id, file.size);
   if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
 
-  // 浏览器读出的像素尺寸，随 FormData 带上来；缺失或不合法就留空，等前端展示时补录
+  // Pixel dimensions read by the browser, sent with the FormData; if missing or invalid, leave empty and backfill when the frontend displays it
   const dims = parseImageDimensions(formData.get("width"), formData.get("height"));
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ url });
   } catch (e) {
-    // OSS 的报错常带 bucket / endpoint / requestId，不该回给浏览器
+    // OSS errors often include bucket / endpoint / requestId, which shouldn't go back to the browser
     return serverError(e, tk("上传失败，请稍后重试"));
   }
 }

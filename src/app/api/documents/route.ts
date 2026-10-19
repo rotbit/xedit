@@ -8,21 +8,21 @@ import { createDocumentRow, listDocuments } from "@/lib/documents";
 export async function GET(req: Request) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
-  // 打开工作台必经此接口，作为 DAU 打点位；失败不影响响应
+  // Every workspace open goes through this API, so it's the DAU tracking point; failures don't affect the response
   void touchDailyActive(userId);
   const params = new URL(req.url).searchParams;
   const trash = params.get("trash") === "1";
-  // full=1：附带正文，供本地优先的同步引擎一次拉全量镜像
+  // full=1: include bodies so the local-first sync engine can pull a full mirror in one go
   const full = params.get("full") === "1";
-  // since=<ISO>：增量同步——只回传该时刻之后有变动的文档（含软删，靠 deletedAt 标记），
-  // 另附全量存活 id 供客户端对账彻底删除。文库大了以后，每次切回前台的同步不再全量下发正文。
+  // since=<ISO>: incremental sync, only docs changed after that time (including soft deletes, marked by deletedAt),
+  // plus all live ids so the client can reconcile hard deletes. With a large library, each return-to-foreground sync no longer ships every body.
   const since = params.get("since");
   if (since) {
     const sinceDate = new Date(since);
     if (!Number.isNaN(sinceDate.getTime())) {
       const [changed, live] = await Promise.all([
         prisma.document.findMany({
-          // gte 而非 gt：游标边界上的文档宁可多发一次，客户端落镜像是幂等的
+          // gte not gt: better to resend a doc on the cursor boundary; the client's mirror writes are idempotent
           where: { userId, updatedAt: { gte: sinceDate } },
           orderBy: { updatedAt: "desc" },
           select: {
@@ -58,23 +58,23 @@ export async function GET(req: Request) {
     });
     return NextResponse.json(docs);
   }
-  // 列表附带纯文本摘要与字数，正文本身不下发（进程内算完即丢，响应体积不随文章长度膨胀）。
-  // 摘要与字数的口径都在服务层，MCP 的 list_documents 拿到的是同一份形状；
-  // limit="all" 是这里和 MCP 唯一的区别——前端侧栏要整份文库，不能被默认上限截断。
+  // The list includes a plain-text excerpt and word count but not the body (computed in-process and discarded, so response size doesn't grow with article length).
+  // Excerpt and word-count rules live in the service layer, so MCP's list_documents gets the same shape;
+  // limit="all" is the only difference from MCP: the frontend sidebar needs the whole library and can't be cut off by the default cap.
   return NextResponse.json(await listDocuments(userId, { trash, limit: "all" }));
 }
 
-/** 新建文章。走服务层的 createDocumentRow（不是 createDocument）：前端要拿整行落本地镜像，
- *  createDocument 只回 id/title/category 三个字段（MCP 用不着更多）。
- *  字段裁剪与 clientKey 去重都在服务层，REST 与 MCP 两条通道不会漂。 */
+/** Create an article. Uses the service layer's createDocumentRow (not createDocument): the frontend needs the full row for its local mirror,
+ *  and createDocument only returns id/title/category (MCP needs no more).
+ *  Field trimming and clientKey dedupe both live in the service layer, so the REST and MCP paths can't drift. */
 export async function POST(req: Request) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
   const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const body = await req.json().catch(() => ({}));
-  // clientKey 可选：离线新建、弱网重试会把同一条「新建」发好几遍，
-  // 带同一个 key 的重发只落一篇，后到的拿回先落的那篇（不带则行为照旧）
+  // clientKey is optional: offline creation and flaky-network retries can send the same 「新建」 (create) several times;
+  // resends with the same key create only one doc, and later ones get back the first (without a key, behavior is unchanged)
   const doc = await createDocumentRow(userId, {
     title: body.title,
     content: body.content,

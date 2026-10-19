@@ -13,18 +13,18 @@ import {
 import { tk } from "@/i18n/t";
 
 /**
- * 媒体资产（图片/视频）的共享服务层（供 MCP 工具用）。复用 src/lib/oss.ts 的 OSS 逻辑，
- * 所有操作按 userId 隔离。upload-from-URL 带 SSRF 守卫。
+ * Shared service layer for media assets (images/videos), used by MCP tools. Reuses the OSS logic in src/lib/oss.ts,
+ * with every operation scoped by userId. upload-from-URL has an SSRF guard.
  */
 
 export type MediaKind = "image" | "video";
 
-/** 按工具语义校验 mime：upload_image 只收图、upload_video 只收视频 */
+/** Validate mime per tool semantics: upload_image only accepts images, upload_video only videos */
 function assertKind(mime: string, kind: MediaKind): void {
   const table = kind === "video" ? VIDEO_EXT : IMAGE_EXT;
   if (!(mime in table)) {
     const hint = kind === "video" ? "mp4/webm/mov" : "png/jpg/gif/webp/svg";
-    throw new Error(`不支持的${kind === "video" ? "视频" : "图片"}类型: ${mime || "未知"}（支持 ${hint}）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    throw new Error(`不支持的${kind === "video" ? "视频" : "图片"}类型: ${mime || "未知"}（支持 ${hint}）`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   }
 }
 
@@ -34,7 +34,7 @@ export interface AssetView {
   mime: string;
   size: number;
   source: string;
-  /** 像素尺寸；服务端上传路径读不出，为 null，由前端首次展示时补录 */
+  /** Pixel dimensions; the server upload path can't read them, so null, filled in by the frontend on first display */
   width: number | null;
   height: number | null;
   createdAt: Date;
@@ -88,7 +88,7 @@ export async function deleteImage(userId: string, id: string): Promise<boolean> 
   const a = await prisma.asset.findFirst({ where: { id, userId } });
   if (!a) return false;
   if (ossConfigured()) {
-    // OSS 删除失败不阻断索引清理（对象可能已不存在），与 REST 行为一致
+    // An OSS delete failure doesn't block index cleanup (the object may already be gone), same as the REST behavior
     try {
       await ossDelete(a.key);
     } catch {
@@ -99,7 +99,7 @@ export async function deleteImage(userId: string, id: string): Promise<boolean> 
   return true;
 }
 
-/** 服务端已持有字节流时的直接落盘入口（MCP base64 / 飞书导入等都汇到这里） */
+/** Direct persistence entry when the server already holds the bytes (MCP base64, Feishu import, etc. all funnel here) */
 export async function uploadMediaBuffer(
   userId: string,
   buffer: Buffer,
@@ -107,15 +107,15 @@ export async function uploadMediaBuffer(
   source: string
 ): Promise<AssetView> {
   const ext = MEDIA_EXT[mime];
-  if (!ext) throw new Error(`不支持的文件类型: ${mime || "未知"}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+  if (!ext) throw new Error(`不支持的文件类型: ${mime || "未知"}`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   if (buffer.length === 0) throw new Error(tk("空文件"));
   if (buffer.length > maxSizeOf(mime)) throw new Error(sizeLimitError(mime));
   if (!ossConfigured()) throw new Error(tk("服务端未配置阿里云 OSS，无法上传"));
-  // 只读封禁 / 存储配额：MCP 的两条上传路径都汇到这里
+  // Read-only ban / storage quota: both MCP upload paths funnel here
   const blocked = await uploadBlocked(userId, buffer.length);
   if (blocked) throw new Error(blocked);
   const { url, key } = await ossPut(buffer, ext, mime);
-  // 不解码算像素尺寸（服务端要多一个图片库，收益只是省前端一次解码），留空等前端补录
+  // Don't decode to get pixel dimensions (the server would need another image library just to save the frontend one decode); leave empty for the frontend to fill in
   const a = await prisma.asset.create({
     data: { userId, key, url, size: buffer.length, mime, source },
   });
@@ -128,7 +128,7 @@ export async function uploadMediaFromBase64(
   mime: string | undefined,
   kind: MediaKind
 ): Promise<AssetView> {
-  // 兼容 data URL（data:image/png;base64,xxxx），可从中取 mime
+  // Supports data URLs (data:image/png;base64,xxxx), which carry the mime
   const m = data.match(/^data:([^;,]*);base64,([\s\S]*)$/);
   const finalMime = mime || (m ? m[1] : "");
   assertKind(finalMime, kind);
@@ -137,13 +137,13 @@ export async function uploadMediaFromBase64(
   return uploadMediaBuffer(userId, buffer, finalMime, "mcp");
 }
 
-// ---- SSRF 守卫：upload-from-URL 是服务端抓取用户给的地址，必须挡内网/保留段 ----
+// ---- SSRF guard: upload-from-URL fetches a user-supplied address server-side, so internal/reserved ranges must be blocked ----
 
 function isPrivateIp(ip: string): boolean {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split(".").map(Number);
     if (a === 0 || a === 10 || a === 127) return true;
-    if (a === 169 && b === 254) return true; // link-local + 云元数据 169.254.169.254
+    if (a === 169 && b === 254) return true; // link-local + cloud metadata 169.254.169.254
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
     if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
@@ -167,14 +167,14 @@ async function assertPublicHttpUrl(u: string): Promise<void> {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error(tk("仅支持 http/https 图片地址"));
   }
-  const host = parsed.hostname.replace(/^\[|\]$/g, ""); // 去掉 IPv6 方括号
+  const host = parsed.hostname.replace(/^\[|\]$/g, ""); // Strip IPv6 brackets
   const addrs = net.isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
   for (const a of addrs) {
     if (isPrivateIp(a.address)) throw new Error(tk("禁止访问内网 / 保留地址"));
   }
 }
 
-/** 逐跳校验的安全抓取：手动跟随重定向，每一跳都过 SSRF 守卫，防重定向绕过 */
+/** Safe fetch validated hop by hop: follow redirects manually, running each hop through the SSRF guard to prevent redirect bypasses */
 async function safeMediaFetch(url: string, timeoutMs: number): Promise<Response> {
   let current = url;
   for (let hop = 0; hop <= 3; hop++) {
@@ -195,9 +195,9 @@ async function safeMediaFetch(url: string, timeoutMs: number): Promise<Response>
 }
 
 /**
- * 按上限流式读响应体。content-length 可以缺失、也可以撒谎，只看它等于没看，
- * 所以边读边累计，一超限就 cancel 掉连接——否则 arrayBuffer() 会先把整个超限响应
- * 读进内存，再回头判断「太大了」，内存已经吃掉了。
+ * Read the response body as a stream up to the limit. content-length can be missing or lie, so trusting it is as good as nothing;
+ * instead count as we read and cancel the connection once over -- otherwise arrayBuffer() would read the whole oversized response
+ * into memory before deciding it's "too big", by which point the memory is already spent.
  */
 async function readBodyWithLimit(res: Response, maxBytes: number, mime: string): Promise<Buffer> {
   if (!res.body) throw new Error(tk("抓取失败: 响应没有内容"));
@@ -222,19 +222,19 @@ export async function uploadMediaFromUrl(
   sourceUrl: string,
   kind: MediaKind
 ): Promise<AssetView> {
-  // 下载前先粗检一次：被封禁或配额已满的账号最终一定写不进去，不该先替他把几十 MB
-  // 拉进内存再拒绝。此刻体积未知，传 0 只判「封禁 / 已超配额」，
-  // 真实体积的精确复核仍由下面 uploadMediaBuffer 里那次 uploadBlocked 负责
+  // Rough check before downloading: a banned or over-quota account will never be able to write, so don't pull dozens of MB
+  // into memory just to reject it. The size is unknown here, so passing 0 only checks "banned / already over quota";
+  // the exact check against the real size is still done by the uploadBlocked call inside uploadMediaBuffer below
   const blocked = await uploadBlocked(userId, 0);
   if (blocked) throw new Error(blocked);
-  // 视频体积大，抓取窗口放宽（MCP 路由整体上限 60s）
+  // Videos are large, so the fetch window is wider (the MCP route's overall cap is 60s)
   const res = await safeMediaFetch(sourceUrl, kind === "video" ? 45000 : 15000);
-  if (!res.ok) throw new Error(`抓取失败: HTTP ${res.status}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+  if (!res.ok) throw new Error(`抓取失败: HTTP ${res.status}`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   const mime = (res.headers.get("content-type") || "").split(";")[0].trim();
   assertKind(mime, kind);
   const limit = maxSizeOf(mime);
   const declared = Number(res.headers.get("content-length") || 0);
-  // 自报超限的直接拒，连响应体都不必读
+  // Reject outright if the declared size is over the limit; no need to read the body
   if (declared && declared > limit) throw new Error(sizeLimitError(mime));
   const buffer = await readBodyWithLimit(res, limit, mime);
   return uploadMediaBuffer(userId, buffer, mime, "mcp-url");

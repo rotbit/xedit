@@ -1,6 +1,6 @@
 import { buildWechatHtml, type WechatBuildOptions } from "./copy/wechat";
 
-// File System Access API 的「另存为」：lib.dom 未收录类型，这里只声明用到的最小子集
+// File System Access API "Save As": not in lib.dom types, so only the minimal subset we use is declared here
 interface SaveFilePickerOptions {
   suggestedName?: string;
   types?: { description?: string; accept: Record<string, string[]> }[];
@@ -18,8 +18,8 @@ export function downloadFile(filename: string, content: BlobPart, mime: string):
   a.href = url;
   a.download = filename;
   a.click();
-  // click() 只是把下载排进队列，浏览器随后才真正去读这个 blob URL：
-  // 同步 revoke 会让下载拿到一个空文件（Safari/Firefox 尤其明显），留一秒再释放
+  // click() only queues the download; the browser reads the blob URL afterwards:
+  // revoking synchronously gives the download an empty file (especially on Safari/Firefox), so wait a second before releasing
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -28,8 +28,8 @@ export interface SaveTarget {
   discard(): Promise<void>;
 }
 
-/** 先弹「另存为」再生成：Chrome 的用户手势激活只有约 5 秒，长文生成完再弹会被拦。
- *  用户取消返回 null；浏览器不支持 showSaveFilePicker 时返回退化目标（write 走 downloadFile） */
+/** Show "Save As" first, then generate: Chrome's user-gesture activation lasts only ~5s, so prompting after a long generation gets blocked.
+ *  Returns null if the user cancels; returns a fallback target when showSaveFilePicker isn't supported (write goes through downloadFile) */
 export async function openSaveTarget(
   filename: string,
   mime: string,
@@ -44,12 +44,12 @@ export async function openSaveTarget(
   try {
     handle = await window.showSaveFilePicker({
       suggestedName: filename,
-      // accept 的 key 必须是纯 mime，带 ;charset=… 会被判为非法参数
+      // accept keys must be bare MIME types; a ;charset=… suffix is rejected as invalid
       types: [{ description: ext.slice(1).toUpperCase(), accept: { [mime.split(";")[0]]: [ext] } }],
     });
   } catch (e) {
     if ((e as { name?: string })?.name === "AbortError") return null;
-    // Electron 壳、跨域 iframe 等环境 API 存在但不让用（SecurityError 等），退回直接下载
+    // In the Electron shell, cross-origin iframes, etc. the API exists but is blocked (SecurityError etc.), so fall back to a direct download
     return fallback;
   }
   return {
@@ -59,18 +59,18 @@ export async function openSaveTarget(
       await writable.close();
     },
     async discard() {
-      // 挑完文件 Chrome 已在磁盘上建了空文件，生成失败时尽量删掉；remove() 非标准，没有就算了
+      // Once a file is picked Chrome has already created an empty file on disk, so try to delete it on failure; remove() is non-standard, skip if missing
       try {
         await (handle as unknown as { remove?: () => Promise<void> }).remove?.();
       } catch {
-        /* 删不掉只是留个空文件，不值得再打扰用户 */
+        /* Failing to delete just leaves an empty file; not worth bothering the user again */
       }
     },
   };
 }
 
-/** 导出统一流程：先选位置（取消返回 false，不提示），再生成并写入；
- *  生成或写入失败时清掉空文件后把错误继续抛给调用方 */
+/** Unified export flow: pick a location first (cancel returns false, no prompt), then generate and write;
+ *  on generation or write failure, remove the empty file and rethrow to the caller */
 export async function saveExport(
   title: string,
   ext: string,
@@ -122,13 +122,13 @@ export async function exportHtml(
     title,
     ".html",
     "text/html;charset=utf-8",
-    // HTML 导出能直接播放，保留真 <video>；PDF/长图不可播，沿用默认的封面占位
+    // HTML export can play video, so keep the real <video>; PDF/long image can't, so use the default cover placeholder
     () => buildStandaloneHtml(title, markdown, { ...opts, videoMode: "keep" })
   );
 }
 
-/** 导出长图：以 750px 宽渲染内联样式版全文，转 PNG 保存。返回 false 表示用户取消了「另存为」。
- *  失败（多是跨域外链图片）时直接抛错，由调用方决定怎么提示 —— lib 不认识 UI 层 */
+/** Export as a long image: render the inline-styled full text at 750px wide and save as PNG. Returns false if the user canceled "Save As".
+ *  On failure (usually cross-origin external images) it throws, and the caller decides how to report it — lib doesn't know the UI layer */
 export async function exportImage(
   title: string,
   markdown: string,
@@ -142,7 +142,7 @@ async function renderPng(markdown: string, opts: WechatBuildOptions): Promise<Bl
   const holder = document.createElement("div");
   holder.style.cssText =
     "position:fixed;left:-10000px;top:0;width:750px;background:#ffffff;z-index:-1;";
-  // buildWechatHtml 产物已经过 DOMPurify 消毒
+  // buildWechatHtml output is already sanitized by DOMPurify
   holder.innerHTML = html;
   document.body.appendChild(holder);
   try {

@@ -1,10 +1,10 @@
 /**
- * 把全库的待办汇总成一张表，再按「今天」视图的展示规则分桶（纯函数 + 内存缓存）。
+ * Collects todos from the whole library into one table, then buckets them per the Today view's rules (pure functions + in-memory cache).
  *
- * 缓存照抄 docIndex.ts 的思路：自动保存每几百毫秒换一次 docs 引用，「今天」页与侧栏计数
- * 都会跟着重算；只看元信息里的 updatedAt + chars 判失效，没变就连正文都不读。
- * 缓存里存的是未解析日期标签的原始行——`@明天` 指哪天取决于「今天」，
- * 跨过零点后不必为此重读全库正文，取用时现算一遍标签就够了。
+ * The cache follows docIndex.ts: autosave swaps the docs reference every few hundred ms, and the Today page and sidebar count
+ * recompute with it; staleness is judged only by updatedAt + chars in the metadata, so unchanged docs aren't even read.
+ * The cache stores raw lines with date tags unresolved — what `@明天` means depends on "today",
+ * so after midnight there's no need to re-read the whole library; resolving tags on read is enough.
  */
 
 import { getDocContent } from "@/lib/docContent";
@@ -14,32 +14,32 @@ import type { DocMeta } from "@/features/workspace/types";
 import { isNotesDoc, parsePublish, parseTaskLines, resolveTask, type RawTask } from "./parse";
 
 export interface TodoItem {
-  /** `${docId}:${line}`，publish 来源的 line 为 -1 */
+  /** `${docId}:${line}`; line is -1 for publish-sourced items */
   key: string;
   docId: string;
   docTitle: string;
   line: number;
   text: string;
   due: string | null;
-  /** 时间段的结束日（`@开始~结束`），due 是开始日；单日、没日期与 publish 来源为 null */
+  /** End date of a range (`@start~end`); due is the start date. null for single days, undated items and publish sources */
   end: string | null;
-  /** 每日任务的 checked 只表示「今天做了没」，第二天自动回到没做 */
+  /** For daily tasks, checked only means "done today"; it resets to not done the next day */
   checked: boolean;
-  /** 每日任务（`@每天` / `@daily`）：due 恒为今天、end 为 null，所以只会落在今天或已完成 */
+  /** Daily task (`@每天` / `@daily`): due is always today and end is null, so it only lands in today or done */
   repeat: "daily" | null;
   source: "doc" | "notes" | "publish";
-  /** 关联文章的 docId（清单行尾的 `[[docId]]`）；只有 notes 来源会有，其它来源一律 null */
+  /** docId of the linked article (the `[[docId]]` at the end of a checklist line); only notes sources have it, others are null */
   link: string | null;
 }
 
 export interface TodoBuckets {
   overdue: TodoItem[];
   /**
-   * 今天到期的（时间段是今天落在开始到结束之间的），加上 notes 来源的无日期待办：
-   * 那篇清单就是专门记「要做」的，没排期就默认今天处理
+   * Due today (ranges where today falls between start and end), plus undated todos from the notes source:
+   * that checklist exists purely to track things to do, so unscheduled items default to today
    */
   today: TodoItem[];
-  /** 文章正文里没定日期的（今天页不展示）、以及日期在以后的（右栏「接下来」）；都不计入侧栏计数 */
+  /** Undated items from article bodies (not shown on the Today page) and future-dated ones (right column 「接下来」 (Up next)); neither counts toward the sidebar count */
   later: TodoItem[];
   done: TodoItem[];
 }
@@ -47,7 +47,7 @@ export interface TodoBuckets {
 interface CacheRow {
   updatedAt: string;
   chars: number | undefined;
-  /** 建这条时正文是空的：云端镜像可能晚一步才落到本地，空结果不能长住 */
+  /** Body was empty when this entry was built: the cloud mirror may land locally a beat later, so empty results must not stick */
   empty: boolean;
   tasks: RawTask[];
   publish: { due: string | null; published: boolean };
@@ -72,15 +72,15 @@ function rowOf(doc: DocMeta): CacheRow {
   return row;
 }
 
-/** 丢掉已不在文库里的条目（删除、退出登录换库），不清就一直攥着用不到的解析结果 */
+/** Drop entries no longer in the library (deleted, signed out / switched library); otherwise we keep holding parse results nobody needs */
 export function pruneTodoCache(liveIds: Iterable<string>): void {
   const live = new Set(liveIds);
   for (const id of cache.keys()) if (!live.has(id)) cache.delete(id);
 }
 
 /**
- * 全库待办：正文 `- [ ]`、待办清单那篇、frontmatter 的发布排期。
- * 模板分类里的文章跳过——模板里的 `- [ ] 检查错别字` 是给新稿用的清单，不是谁要做的事。
+ * Library-wide todos: `- [ ]` in bodies, the todo checklist doc, and publish schedules from frontmatter.
+ * Articles in the template category are skipped — `- [ ] 检查错别字` in a template is a checklist for new drafts, not someone's task.
  */
 export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
   const out: TodoItem[] = [];
@@ -90,7 +90,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
     const docTitle = doc.title || UNTITLED_DOC;
     const source = row.isNotes ? "notes" : "doc";
     for (const t of row.tasks) {
-      // 关联标记只在清单里认：文章正文里的 `[[…]]` 是用户自己写的字，原样显示
+      // Link markers only count in the checklist: `[[…]]` in an article body is the user's own text, shown as-is
       const { text, due, end, link, repeat, checked } = resolveTask(t.raw, t.checked, today, row.isNotes);
       out.push({ key: `${doc.id}:${t.line}`, docId: doc.id, docTitle, line: t.line, text, due, end, checked, repeat, source, link });
     }
@@ -100,7 +100,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
         docId: doc.id,
         docTitle,
         line: -1,
-        text: `发布《${docTitle}》`, // i18n-ignore 会原样记进当日记录（数据）；界面在 today/parts.tsx 的 itemLabel 按语言重拼
+        text: `发布《${docTitle}》`, // i18n-ignore recorded verbatim into the day log (data); the UI rebuilds it per language in itemLabel in today/parts.tsx
         due: row.publish.due,
         end: null,
         checked: false,
@@ -113,7 +113,7 @@ export function collectTodos(docs: DocMeta[], today: string): TodoItem[] {
   return out;
 }
 
-/** 有日期的按（开始）日期升序，没日期的垫后；sort 是稳定的，同日期保持文库顺序 */
+/** Dated items ascending by (start) date, undated last; sort is stable so same-date items keep library order */
 function byDue(a: TodoItem, b: TodoItem): number {
   if (a.due === b.due) return 0;
   if (!a.due) return 1;
@@ -124,7 +124,7 @@ function byDue(a: TodoItem, b: TodoItem): number {
 export function bucketTodos(items: TodoItem[], today: string): TodoBuckets {
   const b: TodoBuckets = { overdue: [], today: [], later: [], done: [] };
   for (const item of items) {
-    // 时间段过了结束日才算逾期；开始日到结束日之间每天都在左栏
+    // A range is only overdue after its end date; every day from start to end it stays in the left column
     const last = item.end ?? item.due;
     if (item.checked) b.done.push(item);
     else if (item.due && last && last < today) b.overdue.push(item);
@@ -137,12 +137,12 @@ export function bucketTodos(items: TodoItem[], today: string): TodoBuckets {
   return b;
 }
 
-/** 侧栏「今天」的计数：和今天页左栏一致（逾期 + 今天，含清单里没定日期的） */
+/** Sidebar 「今天」 (Today) count: matches the Today page's left column (overdue + today, including undated checklist items) */
 export function actionableCount(b: TodoBuckets): number {
   return b.overdue.length + b.today.length;
 }
 
-/** 待办清单那篇；有好几篇时取列表里的第一篇（文库按更新时间倒序，即最近动过的） */
+/** The todo checklist doc; if there are several, take the first in the list (library is sorted by updatedAt desc, i.e. most recently touched) */
 export function findNotesDoc(docs: DocMeta[]): DocMeta | null {
   for (const doc of docs) {
     if (isTemplateDoc(doc)) continue;

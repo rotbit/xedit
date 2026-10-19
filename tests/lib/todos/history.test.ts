@@ -74,7 +74,7 @@ describe("周与月", () => {
     const days = g.flatMap((r) => r.days).filter(Boolean);
     expect(days).toHaveLength(29);
     expect(days.at(-1)).toBe("2028-02-29");
-    expect(g[0].days.indexOf("2028-02-01")).toBe(1); // 2028-02-01 是周二
+    expect(g[0].days.indexOf("2028-02-01")).toBe(1); // 2028-02-01 is a Tuesday
   });
 
   it("shiftMonth 跨年", () => {

@@ -1,11 +1,11 @@
 /**
- * 图床媒体类型白名单与工具（客户端安全，不依赖 ali-oss）。
- * 图片：直传 + /api/upload 中转兜底；视频：仅浏览器直传（中转会把整个文件读进内存）。
+ * Image hosting media type allowlist and helpers (client-safe, no ali-oss dependency).
+ * Images: direct upload with /api/upload relay as fallback; videos: browser direct upload only (the relay would read the whole file into memory).
  */
 
 import { t } from "@/i18n/t";
 
-/** 允许上传的图片类型 → 扩展名 */
+/** Allowed image types → extension */
 export const IMAGE_EXT: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
@@ -14,7 +14,7 @@ export const IMAGE_EXT: Record<string, string> = {
   "image/svg+xml": "svg",
 };
 
-/** 允许上传的视频类型 → 扩展名（浏览器能播、公众号常见的三种） */
+/** Allowed video types → extension (the three that browsers play and WeChat commonly uses) */
 export const VIDEO_EXT: Record<string, string> = {
   "video/mp4": "mp4",
   "video/webm": "webm",
@@ -23,27 +23,27 @@ export const VIDEO_EXT: Record<string, string> = {
 
 export const MEDIA_EXT: Record<string, string> = { ...IMAGE_EXT, ...VIDEO_EXT };
 
-/** 单张图片大小上限 */
+/** Max size per image */
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-/** 单个视频大小上限 */
+/** Max size per video */
 export const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 
 export function isVideoMime(mime: string): boolean {
   return mime in VIDEO_EXT;
 }
 
-/** 去掉文件名末尾的扩展名：插进正文的图片/视频说明文字里不该带 `.png` */
+/** Strip the trailing extension from a filename: image/video captions inserted into the body shouldn't include `.png` */
 export function stripExt(name: string): string {
   return name.replace(/\.[^.]+$/, "");
 }
 
 /**
- * 插图的 alt（预览与公众号里会当图注显示）：从文件名来。
- * 剪贴板粘贴的截图浏览器一律叫 image.png，这种占位名不是作者写的说明，不该变成一行「image」图注。
+ * Alt text for an inserted image (shown as a caption in preview and WeChat), derived from the filename.
+ * Browsers name every pasted screenshot image.png; such placeholder names aren't the author's caption and shouldn't become an "image" caption line.
  */
 export function altFromFileName(name: string): string {
   const base = stripExt(name).trim();
-  // 占位名 + 可选序号：image1 / img_3 / screenshot-2 / image (2)
+  // Placeholder name + optional number: image1 / img_3 / screenshot-2 / image (2)
   return /^(image|img|blob|screenshot|截图|图片|未命名)\s*[-_]?\s*(\(\d+\)|\d+)?$/i.test(base) ? "" : base;
 }
 
@@ -51,12 +51,12 @@ export function maxSizeOf(mime: string): number {
   return isVideoMime(mime) ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
 }
 
-/** 超限提示：图片/视频各自的人话文案（服务端调用时 t() 落在中文，正好就是 API 文案的 key） */
+/** Over-limit messages: plain-language copy for image vs video (server-side t() falls back to Chinese, which is exactly the API message key) */
 export function sizeLimitError(mime: string): string {
   return isVideoMime(mime) ? t("视频不能超过 100MB") : t("图片不能超过 10MB");
 }
 
-/** 由扩展名反推 mime（OSS 历史同步、直传登记时只有对象 key 可用） */
+/** Infer mime from extension (OSS history sync and direct-upload registration only have the object key) */
 export const MIME_BY_EXT: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
@@ -69,10 +69,10 @@ export const MIME_BY_EXT: Record<string, string> = {
   mov: "video/quicktime",
 };
 
-/** 像素尺寸上限：再大基本是脏数据或伪造值，宁可不记也不入库 */
+/** Pixel dimension cap: anything larger is basically junk or forged; better not to record it at all */
 const MAX_IMAGE_DIMENSION = 20000;
 
-/** 单个尺寸值：接受数字或数字字符串，正整数且不超上限才算有效，否则 null */
+/** A single dimension: accepts a number or numeric string; valid only as a positive integer within the cap, else null */
 function parseDimension(v: unknown): number | null {
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
   if (!Number.isInteger(n) || n <= 0 || n > MAX_IMAGE_DIMENSION) return null;
@@ -80,8 +80,8 @@ function parseDimension(v: unknown): number | null {
 }
 
 /**
- * 解析客户端报上来的图片像素尺寸（上传登记与补录接口共用）。
- * 宽高成对才有意义，任一不合法就整体忽略——尺寸是可选的展示优化，不合法不该让上传失败。
+ * Parse the image pixel dimensions reported by the client (shared by upload registration and backfill endpoints).
+ * Width and height only mean something as a pair; if either is invalid ignore both. Dimensions are an optional display optimization and shouldn't fail an upload.
  */
 export function parseImageDimensions(
   width: unknown,
@@ -92,7 +92,7 @@ export function parseImageDimensions(
   return w !== null && h !== null ? { width: w, height: h } : null;
 }
 
-/** URL 是否指向视频（按扩展名判断，容忍查询串与锚点） */
+/** Whether the URL points to a video (by extension, tolerating query strings and hashes) */
 const VIDEO_URL_RE = /\.(mp4|webm|mov|m4v)(?:$|[?#])/i;
 
 export function isVideoUrl(url: string): boolean {
@@ -100,9 +100,9 @@ export function isVideoUrl(url: string): boolean {
 }
 
 /**
- * 视频封面帧的携带约定：写在图片语法的 title 位。
- *   ![说明](https://…/video.mp4 "poster=https://…/cover.jpg")
- * 渲染时 title 以 poster= 开头则作为 <video poster>，不再当普通 title。
+ * Convention for carrying a video's poster frame: put it in the image syntax's title slot.
+ *   ![caption](https://…/video.mp4 "poster=https://…/cover.jpg")
+ * At render time a title starting with poster= becomes <video poster> instead of a plain title.
  */
 export function posterFromTitle(title: string | null | undefined): string | null {
   if (!title) return null;

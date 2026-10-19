@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 待办关联文章用的选择器：搜索框 + 最近文章 / 搜索结果 + 末尾常驻的「新建文章…」。
- * 只负责挑，选中交给 onPick；选了「新建」也只上报，落到哪个文件夹由调用方接着问
- * （它们各自要先收起自己的弹层）。外框（定位、边框、阴影）由调用方给——
- * 快速输入里是输入行下方的整宽浮层，今天页的行里是行尾的小弹层。
+ * Doc picker for linking a todo to an article: search box + recent docs / search results + a pinned "New document…" row at the end.
+ * It only picks; the choice goes to onPick. Picking "New" is just reported too — the caller asks for the folder next
+ * (each caller has to close its own popover first). The frame (positioning, border, shadow) comes from the caller:
+ * a full-width popover under the input row in quick add, a small popover at the row end on the Today page.
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { FilePlus2 } from "lucide-react";
@@ -15,14 +15,14 @@ import { searchDocs } from "@/lib/docSearch";
 import { isTemplateDoc } from "@/lib/templates";
 import type { DocMeta } from "../../types";
 
-/** 选中的是哪篇：现有文章 / 新建一篇（title 为空串表示没给标题，由调用方拿任务文字顶上） */
+/** What was picked: an existing doc / a new one (empty title means none given; the caller falls back to the task text) */
 export type DocPick = { kind: "doc"; id: string } | { kind: "new"; title: string };
 
 export interface Option {
   key: string;
   pick: DocPick;
   label: string;
-  /** 右侧灰字：分类名 */
+  /** Gray text on the right: category name */
   hint: string;
 }
 
@@ -37,17 +37,17 @@ const docOption = (doc: DocMeta, t: TFn): Option => ({
 });
 
 /**
- * 关联文章的候选。docs 已是用户看得见的文章（待办清单那篇在文库层滤掉了）。
- * 模板分类不进候选：模板是给新稿用的底子，不是谁要做的事所属的稿子。
+ * Candidates for linking. docs are already the user-visible ones (the todo-list doc is filtered out at the library layer).
+ * Template categories are excluded: templates are scaffolds for new drafts, not the doc a task belongs to.
  */
 function buildOptions(docs: DocMeta[], query: string, t: TFn): Option[] {
   const pool = docs.filter((d) => !isTemplateDoc(d));
   const q = query.trim();
-  // 空搜索词时 searchDocs 按最近排，即「最近文章」
+  // With an empty query searchDocs sorts by recency, i.e. "recent docs"
   const hits = searchDocs(pool, q, { limit: q ? MAX_RESULTS : RECENT_COUNT }).map((h) => docOption(h.doc, t));
-  // 「新建」常驻末尾：要关联的稿子常常还不存在，不该非得先搜一次扑空才给入口。
-  // 搜索词没有同名文章时就拿它当标题——只看「有没有命中」的话，搜「周报」时正文提到周报的文章
-  // 会把新建入口挤掉，用户就没法建一篇真正叫「周报」的了；有同名的就不拿它当标题，免得建出重名
+  // "New" stays pinned at the end: the doc to link often doesn't exist yet; users shouldn't have to search and miss first.
+  // Use the query as the title when no doc has that exact title. Checking only for "any hit" means searching "weekly report" would
+  // hide the New row whenever some doc mentions it in the body, so the user couldn't create one actually titled "weekly report"; with an exact match, don't reuse it to avoid duplicates
   const titled = q !== "" && !pool.some((d) => d.title === q);
   hits.push({
     key: "new",
@@ -68,17 +68,17 @@ export function DocPicker({
 }: {
   docs: DocMeta[];
   onPick: (o: Option) => void;
-  /** 列表顶部的额外一行（如「取消关联」），不参与 ↑↓ 选择 */
+  /** Extra row at the top of the list (e.g. "Unlink"); not part of ↑↓ selection */
   top?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const t = useT();
-  // 搜正文要逐篇读缓存，没变的输入不重算
+  // Searching bodies reads each doc from cache, so don't recompute for unchanged input
   const options = useMemo(() => buildOptions(docs, query, t), [docs, query, t]);
   const active = Math.min(sel, options.length - 1);
 
-  /** ↑↓ 换选中，回车选中；输入法组字时的回车是选词，不能当选中 */
+  /** ↑↓ moves the selection, Enter picks; Enter during IME composition selects a candidate, not a pick */
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing) return;
     const n = options.length;
@@ -101,7 +101,7 @@ export function DocPicker({
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
-          setSel(0); // 换了一批结果，选中回到第一条
+          setSel(0); // New result set: reset selection to the first item
         }}
         onKeyDown={onKeyDown}
       />
@@ -117,7 +117,7 @@ export function DocPicker({
                 i === active ? "bg-[var(--accent-wash)]" : ""
               }`}
               onMouseEnter={() => setSel(i)}
-              // 按下时不抢焦点：选完由上层决定焦点去哪
+              // Don't steal focus on mousedown: the parent decides where focus goes after a pick
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onPick(o)}
             >

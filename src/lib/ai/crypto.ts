@@ -1,9 +1,9 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
 
 /**
- * AI 平台密钥的对称加解密（AES-256-GCM）。
- * 加密密钥由 AI_ENCRYPTION_KEY 或 AUTH_SECRET 派生，明文密钥只在服务端内存中短暂存在。
- * 存储格式：base64( iv[12] | authTag[16] | ciphertext )。
+ * Symmetric encryption for AI provider keys (AES-256-GCM).
+ * The encryption key is derived from AI_ENCRYPTION_KEY or AUTH_SECRET; plaintext keys exist only briefly in server memory.
+ * Storage format: base64( iv[12] | authTag[16] | ciphertext ).
  */
 
 const ALGO = "aes-256-gcm";
@@ -16,14 +16,14 @@ function encKey(): Buffer {
   if (cachedKey) return cachedKey;
   const secret = process.env.AI_ENCRYPTION_KEY || process.env.AUTH_SECRET;
   if (!secret) {
-    throw new Error("缺少 AI_ENCRYPTION_KEY 或 AUTH_SECRET，无法加密 AI 密钥"); // i18n-ignore 部署配置错误，给运维看的
+    throw new Error("缺少 AI_ENCRYPTION_KEY 或 AUTH_SECRET，无法加密 AI 密钥"); // i18n-ignore deployment misconfiguration, meant for ops
   }
-  // 固定 salt：同一部署内密钥稳定，重启后仍能解出旧密文
+  // Fixed salt: keys stay stable within a deployment, so old ciphertext still decrypts after a restart
   cachedKey = scryptSync(secret, "xedit-ai-key-v1", 32);
   return cachedKey;
 }
 
-/** 加密明文密钥；空串原样返回空串 */
+/** Encrypts a plaintext key; an empty string returns an empty string */
 export function encryptSecret(plain: string): string {
   if (!plain) return "";
   const iv = randomBytes(IV_LEN);
@@ -33,7 +33,7 @@ export function encryptSecret(plain: string): string {
   return Buffer.concat([iv, tag, ciphertext]).toString("base64");
 }
 
-/** 解密；空串或解密失败返回空串（视为未配置，不抛错阻断调用链） */
+/** Decrypts; returns an empty string for empty input or failure (treated as not configured, without throwing and breaking the call chain) */
 export function decryptSecret(stored: string): string {
   if (!stored) return "";
   try {
@@ -49,7 +49,7 @@ export function decryptSecret(stored: string): string {
   }
 }
 
-/** 用于回显的密钥末四位（不泄露完整密钥） */
+/** Last four characters of the key for display (doesn't reveal the full key) */
 export function keyLast4(plain: string): string {
   return plain.length >= 4 ? plain.slice(-4) : "";
 }

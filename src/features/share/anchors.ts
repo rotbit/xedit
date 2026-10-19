@@ -1,8 +1,8 @@
-// 批注锚点：把选区定位为「渲染后正文纯文本」上的 [start, end) 区间。
-// 存 选中文本 + 24 字前文 + 第几次出现：正文小改后优先按 前文+原文 重新对位，
-// 找不到再退到第 N 次出现，仍找不到视为失效（原文已被修改）。
-// 高亮用真实 <span> 包裹文本片段（可跨加粗/链接等行内元素），不改动纯文本内容，
-// 因此多条批注可以按同一份纯文本偏移依次包裹，互不影响。
+// Annotation anchors: locate a selection as a [start, end) range over the rendered body's plain text.
+// We store selected text + 24 chars of preceding context + occurrence index: after small body edits, re-align by context + text first,
+// then fall back to the Nth occurrence; if still not found, the anchor is stale (the original was edited).
+// Highlights wrap text fragments in real <span>s (can span inline elements like bold/links) without changing the plain text,
+// so multiple annotations can be wrapped in turn against the same plain-text offsets without interfering.
 
 export interface AnchorInput {
   anchorText: string;
@@ -15,7 +15,7 @@ export interface AnchorRange {
   end: number;
 }
 
-/** 节点边界在 root 纯文本中的偏移 */
+/** Offset of a node boundary within root's plain text */
 function offsetIn(root: HTMLElement, container: Node, offset: number): number {
   const r = document.createRange();
   r.selectNodeContents(root);
@@ -23,7 +23,7 @@ function offsetIn(root: HTMLElement, container: Node, offset: number): number {
   return r.toString().length;
 }
 
-/** 从当前选区构造锚点；选区不在 root 内 / 为空 / 过长时返回 null */
+/** Build an anchor from the current selection; returns null if the selection is outside root / empty / too long */
 export function anchorFromSelection(
   root: HTMLElement,
   sel: Selection
@@ -48,9 +48,9 @@ export function anchorFromSelection(
 }
 
 /**
- * 在当前正文中重新定位锚点；正文已改到找不到时返回 null（批注失效）。
- * full = 正文的全文纯文本，由调用方一次算好传进来：铺高亮时要逐条定位，
- * 每条各读一次 root.textContent 就是 O(批注数 × 全文长度)，长文加十几条批注很肉。
+ * Re-locate an anchor in the current body; returns null when the body has changed beyond recognition (annotation stale).
+ * full = the body's full plain text, computed once by the caller: laying out highlights locates each one,
+ * and reading root.textContent per annotation would be O(annotations × body length), painful for long articles with a dozen annotations.
  */
 export function locateAnchor(full: string, a: AnchorInput): AnchorRange | null {
   if (!a.anchorText) return null;
@@ -71,7 +71,7 @@ export function locateAnchor(full: string, a: AnchorInput): AnchorRange | null {
   return { start: pos, end: pos + a.anchorText.length };
 }
 
-/** 把 [start, end) 区间的文本片段逐个包进高亮 span（data-anno=批注 id） */
+/** Wrap each text fragment in [start, end) in a highlight span (data-anno = annotation id) */
 export function highlightRange(
   root: HTMLElement,
   { start, end }: AnchorRange,
@@ -93,7 +93,7 @@ export function highlightRange(
     let target = node;
     if (s > 0) target = node.splitText(s);
     if (e - s < target.data.length) target.splitText(e - s);
-    if (!target.data.trim()) continue; // 段落间的纯空白不高亮
+    if (!target.data.trim()) continue; // Don't highlight pure whitespace between paragraphs
     const span = document.createElement("span");
     span.className = "xe-anno";
     span.dataset.anno = annoId;
@@ -102,7 +102,7 @@ export function highlightRange(
   }
 }
 
-/** 摘掉所有高亮（文字 span 与媒体描边），并合并相邻文本节点恢复干净结构 */
+/** Remove all highlights (text spans and media outlines) and merge adjacent text nodes to restore a clean structure */
 export function clearHighlights(root: HTMLElement): void {
   for (const span of Array.from(root.querySelectorAll("span.xe-anno"))) {
     const parent = span.parentNode;
@@ -117,9 +117,9 @@ export function clearHighlights(root: HTMLElement): void {
   root.normalize();
 }
 
-// —— 媒体（图片/视频）锚点：src + 同 src 第几个 ——
+// —— Media (image/video) anchors: src + index among same-src elements ——
 
-/** 元素是否可作媒体批注对象 */
+/** Whether an element can be the target of a media annotation */
 export function isMediaTarget(el: Element): el is HTMLElement {
   return el.tagName === "IMG" || el.tagName === "VIDEO";
 }
@@ -128,14 +128,14 @@ function mediaSrc(el: Element): string {
   return el.getAttribute("src") ?? "";
 }
 
-/** 为媒体元素构造锚点（anchorText=src，anchorIndex=同 src 第几个出现） */
+/** Build an anchor for a media element (anchorText = src, anchorIndex = which occurrence of that src) */
 export function mediaAnchor(root: HTMLElement, el: Element): AnchorInput {
   const src = mediaSrc(el);
   const all = Array.from(root.querySelectorAll("img, video")).filter((m) => mediaSrc(m) === src);
   return { anchorText: src, anchorPrefix: "", anchorIndex: Math.max(0, all.indexOf(el)) };
 }
 
-/** 按锚点在当前正文中找回媒体元素；src 已不存在返回 null（批注失效） */
+/** Find the media element for an anchor in the current body; returns null if the src no longer exists (annotation stale) */
 export function locateMedia(root: HTMLElement, a: AnchorInput): HTMLElement | null {
   const all = Array.from(root.querySelectorAll<HTMLElement>("img, video")).filter(
     (m) => mediaSrc(m) === a.anchorText
@@ -143,14 +143,14 @@ export function locateMedia(root: HTMLElement, a: AnchorInput): HTMLElement | nu
   return all[a.anchorIndex] ?? all[0] ?? null;
 }
 
-/** 给媒体元素挂高亮描边与批注 id（同一媒体可挂多条，data-anno 空格分隔） */
+/** Attach the highlight outline and annotation id to a media element (one media can carry several, data-anno is space-separated) */
 export function markMedia(el: HTMLElement, annoId: string): void {
   el.classList.add("xe-anno-media");
   const prev = el.dataset.anno;
   el.dataset.anno = prev ? `${prev} ${annoId}` : annoId;
 }
 
-/** 元素之前的纯文本偏移，用于批注按原文位置排序（媒体与文字锚点共用一把尺） */
+/** Plain-text offset before an element, used to sort annotations by position (media and text anchors share one ruler) */
 export function textOffsetBefore(root: HTMLElement, el: Element): number {
   const r = document.createRange();
   r.selectNodeContents(root);

@@ -2,21 +2,21 @@
 
 import { useEffect } from "react";
 
-/** 滚动停下多久后滑块淡出（Obsidian 约 0.8s） */
+/** How long after scrolling stops the thumb fades out (Obsidian is about 0.8s) */
 const LINGER_MS = 800;
 
 /**
- * 滚动条「滚动时才浮现」：滚动事件在捕获阶段统一收，给正在滚的元素打 is-scrolling，
- * 停下 LINGER_MS 后摘掉。globals.css 只对带这个类的元素显出滑块。
- * 为什么不用 :hover：鼠标只要停在可滚区域上滑块就常亮，长文列表旁边总挂着一条灰杠。
- * 页面级滚动的 target 是 document，落到 <html> 上。
+ * Scrollbars that "appear only while scrolling": scroll events are caught in the capture phase, the scrolling element gets is-scrolling,
+ * which is removed after LINGER_MS of stillness. globals.css only shows the thumb on elements with that class.
+ * Why not :hover: the thumb would stay lit whenever the mouse rests over a scrollable area, leaving a grey bar beside long lists.
+ * For page-level scrolling the target is document, which maps to <html>.
  */
 export function ScrollbarReveal() {
   useEffect(() => {
     const timers = new WeakMap<Element, number>();
     const onScroll = (e: Event) => {
       const el = e.target instanceof Element ? e.target : document.documentElement;
-      // 重复 add 也会写 class 属性；连续滚动只续计时，避免每帧重复修改滚动容器。
+      // Repeated add still writes the class attribute; continuous scrolling only extends the timer, avoiding per-frame mutations of the scroll container.
       if (!el.classList.contains("is-scrolling")) el.classList.add("is-scrolling");
       window.clearTimeout(timers.get(el));
       timers.set(

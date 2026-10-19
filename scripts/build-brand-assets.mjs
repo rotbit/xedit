@@ -1,4 +1,4 @@
-/** 从展页 SVG 源图生成网页与桌面资源，保留图标、字标各自的轮廓和颜色。 */
+/** Generate web and desktop assets from the source SVG, keeping the icon's and wordmark's own outlines and colors. */
 import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,9 +21,9 @@ function squareIcon(mark, desktop = false) {
   const size = desktop ? 1024 : 128;
   const inset = desktop ? 100 : 0;
   const radius = desktop ? 185 : 26;
-  // 展页接近正方形，留出图标安全区，避免铺满圆角底板。
+  // The canvas is near-square; leave an icon safe area instead of filling the rounded backplate.
   const width = desktop ? 568 : 88;
-  // 每片书页保留源图填色，确保网站和导出图标的双色一致。
+  // Keep each page's source fill so the site and exported icons share the same two-tone colors.
   const pages = mark.paths.map(({ outline, fill }) =>
     `<path d="${outline}" fill="${fill}" fill-rule="evenodd"/>`).join("\n    ");
   const [, , sourceWidth, sourceHeight] = mark.viewBox.split(" ").map(Number);
@@ -40,7 +40,7 @@ function renderPng(svg, width) {
   return sharp(Buffer.from(svg), { density: 192 }).resize({ width }).png().toBuffer();
 }
 
-/** ICO 的每个目录项指向一张 PNG，涵盖标准与高像素密度标签页。 */
+/** Each ICO directory entry points to a PNG, covering standard and high-DPI tab sizes. */
 async function createFavicon(svg) {
   const sizes = [16, 32, 48, 64];
   const images = await Promise.all(sizes.map((size) => renderPng(svg, size)));
@@ -62,7 +62,7 @@ async function createFavicon(svg) {
 }
 
 async function buildWeb(wordmark, icon) {
-  // 分开导出图标与字标，使组件能在深色主题下分别适配颜色。
+  // Export the icon and wordmark separately so components can recolor each for dark themes.
   const outlines = wordmark.paths.flatMap(({ id, outline }) => {
     const chunks = outline.match(/.{1,110}(?:\s|$)/g).map((chunk) => chunk.trim());
     return [
@@ -80,7 +80,7 @@ async function buildWeb(wordmark, icon) {
   await writeFile(path.join(root, "src/lib/brand.ts"), moduleSource);
   await writeFile(path.join(root, "src/app/icon.svg"), icon);
   await writeFile(path.join(root, "src/app/favicon.ico"), await createFavicon(icon));
-  // Apple 主屏幕图标由系统裁圆角，原图保留不透明方形底色。
+  // The OS rounds Apple home-screen icon corners, so keep an opaque square background.
   const appleIcon = icon.replace('rx="26"', 'rx="0"');
   await writeFile(path.join(root, "src/app/apple-icon.png"), await renderPng(appleIcon, 180));
 }
@@ -94,7 +94,7 @@ async function buildDesktop(directory, wordmark, mark) {
   await writeFile(path.join(build, "icon.svg"), icon);
   await writeFile(path.join(build, "dock.png"), await renderPng(icon, 1024));
 
-  // iconutil 使用系统工具生成完整 ICNS；中间 iconset 不留在仓库中。
+  // iconutil uses the system tool to build a full ICNS; the intermediate iconset is not kept in the repo.
   const temporary = await mkdtemp(path.join(tmpdir(), "xedit-icon-"));
   const iconset = path.join(temporary, "icon.iconset");
   await mkdir(iconset);

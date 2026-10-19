@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { groupByRecency } from "@/features/workspace/lib/recencyGroups";
 import type { DocMeta } from "@/features/workspace/types";
 
-/** 按本地时间造文档：月份按 1 起算，避免和 Date 的 0 起算月份混淆 */
+/** Build docs in local time: months are 1-based to avoid confusion with Date's 0-based months */
 function doc(id: string, y: number, m: number, d: number, h = 12): DocMeta {
   return { id, title: id, updatedAt: new Date(y, m - 1, d, h).toISOString() };
 }
@@ -15,7 +15,7 @@ const shape = (docs: DocMeta[], now: Date, locale: "zh" | "en" = "zh") =>
     ids: g.docs.map((x) => x.id),
   }));
 
-// 2026-10-09 是周五：本周一 10/5，上周 9/28 – 10/4
+// 2026-10-09 is a Friday: this week starts Mon 10/5, last week is 9/28 – 10/4
 const FRI = new Date(2026, 9, 9, 15);
 
 describe("groupByRecency：粒度随时间递减", () => {
@@ -97,7 +97,7 @@ describe("groupByRecency：粒度随时间递减", () => {
   });
 
   it("传入 timeOf 时按它取时间分组", () => {
-    // updatedAt 都是上个月，timeOf 把 a 提到今天
+    // updatedAt is all last month; timeOf bumps a to today
     const docs = [doc("a", 2026, 9, 1), doc("b", 2026, 9, 2)];
     const at: Record<string, string> = { a: new Date(2026, 9, 9, 10).toISOString() };
     const groups = groupByRecency(docs, FRI, "zh", (d) => at[d.id] ?? d.updatedAt);

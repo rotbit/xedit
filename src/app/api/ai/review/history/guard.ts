@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/permissions";
 import { tk } from "@/i18n/t";
 
-/** 审核历史与审核本身同一道门：必须登录，且账号开通了 ai_review 权限（管理员自带） */
+/** Review history shares the review's gate: must be logged in and have ai_review permission (admins have it built in) */
 export async function historyUser(): Promise<{ userId: string } | { response: NextResponse }> {
   const session = await auth();
   if (!session?.user?.id) {

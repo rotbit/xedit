@@ -8,11 +8,11 @@ import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { tk } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 
-/** 右侧详情栏：预览 + 操作 + 基本信息 + 引用反查 */
+/** Right-hand detail panel: preview + actions + basic info + reverse usage lookup */
 
 const SOURCE_LABEL: Record<string, string> = {
   upload: tk("上传"),
-  ai: tk("由 AI 生成"), // 来源标签；「AI 生成」已被封面面板当动词用，译法不同
+  ai: tk("由 AI 生成"), // Source labels; "AI 生成" is already used as a verb in the cover panel, so it's translated differently
   mcp: "MCP",
   feishu: tk("飞书"),
 };
@@ -22,7 +22,7 @@ const actionCls =
 
 const labelCls = "shrink-0 text-[11.5px] text-[var(--ink-faint)]";
 const valueCls = "min-w-0 break-all text-right text-[11.5px] text-[var(--ink-soft)]";
-// 模块级的 JSX 常量：同一份元素在下面用了两次，React 允许一个元素对象渲染到多个位置
+// Module-level JSX constant: the same element is used twice below, and React allows one element object to render in multiple places
 const divider = <div className="my-4 h-px bg-[var(--hairline)]" />;
 const sectionTitle = "mb-2 text-[11.5px] font-medium text-[var(--ink-faint)]";
 
@@ -35,7 +35,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** 引用反查列表：回收站里的文章不可点，标「已删除」 */
+/** Reverse usage list: documents in the trash aren't clickable and are marked 「已删除」 (Deleted) */
 function UsageList({
   docs,
   onOpenDoc,
@@ -44,7 +44,7 @@ function UsageList({
   onOpenDoc?: (id: string) => void;
 }) {
   const t = useT();
-  // undefined 是「还没查回来」，空数组是「查过、确实没人引用」，两种状态的文案不能混
+  // undefined means "not loaded yet", an empty array means "checked, genuinely unused" — the two must not share copy
   if (!docs) return <p className="text-[11.5px] text-[var(--ink-faint)]">{t("正在查询引用…")}</p>;
   if (docs.length === 0) {
     return <p className="text-[11.5px] text-[var(--ink-faint)]">{t("未被任何文章引用")}</p>;
@@ -82,7 +82,7 @@ function UsageList({
                 </button>
               ) : (
                 <a
-                  // 没传 onOpenDoc（比如独立的图片库页面）时退回整页跳转，功能不缺只是慢一点
+                  // Without onOpenDoc (e.g. the standalone image library page) fall back to a full-page navigation; nothing lost, just slower
                   href={`/?doc=${d.id}`}
                   className={`${base} text-[var(--ink-soft)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]`}
                   title={t("打开「{title}」", { title: d.title })}
@@ -98,7 +98,7 @@ function UsageList({
   );
 }
 
-/** 素材详情栏。asset 换了就整块换内容，不做进出场动画；usage 由上层按需查，这里只负责把三种状态呈现清楚。 */
+/** Asset detail panel. When the asset changes the whole content swaps, no enter/exit animation; usage is fetched on demand by the parent, this only renders its three states clearly. */
 export function AssetInspector({
   asset,
   usage,
@@ -107,21 +107,21 @@ export function AssetInspector({
   onOpenDoc,
 }: {
   asset: Asset;
-  /** 该素材的引用文章；undefined = 尚未查回来 */
+  /** Documents referencing this asset; undefined = not loaded yet */
   usage: UsageDoc[] | undefined;
   onClose: () => void;
   onDelete: (asset: Asset) => void;
-  /** 打开引用文章：工作台传 nav.openDoc 就地切换视图；缺省退回 /?doc=<id> */
+  /** Open a referencing document: the workspace passes nav.openDoc to switch views in place; defaults to /?doc=<id> */
   onOpenDoc?: (id: string) => void;
 }) {
   const t = useT();
   const video = isVideo(asset);
   const size =
-    // 视频本来就没记尺寸，用「—」表示不适用；图片缺尺寸是入库数据没补全，用「未记录」区分开
+    // Videos never recorded dimensions, so "—" means not applicable; images missing dimensions are incomplete records, shown as 「未记录」 (Not recorded)
     asset.width && asset.height ? `${asset.width} × ${asset.height}` : video ? "—" : t("未记录");
 
   return (
-    // 窄屏没有并排的余地，详情栏改成整屏覆盖层
+    // No room for side-by-side on narrow screens, so the detail panel becomes a full-screen overlay
     <aside className="fixed inset-0 z-50 overflow-y-auto bg-[var(--panel)] px-4 py-3 md:static md:z-auto md:w-[300px] md:shrink-0 md:border-l md:border-[var(--hairline)]">
       <div className="mb-2 flex items-center justify-end">
         <button
@@ -133,7 +133,7 @@ export function AssetInspector({
         </button>
       </div>
 
-      {/* 预览 */}
+      {/* Preview */}
       <div className="flex max-h-[260px] items-center justify-center overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--paper)]">
         {video ? (
           <video src={asset.url} controls playsInline className="max-h-[260px] w-full" />
@@ -151,7 +151,7 @@ export function AssetInspector({
         {asset.key.split("/").pop()}
       </p>
 
-      {/* 操作行 */}
+      {/* Action row */}
       <div className="mt-3 flex items-center gap-1.5">
         <button className={actionCls} onClick={() => copyText(asset.url, t("链接已复制"))}>
           <Link2 size={12} />

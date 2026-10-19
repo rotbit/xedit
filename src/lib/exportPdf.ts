@@ -1,18 +1,18 @@
 import { buildWechatHtml, type WechatBuildOptions } from "./copy/wechat";
 import { saveExport } from "./export";
 
-// A4 竖版，单位 pt
+// A4 portrait, in pt
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MARGIN = 40;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 const CONTENT_H = PAGE_H - MARGIN * 2;
-// 离屏渲染宽度（CSS px）：比长图的 750 略宽，缩到 A4 内容区后字号约 10.5pt，接近正文印刷字号
+// Offscreen render width (CSS px): a bit wider than the long image's 750; scaled into the A4 content area the font is ~10.5pt, close to print body size
 const RENDER_W = 760;
 const PIXEL_RATIO = 2;
 const JPEG_QUALITY = 0.92;
 
-/** 解析 rgb()/rgba()，透明或解析不了返回 null（当白底处理） */
+/** Parse rgb()/rgba(); returns null if transparent or unparseable (treated as white) */
 function parseRgb(color: string): [number, number, number] | null {
   const m = color.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+))?/);
   if (!m) return null;
@@ -20,7 +20,7 @@ function parseRgb(color: string): [number, number, number] | null {
   return [Number(m[1]), Number(m[2]), Number(m[3])];
 }
 
-/** 按块贪心装页：块放得下就跟上一页，放不下换页；超过一页高的块独占一组，后面硬切 */
+/** Greedy block paging: a block that fits joins the current page, otherwise starts a new one; a block taller than a page gets its own group and is hard-cut later */
 function paginate(root: HTMLElement, pageLimit: number): HTMLElement[][] {
   const pages: HTMLElement[][] = [];
   let current: HTMLElement[] = [];
@@ -33,7 +33,7 @@ function paginate(root: HTMLElement, pageLimit: number): HTMLElement[][] {
       current = [];
       continue;
     }
-    // 从本页第一个块的顶到当前块的底：块间外边距已经算在里面
+    // From the top of the page's first block to the bottom of the current one: inter-block margins are already included
     if (current.length && rect.bottom - pageTop > pageLimit) {
       pages.push(current);
       current = [];
@@ -45,9 +45,9 @@ function paginate(root: HTMLElement, pageLimit: number): HTMLElement[][] {
   return pages;
 }
 
-/** 导出 PDF：按顶层块分页、逐页截图后拼成 A4 栅格 PDF 保存。返回 false 表示用户取消了「另存为」。
- *  不整篇截一张长图再切：长文会撞浏览器 canvas 尺寸上限，且切口会落在文字行中间。
- *  失败（多是跨域外链图片让 html-to-image 整张失败）直接抛错，由调用方提示 —— lib 不认识 UI 层 */
+/** Export PDF: paginate by top-level blocks, screenshot each page, and assemble an A4 raster PDF. Returns false if the user canceled "Save As".
+ *  We don't screenshot one long image and slice it: long docs hit the browser's canvas size limit, and cuts would land mid-line.
+ *  On failure (usually cross-origin external images making html-to-image fail outright) it throws for the caller to report — lib doesn't know the UI layer */
 export async function exportPdf(
   title: string,
   markdown: string,
@@ -60,7 +60,7 @@ async function renderPdf(markdown: string, opts: WechatBuildOptions): Promise<Bl
   const html = await buildWechatHtml(markdown, opts);
   const holder = document.createElement("div");
   holder.style.cssText = `position:fixed;left:-10000px;top:0;width:${RENDER_W}px;background:#fff;z-index:-1;`;
-  // buildWechatHtml 产物已经过 DOMPurify 消毒
+  // buildWechatHtml output is already sanitized by DOMPurify
   holder.innerHTML = html;
   document.body.appendChild(holder);
   try {
@@ -68,24 +68,24 @@ async function renderPdf(markdown: string, opts: WechatBuildOptions): Promise<Bl
       import("jspdf"),
       import("html-to-image"),
     ]);
-    // 图片和字体没就绪就测量/截图，会拿到错的块高度和空白图
+    // Measuring/screenshotting before images and fonts are ready gives wrong block heights and blank images
     const imgs = Array.from(holder.querySelectorAll("img"));
     await Promise.all(imgs.map((img) => img.decode().catch(() => {})));
     await document.fonts?.ready;
 
-    // buildWechatHtml 最后会把 id/class 全剥掉（公众号不要这些），不能按 #nice 查，取根节点
+    // buildWechatHtml strips all id/class at the end (WeChat doesn't want them), so we can't query #nice; take the root node
     const root = holder.firstElementChild as HTMLElement | null;
     if (!root) throw new Error("render failed");
-    // 深色主题自带底色：截图与页边距都铺同一个颜色，否则白边框着深色正文很突兀
+    // Dark themes carry their own background: fill the screenshot and page margins with the same color, or white borders around dark text look jarring
     const rgb = parseRgb(getComputedStyle(root).backgroundColor);
     const bgColor = rgb ? `rgb(${rgb.join(",")})` : "#ffffff";
 
     const scale = CONTENT_W / RENDER_W; // CSS px → pt
-    const pageLimit = CONTENT_H / scale; // 一页能放的 CSS px 高度
+    const pageLimit = CONTENT_H / scale; // CSS px height that fits on one page
     const groups = paginate(root, pageLimit);
 
-    // 每页是一个克隆了根样式的 section：主题的字体/颜色/行高都挂在根节点上，块挪出去会丢。
-    // 竖向内边距清零，不然每页都会重复一遍根部的上下留白
+    // Each page is a section cloned with the root styles: the theme's font/color/line-height live on the root node and would be lost if blocks moved out.
+    // Zero the vertical padding, or every page would repeat the root's top/bottom spacing
     const rootStyle = root.getAttribute("style") ?? "";
     const pageEls = groups.map((blocks) => {
       const page = document.createElement("section");
@@ -115,15 +115,15 @@ async function renderPdf(markdown: string, opts: WechatBuildOptions): Promise<Bl
 
     for (const page of pageEls) {
       const canvas = await toCanvas(page, { pixelRatio: PIXEL_RATIO, backgroundColor: bgColor });
-      // 一页内容区对应的画布像素高度
+      // Canvas pixel height of one page's content area
       const sliceH = Math.floor((CONTENT_H * canvas.width) / CONTENT_W);
-      // 分页时量的是原位置的高度，挪进 page section 后可能差几个像素：
-      // 给 2% 容差整页缩放塞下，别切出一张只剩一两行的碎页
+      // Paging measured heights in the original position; after moving into the page section they may differ by a few pixels:
+      // allow a 2% tolerance and scale the whole page to fit, rather than cutting off a fragment page with just a line or two
       if (canvas.height <= sliceH * 1.02) {
         addPage(canvas);
         continue;
       }
-      // 超高块（长代码块、大图）只能硬切，每片一页
+      // Oversized blocks (long code blocks, large images) can only be hard-cut, one slice per page
       for (let y = 0; y < canvas.height; y += sliceH) {
         const slice = document.createElement("canvas");
         slice.width = canvas.width;

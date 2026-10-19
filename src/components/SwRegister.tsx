@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-/** 注册离线壳 Service Worker（仅生产环境；开发环境热更新与 SW 缓存互相干扰） */
+/** Register the offline-shell Service Worker (production only; in development hot reload and SW caching interfere) */
 export function SwRegister() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;

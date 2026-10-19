@@ -1,72 +1,72 @@
-# 飞书知识库导入指南
+# Feishu Wiki import guide
 
-xEdit 可以把飞书知识库（Wiki）整库导入为文章：目录层级映射为分类、图片自动转存到图床、重复同步只处理有改动的文档。授权走飞书官方的用户身份 OAuth——**导入的是你自己有权限看的内容，无需把任何应用加进知识库成员**。
+xEdit can import an entire Feishu Wiki as documents: the wiki tree maps to categories, images are re-hosted to your image hosting, and re-syncs only process pages that changed. Authorization uses Feishu's official user-identity OAuth — **you import only what you yourself can see, and you don't need to add any app as a wiki member**.
 
-应用凭证是**账号维度**的：每个用户创建一个自己的飞书自建应用并把 App ID / App Secret 填进设置对话框，不依赖站点管理员做任何服务端配置。
+App credentials are **per account**: each user creates their own Feishu custom app and enters its App ID / App Secret in the settings dialog. Nothing needs to be configured server-side by the site admin.
 
-- [首次配置：创建自己的飞书应用](#首次配置创建自己的飞书应用)
-- [日常使用](#日常使用)
-- [同步规则](#同步规则)
-- [安全设计](#安全设计)
-- [排查](#排查)
+- [First-time setup: create your own Feishu app](#first-time-setup-create-your-own-feishu-app)
+- [Everyday use](#everyday-use)
+- [Sync rules](#sync-rules)
+- [Security](#security)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## 首次配置：创建自己的飞书应用
+## First-time setup: create your own Feishu app
 
-只需做一次。入口在工作台左下角 **账户菜单 → 飞书知识库导入…**，对话框底部的「使用说明」里也有同一份步骤（含可一键复制的回调地址）：
+You only do this once. Open it from the **account menu → Import from Feishu Wiki…** at the bottom left of the workspace. The **How It Works** section at the bottom of the dialog has the same steps (including a one-click copy of the callback URL):
 
-1. 到 [open.feishu.cn](https://open.feishu.cn) 创建**企业自建应用**，在「应用能力」里开启**网页应用**；
-2. 「权限管理」里申请 4 个**用户身份**权限：`wiki:wiki:readonly`、`docx:document:readonly`、`drive:drive:readonly`、`offline_access`；
-3. 「安全设置 → 重定向 URL」添加你所用站点的回调地址（对话框里可直接复制）：
+1. On [open.feishu.cn](https://open.feishu.cn), create a **custom app** and enable **Web App** under Features;
+2. Under Permissions, request these 4 **user-identity** scopes: `wiki:wiki:readonly`, `docx:document:readonly`, `drive:drive:readonly`, `offline_access`;
+3. Under **Security Settings → Redirect URLs**, add the callback URL for the site you use (you can copy it from the dialog):
 
    ```
    https://xedit.me/api/feishu/callback
    ```
 
-   自托管换成自己的域名。
-4. 创建版本并发布应用，等企业管理员审核通过（权限此后才生效）；
-5. 把「凭证与基础信息」页的 **App ID / App Secret** 填进对话框的「应用凭证」并保存。
+   If you self-host, use your own domain.
+4. Create a version and publish the app, then wait for your organization admin to approve it (the scopes only take effect after that);
+5. Copy the **App ID / App Secret** from the Credentials & Basic Info page into the dialog's **App credentials** section and save.
 
-## 日常使用
+## Everyday use
 
-1. 点 **连接飞书**，在弹出的飞书官方页面登录并点「授权」，弹窗会自动关闭；
-2. 回到对话框，在下拉框里选择要导入的知识库；
-3. 点 **开始同步**，等进度走完。
+1. Click **Connect Feishu**, sign in on the official Feishu page that opens and click Authorize; the popup closes automatically;
+2. Back in the dialog, pick the wiki to import from the dropdown;
+3. Click **Start Sync** and wait for the progress to finish.
 
-之后飞书里的内容有更新，再进来点一次「开始同步」即可——没改动的文档会整篇跳过，速度很快。
+Whenever the content in Feishu changes, just come back and click **Start Sync** again — unchanged pages are skipped entirely, so it's fast.
 
-## 同步规则
+## Sync rules
 
-| 行为 | 说明 |
+| Behavior | Details |
 | --- | --- |
-| 分类映射 | 知识库目录层级 → 文章分类 `飞书知识库/空间名/…` |
-| 图片 | 自动下载并转存到你的图片库（走站点图床），正文不再依赖飞书图源 |
-| 增量 | 以飞书侧的文档编辑时间为准，没改动的整篇跳过；重复同步幂等，不会重复建档 |
-| 版本 | 有改动的文档更新时自动保留版本快照，可在文章历史里回滚 |
-| 回收站 | 导入的文章移入回收站后不再被同步更新（尊重你的删除）；彻底删除后再次同步会重新导入 |
-| 不支持的节点 | 仅新版云文档（docx）会转换正文；电子表格、多维表格、思维笔记、画板等以一行占位提示代替，快捷方式节点跳过 |
-| 断开连接 | 只清除授权 token，应用凭证、已导入文章与同步映射都保留；重新连接一键完成 |
-| 更换应用 | 修改并保存新的 App ID 时，旧应用的授权自动作废，需重新连接 |
-| 重新授权 | 按飞书安全策略，授权满 365 天需重新连接一次 |
+| Category mapping | Wiki tree → document categories `飞书知识库/<space name>/…` (the root category name is fixed) |
+| Images | Downloaded and re-hosted to your media library (via the site's image hosting), so documents no longer depend on Feishu image URLs |
+| Incremental | Based on Feishu's edit time; unchanged pages are skipped entirely. Re-syncs are idempotent and never create duplicates |
+| Versions | Updating a changed page automatically keeps a version snapshot, which you can roll back to from the document's history |
+| Trash | Imported documents moved to the trash are no longer updated by sync (your deletion is respected); after permanent deletion, the next sync imports them again |
+| Unsupported nodes | Only new-style docs (docx) are converted; sheets, Base, mind notes, boards and the like are replaced with a one-line placeholder, and shortcut nodes are skipped |
+| Disconnect | Only clears the authorization tokens; app credentials, imported documents and sync mappings are kept, and reconnecting takes one click |
+| Switching apps | Saving a new App ID automatically invalidates the old app's authorization, so you need to reconnect |
+| Reauthorization | Per Feishu's security policy, you need to reconnect once every 365 days |
 
-单次同步最多处理 1000 个节点；大库会分批进行，对话框里能看到实时进度与失败清单。
+A single sync handles at most 1000 nodes; large wikis are processed in batches, and the dialog shows live progress and a list of failures.
 
-## 安全设计
+## Security
 
-- 应用凭证与授权都是账号维度：App Secret 与 access/refresh token 一律 AES-256-GCM 加密入库（密钥来自 `AI_ENCRYPTION_KEY`，未设置时从 `AUTH_SECRET` 派生），明文绝不落库，界面只回显 Secret 末四位；
-- refresh token 每次使用即轮换，授权可随时在对话框里「断开」，也可在飞书「个人设置 → 授权管理」里撤销；
-- 同步只申请只读权限（读知识库结构、读文档、下载文档图片），xEdit 无法改动你的飞书内容；
-- 所有写入走与编辑器相同的服务层：只读封禁、存储配额同样生效。
+- App credentials and authorization are per account: the App Secret and access/refresh tokens are always encrypted with AES-256-GCM before storage (key from `AI_ENCRYPTION_KEY`, derived from `AUTH_SECRET` if unset); plaintext never hits the database, and the UI only shows the last four characters of the secret;
+- The refresh token is rotated on every use. You can **Disconnect** in the dialog at any time, or revoke access in Feishu's personal settings under authorization management;
+- Sync requests read-only scopes only (read the wiki structure, read documents, download document images), so xEdit cannot change your Feishu content;
+- All writes go through the same service layer as the editor, so read-only bans and storage quotas apply as usual.
 
-## 排查
+## Troubleshooting
 
-| 现象 | 原因与处理 |
+| Symptom | Cause and fix |
 | --- | --- |
-| 「连接飞书」按钮不可点 | 还没保存应用凭证，或凭证有未保存的修改，先在「应用凭证」里保存 |
-| 授权页报 20027 / 权限错误 | 应用未申请对应 scope 或版本未发布生效，检查「权限管理」与版本状态 |
-| 授权后回调页报 redirect_uri 错误 | 「安全设置」里的重定向 URL 与站点域名不一致（注意 http/https 与端口） |
-| 知识库下拉是空的 | 该飞书账号没有任何知识空间的访问权限；「我的文档库」不在此列 |
-| 提示「飞书授权已失效，请重新连接」 | refresh token 过期（超 365 天未用或被撤销），重新点「连接飞书」即可 |
-| 个别文档同步失败 | 失败清单会列出原因（如触发飞书频控）；失败文档本轮自动跳过，稍后再点一次「开始同步」重试 |
-| 图片显示「转存失败」占位 | 站点未配置图床（OSS）或图片超过 10MB 上限，配置图床后重新同步该文档（在飞书里随便改一下让它变「有改动」） |
+| **Connect Feishu** is disabled | App credentials haven't been saved yet, or have unsaved changes. Save them under **App credentials** first |
+| The authorization page shows error 20027 / a permission error | The app hasn't requested the scope, or the version hasn't been published. Check Permissions and the version status |
+| The callback page shows a redirect_uri error after authorizing | The redirect URL under Security Settings doesn't match the site's domain (watch for http/https and ports) |
+| The wiki dropdown is empty | This Feishu account has no access to any wiki space; "My Library" doesn't count |
+| "Feishu authorization has expired. Please reconnect" | The refresh token expired (unused for over 365 days, or revoked). Click **Connect Feishu** again |
+| Some pages fail to sync | The failure list shows the reason (e.g. hitting Feishu's rate limit); failed pages are skipped this round, so click **Start Sync** again later to retry |
+| An image shows a "图片转存失败" (image re-hosting failed) placeholder | The site has no image hosting (OSS) configured, or the image exceeds the 10 MB limit. Configure image hosting and re-sync the page (make any small edit in Feishu so it counts as changed) |

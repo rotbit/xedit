@@ -15,7 +15,7 @@ export interface SyncItem {
   action: "created" | "updated";
 }
 
-/** 与服务端 SyncBatchResult 对齐的单批返回 */
+/** One batch result, matching the server's SyncBatchResult */
 interface SyncBatch {
   done: boolean;
   total: number;
@@ -29,7 +29,7 @@ interface SyncBatch {
   nextUp: string[];
 }
 
-/** 跨轮次累计的同步进度（skipped/unsupported/total 取最后一轮的全量口径） */
+/** Sync progress accumulated across rounds (skipped/unsupported/total use the last round's full counts) */
 export interface SyncProgress {
   created: number;
   updated: number;
@@ -41,29 +41,29 @@ export interface SyncProgress {
 
 export interface FeishuSyncState {
   syncing: boolean;
-  /** 首批尚未返回：正在扫描知识库目录（大库这一步要几秒） */
+  /** First batch not back yet: still scanning the wiki tree (takes a few seconds for large spaces) */
   scanning: boolean;
-  /** 批次请求瞬时失败，正在退避重试（attempt 从 1 计） */
+  /** A batch request failed transiently and is backing off to retry (attempt starts at 1) */
   retry: { attempt: number; reason: string } | null;
-  /** 已点停止，等循环在安全点退出 */
+  /** Stop was clicked; waiting for the loop to exit at a safe point */
   cancelling: boolean;
-  /** 正在处理中的文档标题（上一批返回的 nextUp，即当前在跑的这批） */
+  /** Title of the doc being processed (the nextUp from the previous batch, i.e. the batch running now) */
   current: string[];
-  /** 最近完成的文档，新的在前 */
+  /** Recently finished docs, newest first */
   recent: SyncItem[];
   progress: SyncProgress | null;
-  /** 上次同步的中断原因；开始新一轮时清除，完成则保持 null */
+  /** Why the last sync was interrupted; cleared when a new round starts, stays null on completion */
   error: string | null;
-  /** 中断提示是否已在对话框里看过（右下角胶囊据此决定要不要提醒） */
+  /** Whether the interruption notice has been seen in the dialog (the bottom-right pill uses this to decide whether to nag) */
   errorAcked: boolean;
-  /** 授权失效需重新连接；对话框切回连接界面后调 ackReconnect 清除 */
+  /** Authorization expired and needs reconnecting; cleared via ackReconnect once the dialog switches back to the connect screen */
   reconnectRequired: boolean;
 }
 
 /**
- * 同步循环放在模块层而不是对话框组件里：关掉对话框同步继续跑、重开还能接上进度，
- * 也天然挡住了重复启动。但关闭/刷新页面会中断（循环靠浏览器驱动），
- * 下次同步会跳过未变动的文档、从剩余部分自动续传。
+ * The sync loop lives at module level rather than in the dialog: closing the dialog keeps it running and reopening picks up the progress,
+ * and it naturally prevents duplicate starts. Closing/refreshing the page does interrupt it (the browser drives the loop);
+ * the next sync skips unchanged docs and resumes from where it left off.
  */
 let state: FeishuSyncState = {
   syncing: false,
@@ -78,7 +78,7 @@ let state: FeishuSyncState = {
   reconnectRequired: false,
 };
 
-/** 停止请求放在 store 外：它是给循环看的一次性信号，不需要触发渲染 */
+/** The stop request lives outside the store: it's a one-shot signal for the loop and doesn't need to trigger a render */
 let cancelRequested = false;
 
 const listeners = new Set<() => void>();
@@ -100,32 +100,32 @@ export function useFeishuSync(): FeishuSyncState {
   return useSyncExternalStore(subscribe, getState, getState);
 }
 
-/** 给非 React 场景（如焦点回落回调）判断是否在同步 */
+/** Lets non-React code (e.g. focus-return callbacks) check whether a sync is running */
 export const isFeishuSyncing = () => state.syncing;
 
-/** 对话框消费 reconnectRequired 并切回「连接飞书」界面后调用 */
+/** Called after the dialog consumes reconnectRequired and switches back to the 「连接飞书」 (Connect Feishu) screen */
 export function ackReconnect() {
   if (state.reconnectRequired) emit({ reconnectRequired: false });
 }
 
-/** 关闭对话框即视为看过中断提示，右下角胶囊不再提醒（面板里的原因保留） */
+/** Closing the dialog counts as seeing the interruption notice; the bottom-right pill stops nagging (the reason stays in the panel) */
 export function ackSyncError() {
   if (state.error && !state.errorAcked) emit({ errorAcked: true });
 }
 
-/** 断开授权时清掉上一次的进度展示（同步中不允许断开，这里只在空闲时生效） */
+/** Clears the last progress display when disconnecting (disconnecting isn't allowed mid-sync, so this only applies when idle) */
 export function clearFeishuSyncProgress() {
   if (!state.syncing) emit({ progress: null, recent: [], current: [], error: null });
 }
 
-/** 请求停止：循环在安全点（批与批之间、退避等待中）退出，进度保留可续传 */
+/** Request a stop: the loop exits at a safe point (between batches or while backing off), and progress is kept for resuming */
 export function cancelFeishuSync() {
   if (!state.syncing || state.cancelling) return;
   cancelRequested = true;
   emit({ cancelling: true });
 }
 
-/** 自动重试救不回来的终止：明确的业务错误，或用户手动停止 */
+/** Terminal failures auto-retry can't fix: an explicit business error, or a manual stop */
 class SyncAbort extends Error {
   needReconnect: boolean;
   manual: boolean;
@@ -138,7 +138,7 @@ class SyncAbort extends Error {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** 小步睡眠：长退避等待中点「停止」也能在半秒内生效 */
+/** Sleep in small steps so clicking "stop" during a long backoff takes effect within half a second */
 async function backoff(ms: number) {
   const step = 500;
   for (let waited = 0; waited < ms && !cancelRequested; waited += step) {
@@ -146,14 +146,14 @@ async function backoff(ms: number) {
   }
 }
 
-/** 退避序列；用尽后保持最后一档不放弃，靠持续重试扛过部署、断网这类更长的故障窗口 */
+/** Backoff schedule; once exhausted, stay on the last step instead of giving up, so retries ride out longer outages like deploys or network drops */
 const RETRY_DELAYS_MS = [2000, 5000, 15000, 30000, 60000];
 
 /**
- * 单批请求：网络错误、非 JSON 响应（代理超时回 HTML）、5xx/429 都按瞬时故障
- * 无限退避重试——页面开着同步就不会停，无需手动点继续；「停止」按钮随时可打断。
- * 4xx 的业务错误（未登录/授权失效/参数错）重试无意义，直接终止。
- * 批次在服务端是幂等的——写成功但响应丢了的批，重跑会按「未变动」整篇跳过。
+ * Single batch request: network errors, non-JSON responses (proxy timeouts returning HTML) and 5xx/429 are treated as transient
+ * and retried with endless backoff -- the sync keeps going as long as the page is open, no manual resume needed; the stop button can interrupt anytime.
+ * 4xx business errors (not logged in / authorization expired / bad params) aren't worth retrying, so stop right away.
+ * Batches are idempotent on the server -- a batch that wrote but lost its response is skipped as "unchanged" on rerun.
  */
 async function fetchBatch(payload: object): Promise<SyncBatch> {
   for (let attempt = 0; ; attempt++) {
@@ -208,15 +208,15 @@ export async function startFeishuSync(
     reconnectRequired: false,
   });
   const acc: SyncProgress = { created: 0, updated: 0, skipped: 0, pending: 0, total: 0, failed: [] };
-  // 本轮失败的节点回传给服务端跳过，坏文档不会每一批都重试、卡住进度
+  // Send this round's failed nodes back for the server to skip, so a bad doc isn't retried every batch and doesn't stall progress
   const skip: string[] = [];
   try {
-    // 服务端每次只处理一小批（避免超时），循环直到 done；300 轮上限只是防御死循环
+    // The server only handles a small batch per call (to avoid timeouts); loop until done. The 300-round cap is just a guard against infinite loops
     for (let round = 0; round < 300; round++) {
       const data = await fetchBatch({ spaceId: space.id, spaceName: space.name, skip });
       for (const f of data.failed) {
         if (f.nodeToken) skip.push(f.nodeToken);
-        // 截断提示这类无 token 条目可能每轮重复出现，去重后再入列表
+        // Token-less entries like truncation notices can repeat every round, so dedupe before adding to the list
         if (!acc.failed.some((x) => x.nodeToken === f.nodeToken && x.title === f.title)) {
           acc.failed.push(f);
         }
@@ -226,7 +226,7 @@ export async function startFeishuSync(
       acc.skipped = data.skipped + data.unsupported;
       acc.pending = data.pending;
       acc.total = data.total;
-      // 灰度窗口里旧服务端可能还没返回这两个字段
+      // During a gradual rollout, an older server may not return these two fields yet
       const items = Array.isArray(data.items) ? data.items : [];
       const nextUp = Array.isArray(data.nextUp) ? data.nextUp : [];
       emit({
@@ -247,10 +247,10 @@ export async function startFeishuSync(
   } catch (e) {
     const msg = e instanceof Error ? e.message : t("同步失败");
     const manual = e instanceof SyncAbort && e.manual;
-    // 中断原因固定进面板，不再只有一闪而过的 toast；已同步的批次都已入库，可续传
+    // The interruption reason always goes into the panel rather than a fleeting toast; synced batches are already stored, so it can resume
     emit({
       error: msg,
-      // 自己点的停止不用胶囊再提醒
+      // A stop the user clicked doesn't need a pill reminder
       errorAcked: manual,
       reconnectRequired: e instanceof SyncAbort && e.needReconnect,
     });

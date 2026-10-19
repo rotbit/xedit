@@ -1,19 +1,19 @@
 /**
- * 蹭站点 key 的那条路的限流。用户自带 key 不走这里——花自己的钱，爱跑几次跑几次。
+ * Rate limiting for the path that uses the site's key. Users with their own key skip this -- it's their money, they can run as much as they like.
  *
- * 复用生封面那套计数器（同一个进程内存、同一套「同时只跑一个 + 每天几次」口径），
- * 只是各记各的账：审一次文章和生一张图不该互相占额度。
- * 多实例部署时同样要换成 Redis/数据库，理由见 coverGenerate/limit 的开头。
+ * Reuses the cover generation counters (same in-process memory, same "one at a time + N per day" rules),
+ * but keeps separate tallies: reviewing an article and generating an image shouldn't eat into each other's quota.
+ * Multi-instance deployments would need Redis/a database here too; see the top of coverGenerate/limit for why.
  */
 import { createCoverLimiter } from "@/lib/coverGenerate/limit";
 
 const DEFAULT_DAILY_LIMIT = 30;
 
-/** 每个账号每个自然日最多跑几次（后台可给单个账号另设额度）；没配或填得不合法都按 30 */
+/** Max runs per account per calendar day (admin can set a per-account quota); missing or invalid values default to 30 */
 export function aiDailyLimit(): number {
   const n = Number(process.env.AI_DAILY_LIMIT);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_DAILY_LIMIT;
 }
 
-/** 路由共用的那一份 */
+/** The shared instance used by routes */
 export const aiLimiter = createCoverLimiter();

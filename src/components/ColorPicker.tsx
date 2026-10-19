@@ -1,6 +1,6 @@
 "use client";
 
-// 字体颜色选择器（从原常驻工具栏 EditorToolbar 抽出，现由浮动工具条复用）。
+// Font color picker (extracted from the old always-on EditorToolbar, now reused by the floating toolbar).
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -10,7 +10,7 @@ import { menuItemCls } from "./menuStyles";
 import { tk } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 
-/** 字体颜色色板：常用的正文强调色，深浅主题下都够醒目 */
+/** Font color swatches: common body-text accent colors that stand out in both light and dark themes */
 const TEXT_COLORS = [
   { value: "#e11d48", label: tk("玫红") },
   { value: "#ea580c", label: tk("橙") },
@@ -27,9 +27,9 @@ const TEXT_COLORS = [
 const PANEL_W = 190;
 
 /**
- * 字体颜色按钮：A + 最近用色的色条，点开色板；null = 清除颜色。
- * 宿主（浮动工具条）本身是 36px 高的窄胶囊，普通绝对定位的下拉会被裁掉，
- * 所以色板用 portal 挂到 body、fixed 定位到按钮下方。
+ * Font color button: an A + a bar of the last-used color, opens the swatches; null = clear color.
+ * The host (floating toolbar) is a narrow 36px-tall pill, so a normal absolutely positioned dropdown would be clipped;
+ * the swatch panel is portaled to body and fixed-positioned below the button instead.
  */
 export function ColorPicker({
   onPick,
@@ -37,10 +37,10 @@ export function ColorPicker({
   onOpenChange,
 }: {
   onPick: (color: string | null) => void;
-  /** 触发按钮的样式由宿主给，保证与同排按钮尺寸一致 */
+  /** The trigger button's style comes from the host so it matches the size of its sibling buttons */
   className: string;
-  /** 色板开合通知宿主：色板开着时编辑器会失焦，宿主据此别把自己收起来。
-   *  会进 effect 依赖，宿主请传稳定引用 */
+  /** Notifies the host when the swatches open/close: the editor loses focus while they're open, so the host shouldn't collapse itself.
+   *  It goes into effect deps, so the host should pass a stable reference */
   onOpenChange?: (open: boolean) => void;
 }) {
   const t = useT();
@@ -53,19 +53,19 @@ export function ColorPicker({
     if (panel) return setPanel(null);
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
-    // 贴按钮左缘；右侧出屏时往回收
+    // Align to the button's left edge; pull back if it overflows the right side
     const left = Math.max(8, Math.min(r.left, window.innerWidth - PANEL_W - 8));
     setPanel({ left, top: r.bottom + 6 });
   };
 
-  // 开合状态同步给宿主；卸载时按「已关闭」上报，免得宿主的挂起标记漏清
+  // Sync the open state to the host; report "closed" on unmount so the host's pending flag is never left set
   useEffect(() => {
     onOpenChange?.(panel !== null);
     return () => onOpenChange?.(false);
   }, [panel, onOpenChange]);
 
-  // 点面板以外的地方收起：按钮自己带 data-menu-trigger，按在它上面交给上面的 toggle。
-  // 窗口失焦不收（closeOnBlur=false）——自定义取色会唤起系统取色面板，那一下就是失焦
+  // Close on clicks outside the panel: the button carries data-menu-trigger, so presses on it go to the toggle above.
+  // Don't close on window blur (closeOnBlur=false) — custom color picking opens the system color panel, which blurs the window
   const closePanel = () => setPanel(null);
   useDismissMenu(panelRef, closePanel, panel !== null, false);
   useEscape(closePanel, panel !== null);
@@ -97,8 +97,8 @@ export function ColorPicker({
               ref={panelRef}
               className="fixed z-[80] rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
               style={{ left: panel.left, top: panel.top, width: PANEL_W }}
-              // 色板挂在 body 上，宿主的「按下不夺焦」拦不到这里：色块/清除自己拦一次，
-              // 编辑器就不会失焦、选区也不会被清掉。取色输入框要拿焦点才能弹系统取色器，放行
+              // The swatches live on body, out of reach of the host's "press without stealing focus" handling, so swatches/clear prevent it themselves;
+              // that keeps the editor focused and the selection intact. The color input needs focus to open the system picker, so let it through
               onMouseDown={(e) => {
                 if ((e.target as HTMLElement).tagName !== "INPUT") e.preventDefault();
               }}
@@ -117,7 +117,7 @@ export function ColorPicker({
                   />
                 ))}
               </div>
-              {/* 自定义取色要连续调色，选色期间面板保持展开 */}
+              {/* Custom color picking needs continuous adjustment, so the panel stays open while choosing */}
               <div className="border-t border-[var(--hairline-soft)] px-3.5 py-1.5">
                 <label className="flex cursor-pointer items-center justify-between gap-2 text-[13px] text-[var(--ink)]">
                   {t("自定义")}

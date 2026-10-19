@@ -1,7 +1,7 @@
 /**
- * 后台账号列表接口，仅管理员可用（adminSessionUserId 同时校验登录态与邮箱白名单）。
- * 除用户表本身，还要拼上文档数、附件数、已用存储和最近活跃日，这些散在不同表里，
- * 统一按「本页这批用户」批量聚合，避免列表每多一行就多几次查询。
+ * Admin account list API, admins only (adminSessionUserId checks both login state and the email allowlist).
+ * Besides the user table, it joins doc count, attachment count, storage used and last active day, which live in different tables,
+ * all batch-aggregated for "this page's users" so each extra row doesn't add more queries.
  */
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
@@ -11,10 +11,10 @@ import { DEFAULT_STORAGE_QUOTA } from "@/lib/guards";
 import { knownPermissions } from "@/lib/permissionKeys";
 import { tk } from "@/i18n/t";
 
-// 页大小写死、不接受客户端传入：下面几次 groupBy 的 in 列表长度由它决定，放开就等于放开查询成本
+// Page size is hardcoded, not client-provided: it bounds the `in` list length of the groupBys below, so opening it up opens up query cost
 const PAGE_SIZE = 50;
 
-/** 账号列表：分页 + 按邮箱/昵称搜索，附每人的文档数与存储用量 */
+/** Account list: paginated + search by email/nickname, with each user's doc count and storage usage */
 export async function GET(req: Request) {
   const session = await auth();
   if (!adminSessionUserId(session)) {
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
   const params = new URL(req.url).searchParams;
   const q = (params.get("q") ?? "").trim().slice(0, 100);
-  // 非数字、0、负数一律当第 1 页；页码超出总数不算错，自然会返回空列表
+  // Non-numeric, 0 or negative all mean page 1; a page past the total isn't an error, it just returns an empty list
   const page = Math.max(1, Number(params.get("page")) || 1);
   const where = q
     ? {
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     }),
   ]);
 
-  // 每人已用存储与最近活跃日期：对本页用户各一次 groupBy 汇总，别逐人查
+  // Per-user storage used and last active date: one groupBy each for this page's users, not one query per user
   const ids = users.map((u) => u.id);
   const usedBy = new Map<string, number>();
   const activeBy = new Map<string, string>();
@@ -93,13 +93,13 @@ export async function GET(req: Request) {
       lastActiveDate: activeBy.get(u.id) ?? null,
       bannedAt: u.bannedAt,
       banReason: u.banReason,
-      // BigInt 不能进 JSON，统一转 number（字节数在 2^53 内绰绰有余）
+      // BigInt can't go into JSON, so convert to number (byte counts are well within 2^53)
       storageQuota: u.storageQuota == null ? null : Number(u.storageQuota),
       storageUsed: usedBy.get(u.id) ?? 0,
       docCount: u._count.documents,
       assetCount: u._count.assets,
       admin: isAdminEmail(u.email),
-      // 库里存的原值（不叠加管理员全开 / 封禁全关），后台勾选框要照着它回显
+      // The raw stored value (without admin all-on / banned all-off applied); the admin checkboxes must reflect it
       permissions: knownPermissions(u.permissions),
     })),
   });

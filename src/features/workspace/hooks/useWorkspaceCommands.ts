@@ -1,7 +1,7 @@
 "use client";
 
-// 工作台全局命令（⌘⇧P 面板里的第一批）：新建 / 导航 / 侧栏。
-// 单独成 hook 是为了不再往 Home 里堆表格——它已经是首页的总装配点。
+// Global workspace commands (the first batch in the ⌘⇧P palette): new / navigate / sidebar.
+// A separate hook so Home doesn't keep piling up tables — it's already the home page's main assembly point.
 
 import { useRegisterCommands } from "@/hooks/useRegisterCommands";
 import { useT } from "@/i18n/useT";
@@ -13,17 +13,17 @@ import type { Workspace } from "./useWorkspace";
 
 interface Params {
   ws: Workspace;
-  /** 没有工作台（落地页）时一条都不注册：那里没有文章可操作 */
+  /** Register nothing without a workspace (landing page): there are no docs to act on there */
   enabled: boolean;
   onQuickSwitch: () => void;
 }
 
 export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
   const { nav, prefs, docActions, library } = ws;
-  // 命令表按 deps 注册一次就不再变：t 随语言换引用，放进 deps 让切换语言后整批重注册
+  // The command table registers once per deps and then stays put: t changes reference with the locale, so it's in deps to re-register everything after a language switch
   const t = useT();
 
-  // 「模板」分类里每篇文章一条命令：⌘⇧P 敲模板名就能建稿，不必去侧栏找那个小箭头
+  // One command per doc in the 「模板」 category: type the template name in ⌘⇧P to create a doc, no need to hunt for the little arrow in the sidebar
   const templates = listTemplates(library.docs);
   const templateCmds: Command[] = templates.map((tpl) => ({
     id: `template.${tpl.id}`,
@@ -75,9 +75,9 @@ export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
       ]
     : [];
 
-  // 命令表只在「有没有工作台」翻转、或模板集合增删/改名时真的变，其余闭包
-  // （nav 每次渲染都是新的）由 useRegisterCommands 的 ref 兜新鲜度；
-  // 否则每次击键都要注销重注册一轮
+  // The command table only really changes when "has a workspace" flips or templates are added/removed/renamed; other closures
+  // (nav is new every render) are kept fresh by useRegisterCommands' ref;
+  // otherwise every keystroke would unregister and re-register everything
   const templateKey = templates.map((tpl) => `${tpl.id}:${tpl.title}`).join("\n");
   useRegisterCommands(cmds, [enabled, templateKey, t]);
 }

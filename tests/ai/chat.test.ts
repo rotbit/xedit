@@ -4,18 +4,18 @@ import { AiError, chatComplete } from "@/lib/ai/chat";
 import { aiProvider } from "@/lib/ai/providers";
 
 /**
- * 传输层：拼对请求、认对回复、把各家的报错翻成同一套说法。
- * 这里全程注入假 fetch——真去调 DeepSeek 既慢又要钱，而要验的东西
- * （发到哪个地址、带没带 Authorization、429 变成哪个错误码）都在报文里。
+ * Transport layer: build the right request, parse the reply correctly, and map each provider's errors to one vocabulary.
+ * A fake fetch is injected throughout — actually calling DeepSeek is slow and costs money, and what we want to verify
+ * (which URL, whether Authorization is set, which error code a 429 becomes) is all in the request/response.
  *
- * 另有一条铁律在这儿钉着：key 不许出现在任何往外抛的错误文案里。
+ * One hard rule is also pinned here: the key must never appear in any error message thrown outward.
  */
 
 const deepseek = aiProvider("deepseek")!;
 const replicate = aiProvider("replicate")!;
 const KEY = "sk-secret-key-0001";
 
-/** 记下每次调用的假 fetch；按顺序返回预备好的响应 */
+/** Fake fetch that records every call and returns the prepared responses in order */
 function fakeFetch(...responses: Response[]) {
   const calls: { url: string; init: RequestInit }[] = [];
   const impl = vi.fn(async (url: string | URL | Request, init: RequestInit = {}) => {

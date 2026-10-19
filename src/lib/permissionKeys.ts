@@ -1,7 +1,7 @@
 /**
- * 按账号开通的功能权限清单。前后端共用：这里不碰数据库，浏览器那边也能 import。
- * 加一项新权限只需往 PERMISSIONS 里加一行，库里存的是 key 数组（User.permissions），不用改表。
- * 判定口径（管理员全开、封禁全关）在 lib/permissions，那边连着 prisma，只在服务端用。
+ * Per-account feature permission list. Shared by frontend and backend: no database access here, so the browser can import it too.
+ * Adding a permission is one line in PERMISSIONS; the database stores an array of keys (User.permissions), no schema change.
+ * The decision rules (admins get everything, banned users nothing) live in lib/permissions, which pulls in prisma and is server-only.
  */
 
 import { tk } from "@/i18n/t";
@@ -19,13 +19,13 @@ export function isPermission(v: unknown): v is Permission {
   return typeof v === "string" && KEYS.includes(v);
 }
 
-/** 管理员提交的权限列表：不是数组或混进认不出的 key 就返回 null（让接口报 400），否则去重 */
+/** Permission list submitted by an admin: null if not an array or containing unknown keys (so the API returns 400), else de-duplicated */
 export function cleanPermissions(v: unknown): Permission[] | null {
   if (!Array.isArray(v) || !v.every(isPermission)) return null;
   return [...new Set(v)];
 }
 
-/** 库里读出来的值：认不出的 key（比如下线了的权限）静默丢掉 */
+/** Values read from the database: unknown keys (e.g. retired permissions) are silently dropped */
 export function knownPermissions(v: readonly string[] | null | undefined): Permission[] {
   return (v ?? []).filter(isPermission);
 }

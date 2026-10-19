@@ -1,6 +1,6 @@
 /**
- * 本地文档库的后端契约：门面 `@/lib/localDocs` 只管转发，具体存储由后端实现。
- * 现有的 localStorage 实现在 ./browserBackend，后续的磁盘 Vault 再加一个实现即可。
+ * Backend contract for the local document library: the facade `@/lib/localDocs` only forwards; storage is up to the backend.
+ * The existing localStorage implementation is ./browserBackend; the disk Vault is just another implementation.
  */
 
 import { summarize as excerptOf } from "@/lib/excerpt";
@@ -10,7 +10,7 @@ export interface LocalDocMeta {
   id: string;
   title: string;
   category?: string;
-  /** 创建时间（ISO）。只有在本应用里新建的才有；Vault 从磁盘读进来的拿不到可靠的创建时间 */
+  /** Creation time (ISO). Only set for documents created in this app; the Vault can't get a reliable creation time from disk */
   createdAt?: string;
   updatedAt: string;
   excerpt?: string;
@@ -29,27 +29,27 @@ export interface DocInit {
   category?: string;
 }
 
-/** 本地文档库的存储后端：浏览器 localStorage 或（后续）磁盘 Vault。
- *  读取全部同步（Vault 后端会在打开时把全库读进内存缓存）。 */
+/** Storage backend for the local document library: browser localStorage or the disk Vault.
+ *  All reads are synchronous (the Vault backend loads the whole library into memory on open). */
 export interface LocalBackend {
   readonly kind: "browser" | "vault";
-  /** 顺序不限，门面负责按 updatedAt 倒序 */
+  /** Any order; the facade sorts by updatedAt descending */
   listDocs(): LocalDocMeta[];
   getContent(id: string): string | null;
   createDoc(init: DocInit): LocalDocMeta;
-  /** 返回是否命中文档；广播 notifyDocsChanged 由门面负责，后端不要自己发 */
+  /** Returns whether the document was found; the facade broadcasts notifyDocsChanged, backends must not */
   updateDoc(id: string, patch: DocPatch): boolean;
   deleteDoc(id: string): void;
   listCats(): string[];
   saveCats(cats: string[]): void;
-  /** 把分类 from（含子孙分类与其中文章）整体迁移为 to；文章仅改分类不刷新 updatedAt */
+  /** Move category `from` (with descendant categories and their articles) to `to`; articles only change category, updatedAt untouched */
   relocateCategory(from: string, to: string): void;
-  /** 删除分类 path 及其子孙；其中文章归到 UNCATEGORIZED（即「未分类」） */
+  /** Delete category `path` and its descendants; their articles go to UNCATEGORIZED (「未分类」, Uncategorized) */
   removeCategory(path: string): void;
 }
 
-/** 本地库列表项的摘要与字数。两者的口径都不在这里定：
- *  摘要走 excerpt.ts（与服务端列表接口同一份实现），字数走 wordCount。 */
+/** Excerpt and word count for local library list items. Neither rule is defined here:
+ *  excerpts come from excerpt.ts (same implementation as the server list API), word counts from wordCount. */
 export function summarize(content: string): { excerpt: string; chars: number } {
   return { excerpt: excerptOf(content), chars: wordCount(content) };
 }

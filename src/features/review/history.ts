@@ -1,7 +1,7 @@
 /**
- * 审核历史的那几个请求：列表、取一条、记动作、删一条（接口见 /api/ai/review/history）。
+ * Review history requests: list, fetch one, record actions, delete one (API at /api/ai/review/history).
  *
- * 和 aiReview.ts 一个脾气：纯函数，不认识 React，也不弹提示；出错就抛，message 能直接给用户看（显示处再 t() 一遍，OFFLINE 这类常量才跟得上语言）。
+ * Same temperament as aiReview.ts: pure functions, no React, no toasts; errors are thrown with a message fit for the user (t() it again where displayed so constants like OFFLINE follow the language).
  */
 import { getLocale, htmlLang, type Locale } from "@/i18n/locale";
 import { t, tk, translate } from "@/i18n/t";
@@ -26,7 +26,7 @@ async function call(url: string, init?: RequestInit): Promise<unknown> {
   return data;
 }
 
-/** 这篇文章审过哪几趟，新的在前 */
+/** Which review runs this document has had, newest first */
 export async function listReviewHistory(
   docId: string,
   signal?: AbortSignal
@@ -38,7 +38,7 @@ export async function listReviewHistory(
   return rows.map(asRecordMeta).filter((r): r is ReviewRecordMeta => r !== null);
 }
 
-/** 翻出一趟旧审核：结果 + 当时按过的「忽略 / 知道了」 */
+/** Fetch an old review run: the result + the 「忽略 / 知道了」 (Ignore / Got it) actions taken back then */
 export async function loadReviewRecord(
   id: string,
   signal?: AbortSignal
@@ -63,7 +63,7 @@ export async function loadReviewRecord(
   };
 }
 
-/** 把「忽略 / 知道了」记到这一趟上（整份覆盖） */
+/** Record 「忽略 / 知道了」 on this run (overwrites the whole set) */
 export async function saveReviewActions(
   id: string,
   actions: Record<string, ReviewAction>
@@ -79,7 +79,7 @@ export async function deleteReviewRecord(id: string): Promise<void> {
   await call(`${API}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-/** 列表里的时间：今天的只说几点，今年的不带年份 */
+/** Time in the list: today shows only the time, this year omits the year */
 export function formatRecordTime(iso: string, now = new Date(), locale: Locale = getLocale()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -87,7 +87,7 @@ export function formatRecordTime(iso: string, now = new Date(), locale: Locale =
   if (d.toDateString() === now.toDateString()) return translate("今天 {time}", locale, { time: hm });
   const sameYear = d.getFullYear() === now.getFullYear();
   if (locale === "en") {
-    // 英文月份名交给 Intl：同年 "Aug 3 14:30"，跨年 "Dec 31, 2025"
+    // English month names go to Intl: same year "Aug 3 14:30", other years "Dec 31, 2025"
     const fmt = new Intl.DateTimeFormat(htmlLang(locale), {
       month: "short",
       day: "numeric",
@@ -95,6 +95,6 @@ export function formatRecordTime(iso: string, now = new Date(), locale: Locale =
     });
     return sameYear ? `${fmt.format(d)} ${hm}` : fmt.format(d);
   }
-  const md = `${d.getMonth() + 1}月${d.getDate()}日`; // i18n-ignore 中文日期格式，英文走上面的 Intl
+  const md = `${d.getMonth() + 1}月${d.getDate()}日`; // i18n-ignore Chinese date format; English uses Intl above
   return sameYear ? `${md} ${hm}` : `${d.getFullYear()}年${md}`; // i18n-ignore
 }

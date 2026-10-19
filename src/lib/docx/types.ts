@@ -1,4 +1,4 @@
-// 导出 Word · 共享类型与常量：媒体/公式的中间产物结构、行内样式、块级 AST 节点别名，以及排版用的字体/颜色/尺寸常量。
+// Word export · shared types and constants: intermediate structures for media/formulas, inline styles, block AST node aliases, and font/color/size constants for layout.
 
 import {
   ExternalHyperlink,
@@ -9,10 +9,10 @@ import {
   TextRun,
 } from "docx";
 
-/** 正文可用宽度（px @96dpi）：A4 减去默认页边距 */
+/** Usable body width (px @96dpi): A4 minus default page margins */
 export const CONTENT_W = 600;
-export const BODY_FONT = { ascii: "Calibri", hAnsi: "Calibri", eastAsia: "微软雅黑" }; // i18n-ignore Word 东亚字体名，是数据
-export const MONO_FONT = { ascii: "Consolas", hAnsi: "Consolas", eastAsia: "微软雅黑" }; // i18n-ignore Word 东亚字体名，是数据
+export const BODY_FONT = { ascii: "Calibri", hAnsi: "Calibri", eastAsia: "微软雅黑" }; // i18n-ignore Word East Asian font name; this is data
+export const MONO_FONT = { ascii: "Consolas", hAnsi: "Consolas", eastAsia: "微软雅黑" }; // i18n-ignore Word East Asian font name; this is data
 export const INK = "1F2329";
 export const GRAY = "8A8F99";
 export const LINK_BLUE = "1155CC";
@@ -26,11 +26,11 @@ export interface PreparedImage {
 }
 
 export interface Build {
-  /** src → 已就绪的图片字节；null 表示获取失败 */
+  /** src → ready image bytes; null means fetching failed */
   images: Map<string, PreparedImage | null>;
-  /** 公式节点 → 栅格化后的 PNG */
+  /** Formula node → rasterized PNG */
   math: Map<Element, PreparedImage | null>;
-  /** 视频节点 → 封面帧（poster 或抓取的首帧）；null 表示拿不到 */
+  /** Video node → poster frame (poster or grabbed first frame); null means unavailable */
   frames: Map<Element, PreparedImage | null>;
   olInstance: number;
   failed: number;

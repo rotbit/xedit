@@ -1,7 +1,7 @@
 "use client";
 
-// 图片库的共享小工具。都要碰浏览器 API（剪贴板）或被客户端组件直接调用，
-// 所以单独放一处，免得各视图反向 import 大图预览层那个组件文件
+// Shared helpers for the image library. They all touch browser APIs (clipboard) or are called directly by client components,
+// so they live here on their own, sparing views from importing back into the lightbox component file
 
 import { toast } from "../Toast";
 import type { Asset } from "./types";
@@ -14,7 +14,7 @@ export function formatSize(bytes: number): string {
 
 export const isVideo = (asset: Asset) => asset.mime.startsWith("video/");
 
-/** doneMsg 由调用方用 t() 翻好整句传进来：「链接」+「已复制」拼接在英文里语序不对 */
+/** Callers pass doneMsg already translated as a full sentence via t(): concatenating 「链接」 + 「已复制」 gets the word order wrong in English */
 export function copyText(text: string, doneMsg: string) {
   void navigator.clipboard.writeText(text).then(() => toast(doneMsg, "success"));
 }

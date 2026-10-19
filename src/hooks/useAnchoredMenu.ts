@@ -3,30 +3,30 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import type { EditorView } from "@codemirror/view";
 
-/** 菜单与光标行之间的呼吸位 */
+/** Breathing room between the menu and the cursor line */
 const GAP = 6;
-/** 贴边留白：横向不出编辑列，纵向不贴视口边缘 */
+/** Edge padding: stays within the editor column horizontally and off the viewport edges vertically */
 const EDGE = 8;
 
 /**
- * 把一块 fixed 浮层锚在编辑器的某个文档位置上（斜杠菜单与 `[[` 补全共用）。
+ * Anchor a fixed overlay to a document position in the editor (shared by the slash menu and `[[` completion).
  *
- * 左缘对齐触发符、顶在光标行下方；下方装不下就翻到行上方；滚动与改窗口尺寸时跟随。
- * 落点连同「它是为哪个位置算的」一起存：换了触发点就说明这份落点已过期，
- * 先藏着别闪 —— 否则菜单会先出现在上一次的位置再跳过去。
+ * Left edge aligned with the trigger character, sitting below the cursor line; flips above the line if there's no room below; follows on scroll and resize.
+ * The position is stored along with "which position it was computed for": a changed trigger means the stored position is stale,
+ * so stay hidden rather than flash — otherwise the menu would appear at the previous position first and then jump.
  *
- * 浮层自己的 ref 由调用方持有并传进来，而不是从这里返回：
- * 返回值带 ref 会让调用方读 left/top 时变成「渲染期访问 ref」（react-hooks/refs）。
+ * The overlay's own ref is held and passed in by the caller rather than returned from here:
+ * returning a ref would make the caller's reads of left/top count as "accessing a ref during render" (react-hooks/refs).
  */
 export function useAnchoredMenu(
-  /** 锚点在文档中的位置；null 表示菜单关着，不用量 */
+  /** Anchor's position in the document; null means the menu is closed and nothing needs measuring */
   from: number | null,
   viewRef: React.RefObject<EditorView | null>,
-  /** 浮层根节点：量宽高用 */
+  /** Overlay root node: for measuring width and height */
   rootRef: React.RefObject<HTMLElement | null>,
-  /** 编辑区的滚动容器：滚动时跟着重算落点 */
+  /** The editor's scroll container: recompute the position on scroll */
   scrollEl: HTMLElement | null,
-  /** 首帧还没量到宽度时的兜底值（与菜单的 Tailwind 宽度一致） */
+  /** Fallback width before the first frame is measured (matches the menu's Tailwind width) */
   fallbackWidth: number
 ) {
   const [pos, setPos] = useState<{ from: number; left: number; top: number } | null>(null);
@@ -40,7 +40,7 @@ export function useAnchoredMenu(
       if (!c) return;
       const w = el.offsetWidth || fallbackWidth;
       const h = el.offsetHeight || 0;
-      // 横向不许溢出编辑列，超了贴边（同浮动工具条）
+      // Must not overflow the editor column horizontally; clamp to the edge if it would (same as the floating toolbar)
       const col = view.dom.getBoundingClientRect();
       const min = col.left + EDGE;
       const max = Math.max(min, col.right - w - EDGE);
@@ -55,12 +55,12 @@ export function useAnchoredMenu(
     [viewRef, rootRef, fallbackWidth]
   );
 
-  // 布局副作用在绘制前跑完：菜单不会先闪在旧落点再跳到光标下
+  // Layout side effects finish before paint: the menu won't flash at the old position before jumping under the cursor
   useLayoutEffect(() => {
     if (from !== null) place(from);
   }, [from, place]);
 
-  // rAF 合帧，别让每个 scroll 事件都触发一次量算
+  // Coalesce with rAF so not every scroll event triggers a measurement
   useEffect(() => {
     if (from === null) return;
     let raf = 0;
@@ -83,7 +83,7 @@ export function useAnchoredMenu(
   return {
     left: pos?.left ?? 0,
     top: pos?.top ?? 0,
-    /** 量到这一个锚点的落点之前先藏着，避免第一帧闪在 (0,0) 或上一次的位置 */
+    /** Stay hidden until the position for this anchor is measured, to avoid the first frame flashing at (0,0) or the previous position */
     visible: from !== null && pos?.from === from,
   };
 }

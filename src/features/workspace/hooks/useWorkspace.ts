@@ -25,8 +25,8 @@ import { useVaultWatch } from "./useVaultWatch";
 import { useWorkspaceNav } from "./useWorkspaceNav";
 
 /**
- * 工作台的全部状态与操作，按职责拆成若干 hook 后在此汇总。
- * 各视图组件统一接收这个对象，避免十几层属性逐级透传。
+ * All workspace state and actions, split by responsibility into several hooks and assembled here.
+ * View components all receive this one object, avoiding a dozen levels of prop drilling.
  */
 export function useWorkspace() {
   const auth = useAuthMode();
@@ -36,7 +36,7 @@ export function useWorkspace() {
   const dialogs = useDialogs();
   const nav = useWorkspaceNav({ prefs, closeDocMenu: menus.closeDocMenu });
   const vault = useVaultBoot({ localMode: auth.localMode, nav });
-  // 开着磁盘文库时盯外部改动：回到前台就跟磁盘对一次账
+  // With a disk library open, watch for external changes: reconcile with the disk when returning to the foreground
   useVaultWatch({ enabled: auth.localMode && vault.status === "open", nav });
   const library = useDocLibrary({
     loggedIn: auth.loggedIn,
@@ -48,12 +48,12 @@ export function useWorkspace() {
   const catActions = useCategoryActions({ auth, library, nav });
   const importer = useImportDocs({ auth, library, nav });
 
-  // 排序回调在放下那一刻才执行，经 ref 读当次渲染的树（drag hook 先于 tree 构建）
+  // The reorder callback runs at drop time and reads the current render's tree via ref (the drag hook is built before the tree)
   const treeRef = useRef<CatNode[]>([]);
 
-  /** 把拖拽项插到 host 父级序列里 targetKey 的前/后：
-   *  先记显示顺序（立即生效），跨父级/跨分类再连带迁移。
-   *  host 下的子分类与文章共用一条序列，两者可以自由混排 */
+  /** Insert the dragged item before/after targetKey in host's parent sequence:
+   *  record the display order first (applies immediately), then move it along when crossing parents/categories.
+   *  Subcategories and docs under host share one sequence and can be freely interleaved */
   const reorderItem = (
     item: DragItem,
     host: string,
@@ -63,7 +63,7 @@ export function useWorkspace() {
     const dragged = item.kind === "doc" ? (library.docs ?? []).find((d) => d.id === item.id) : null;
     if (item.kind === "doc") {
       if (!dragged) return;
-      if (host === "") return; // 顶级没有文章
+      if (host === "") return; // No docs at the top level
     }
     const keys =
       host === ""
@@ -72,7 +72,7 @@ export function useWorkspace() {
             it.kind === "cat" ? catKey(it.node.name) : docKey(it.doc.id)
           );
     const movedKey = item.kind === "cat" ? catKey(nameOf(item.path)) : docKey(item.id);
-    if (!keys.includes(movedKey)) keys.push(movedKey); // 跨父级/跨分类迁入
+    if (!keys.includes(movedKey)) keys.push(movedKey); // Moving in across parents/categories
     const list = reorderList(keys, movedKey, targetKey, zone);
     library.updateOrder((o) => ({ ...o, items: { ...o.items, [host]: list } }));
     if (item.kind === "cat") {
@@ -99,7 +99,7 @@ export function useWorkspace() {
     () => buildTree(docs ?? [], customCats, order),
     [docs, customCats, order]
   );
-  // 排序回调只在拖放事件里执行（必然晚于本次渲染的 effect），effect 里同步 ref 足够新鲜
+  // The reorder callback only runs in drag-and-drop events (necessarily after this render's effect), so syncing the ref in the effect is fresh enough
   useEffect(() => {
     treeRef.current = tree;
   }, [tree]);
@@ -109,42 +109,42 @@ export function useWorkspace() {
     [docs]
   );
 
-  // 文库一变就把已不在库里的文章清出 docIndex 缓存：缓存按 id 长住，
-  // 不清就会把删掉的、退出登录换库之后的正文一直攥在内存里
-  // 待办缓存同理（侧栏「今天」计数与今天页共用）
-  // 用全库 allDocs：可见列表里没有待办清单那篇，按它清会把清单的缓存每次清掉又重读正文
+  // Whenever the library changes, evict docs no longer in it from the docIndex cache: the cache lives on by id,
+  // and without evicting it would keep bodies of deleted docs, or from before a logout/library switch, in memory forever
+  // Same for the todo cache (shared by the sidebar "Today" count and the Today page)
+  // Use the full allDocs: the visible list lacks the todo-list doc, and evicting by it would clear the list's cache every time and reread its body
   const { allDocs } = library;
   useEffect(() => {
     const ids = (allDocs ?? []).map((doc) => doc.id);
     pruneIndex(ids);
     pruneTodoCache(ids);
-    // 打开记录落在 localStorage 里跨会话长住：文库还没装载（null）时 ids 是空的，
-    // 这时清会把记录在每次刷新时全部抹掉，必须等装载完再按真实列表清
+    // Open records live in localStorage across sessions: while the library hasn't loaded (null), ids is empty,
+    // and evicting then would wipe all records on every reload, so wait until loaded and evict against the real list
     if (allDocs) pruneOpens(ids);
   }, [allDocs]);
 
   /**
-   * 侧栏搜索的命中集合：标题之外还搜正文（正文在 localStorage，纯客户端算）。
-   * 这里只要「哪些文章命中」，所以走 searchDocIds —— 摘要与高亮区间是列表展示才用得上的东西，
-   * 侧栏拿到手就扔。结果整体挂在 useMemo 上：同一个词的后续重渲染直接复用，
-   * 只有词或文章列表变了才重算一轮。
-   * 回收站另说：删掉的文章正文已随之清掉，仍按标题/摘要匹配。
+   * Hit set for sidebar search: searches bodies as well as titles (bodies are in localStorage, computed purely client-side).
+   * This only needs "which docs matched", so it uses searchDocIds — snippets and highlight ranges are only for list display,
+   * and the sidebar would throw them away. The result is memoized as a whole: later re-renders with the same query reuse it,
+   * recomputing only when the query or doc list changes.
+   * The trash is different: deleted docs' bodies were cleared along with them, so it still matches by title/excerpt.
    */
   const searchHitIds = useMemo(() => {
     if (isTrash || !search.trim()) return null;
     return searchDocIds(docs ?? [], search);
   }, [docs, search, isTrash]);
 
-  // 「最近打开」视图按 max(打开, 编辑) 排；文件夹 / 搜索 / 回收站仍按 updatedAt
+  // The "Recently opened" view sorts by max(opened, edited); folders / search / trash still sort by updatedAt
   const opens = useRecentOpens();
   const byRecentOpen = !isTrash && activeCat === ALL && !search.trim();
-  /** 当前视图下每篇文章该显示 / 分组用的时间，视图组件统一从这里取 */
+  /** The time each doc should display / group by in the current view; view components all read it from here */
   const timeOf = useMemo(
     () => (byRecentOpen ? (d: DocMeta) => recencyOf(d, opens) : (d: DocMeta) => d.updatedAt),
     [byRecentOpen, opens]
   );
 
-  /** 当前视图下要展示的文章：按分类过滤（含子分类），再按搜索词过滤 */
+  /** Docs to show in the current view: filtered by category (including subcategories), then by search query */
   const filtered = useMemo(() => {
     const source = isTrash ? trashDocs : docs;
     const list = (source ?? []).filter((d) => {
@@ -159,7 +159,7 @@ export function useWorkspace() {
       return true;
     });
     if (!byRecentOpen) return list;
-    // filter 已是新数组，就地排序不影响源；Array.prototype.sort 是稳定排序，相等保持原顺序
+    // filter already returns a new array, so sorting in place doesn't affect the source; Array.prototype.sort is stable, keeping equal items in order
     const at = new Map(list.map((d) => [d.id, Date.parse(recencyOf(d, opens)) || 0]));
     return list.sort((a, b) => at.get(b.id)! - at.get(a.id)!);
   }, [docs, trashDocs, isTrash, activeCat, search, searchHitIds, byRecentOpen, opens]);

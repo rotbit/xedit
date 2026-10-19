@@ -1,8 +1,8 @@
 "use client";
 
-// Obsidian 式快速切换器（⌘O / ⌘P）：打字即搜标题与正文，↑↓ 选、↵ 开。
-// 检索本身在 lib/docSearch 里跑（纯 localStorage，离线可用），这里只管数据源与行渲染，
-// 弹窗外壳（遮罩、输入框、列表、键盘导航）与命令面板共用 PaletteShell。
+// Obsidian-style quick switcher (⌘O / ⌘P): type to search titles and bodies, ↑↓ to select, ↵ to open.
+// The search itself runs in lib/docSearch (pure localStorage, works offline); this only handles the data source and row rendering;
+// the dialog shell (backdrop, input, list, keyboard navigation) is the PaletteShell shared with the command palette.
 
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Search } from "lucide-react";
@@ -14,9 +14,9 @@ import { formatRelativeTime } from "@/lib/format";
 import type { DocMeta } from "@/features/workspace/types";
 import { useT } from "@/i18n/useT";
 
-/** 一次最多列 30 条：再多也翻不动，键盘选择反而变慢 */
+/** List at most 30 at a time: more is unbrowsable and makes keyboard selection slower */
 const LIMIT = 30;
-/** 击键到检索之间的防抖：正文要逐篇读 localStorage，每键一读太亏 */
+/** Debounce between keystroke and search: bodies are read from localStorage one by one, too costly per keystroke */
 const DEBOUNCE_MS = 120;
 
 export function QuickSwitcher({
@@ -34,9 +34,9 @@ export function QuickSwitcher({
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
 
-  // 每次打开都是一次全新的检索：上次的关键词不留到下一次。
-  // 渲染期间带守卫地重置（React 推荐模式，同 useWorkspaceNav 消费 ?doc 的写法），
-  // 放 effect 里会多跑一帧——弹窗会先闪一下上次的结果
+  // Each open is a fresh search: the previous query doesn't carry over.
+  // Reset during render behind a guard (React's recommended pattern, same as useWorkspaceNav consuming ?doc);
+  // in an effect it costs an extra frame — the dialog would flash the previous results first
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -51,8 +51,8 @@ export function QuickSwitcher({
     return () => clearTimeout(timer);
   }, [query]);
 
-  // open 与 wasOpen 不齐的那一帧是上面重置触发的重渲染前夜，关键词还是上一次的：
-  // 此时不搜，免得拿一个作废的词白扫一遍全库正文（几百篇就是几百次 localStorage 读）
+  // The frame where open and wasOpen disagree is the eve of the re-render triggered by the reset above, and the query is still the old one:
+  // skip searching then, rather than scan every body in the library with a stale query (hundreds of articles = hundreds of localStorage reads)
   const hits = useMemo(
     () => (open && open === wasOpen ? searchDocs(docs, debounced, { limit: LIMIT }) : []),
     [open, wasOpen, docs, debounced]

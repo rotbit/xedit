@@ -22,18 +22,18 @@ const actionBtn =
   "cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--sidebar-active)]";
 
 /**
- * 子项容器：相对定位给引导线当锚；isolate 开一个独立层叠上下文，
- * 让引导线能用负 z-index 压到行的悬停/选中底色下面，又不至于沉到侧栏背景之后。
- * tree-branch 类名供引导线的悬停规则回查。
+ * Children container: relatively positioned as the anchor for guide lines; isolate opens its own stacking context
+ * so guide lines can use a negative z-index to sit under the row's hover/selected background without sinking behind the sidebar background.
+ * The tree-branch class name lets the guide line's hover rules look it up.
  */
 export const treeBranchCls = "tree-branch relative isolate";
 
 /**
- * 缩进引导线（Obsidian 文件树同款）：从父分类的图标位正下方垂到子项末尾。
- * 平时是一道淡线；鼠标停进某个分支，只有「最内层被悬停的那个分支」的线加深，
- * 看到的始终是「光标所在这一组属于谁」。行的底色从缩进处才开始（见 rowInset），
- * 线永远露在高亮左侧，不会被盖住。
- * 横向落点 = 父行的图标位中心 = 15 + treeIndent(depth)（推导见 constants 的 rowPadLeft）。
+ * Indent guide line (like Obsidian's file tree): drops from directly below the parent category's icon slot to the end of its children.
+ * Normally a faint line; when the mouse rests in a branch, only the line of the innermost hovered branch darkens,
+ * so you always see "who this group under the cursor belongs to". Row backgrounds start at the indent (see rowInset),
+ * so the line always shows to the left of the highlight and is never covered.
+ * Horizontal position = center of the parent row's icon slot = 15 + treeIndent(depth) (derivation in rowPadLeft in constants).
  */
 export function TreeGuide({ depth }: { depth: number }) {
   return (
@@ -45,7 +45,7 @@ export function TreeGuide({ depth }: { depth: number }) {
   );
 }
 
-/** 侧栏分类行；展开时按 node.items 递归渲染子分类与直属文章（两者可混排） */
+/** Sidebar category row; when expanded, recursively renders child categories and direct documents from node.items (the two can be interleaved) */
 export function CategoryRow({
   ws,
   node,
@@ -77,31 +77,31 @@ export function CategoryRow({
           className={`flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(active)} ${dropCls} ${
             drag.isDragging({ kind: "cat", path: node.path }) ? "opacity-40" : ""
           }`}
-          // 缩进用外边距而不是内边距：底色从这里起，父级引导线露在左侧。内边距让图标位中心落在 15 + treeIndent(depth)
+          // Indent with margin rather than padding: the background starts here and the parent guide line shows on the left. The padding puts the icon slot center at 15 + treeIndent(depth)
           style={{
             marginLeft: `${rowInset(depth)}px`,
             width: `calc(100% - ${rowInset(depth)}px)`,
             paddingLeft: `${rowPadLeft(depth)}px`,
           }}
-          // 点文件夹只在侧栏里展开 / 收起（像 Obsidian）：右侧正在读的东西不动。
-          // 要在右侧看这个文件夹的时间流，走「···」菜单或面包屑
+          // Clicking a folder only expands / collapses it in the sidebar (like Obsidian): whatever is being read on the right stays put.
+          // To see this folder's timeline on the right, use the 「···」 menu or the breadcrumbs
           onClick={() => prefs.toggleExpand(node.path)}
           onContextMenu={(e) => menus.openCatMenuAt(e, node.path)}
           title={name}
         >
-          {/* 14px 图标位：常驻的折叠箭头（像 Obsidian），收着朝右、展开朝下；整行都是展开 / 收起 */}
+          {/* 14px icon slot: an always-visible chevron (like Obsidian), right when collapsed and down when expanded; the whole row toggles expand / collapse */}
           <span className={`flex h-[14px] w-[14px] shrink-0 items-center justify-center ${iconTone(active)}`}>
             <ChevronRight size={14} className={`transition-transform ${isOpen ? "rotate-90" : ""}`} />
           </span>
-          {/* 不显示篇数：目录树只管导航，数字挂在每行右侧只是噪音 */}
+          {/* No item count: the tree is just for navigation, and numbers on every row are noise */}
           <span className="min-w-0 flex-1 truncate">{name}</span>
         </div>
-        {/* 新建文章/子文件夹都收进「⋯」菜单：悬停快捷图标会压住长标题 */}
+        {/* New document/subfolder both live in the 「⋯」 menu: hover shortcut icons would cover long titles */}
         {canManage ? (
           <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center group-hover/cat:flex">
             <button
               className={`${actionBtn} hover:text-[var(--ink)]`}
-              // 标记成菜单触发器：菜单的外部关闭逻辑放它一马，再点一次由这里 toggle 关掉
+              // Marked as a menu trigger: the menu's outside-click logic spares it, so clicking again toggles it closed here
               data-menu-trigger
               title={t("管理文件夹")}
               onClick={(e) => menus.toggleCatMenuAt(e, node.path)}

@@ -1,18 +1,18 @@
 /**
- * 「原文 → 建议」的行内小 diff：卡片上要让人一眼看出到底改了哪几个字。
+ * Inline mini diff for "original → suggestion": the card should show at a glance exactly which characters changed.
  *
- * 只掐公共前后缀，中间一整段算「删了 A 换成 B」——审核意见本来就是短句级的改写，
- * 上一套 Myers 既看不出差别，又要多养一份代码。
+ * Only trims the common prefix and suffix; the middle counts as "deleted A, replaced with B". Review comments are sentence-level rewrites anyway,
+ * and the previous Myers implementation didn't show differences any better while being more code to maintain.
  */
 
 export interface QuoteDiff {
-  /** 没动的开头 */
+  /** Unchanged start */
   prefix: string;
-  /** 划掉的部分（可能是空串：纯插入） */
+  /** Struck-out part (may be empty: pure insertion) */
   removed: string;
-  /** 新增的部分（可能是空串：纯删除） */
+  /** Added part (may be empty: pure deletion) */
   added: string;
-  /** 没动的结尾 */
+  /** Unchanged end */
   suffix: string;
 }
 
@@ -24,7 +24,7 @@ export function diffQuote(before: string, after: string): QuoteDiff {
 
   let head = 0;
   while (head < max && before[head] === after[head]) head++;
-  // 别把一对代理项（emoji 之类）从中间劈开
+  // Don't split a surrogate pair (emoji and the like) down the middle
   if (head > 0 && isHighSurrogate(before.charCodeAt(head - 1))) head--;
 
   let tail = 0;

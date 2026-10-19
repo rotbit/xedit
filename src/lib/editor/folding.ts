@@ -1,18 +1,18 @@
 /**
- * 标题折叠（H1–H4）：标题行尾挂一枚小三角，折起来之后同一位置换成一枚 "…" 药丸。
+ * Heading folding (H1–H4): a small triangle sits at the end of the heading line; when folded, the same spot shows a "…" pill.
  *
- * 折叠范围不自己算。@codemirror/lang-markdown 的 markdown() 里已经装了一个
- * headerIndent（foldService，见 node_modules/@codemirror/lang-markdown/dist/index.js），
- * 范围正是「标题行行尾 → 下一个同级/更高级标题之前最后一个块节点的末尾」：
- * - 段落之间的空行不属于任何块节点，天然被排到折叠范围之外，折起来之后下一个标题
- *   不会贴上来，章节之间的呼吸感还在；
- * - 围栏代码块里的 `#` 在语法树里是 CodeText 不是标题，不会被误当成分界。
- * 所以这里只调 foldable()，不重复造一个 foldService。
+ * Fold ranges aren't computed here. markdown() from @codemirror/lang-markdown already installs a
+ * headerIndent (foldService, see node_modules/@codemirror/lang-markdown/dist/index.js),
+ * whose range is exactly "end of the heading line → end of the last block node before the next same-or-higher heading":
+ * - blank lines between paragraphs belong to no block node, so they naturally fall outside the fold range; after folding the next heading
+ *   doesn't butt up against it and the breathing room between sections remains;
+ * - `#` inside fenced code is CodeText in the syntax tree, not a heading, so it's never mistaken for a boundary.
+ * So this just calls foldable() rather than building another foldService.
  *
- * 入口做成行尾 widget 而不是 gutter：这版编辑器是所见即所得的版式，正文列居中、
- * 左右留白很大，加一条 gutter 会把「文档」重新变回「代码编辑器」。折与展都在行尾，
- * 左边距留给即时渲染显形的 "## "。
- * 样式见 app/editor.css。
+ * The handle is a line-end widget rather than a gutter: this editor is a WYSIWYG layout with a centered text column
+ * and wide side margins; adding a gutter would turn the "document" back into a "code editor". Fold and unfold both live at the line end,
+ * leaving the left margin for the "## " revealed by live preview.
+ * Styles in app/editor.css.
  */
 
 import {
@@ -43,8 +43,8 @@ import {
 } from "@codemirror/view";
 import { t } from "@/i18n/t";
 
-/** 只给 H1–H4 挂把手：H5/H6 在版式里已经退回正文字号（见 live-preview.css 的 cm-lp-h4），
-    再多一个把手只是噪点；它们仍然能用快捷键折叠，foldable() 对六级标题一视同仁 */
+/** Only H1–H4 get handles: H5/H6 already drop to body size in the layout (see cm-lp-h4 in live-preview.css),
+    so another handle would just be noise; they can still be folded by shortcut, as foldable() treats all six levels alike */
 const FOLDABLE_HEADING = /^ATXHeading[1-4]$/;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -54,7 +54,7 @@ interface FoldRange {
   to: number;
 }
 
-/** 折叠区间总是从标题行行尾起头，所以「这个标题折没折」等价于「行尾有没有折叠区间」 */
+/** Fold ranges always start at the end of the heading line, so "is this heading folded" equals "is there a fold range at the line end" */
 function foldedAt(state: EditorState, lineEnd: number): FoldRange | null {
   const hit: FoldRange[] = [];
   foldedRanges(state).between(lineEnd, lineEnd, (from, to) => {
@@ -64,8 +64,8 @@ function foldedAt(state: EditorState, lineEnd: number): FoldRange | null {
 }
 
 /**
- * 光标此刻是否被埋在某个折叠区间「内部」，是的话给出该区间的开头（即标题行行尾）。
- * 严格内部：正好停在两端不算——折完把光标放到 from 上是常规收尾，不该被当成出事。
+ * Whether the cursor is currently buried strictly inside a fold range; if so, returns the range start (the heading line end).
+ * Strictly inside: sitting exactly on either end doesn't count; placing the cursor at from after folding is the normal finish, not a problem.
  */
 function buriedCaretTarget(state: EditorState): number | null {
   const head = state.selection.main.head;
@@ -77,17 +77,17 @@ function buriedCaretTarget(state: EditorState): number | null {
 }
 
 /**
- * 折叠命令的统一收尾：命令本身不管光标，折完可能把光标埋进折叠区里（foldAll 尤其明显，
- * 光标会当场消失）。dispatch 是同步的，命令跑完立刻看新状态，埋了就把光标挪到区间开头。
- * 这一下不会把刚折好的区间又撑开：CodeMirror 只在选区落点「严格落在折叠区内部」时
- * 自动展开（foldState 里的 clearTouchedFolds），落在边界上不算。
+ * Common finish for fold commands: the commands don't manage the cursor, so folding may bury it inside a fold (very obvious with foldAll,
+ * where the cursor vanishes on the spot). dispatch is synchronous, so check the new state right after; if buried, move the cursor to the range start.
+ * This doesn't re-expand the range just folded: CodeMirror only auto-unfolds when the selection lands "strictly inside" a fold
+ * (clearTouchedFolds in foldState); landing on the boundary doesn't count.
  */
 function liftBuriedCaret(view: EditorView): void {
   const target = buriedCaretTarget(view.state);
   if (target !== null) view.dispatch({ selection: EditorSelection.cursor(target) });
 }
 
-/** 折叠/展开这一标题行；该行折不动（空章节、压根不是标题）时返回 false */
+/** Fold/unfold this heading line; returns false if it can't fold (empty section, or not a heading at all) */
 function toggleHeadingFold(view: EditorView, line: Line): boolean {
   const folded = foldedAt(view.state, line.to);
   if (folded) {
@@ -102,11 +102,11 @@ function toggleHeadingFold(view: EditorView, line: Line): boolean {
 }
 
 /**
- * 标题行尾的折叠三角。只有展开态才出现：折起来之后同一个位置换成 "…" 药丸，
- * 折与展的入口落在同一处，手不用来回找。
+ * Fold triangle at the end of a heading line. Shown only when expanded: once folded, the same spot shows the "…" pill,
+ * so fold and unfold are in one place and you don't have to hunt for them.
  */
 class FoldChevron extends WidgetType {
-  /** 无状态部件，全都长一个样，DOM 直接复用 */
+  /** Stateless widget, all identical, so the DOM is reused directly */
   eq(): boolean {
     return true;
   }
@@ -133,17 +133,17 @@ class FoldChevron extends WidgetType {
     return button;
   }
 
-  /** mousedown 必须放行：返回 true 的事件 CodeMirror 连插件的 eventHandlers 都不派发，
-      下面那个折叠处理器就永远收不到点击。其余事件照旧忽略，别被当成正文操作 */
+  /** mousedown must be let through: for events returning true, CodeMirror doesn't dispatch plugin eventHandlers at all,
+      so the fold handler below would never receive clicks. Other events are ignored as before so they aren't treated as text edits */
   ignoreEvent(event: Event): boolean {
     return event.type !== "mousedown";
   }
 }
 
 /**
- * 只扫视口内的标题。三角挂在标题行行尾、side 取正：排在行内文字和光标之后，
- * 光标停在行尾时画在三角前面，打字位置不受影响。放行尾而不是行首还有一个好处：
- * 左边距留给即时渲染显形的 "## "，两者不必抢同一块地方。
+ * Only scan headings in the viewport. The triangle sits at the heading line end with positive side: after inline text and the cursor,
+ * so a cursor at line end is drawn before the triangle and the typing position is unaffected. Line end instead of line start also
+ * leaves the left margin for the "## " revealed by live preview, so they don't compete for space.
  */
 function buildChevrons(view: EditorView): DecorationSet {
   const { state } = view;
@@ -154,16 +154,16 @@ function buildChevrons(view: EditorView): DecorationSet {
       from: range.from,
       to: range.to,
       enter: (node) => {
-        // 这些块不可能包含可折叠的 Markdown 标题，尤其不要进入长代码块的语言语法树。
+        // These blocks can't contain foldable Markdown headings; in particular, don't descend into long code blocks' language syntax trees.
         if (/^(FencedCode|CodeBlock|Paragraph|Table|HTMLBlock)$/.test(node.name)) return false;
         if (!FOLDABLE_HEADING.test(node.name)) return;
         const line = state.doc.lineAt(node.from);
-        // 视口被折叠切成几段时，同一行理论上可能被相邻两段各扫一次
+        // When folds split the viewport into several ranges, the same line could in theory be scanned by two adjacent ranges
         if (line.from === lastLineFrom) return;
-        // 空章节（下一行就是同级或更高级标题）折不动，不该给一个按了没反应的把手
+        // Empty sections (next line is a same-or-higher heading) can't fold, so don't offer a handle that does nothing
         if (!foldable(state, line.from, line.to)) return;
         lastLineFrom = line.from;
-        // 已折叠的不挂三角：行尾那枚 "…" 药丸就是展开入口
+        // Folded headings get no triangle: the "…" pill at the line end is the unfold entry
         if (foldedAt(state, line.to)) return;
         decos.push(Decoration.widget({ widget: new FoldChevron(), side: 1 }).range(line.to));
         return false;
@@ -182,8 +182,8 @@ const foldChevrons = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
-      // 折叠集合是 StateField，没变时 RangeSet.map 原样返回旧对象，比引用就够了；
-      // 语法树是后台增量解析的，树换了才知道后半篇哪些行是标题（同 blocks.ts 的做法）
+      // The fold set is a StateField; when unchanged, RangeSet.map returns the old object, so a reference check suffices;
+      // the syntax tree is parsed incrementally in the background, and only a new tree reveals which later lines are headings (same approach as blocks.ts)
       const foldChanged = foldedRanges(update.startState) !== foldedRanges(update.state);
       const treeChanged = syntaxTree(update.startState) !== syntaxTree(update.state);
       if (update.docChanged || update.viewportChanged || foldChanged || treeChanged) {
@@ -199,7 +199,7 @@ const foldChevrons = ViewPlugin.fromClass(
         if (event.button !== 0 || !target?.closest?.(".cm-fold-chevron")) return false;
         const lineEl = target.closest(".cm-line");
         if (!lineEl) return false;
-        // 必须截下来：默认这一下会把光标挪到三角所在的行尾，还会顺手改变焦点
+        // Must intercept: by default this would move the cursor to the line end where the triangle is and also change focus
         event.preventDefault();
         toggleHeadingFold(view, view.state.doc.lineAt(view.posAtDOM(lineEl)));
         return true;
@@ -208,7 +208,7 @@ const foldChevrons = ViewPlugin.fromClass(
   }
 );
 
-/** 折叠后留在标题行尾的 "…" 药丸（官方默认是一个灰底方块，与整站观感不搭，整块换掉） */
+/** The "…" pill left at the heading line end after folding (the default is a gray square that doesn't fit the site's look, so it's replaced entirely) */
 const foldedPlaceholder = codeFolding({
   placeholderDOM: (_view, onclick) => {
     const pill = document.createElement("span");
@@ -217,7 +217,7 @@ const foldedPlaceholder = codeFolding({
     pill.title = t("点击展开");
     pill.setAttribute("role", "button");
     pill.setAttribute("aria-label", t("已折叠，点击展开"));
-    // 先按下去的话光标会落到折叠区边界、版面跟着跳一下，截掉只留 click
+    // Pressing down first would put the cursor on the fold boundary and make the layout jump, so intercept it and keep only click
     pill.addEventListener("mousedown", (event) => event.preventDefault());
     pill.addEventListener("click", onclick);
     return pill;
@@ -225,8 +225,8 @@ const foldedPlaceholder = codeFolding({
 });
 
 /**
- * 沿用官方 foldKeymap（mac：⌘⌥[ 折叠、⌘⌥] 展开；⌃⌥[ / ⌃⌥] 全部折叠/展开），
- * 与 shortcuts.ts 的 ⌘⌥0/1/2/3 不撞。每条命令后面补一次光标救援。
+ * Reuses the official foldKeymap (mac: ⌘⌥[ fold, ⌘⌥] unfold; ⌃⌥[ / ⌃⌥] fold/unfold all),
+ * which doesn't clash with ⌘⌥0/1/2/3 in shortcuts.ts. Each command is followed by a cursor rescue.
  */
 const foldKeys: KeyBinding[] = foldKeymap.map((binding) => {
   const run = binding.run;
@@ -242,9 +242,9 @@ const foldKeys: KeyBinding[] = foldKeymap.map((binding) => {
 });
 
 /**
- * 折叠状态只活在本次会话的内存里，不持久化：foldState 是个 StateField，
- * 切文档时整篇内容被替换，折叠区间跟着改动一起被删掉，自然清空。
- * 查找跳转、目录跳转都靠 dispatch selection 落点，CodeMirror 对落在折叠区内部的选区
- * 会自动展开（foldState 的 clearTouchedFolds），不用额外接线。
+ * Fold state lives only in memory for this session and isn't persisted: foldState is a StateField,
+ * and switching docs replaces the whole content, deleting the fold ranges along with it, so it clears naturally.
+ * Search jumps and outline jumps both work by dispatching a selection, and CodeMirror auto-unfolds for selections inside a fold
+ * (clearTouchedFolds in foldState), so no extra wiring is needed.
  */
 export const headingFolding: Extension = [foldedPlaceholder, foldChevrons, keymap.of(foldKeys)];

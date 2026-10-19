@@ -16,8 +16,8 @@ export const githubConfigured = Boolean(
 export const googleConfigured = Boolean(
   process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
 );
-// 微信要企业主体的开放平台账号，门槛高；除了 ID/Secret 还要一个显式开关，
-// 好让已配好的部署能临时关掉微信登录而不必清空密钥
+// WeChat requires a business-verified Open Platform account, a high bar; besides ID/Secret there's an explicit switch
+// so a configured deployment can temporarily disable WeChat login without clearing the keys
 const wechatId = process.env.AUTH_WECHAT_ID;
 const wechatSecret = process.env.AUTH_WECHAT_SECRET;
 const wechatEnabled = ["1", "true"].includes(
@@ -28,19 +28,19 @@ export const wechatConfigured = Boolean(wechatEnabled && wechatId && wechatSecre
 const providers: Provider[] = [];
 if (githubConfigured) providers.push(GitHub);
 if (googleConfigured) providers.push(Google);
-// 后两个判断只为让 TS 收窄成 string——wechatConfigured 为真时它们必然有值
+// The last two checks only narrow TS to string; they always have values when wechatConfigured is true
 if (wechatConfigured && wechatId && wechatSecret) {
   providers.push(
     WeChat({
       clientId: wechatId,
       clientSecret: wechatSecret,
-      // website：开放平台网站应用，PC 扫码；official：公众号网页授权，仅微信内置浏览器
+      // website: Open Platform website app, PC QR scan; official: WeChat Official Account web auth, WeChat's in-app browser only
       platformType:
         process.env.AUTH_WECHAT_PLATFORM?.trim().toLowerCase() === "official"
           ? "OfficialAccount"
           : "WebsiteApp",
       profile: (profile) => ({
-        // 网站应用一般都有 unionid；未开放 UnionID 时退回 openid，保证不会拿到 undefined 当主键
+        // Website apps usually have a unionid; fall back to openid when UnionID isn't enabled so the primary key is never undefined
         id: profile.unionid || profile.openid,
         name: profile.nickname,
         email: null,
@@ -49,11 +49,11 @@ if (wechatConfigured && wechatId && wechatSecret) {
     })
   );
 }
-// 邮箱 + 密码：始终可用，无需第三方配置
+// Email + password: always available, no third-party config needed
 providers.push(
   Credentials({
     credentials: {
-      // i18n-ignore 只用于 NextAuth 自带登录页（产品走自定义登录界面）
+      // i18n-ignore only used by NextAuth's built-in sign-in page (the product uses a custom login UI)
       email: { label: "邮箱", type: "email" },
       password: { label: "密码", type: "password" }, // i18n-ignore
     },
@@ -62,7 +62,7 @@ providers.push(
       const password = typeof creds?.password === "string" ? creds.password : "";
       if (!email || !password) return null;
       const user = await prisma.user.findUnique({ where: { email } });
-      // 不区分“无此账号”与“密码错误”，避免暴露邮箱是否已注册
+      // Don't distinguish "no such account" from "wrong password", to avoid revealing whether an email is registered
       if (!user?.passwordHash) return null;
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) return null;
@@ -74,16 +74,16 @@ providers.push(
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers,
-  // Credentials 只在 JWT 会话下可用；OAuth 亦复用同一策略。
-  // maxAge 一年：默认的 30 天对「装上就常年开着」的写作工具太短，一到期就掉回落地页。
-  // 仍是滑动续期——每次在线取会话都会重签 JWT，把到期时间再推回一年后，
-  // 只有真的一年没上来过的账号才会过期（本地那份账号快照用同一个期限）
+  // Credentials only work with JWT sessions; OAuth reuses the same strategy.
+  // maxAge is one year: the default 30 days is too short for a writing tool that's "installed and left open for years"; on expiry it drops back to the landing page.
+  // Still sliding renewal: every online session fetch re-signs the JWT, pushing expiry back out a year,
+  // so only accounts truly unused for a year expire (the local account snapshot uses the same lifetime)
   session: { strategy: "jwt", maxAge: 365 * 24 * 60 * 60 },
   trustHost: true,
   callbacks: {
     jwt({ token, user }) {
       if (user) token.uid = user.id;
-      // 管理员按 env 白名单每次重判，改名单不用等 JWT 过期
+      // Admin status is re-evaluated against the env allowlist each time, so allowlist changes don't wait for JWT expiry
       token.adm = isAdminEmail(typeof token.email === "string" ? token.email : null);
       return token;
     },
@@ -96,14 +96,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   events: {
-    // 账号刚建好：塞一篇欢迎稿，之后再也不补（客户端不再按「云端为空」判断）
+    // Account just created: add a welcome doc, never again afterward (the client no longer decides based on "cloud is empty")
     async createUser({ user }) {
       if (!user.id) return;
       await prisma.document
         .create({ data: { userId: user.id, title: WELCOME_TITLE, content: DEFAULT_MARKDOWN } })
         .catch((err) => console.error("[auth] 创建欢迎稿失败", err));
     },
-    // 每次登录（OAuth 与密码都会触发）刷新最近登录时间；失败不影响登录流程
+    // Refresh last login time on every login (both OAuth and password trigger it); failure doesn't affect login
     async signIn({ user }) {
       if (!user.id) return;
       await prisma.user

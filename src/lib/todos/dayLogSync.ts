@@ -1,11 +1,11 @@
 /**
- * 当日记录的云同步：本地 localStorage（events.ts）↔ /api/day-log。
+ * Cloud sync for the day log: local localStorage (events.ts) ↔ /api/day-log.
  *
- * 推：events.ts 每次改动给事件标脏（带 rev）、删除记进待删集合，这里 5 秒防抖后分批 PUT；
- *    成功回来先对代际（换账号）再按 rev 清脏——在飞期间又被合并写入的那条 rev 已变，留给下一轮。
- * 拉：随文档同步（sync.ts 的 syncNow）一起跑，首次按日期全量、此后按 updatedAt 游标增量；
- *    本地还有没推上去的改动时本地优先，服务端那份跳过。
- * 只有 startDayLogSync 启动后（即登录态的工作台里）才会防抖推送：本地模式不该有任何请求。
+ * Push: events.ts marks events dirty on every change (with rev) and records deletions in a pending-delete set; here we debounce 5s and PUT in batches.
+ *    On success, check the epoch (account switch) first, then clear dirty marks by rev — an entry merged again while in flight has a new rev and waits for the next round.
+ * Pull: runs alongside document sync (syncNow in sync.ts): a full fetch by date the first time, then incremental by updatedAt cursor.
+ *    If there are local changes not yet pushed, local wins and the server copy is skipped.
+ * Debounced pushes only happen after startDayLogSync starts (i.e. in the signed-in workspace): local mode must make no requests.
  */
 
 import { isSyncHeld } from "@/lib/mirrorOwner";
@@ -26,17 +26,17 @@ import {
 } from "./events";
 
 const ENDPOINT = "/api/day-log";
-/** 与服务端单次上限一致 */
+/** Matches the server's per-request limit */
 const BATCH = 200;
 const PUSH_DEBOUNCE_MS = 5000;
-/** 首次全量拉多少天：与本地保留天数一致，再早的拉下来也会被 pruneOld 删掉 */
+/** Days to fetch on the first full pull: matches local retention; anything older would just be removed by pruneOld */
 const PULL_DAYS = 60;
-/** 增量拉取最多连翻几页：防服务端异常时死循环，剩下的下一轮同步再拉 */
+/** Max pages per incremental pull: guards against infinite loops if the server misbehaves; the rest comes next sync */
 const MAX_PULL_PAGES = 10;
-/** keepalive 请求体上限是 64KB，留点余量 */
+/** keepalive request bodies are capped at 64KB; leave some headroom */
 const KEEPALIVE_MAX_BYTES = 60_000;
 
-/** 服务端下发的事件 */
+/** Event as sent by the server */
 export interface ServerDayEvent {
   id: string;
   day: string;
@@ -85,8 +85,8 @@ function toPayload(day: string, e: DayEvent): UpsertPayload {
 }
 
 /**
- * 按脏标记收集要推的事件。同一天只读一次；
- * 脏标记指向的事件已经不在本地（被 pruneOld 清掉、或标记残留）的记进 orphans，推送成功后顺手清掉。
+ * Collect events to push from the dirty marks. Each day is read only once;
+ * marks pointing at events no longer local (removed by pruneOld, or stale marks) go into orphans and are cleared after a successful push.
  */
 function collectDirty(): { upserts: { payload: UpsertPayload; rev: number }[]; orphans: Map<string, number> } {
   const dirty = readDirty();
@@ -106,7 +106,7 @@ function collectDirty(): { upserts: { payload: UpsertPayload; rev: number }[]; o
   return { upserts, orphans };
 }
 
-/** 推送成功后清脏：rev 一致才清，不一致说明在飞期间又改过，留给下一轮 */
+/** Clear dirty marks after a successful push: only when rev matches; a mismatch means it changed in flight, leave it for next round */
 function clearDirtyRevs(sent: Map<string, number>): void {
   const dirty = readDirty();
   let changed = false;
@@ -127,7 +127,7 @@ function clearDeleted(sent: string[]): void {
 
 type PushResult = "ok" | "stop";
 
-/** 推一轮：分批 PUT。任何失败都保留脏标记——401/4xx 重试也没用，等下一次触发；网络与 5xx 同样下次再来 */
+/** One push round: batched PUTs. Any failure keeps the dirty marks — retrying 401/4xx won't help, wait for the next trigger; network errors and 5xx also retry next time */
 async function pushOnce(): Promise<PushResult> {
   const { upserts, orphans } = collectDirty();
   const deleted = readDeleted();
@@ -148,9 +148,9 @@ async function pushOnce(): Promise<PushResult> {
         body: JSON.stringify({ upsert: up.map((u) => u.payload), delete: del }),
       });
     } catch {
-      return "stop"; // 断网 / DNS 失败：脏标记留着
+      return "stop"; // Offline / DNS failure: keep the dirty marks
     }
-    // 代际变了（登出 / 换账号，本地日志已被 clearDayLog 清空）：这份确认不属于当前会话
+    // Epoch changed (signed out / switched account, local log already wiped by clearDayLog): this ack isn't for the current session
     if (!isCurrentEpoch(epoch)) return "stop";
     if (!res.ok) return "stop";
     clearDirtyRevs(new Map(up.map((u) => [u.payload.id, u.rev])));
@@ -161,8 +161,8 @@ async function pushOnce(): Promise<PushResult> {
 }
 
 /**
- * 把本地脏改动推上云。单飞：已有一轮在跑时只置 pendingRerun，跑完再补一轮读最新状态。
- * 意外一律吞掉——防抖定时器那条链路没人接 rejection。
+ * Push local dirty changes to the cloud. Single-flight: if a round is already running, just set pendingRerun and run once more afterwards with fresh state.
+ * Swallow all unexpected errors — nobody handles rejections on the debounce timer path.
  */
 export async function pushDayLog(): Promise<void> {
   if (!online() || isSyncHeld()) return;
@@ -183,7 +183,7 @@ export async function pushDayLog(): Promise<void> {
   }
 }
 
-/** 防抖推送：write 事件约每秒一次，攒 5 秒再发；未启动同步（本地模式）时什么都不做 */
+/** Debounced push: write events fire about once a second, batch for 5s; does nothing if sync isn't started (local mode) */
 export function scheduleDayLogPush(): void {
   if (!started) return;
   if (timer) clearTimeout(timer);
@@ -194,8 +194,8 @@ export function scheduleDayLogPush(): void {
 }
 
 /**
- * 页面隐藏 / 关闭时把还在防抖窗口里的改动立即发出去。keepalive 请求的结果拿不到，
- * 所以不清脏标记——下次打开再推一遍，服务端按 id upsert 是幂等的。体量超出 keepalive 上限的部分留给下次。
+ * Flush changes still in the debounce window right away when the page is hidden / closed. keepalive results can't be read,
+ * so dirty marks aren't cleared — they're pushed again next time, and the server's upsert by id is idempotent. Anything past the keepalive limit waits for next time.
  */
 function flushOnHide(): void {
   if (isSyncHeld() || !online()) return;
@@ -219,11 +219,11 @@ function flushOnHide(): void {
       keepalive: true,
     }).catch(() => undefined);
   } catch {
-    // 页面正在卸载时 fetch 可能同步抛，忽略
+    // fetch may throw synchronously while the page is unloading; ignore
   }
 }
 
-/** 启动当日记录同步的常驻监听（与 startSync 同处挂载），返回清理函数 */
+/** Start the day-log sync's long-lived listeners (mounted alongside startSync); returns a cleanup function */
 export function startDayLogSync(): () => void {
   started = true;
   const onHide = () => flushOnHide();
@@ -238,7 +238,7 @@ export function startDayLogSync(): () => void {
   };
 }
 
-/** 服务端事件 → 本地事件：null 字段省略，保持与 logEvent 写出的形状一致 */
+/** Server event → local event: omit null fields to match the shape logEvent writes */
 function fromServer(s: ServerDayEvent): DayEvent {
   const e: DayEvent = { id: s.id, ts: s.ts, kind: s.kind };
   if (s.end !== null) e.end = s.end;
@@ -250,12 +250,12 @@ function fromServer(s: ServerDayEvent): DayEvent {
 }
 
 /**
- * 纯函数：把一批服务端事件合进本地（{ 日期键: 事件[] }）。
- * - id 在 skipIds（脏标记 + 待删）里的跳过：本地还有没推上去的改动，本地优先；
- * - deleted 的从它所在的那天删掉（按 id 找，不依赖 day 字段）；
- * - 其余按 id 覆盖 / 插入到 event.day；本地若在别的日期键里有同 id，先从那边删掉；
- * - 改动过的日期内按 ts 升序。
- * 返回合并后的完整状态与改动过的日期键（不修改入参）。
+ * Pure function: merge a batch of server events into local state ({ dateKey: event[] }).
+ * - ids in skipIds (dirty marks + pending deletes) are skipped: there are unpushed local changes, local wins;
+ * - deleted ones are removed from whichever day holds them (found by id, not relying on the day field);
+ * - the rest overwrite / insert by id into event.day; if the same id exists under another local date key, remove it there first;
+ * - changed days are sorted by ts ascending.
+ * Returns the full merged state and the changed date keys (inputs are not mutated).
  */
 export function applyServerEvents(
   local: Record<string, DayEvent[]>,
@@ -296,7 +296,7 @@ export function applyServerEvents(
   return { days, changed: [...changed] };
 }
 
-/** 读出本地全部日志，供 applyServerEvents 跨日期找同 id */
+/** Read all local logs so applyServerEvents can find the same id across dates */
 function readAllLocal(): Record<string, DayEvent[]> {
   const out: Record<string, DayEvent[]> = {};
   for (const key of listDayLogKeys()) out[key] = readDayEvents(key);
@@ -316,8 +316,8 @@ function isServerEvent(v: unknown): v is ServerDayEvent {
 }
 
 /**
- * 从云端拉当日记录并合进本地。epoch 由 syncNow 传入：中途换了账号，整批丢弃。
- * 有游标走 ?since= 增量（满页则接着翻），没有则按日期全量拉最近 60 天。
+ * Pull the day log from the cloud and merge it locally. epoch comes from syncNow: if the account changed midway, drop the whole batch.
+ * With a cursor, go incremental via ?since= (keep paging while pages are full); without one, fetch the last 60 days by date.
  */
 export async function pullDayLog(epoch: number): Promise<void> {
   if (!online() || isSyncHeld()) return;
@@ -337,7 +337,7 @@ export async function pullDayLog(epoch: number): Promise<void> {
     if (!isCurrentEpoch(epoch) || !body || !Array.isArray(body.events)) break;
     const incoming = body.events.filter(isServerEvent);
     if (incoming.length > 0) {
-      // 跳过集合每页现读：上一页应用期间用户可能又记了新事件
+      // Re-read the skip set per page: the user may have logged new events while the previous page was applied
       const skip = new Set([...Object.keys(readDirty()), ...readDeleted()]);
       const { days, changed } = applyServerEvents(readAllLocal(), incoming, skip);
       for (const day of changed) {
@@ -346,16 +346,16 @@ export async function pullDayLog(epoch: number): Promise<void> {
       }
     }
     const next = typeof body.cursor === "string" ? body.cursor : null;
-    // 游标只进不退（同格式 ISO 串可直接字典序比较），先应用再推进：中途失败下次会重拉这一批
+    // Cursor only moves forward (same-format ISO strings compare lexicographically); apply first, then advance: a mid-way failure re-fetches this batch next time
     if (next && (!cursor || next > cursor)) {
       cursor = next;
       writeLocal(DAY_LOG_CURSOR_KEY, cursor);
     }
-    // 服务端说还有才翻下一页；游标没推进也别再翻，免得原地打转
+    // Only page on when the server says there's more; also stop if the cursor didn't advance, to avoid spinning in place
     if (body.hasMore !== true || next !== cursor) break;
   }
   if (changedAll.size > 0 && isCurrentEpoch(epoch)) {
-    // 整批只派发一次；detail 沿用字符串日期键的约定，多天变动时给今天（监听方只用它触发重读）
+    // Dispatch once per batch; detail keeps the string date-key convention, using today when multiple days changed (listeners only use it to trigger a reread)
     const today = todayKey();
     const detail = changedAll.has(today) ? today : [...changedAll].sort().pop()!;
     window.dispatchEvent(new CustomEvent(DAY_LOG_CHANGED_EVENT, { detail }));

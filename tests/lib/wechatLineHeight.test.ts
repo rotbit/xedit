@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-// 公众号「内容结构检测」的行高误报与根 section 丢失：
-// 1. 检测器用 Range.getClientRects() 数行，行内元素（strong/span/br…）把一行拆成多个矩形，
-//    带直接文本的混排段落会被误报「行高小于字体大小」。它不查没有直接文本的块，
-//    所以我们把混排块里的裸文本包进无属性的 span；纯文本段落和代码块不能被波及。
-// 2. Chrome 选区复制会丢掉最外层 <section> 和它的内联样式，顶层块得自己带上字号/行高等。
+// WeChat 「内容结构检测」 (content structure check) false line-height warnings and the lost root section:
+// 1. The checker counts lines with Range.getClientRects(); inline elements (strong/span/br…) split one line into several rects,
+//    so mixed paragraphs with direct text get flagged as "line height smaller than font size". It skips blocks without direct text,
+//    so we wrap bare text in mixed blocks in attribute-less spans; plain-text paragraphs and code blocks must not be affected.
+// 2. Chrome's selection copy drops the outermost <section> and its inline styles, so top-level blocks must carry font size/line height etc. themselves.
 
 import { describe, expect, it } from "vitest";
 import { buildWechatHtml } from "@/lib/copy/wechat";
@@ -17,7 +17,7 @@ const build = async (markdown: string) => {
   return new DOMParser().parseFromString(html, "text/html");
 };
 
-/** 直接挂在元素下、且不是纯空白的文本节点 */
+/** Text nodes directly under the element that aren't pure whitespace */
 const directTexts = (el: Element) =>
   Array.from(el.childNodes).filter(
     (n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim().length > 0
@@ -35,12 +35,12 @@ describe("公众号行高误报：混排段落的裸文本包进 span", () => {
     expect(children.some((c) => c.tagName === "STRONG")).toBe(true);
     const spans = children.filter((c) => c.tagName === "SPAN");
     expect(spans.length).toBe(2);
-    // 包裹用的 span 是裸的：不带样式、不带 class，公众号不会动它
+    // The wrapping span is bare: no style, no class, so WeChat leaves it alone
     for (const s of spans) {
       expect(s.hasAttribute("style")).toBe(false);
       expect(s.hasAttribute("class")).toBe(false);
     }
-    // 拼回来的文字与原文一致
+    // The reassembled text matches the original
     expect(children.map((c) => c.textContent).join("")).toBe(text);
   });
 
@@ -65,7 +65,7 @@ describe("公众号行高误报：混排段落的裸文本包进 span", () => {
       expect(s.hasAttribute("style")).toBe(false);
     }
     expect(code.textContent).toBe("a\u00a0b\u00a0\u00a0c");
-    // code 自己的内联样式（字号、等宽字体）原样保留
+    // code's own inline styles (font size, monospace font) are kept as-is
     expect((code as HTMLElement).style.getPropertyValue("font-family")).toContain("Menlo");
   });
 
@@ -91,7 +91,7 @@ describe("根 section 的排版样式抄到顶层块", () => {
     expect(p.style.getPropertyValue("line-height")).toBe(rootLineHeight);
     expect(p.style.getPropertyValue("font-size")).toBe(rootFontSize);
 
-    // 标题已有自己的行高（基础样式 1.45），不能被根的值覆盖
+    // Headings already have their own line height (base style 1.45) and must not be overridden by the root value
     const h2 = root.querySelector(":scope > h2") as HTMLElement;
     expect(h2.style.getPropertyValue("line-height")).toBe("1.45");
     expect(h2.style.getPropertyValue("line-height")).not.toBe(rootLineHeight);

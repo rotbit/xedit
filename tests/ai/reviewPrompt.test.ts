@@ -18,10 +18,10 @@ import {
 } from "@/lib/ai/reviewPrompt";
 
 /**
- * 模型的回答是这条链路上唯一不受我们控制的一环：它会裹代码块、会客气两句再给 JSON、
- * 会把引文改写得更顺口、会把代码块里的行也挑出来说。
- * 这一组用例就是在钉「什么样的回答能过、什么样的必须被挡下」——
- * 挡不住的话，界面会拿着一段正文里并不存在的话去画标注，标到隔壁句子上。
+ * The model's answer is the one link in this chain we don't control: it wraps code fences, adds pleasantries before the JSON,
+ * rewrites quotes to read more smoothly, and picks on lines inside code blocks too.
+ * This suite pins down "which answers pass and which must be rejected" —
+ * if they slip through, the UI draws annotations for text that doesn't exist in the body, landing on the neighboring sentence.
  */
 
 const DOC = [
@@ -239,9 +239,9 @@ describe("提示词", () => {
 });
 
 /**
- * 审核分两类：看表述的和看公众号规则的。
- * 这一组钉的是「两类不许串」——串了的话，合规审核会给出一栏「这句啰嗦」，
- * 而筛选筹码上挂着的却是「诱导行为」，用户完全不知道自己刚才审的是什么。
+ * There are two kinds of review: wording, and WeChat platform rules.
+ * This suite pins "the two must not mix" — if they did, a compliance review would return a 「这句啰嗦」 (wordy sentence) item
+ * while the filter chip says 「诱导行为」 (inducement), and the user would have no idea what they just reviewed.
  */
 describe("审核类型", () => {
   it("就这两类，id 不重样，名字和一句话说明都得有", () => {

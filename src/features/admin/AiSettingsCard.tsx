@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 后台的「AI 设置」：全站 AI 审核用哪个模型，以及各家上游的 token。
+ * Admin 「AI 设置」 (AI settings): which model site-wide AI review uses, and each upstream provider's token.
  *
- * 前台不给用户选模型，也不收 key——都在这里定（接口见 /api/admin/ai）。
- * token 只进不出：这里只看得到「来源 + 末四位」，输入框永远是空的，填了才覆盖。
+ * Users can't pick a model or supply keys on the frontend — it's all decided here (API: /api/admin/ai).
+ * Tokens are write-only: only "source + last four" is visible, the input is always empty, and filling it overwrites.
  */
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -35,7 +35,7 @@ const label = "mb-1 block text-[11.5px] text-[var(--ink-faint)]";
 const primaryBtn =
   "inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-[12.5px] text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40";
 
-/** 槽位显示成人话：同一把 Replicate token 管着 Claude 和 GPT 两家 */
+/** Human-readable slot labels: a single Replicate token covers both Claude and GPT */
 function slotLabel(slot: string, providers: ProviderInfo[]): string {
   return providers
     .filter((p) => p.slot === slot)
@@ -55,7 +55,7 @@ export function AiSettingsCard() {
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [customOn, setCustomOn] = useState(false);
-  /** 只放这次要改的槽位；没碰过的不会出现在请求里 */
+  /** Only the slots changed this time; untouched ones aren't in the request */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -131,7 +131,7 @@ export function AiSettingsCard() {
             onChange={(e) => {
               const next = snap.providers.find((p) => p.id === e.target.value)!;
               setProvider(next.id);
-              setModel(next.models[0]); // 上一家的模型名在这一家多半不存在
+              setModel(next.models[0]); // The previous provider's model name most likely doesn't exist on this one
               setCustomOn(false);
             }}
           >
@@ -161,7 +161,7 @@ export function AiSettingsCard() {
                 {m}
               </option>
             ))}
-            {/* 各家随时会上新，留个自己填的口子，不用等这份清单更新 */}
+            {/* Providers release new models all the time; leave a free-text option rather than wait for this list to update */}
             <option value={CUSTOM}>自定义…</option>
           </select>
           {custom ? (

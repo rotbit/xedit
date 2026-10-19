@@ -4,9 +4,9 @@ import { deriveStatus, isHandled, isOpen, locateQuote } from "@/features/review/
 import type { ReviewItem } from "@/features/review/types";
 
 /**
- * 状态是从正文现推的，不另存一份。这一组用例就是在钉这个性质：
- * 同一条意见，喂不同的正文进去，得到的状态必须跟着正文走——
- * 于是作者 ⌘Z 撤销掉一次采纳，卡片会自己活过来。
+ * Status is derived from the body on the fly, not stored separately. This suite pins that property:
+ * feed the same comment different bodies and the status must follow the body —
+ * so when the author ⌘Z-undoes an accepted change, the card comes back to life by itself.
  */
 
 const item: ReviewItem = {

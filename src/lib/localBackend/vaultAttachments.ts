@@ -1,7 +1,7 @@
 /**
- * Vault 的附件：图片等二进制统一写进 <vault>/attachments/，正文里只留相对路径
- * （"attachments/xxx.png"），同一个库用 Obsidian 打开照样显示得出来。
- * 读回来给 <img> 用的是 object URL，同一路径只建一次，缓存在会话里。
+ * Vault attachments: images and other binaries all go to <vault>/attachments/, with only relative paths in the body
+ * ("attachments/xxx.png"), so the same library still renders when opened in Obsidian.
+ * Reads produce object URLs for <img>, created once per path and cached for the session.
  */
 
 import {
@@ -15,12 +15,12 @@ import {
 import { t } from "@/i18n/t";
 
 export interface AttachmentOps {
-  /** 把图片等二进制写进 attachments/，返回相对 vault 根的路径 */
+  /** Write an image or other binary into attachments/; returns the path relative to the vault root */
   saveAttachment(file: Blob, suggestedName: string): Promise<string>;
-  /** 读附件为 object URL（缓存，同一路径只建一次），不存在返回 null */
+  /** Read an attachment as an object URL (cached, created once per path); null if missing */
   getAttachmentUrl(relPath: string): Promise<string | null>;
-  /** 对账后清缓存：磁盘上的附件可能已被外部换掉。
-   *  这里不 revokeObjectURL —— 界面上可能正挂着这个 URL 的 <img>，撤了当场变裂图 */
+  /** Clear the cache after a rescan: attachments on disk may have been replaced externally.
+   *  No revokeObjectURL here: an <img> may still be showing that URL and would break instantly */
   clearUrls(): void;
 }
 
@@ -33,7 +33,7 @@ export function createAttachments(root: FileSystemDirectoryHandle): AttachmentOp
       const name = `${base}-${randomSuffix()}${pickExt(suggestedName, file.type)}`;
       const dir = await getDirectory(root, ATTACHMENTS_DIR, true);
       if (!dir) throw new Error(t("建不出目录 {path}", { path: ATTACHMENTS_DIR }));
-      // 故意不走写队列：调用方要等文件真落了盘，才好往正文里插链接
+      // Deliberately bypasses the write queue: the caller must wait until the file is on disk before inserting the link
       await writeBlobFile(dir, name, file);
       return `${ATTACHMENTS_DIR}/${name}`;
     },
@@ -56,7 +56,7 @@ export function createAttachments(root: FileSystemDirectoryHandle): AttachmentOp
   };
 }
 
-/** 先按原样找，找不到再按 URL 解码找一次：正文里的链接可能是 %20 转义过的 */
+/** Try the path as-is first, then URL-decoded: links in the body may be %20-escaped */
 async function openAttachment(
   root: FileSystemDirectoryHandle,
   rel: string
@@ -67,7 +67,7 @@ async function openAttachment(
   try {
     decoded = decodeURIComponent(rel);
   } catch {
-    return null; // 不是合法转义，原样都找不到那就是没有
+    return null; // Invalid escape, and the raw path wasn't found either, so it doesn't exist
   }
   return decoded === rel ? null : await readFileAt(root, decoded);
 }
@@ -82,7 +82,7 @@ async function readFileAt(root: FileSystemDirectoryHandle, rel: string): Promise
   }
 }
 
-/** 扩展名以文件名为准，没有就按 MIME 猜，都没有按 PNG 算（剪贴板里的图基本都是 PNG） */
+/** Extension comes from the filename, else guessed from MIME, else PNG (clipboard images are almost always PNG) */
 function pickExt(name: string, type: string): string {
   const named = /\.([A-Za-z0-9]{1,8})$/.exec(baseName(name));
   if (named) return `.${named[1].toLowerCase()}`;
@@ -96,7 +96,7 @@ function pickExt(name: string, type: string): string {
 
 const stripExt = (name: string): string => name.replace(/\.[^.]+$/, "");
 
-/** 6 位十六进制随机后缀：同名图片不会互相覆盖 */
+/** 6-hex-digit random suffix so images with the same name don't overwrite each other */
 function randomSuffix(): string {
   const bytes = new Uint8Array(3);
   crypto.getRandomValues(bytes);

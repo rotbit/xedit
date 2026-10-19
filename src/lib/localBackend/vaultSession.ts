@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Vault 会话：谁是当前库、有没有权限、开关库的动作都在这里。
- * 目录句柄存 IndexedDB（可结构化克隆），localStorage 另留一个标记位给 layout 的启动脚本看；
- * 刷新后浏览器可能把权限降回 prompt，所以要留一个「待授权」态，等用户手势再 requestPermission。
+ * Vault session: the current library, its permission state, and open/close actions all live here.
+ * The folder handle is stored in IndexedDB (structured-cloneable); localStorage keeps a flag for layout's boot script;
+ * after a refresh the browser may drop the permission back to prompt, so there's a "pending" state that waits for a user gesture to requestPermission.
  */
 
 import { useSyncExternalStore } from "react";
@@ -27,7 +27,7 @@ export interface VaultState { status: VaultStatus; name: string | null; error: s
 const HANDLE_KEY = "vault-handle";
 const FLAG_KEY = "xedit-vault";
 
-/** 服务端快照必须是稳定引用，否则 useSyncExternalStore 水合时会死循环 */
+/** The server snapshot must be a stable reference, or useSyncExternalStore loops forever during hydration */
 const CLOSED: VaultState = { status: "none", name: null, error: null };
 
 let state: VaultState = CLOSED;
@@ -58,25 +58,25 @@ export function getActiveVault(): VaultBackend | null {
   return backend;
 }
 
-/** 与磁盘对账：外部（Obsidian 等）改过的文件反映进缓存，返回变动的文档 id；没开库返回 null */
+/** Rescan disk: reflect files changed externally (Obsidian etc.) into the cache, returning changed document ids; null if no library is open */
 export async function rescanVault(): Promise<RescanResult | null> {
   const b = backend;
   if (!b) return null;
   return await b.rescan();
 }
 
-/** 标记位只是给启动脚本判断「这台机器开过库」，真正的句柄在 IndexedDB */
+/** The flag only tells the boot script "this machine has opened a library"; the real handle is in IndexedDB */
 function setFlag(on: boolean): void {
   try {
     if (on) localStorage.setItem(FLAG_KEY, "1");
     else localStorage.removeItem(FLAG_KEY);
   } catch {
-    // 隐私模式写不了就算了
+    // If private mode can't write it, never mind
   }
 }
 
-/** 这台机器上次开过库？句柄在 IndexedDB 里，读它要等异步，
- *  界面首帧得靠这个同步标记决定「先等一下」还是「直接按浏览器存储渲染」 */
+/** Has this machine opened a library before? The handle is in IndexedDB and reading it is async,
+ *  so the first frame relies on this sync flag to decide between "wait a moment" and "render from browser storage" */
 export function hasStoredVault(): boolean {
   try {
     return localStorage.getItem(FLAG_KEY) === "1";
@@ -93,7 +93,7 @@ async function readHandle(): Promise<FileSystemDirectoryHandle | null> {
   }
 }
 
-/** 扫库建缓存并把后端换成 Vault；失败就留在「待授权」等用户重试 */
+/** Scan the library, build the cache and swap the backend to the Vault; on failure stay "pending" for the user to retry */
 async function activate(h: FileSystemDirectoryHandle): Promise<boolean> {
   setState({ status: "opening", name: h.name, error: null });
   try {
@@ -113,7 +113,7 @@ async function activate(h: FileSystemDirectoryHandle): Promise<boolean> {
   }
 }
 
-/** 启动时恢复上次的库，只跑一次。权限还在就直接打开，掉了就等用户点一下 */
+/** Restore the last library on startup, once only. Open directly if permission remains; otherwise wait for a user click */
 export async function restoreVaultOnStartup(): Promise<void> {
   if (restored) return;
   restored = true;
@@ -132,7 +132,7 @@ export async function restoreVaultOnStartup(): Promise<void> {
   setState({ status: "pending", name: h.name, error: null });
 }
 
-/** 必须在用户手势里调；拿不到权限就停在 pending */
+/** Must be called in a user gesture; stays pending if permission isn't granted */
 export async function resumeVault(): Promise<boolean> {
   handle ??= await readHandle();
   if (!handle) {
@@ -166,12 +166,12 @@ export async function openVaultFromPicker(): Promise<OpenVaultResult> {
     await idbSet(HANDLE_KEY, picked);
     setFlag(true);
   } catch {
-    // 存不下句柄：本次会话照样能用，下次打开得重新选
+    // Couldn't store the handle: this session still works, but next time the folder must be picked again
   }
   return (await activate(picked)) ? "opened" : "failed";
 }
 
-/** 关库：先把队列里的写落盘，再切回浏览器后端 */
+/** Close the library: flush queued writes first, then switch back to the browser backend */
 export async function closeVault(): Promise<void> {
   const b = backend;
   backend = null;
@@ -184,8 +184,8 @@ export async function closeVault(): Promise<void> {
 }
 
 /**
- * 登录后挂起：云端模式下「本地文档」只该是浏览器里待上云的那几篇，
- * 不能把磁盘文件混进云端列表或被离线建稿写进去。句柄不删，退出登录回到本地模式时再恢复。
+ * Suspend after login: in cloud mode, "local documents" should only be the browser docs waiting to upload;
+ * disk files must not mix into the cloud list or receive offline drafts. The handle is kept and restored on logout back to local mode.
  */
 export async function suspendVault(): Promise<void> {
   const b = backend;
@@ -201,12 +201,12 @@ export function countBrowserDocs(): number {
   return getBrowserBackend().listDocs().length;
 }
 
-/** 把浏览器里攒的本地文档搬进当前库，搬一篇删一篇；由界面在用户确认后调用 */
+/** Move local documents accumulated in the browser into the current library, deleting each after it's moved; called by the UI after user confirmation */
 export async function migrateBrowserDocsToVault(): Promise<number> {
   const vault = backend;
   if (!vault) return 0;
   const browser = getBrowserBackend();
-  vault.saveCats(browser.listCats()); // 先把分类目录建起来
+  vault.saveCats(browser.listCats()); // Create category folders first
   let moved = 0;
   for (const meta of browser.listDocs()) {
     const content = browser.getContent(meta.id) ?? "";

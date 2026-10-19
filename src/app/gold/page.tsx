@@ -4,7 +4,7 @@ import { GoldCalculator } from "./GoldCalculator";
 export const metadata: Metadata = {
   title: "黄金换算器",
   description: "易方达黄金基金净值与单克金价互相换算",
-  // 内部小工具，不进搜索索引
+  // Internal utility, keep out of search indexes
   robots: { index: false, follow: false },
 };
 

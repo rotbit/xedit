@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 主题选择面板：一屏用主题真实 CSS 渲染的缩略样张，加排版微调滑杆和新建 / 自定义 CSS 入口。
- * 隔离手法是把主题 CSS 里的 #nice 换成每张卡自己的 class；结构性基础样式则全面板共用一份。
- * 选中和微调都直接写 store，持久化由 store 负责，本文件不发请求。
+ * Theme picker panel: a screen of thumbnail samples rendered with each theme's real CSS, plus typography sliders and new / custom CSS entries.
+ * Isolation works by replacing #nice in theme CSS with each card's own class; structural base styles are shared once by the whole panel.
+ * Selection and tweaks write straight to the store, which handles persistence; this file makes no requests.
  */
 import { useMemo } from "react";
 import { Check, Pencil, Plus, Code2 } from "lucide-react";
@@ -19,21 +19,21 @@ import {
 import { useT } from "@/i18n/useT";
 import { rich } from "@/i18n/rich";
 
-/** 所有缩略图共用的作用域类：BASE_CSS 只按它注入一份（见 ThemePickerPanel） */
+/** Scope class shared by all thumbnails: BASE_CSS is injected once against it (see ThemePickerPanel) */
 const THUMB_SCOPE = "tp-thumb";
 
-/** 每张卡都注一份 BASE_CSS 就是 14+ 份 100KB 的重复文本，解析也重复 14 遍。
- *  改成模块级算一次、面板里注一次；注入点在卡片之前，
- *  同特异度下仍是「基础在前、主题在后」，主题照样覆盖基础 */
+/** Injecting BASE_CSS per card would mean 14+ copies of 100KB duplicated text, parsed 14 times over.
+ *  Instead it's computed once at module level and injected once in the panel; the injection point precedes the cards,
+ *  so at equal specificity it's still "base first, theme after", and themes still override the base */
 const BASE_THUMB_CSS = BASE_CSS.replaceAll("#nice", `.${THUMB_SCOPE}`);
 
 /**
- * 主题缩略图：用主题真实 CSS 渲染一段迷你样张（标题/正文/引用），
- * 把选择器里的 #nice 换成本卡片的独立 class 实现隔离，再整体缩放。
- * 卡片自己只注入本主题那份差异 CSS，结构性基础样式由 THUMB_SCOPE 那一份提供。
+ * Theme thumbnail: renders a mini sample (heading/body/quote) with the theme's real CSS,
+ * isolated by replacing #nice in selectors with this card's own class, then scaled down as a whole.
+ * Each card injects only its theme's diff CSS; structural base styles come from the single THUMB_SCOPE copy.
  */
 function ThemeThumb({ theme }: { theme: ThemePreset }) {
-  // 自定义主题的 id 是带前缀的 UUID，可能含 CSS 类名里非法的字符，统一换成下划线
+  // Custom theme ids are prefixed UUIDs that may contain characters illegal in CSS class names, so replace them with underscores
   const cls = `tp-${theme.id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
   const css = useMemo(() => theme.css.replaceAll("#nice", `.${cls}`), [theme, cls]);
   const t = useT();
@@ -69,7 +69,7 @@ function ThemeThumb({ theme }: { theme: ThemePreset }) {
   );
 }
 
-/** 一张主题卡：缩略样张 + 名称 + 标签；自定义主题额外挂一个悬停才出现的编辑按钮。 */
+/** A theme card: thumbnail + name + tags; custom themes also get an edit button that appears on hover. */
 function ThemeCard({
   theme,
   active,
@@ -97,7 +97,7 @@ function ThemeCard({
             className="absolute right-1.5 top-1.5 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md bg-black/45 text-white opacity-0 transition-opacity hover:bg-black/65 group-hover:opacity-100"
             title={t("编辑主题")}
             onClick={(e) => {
-              // 编辑按钮压在卡片上，必须拦住冒泡，否则点「编辑」会顺带把这套主题选中
+              // The edit button sits on the card and must stop propagation, otherwise clicking 「编辑」 (Edit) would also select the theme
               e.stopPropagation();
               onEdit();
             }}
@@ -121,7 +121,7 @@ function ThemeCard({
   );
 }
 
-/** 排版微调滑杆行 */
+/** Typography slider row */
 function SliderRow({
   label,
   value,
@@ -140,7 +140,7 @@ function SliderRow({
   onChange: (v: number) => void;
 }) {
   return (
-    // 面板挂在下拉菜单里，拖滑杆产生的点击必须就地拦住，否则菜单会当成「点了外面」而收起
+    // The panel lives inside a dropdown, so clicks from dragging sliders must be stopped right here or the menu treats them as outside clicks and closes
     <div className="flex items-center gap-2.5 px-3.5 py-1.5" onClick={(e) => e.stopPropagation()}>
       <span className="w-7 shrink-0 text-[12px] text-[var(--ink-soft)]">{label}</span>
       <input
@@ -160,8 +160,8 @@ function SliderRow({
   );
 }
 
-/** 排版微调区块：字号 / 行高 / 段距三档滑杆 + 一键重置，跟在主题网格后面；
- *  设置页也嵌这一份，className 给外层包裹用来适配所在布局（比如抵消行内边距） */
+/** Typography tweaks block: font size / line height / paragraph spacing sliders + one-click reset, placed after the theme grid;
+ *  the settings page embeds this too, and className lets the wrapper adapt to its layout (e.g. offsetting inline padding) */
 export function TypographyTuner({ className }: { className?: string } = {}) {
   const tuneFontSize = useStore((s) => s.tuneFontSize);
   const tuneLineHeight = useStore((s) => s.tuneLineHeight);
@@ -177,7 +177,7 @@ export function TypographyTuner({ className }: { className?: string } = {}) {
       <SliderRow
         label={t("字号")}
         value={tuneFontSize}
-        // 三档的取值范围是刻意收窄的：超出这个区间，在公众号正文里就不像正常排版了
+        // The three ranges are deliberately narrow: beyond them it no longer looks like normal typesetting in a WeChat article
         min={14}
         max={18}
         step={0.5}
@@ -215,7 +215,7 @@ export function TypographyTuner({ className }: { className?: string } = {}) {
   );
 }
 
-/** 面板主体，挂在顶栏「主题」下拉里；自身滚动，最高 72vh，底部按钮条固定。 */
+/** Panel body, inside the top bar's 「主题」 (Theme) dropdown; scrolls itself, max 72vh, with a fixed bottom button bar. */
 export function ThemePickerPanel() {
   const themeId = useStore((s) => s.themeId);
   const setThemeId = useStore((s) => s.setThemeId);
@@ -229,8 +229,8 @@ export function ThemePickerPanel() {
 
   return (
     <div className="max-h-[72vh] overflow-y-auto">
-      {/* 缩略图的结构性基础样式，全面板共用这一份；必须排在卡片之前，
-          这样主题 CSS 在后、同特异度时照旧覆盖它 */}
+      {/* Structural base styles for thumbnails, shared once across the panel; it must come before the cards
+          so theme CSS comes later and still overrides it at equal specificity */}
       <style>{BASE_THUMB_CSS}</style>
       {customThemes.length > 0 ? (
         <>
@@ -268,7 +268,7 @@ export function ThemePickerPanel() {
         ))}
       </div>
 
-      {/* 排版微调：跟主题一样是「文章长什么样」的调节，收在主题面板末尾，与网格用细线隔开 */}
+      {/* Typography tweaks: like themes, they adjust "what the article looks like", so they sit at the end of the theme panel, separated from the grid by a hairline */}
       <div className="border-t border-[var(--hairline)] py-1.5">
         <TypographyTuner />
       </div>
@@ -287,5 +287,5 @@ export function ThemePickerPanel() {
   );
 }
 
-// 供外部（如设置菜单）判断某 id 是否自定义主题
+// Lets outside code (e.g. the settings menu) check whether an id is a custom theme
 export { CUSTOM_THEME_PREFIX };

@@ -19,10 +19,10 @@ import { CoverAiTab } from "./CoverAiTab";
 import { COVER_RATIO, coverTileCls } from "./coverStyles";
 
 /**
- * 元信息行里的「封面」：挑一张图存进文章 frontmatter 的 `cover:`。
- * 三个来源：正文图片 / 从电脑上传 / AI 生成（后台按账号开通）——后两种存下来的图不在正文里，一样算数
- * （发送到公众号时连图一起发过去，见 sendWechatDraft 的 coverImage）。
- * 封面跟着正文走，同步、导出都不用另外管。
+ * The 「封面」 (Cover) in the meta row: pick an image and store it in the article frontmatter's `cover:`.
+ * Three sources: images in the body / upload from computer / AI generated (enabled per account in admin) — the latter two aren't in the body but count just the same
+ * (sending to WeChat uploads the image along with it; see coverImage in sendWechatDraft).
+ * The cover travels with the body, so sync and export need no special handling.
  */
 
 export const COVER_KEY = "cover";
@@ -30,7 +30,7 @@ export const COVER_KEY = "cover";
 const MD_IMAGE = /!\[[^\]]*\]\(\s*<?([^)\s>]+)/g;
 const HTML_IMAGE = /<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["']/gi;
 
-/** 正文里出现过的图片地址，按出现顺序去重 */
+/** Image URLs appearing in the body, deduped in order of appearance */
 export function bodyImages(body: string): string[] {
   const found: { at: number; src: string }[] = [];
   for (const m of body.matchAll(MD_IMAGE)) found.push({ at: m.index, src: m[1] });
@@ -39,15 +39,15 @@ export function bodyImages(body: string): string[] {
   return [...new Set(found.map((f) => f.src))];
 }
 
-/** 文章当前的封面地址；没设返回 "" */
+/** The article's current cover URL; "" if unset */
 export function coverOf(content: string): string {
   const value = parseFrontmatter(content)?.data[COVER_KEY];
   return typeof value === "string" ? value : "";
 }
 
 /**
- * 相对路径 → 能给 <img> 的地址。磁盘文库里的图是异步读出来的：
- * 还没读到时返回 ""（这时别渲染 <img>，空 src 会当成加载失败），读到后事件一来重渲染。
+ * Relative path → a URL usable by <img>. Images in a disk library are read asynchronously:
+ * returns "" until read (don't render <img> then, an empty src counts as a load failure), and re-renders when the event arrives.
  */
 function useDisplaySrc(): (src: string) => string {
   const [, bump] = useState(0);
@@ -64,15 +64,15 @@ export function CoverPicker({
   onPick,
 }: {
   content: string;
-  /** 选了哪张（写进正文的地址）；null = 不设封面。写回正文由调用方做 */
+  /** Which image was chosen (the URL written into the body); null = no cover. Writing back to the body is the caller's job */
   onPick: (src: string | null) => void;
 }) {
   const t = useT();
   const cover = coverOf(content);
   const display = useDisplaySrc();
   const shown = cover ? display(cover) : "";
-  // 封面不在正文里是合法的（上传、生成的图），只有图真的打不开才算失效。
-  // 记「哪张打不开」而不是布尔：换了封面这条记录自然作废，不用再拿 effect 去清
+  // A cover not in the body is legitimate (uploaded/generated images); it only counts as broken if the image truly fails to load.
+  // Record *which* image failed rather than a boolean: changing the cover naturally invalidates the record, no effect needed to clear it
   const [brokenSrc, setBrokenSrc] = useState("");
   const broken = cover !== "" && brokenSrc === cover;
 
@@ -80,7 +80,7 @@ export function CoverPicker({
     <Dropdown
       align="left"
       width={320}
-      // 上传要唤起系统文件选择框，那会让窗口失焦——默认的失焦即关会把面板连同上传进度一起收走
+      // Uploading opens the system file picker, which blurs the window — the default close-on-blur would dismiss the panel along with upload progress
       closeOnBlur={false}
       trigger={
         <button
@@ -131,17 +131,17 @@ function CoverPanel({
   const t = useT();
   const body = useMemo(() => parseFrontmatter(content)?.body ?? content, [content]);
   const images = useMemo(() => bodyImages(body), [body]);
-  // 生图花的是站点的钱，只对开通了「AI 生成封面」的账号开放（服务端另有一道判定，见 /api/cover/generate）。
-  // 其他人连页签都不摆：摆一个点进去只会说「不给用」的功能没意义
+  // Generation costs the site money and is only open to accounts with 「AI 生成封面」 (AI cover generation) enabled (the server checks too; see /api/cover/generate).
+  // Everyone else doesn't even get the tab: a tab that only says "not available" when clicked is pointless
   const canCover = useCan("ai_cover");
   const tabs = canCover ? TABS : TABS.filter(([id]) => id !== "ai");
-  // 正文一张图都没有时直接停在「上传」：让人对着一句「先去正文插图」发呆没意义
+  // With no images in the body, start on 「上传」 (Upload): leaving people staring at "insert an image into the body first" is pointless
   const [tab, setTab] = useState<Tab>(images.length > 0 ? "body" : "upload");
   const display = useDisplaySrc();
   const outside = cover !== "" && !images.includes(cover);
   const coverShown = outside ? display(cover) : "";
 
-  /** 上传的图与生成的图走同一条保存路：有磁盘文库存文库，否则传云端 */
+  /** Uploaded and generated images share one save path: to the disk library if there is one, otherwise to the cloud */
   const setCoverFile = async (file: File) => {
     try {
       onPick(await saveImageSrc(file));
@@ -152,7 +152,7 @@ function CoverPanel({
   };
 
   return (
-    // Dropdown 默认点内部就收起，而这个面板要留着切页签、填表单，关闭时机由各处自己定
+    // Dropdown closes on inner clicks by default, but this panel must stay open for tab switching and form filling, so each place decides when to close
     <div onClick={(e) => e.stopPropagation()}>
       <div className="mx-3 mt-1 flex items-center gap-0.5 rounded-md border border-[var(--hairline)] p-0.5">
         {tabs.map(([id, label]) => (
@@ -170,7 +170,7 @@ function CoverPanel({
         ))}
       </div>
 
-      {/* 封面不在正文里时它在三个页签里都露不了脸，单独摆一行，让人知道现在用的是哪张 */}
+      {/* When the cover isn't in the body it can't appear in any of the three tabs, so give it its own row to show which image is in use */}
       {coverShown ? (
         <div className="mx-3 mt-2 flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -319,7 +319,7 @@ function UploadTab({ onFile }: { onFile: (file: File) => Promise<void> }) {
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          // 用完清空 value：否则连着选同一个文件不会再触发 change，用户会以为点了没反应
+          // Clear value afterwards: otherwise picking the same file again won't fire change, and the user thinks the click did nothing
           e.target.value = "";
           void take(file);
         }}

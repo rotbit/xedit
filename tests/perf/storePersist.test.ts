@@ -1,13 +1,13 @@
 /**
- * persist 拆分：设置存 xedit-store，文稿存 xedit-store-doc。
- * 每个用例都重新 import 一次 store —— 落盘与回读都发生在模块初始化那一刻。
+ * persist split: settings go to xedit-store, the draft to xedit-store-doc.
+ * Each case re-imports the store — persisting and reading back both happen at module initialization.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { storage } from "../setup";
 
 const SETTINGS_KEY = "xedit-store";
 const DOC_KEY = "xedit-store-doc";
-/** 防抖落盘的间隔，比 useStore 里的 400ms 宽一点 */
+/** Debounced persistence interval, a bit wider than useStore's 400ms */
 const FLUSH_MS = 500;
 
 async function freshStore() {
@@ -16,7 +16,7 @@ async function freshStore() {
   return mod.useStore;
 }
 
-/** 这一段里写过哪些键 */
+/** Keys written during this span */
 function writtenKeys(spy: { mock: { calls: unknown[][] } }): string[] {
   return spy.mock.calls.map((c) => String(c[0]));
 }
@@ -42,7 +42,7 @@ describe("设置与文稿分开落盘", () => {
 
   it("敲字：只写文稿键，设置那份不跟着重写", async () => {
     const useStore = await freshStore();
-    // 先让设置那份落一次盘（首次写不可避免），之后它的内容不再变
+    // Let the settings copy persist once first (the first write is unavoidable); its content doesn't change afterwards
     useStore.getState().setThemeId("ink");
     vi.advanceTimersByTime(FLUSH_MS);
 
@@ -54,7 +54,7 @@ describe("设置与文稿分开落盘", () => {
     expect(writtenKeys(spy)).toEqual([DOC_KEY]);
     expect(storage.stats.set).toBe(1);
     expect(JSON.parse(storage.getItem(DOC_KEY)!)).toMatchObject({ content: "一二三四五" });
-    // 设置那份里不该再有正文
+    // The settings copy should no longer contain the body
     expect(storage.getItem(SETTINGS_KEY)).not.toContain("一二三四五");
   });
 
@@ -82,13 +82,13 @@ describe("设置与文稿分开落盘", () => {
     const useStore = await freshStore();
     expect(useStore.getState().content).toBe("老正文还在旧键里");
     expect(useStore.getState().title).toBe("老标题");
-    expect(useStore.getState().themeId).toBe("ink"); // 设置照常回读
+    expect(useStore.getState().themeId).toBe("ink"); // Settings read back as usual
     expect(JSON.parse(storage.getItem(DOC_KEY)!)).toEqual({
       title: "老标题",
       content: "老正文还在旧键里",
     });
 
-    // 之后设置再落盘，旧键里就不带正文了
+    // Once settings persist again, the old key no longer carries the body
     useStore.getState().setLinkFootnote(false);
     vi.advanceTimersByTime(FLUSH_MS);
     expect(storage.getItem(SETTINGS_KEY)).not.toContain("老正文还在旧键里");

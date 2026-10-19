@@ -1,4 +1,4 @@
-/** OAuth 端点的 CORS / JSON 响应助手：浏览器内的 MCP 客户端会发预检 */
+/** CORS / JSON response helpers for OAuth endpoints: in-browser MCP clients send preflights */
 
 export function corsHeaders(): Record<string, string> {
   return {
@@ -20,7 +20,7 @@ export function corsJson(data: unknown, init?: { status?: number }): Response {
   });
 }
 
-/** OAuth 2.0 标准错误响应（RFC 6749 §5.2） */
+/** Standard OAuth 2.0 error response (RFC 6749 §5.2) */
 export function oauthError(error: string, description?: string, status = 400): Response {
   return corsJson({ error, error_description: description }, { status });
 }
@@ -29,7 +29,7 @@ export function corsPreflight(): Response {
   return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
-/** token 端点：兼容 x-www-form-urlencoded（OAuth 标准）与 JSON 两种请求体 */
+/** Token endpoint: accepts both x-www-form-urlencoded (OAuth standard) and JSON request bodies */
 export async function readCredentials(req: Request): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   const ct = req.headers.get("content-type") || "";

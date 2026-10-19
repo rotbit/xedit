@@ -1,29 +1,29 @@
-// 内置排版主题。每套主题只覆盖颜色与装饰，结构性样式在 base.ts。
-// 约定：标题结构为 h2 > span.prefix + span.content + span.suffix
-// 设计思路：参考 mdnice / doocs md / 主流大号的排版审美，每套主题一个
-// 不重复的「签名造型」（双色下划线 / 荧光笔 / 渐变横条 / 括角 / 印章 / 杂志顶线…），
-// 强调色只落在标题装饰、加粗、链接、行内代码上；引用、表格等大块面一律收敛，
-// 避免「换个颜色的同一套模板」与大色块 + 投影的旧式胶囊标题。
-// 装饰必须用真实元素或背景图（伪元素复制到公众号会丢）。
-// name / tag 存中文原文（tk 标记），界面上 t(theme.name) 显示；id 是存进文章的数据，不动。
+// Built-in typography themes. Each theme only overrides colors and decoration; structural styles live in base.ts.
+// Convention: headings are structured as h2 > span.prefix + span.content + span.suffix
+// Design approach: borrowing from mdnice / doocs md / popular accounts' layouts, each theme gets one
+// distinct "signature look" (two-tone underline / highlighter / gradient bar / corner brackets / seal / magazine top rule...).
+// Accent color only goes on heading decoration, bold, links and inline code; large blocks like quotes and tables stay muted,
+// to avoid "the same template in a different color" and old-style pill headings with big color blocks + shadows.
+// Decoration must use real elements or background images (pseudo-elements are lost when copied to WeChat).
+// name / tag store the Chinese source text (tk marker), shown in the UI via t(theme.name); id is data saved into articles, leave it alone.
 
 import { tk } from "@/i18n/t";
 
 export interface ThemePreset {
   id: string;
   name: string;
-  /** 主题代表色，用于选择器里的色块预览 */
+  /** Theme accent color, used for the swatch preview in the picker */
   color: string;
-  /** 适用的内容类型，展示在主题卡片上 */
+  /** Suitable content types, shown on the theme card */
   tag: string;
   css: string;
 }
 
-/** 引用块的装饰引号（data-URI SVG，公众号支持背景图，伪元素会丢），color 为不带 # 的 hex */
+/** Decorative quote mark for blockquotes (data-URI SVG; WeChat supports background images but drops pseudo-elements); color is hex without # */
 const quoteMark = (color: string) =>
   `url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='23' height='16' viewBox='0 0 23 16'%3E%3Cpath d='M10 0C4 2 0 6.5 0 11a5 5 0 1 0 10 0Z M23 0c-6 2-10 6.5-10 11a5 5 0 1 0 10 0Z' fill='%23${color}'/%3E%3C/svg%3E")`;
 
-// 签名造型：双色下划线（标题下细灰线贯通、文字下压一段粗黑线）
+// Signature: two-tone underline (thin gray rule across under the heading, a thick black bar under the text)
 const classic: ThemePreset = {
   id: "classic",
   tag: tk("技术 · 深度长文"),
@@ -50,7 +50,7 @@ const classic: ThemePreset = {
 `,
 };
 
-// 签名造型：荧光笔标记标题（正文黑标题压一道半透明绿），引用是无边圆角卡片
+// Signature: highlighter heading (black heading with a translucent green stroke); quotes are borderless rounded cards
 const wechatGreen: ThemePreset = {
   id: "wechat-green",
   tag: tk("职场 · 生活"),
@@ -78,7 +78,7 @@ const wechatGreen: ThemePreset = {
 `,
 };
 
-// 签名造型：左竖线 + 向右消失的浅蓝渐变洗底，h3 用小方框
+// Signature: left vertical bar + light blue gradient wash fading to the right; h3 uses a small square
 const techBlue: ThemePreset = {
   id: "tech-blue",
   tag: tk("技术教程"),
@@ -107,7 +107,7 @@ const techBlue: ThemePreset = {
 `,
 };
 
-// 签名造型：通栏渐变横条标题（白字、缺一角的圆角），h3 渐变竖线
+// Signature: full-width gradient bar heading (white text, rounded with one corner cut); h3 has a gradient vertical bar
 const lanying: ThemePreset = {
   id: "lanying",
   name: tk("蓝莹"),
@@ -136,7 +136,7 @@ const lanying: ThemePreset = {
 `,
 };
 
-// 签名造型：橙底白字标签式 h2 + 右侧折角（suffix 三角）+ 通栏橙色底线，引用为橙线暖底卡片
+// Signature: orange label-style h2 with white text + folded corner on the right (suffix triangle) + full-width orange rule; quotes are warm cards with an orange bar
 const orangeHeart: ThemePreset = {
   id: "orange-heart",
   tag: tk("情感 · 生活"),
@@ -165,7 +165,7 @@ const orangeHeart: ThemePreset = {
 `,
 };
 
-// 签名造型：居中细字距标题、两侧小圆点 + 浅紫细下划线，引用描边圆卡
+// Signature: centered letter-spaced heading, small dots on both sides + thin light purple underline; quotes are outlined rounded cards
 const violet: ThemePreset = {
   id: "violet",
   tag: tk("时尚 · 女性"),
@@ -195,7 +195,7 @@ const violet: ThemePreset = {
 `,
 };
 
-// 签名造型：「」括角标题（prefix/suffix 各画两条边拼成引号角），引用只留一条细线
+// Signature: 「」 corner-bracket heading (prefix/suffix each draw two edges to form the bracket); quotes keep just one thin line
 const ink: ThemePreset = {
   id: "ink",
   tag: tk("文化 · 散文"),
@@ -227,7 +227,7 @@ const ink: ThemePreset = {
 `,
 };
 
-// 签名造型：印章式标题——正红方块字 + 右下角错位的浅色硬投影，h3 小方印
+// Signature: seal-style heading — bright red block text + offset light hard shadow at the bottom right; h3 is a small seal
 const chineseRed: ThemePreset = {
   id: "chinese-red",
   tag: tk("品牌 · 活动"),
@@ -255,7 +255,7 @@ const chineseRed: ThemePreset = {
 `,
 };
 
-// 签名造型：匾额式上下细线居中标题，h3 圆点 + 尾线
+// Signature: plaque-style centered heading with thin lines above and below; h3 is a dot + trailing line
 const bambooTeal: ThemePreset = {
   id: "bamboo",
   tag: tk("国风 · 读书"),
@@ -284,7 +284,7 @@ const bambooTeal: ThemePreset = {
 `,
 };
 
-// 签名造型：杂志顶线——h2 上方一条通栏黑细线，衬线字，引用居中配金色引号
+// Signature: magazine top rule — a full-width thin black line above h2, serif type, centered quotes with gold quote marks
 const magazine: ThemePreset = {
   id: "magazine",
   tag: tk("深度 · 评论"),
@@ -316,7 +316,7 @@ const magazine: ThemePreset = {
 `,
 };
 
-// 签名造型：暗底 Tokyo Night 配色，h2 蓝紫渐变下划线
+// Signature: dark Tokyo Night palette, h2 with a blue-purple gradient underline
 const nightIndigo: ThemePreset = {
   id: "night",
   tag: tk("程序员 · 夜读"),
@@ -350,7 +350,7 @@ const nightIndigo: ThemePreset = {
 `,
 };
 
-// 签名造型：居中荧光粉标记标题 + 花瓣 h3，引用是虚线描边的圆角卡片
+// Signature: centered neon-pink highlighted heading + petal h3; quotes are rounded cards with a dashed outline
 const sakura: ThemePreset = {
   id: "sakura",
   tag: tk("女性 · 生活"),
@@ -378,7 +378,7 @@ const sakura: ThemePreset = {
 `,
 };
 
-// 签名造型：没有造型——纯字重与灰阶分层，适合不想被主题抢戏的万字长文
+// Signature: no signature — just weight and grayscale hierarchy, for 10,000-word essays that shouldn't compete with the theme
 const minimalGray: ThemePreset = {
   id: "minimal",
   tag: tk("万字长文"),

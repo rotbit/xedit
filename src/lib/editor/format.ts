@@ -1,4 +1,4 @@
-/** 行内与行级格式的底层文本变换：识别已有标记、构造包裹事务，供命令层（commands.ts）调用。 */
+/** Low-level text transforms for inline and line-level formats: detect existing markup and build wrapping transactions, called by the command layer (commands.ts). */
 
 import { EditorSelection, type ChangeSpec, type EditorState, type SelectionRange } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
@@ -22,7 +22,7 @@ const INLINE_MARKUP = {
 } as const;
 type InlineMarker = keyof typeof INLINE_MARKUP;
 
-/** 用语法节点识别已有格式，避免把加粗的两个星号误当成斜体标记。 */
+/** Detect existing formats via syntax nodes, so the two asterisks of bold aren't mistaken for italic markers. */
 function selectedMarkup(state: EditorState, range: SelectionRange, marker: InlineMarker) {
   const syntax = INLINE_MARKUP[marker];
   for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(range.from, 1); node; node = node.parent) {
@@ -37,7 +37,7 @@ function selectedMarkup(state: EditorState, range: SelectionRange, marker: Inlin
   return null;
 }
 
-/** 选区止于下一行行首时，不把未选中文字的下一行也转换格式。 */
+/** When the selection ends at the start of the next line, don't also format that unselected line. */
 function selectedLines(state: EditorState) {
   const range = state.selection.main;
   return {
@@ -46,7 +46,7 @@ function selectedLines(state: EditorState) {
   };
 }
 
-/** 构造包裹选区的事务片段，普通插入与格式切换共用。 */
+/** Build the transaction piece that wraps the selection, shared by plain inserts and format toggles. */
 function wrapRange(state: EditorState, range: SelectionRange, before: string, after: string, placeholder: string) {
   const text = state.doc.sliceString(range.from, range.to) || placeholder;
   return {
@@ -55,17 +55,17 @@ function wrapRange(state: EditorState, range: SelectionRange, before: string, af
   };
 }
 
-// 插进正文的占位字，按当前语言给（插入那一刻 t()，常量里只存原文）
+// Placeholder text inserted into the body, given in the current language (t() at insert time; the constant stores only the source text)
 const LINK_TEXT = tk("链接文字");
 const LINK_URL = "https://";
-/** 长得像网址就当网址：选中一段地址按 Cmd+K，地址该进括号而不是当链接文字 */
+/** Looks like a URL, treat it as one: select an address and press Cmd+K, and it belongs in the parentheses, not as link text */
 const URL_LIKE = /^(?:https?:\/\/|mailto:|www\.)\S+$/i;
 
 /**
- * 插入链接，并把光标停在「下一步要填的那一格」上：
- * - 选中的是普通文字 → 文字位已经有了，光标停进空的 `()` 里，接着就能粘地址；
- * - 选中的是网址 → 地址位已经有了，反过来选中文字占位，接着给链接起名字；
- * - 没选中 → 两格都是占位，先选文字位，从写文字开始。
+ * Insert a link and park the cursor on "the next slot to fill":
+ * - plain text selected → the text slot is filled, so the cursor goes into the empty `()` ready to paste the address;
+ * - a URL selected → the address slot is filled, so instead select the text placeholder to name the link;
+ * - nothing selected → both are placeholders; select the text slot first and start with the text.
  */
 export function insertLink(view: EditorView) {
   const { state } = view;
@@ -74,7 +74,7 @@ export function insertLink(view: EditorView) {
     state.changeByRange((range) => {
       const text = state.doc.sliceString(range.from, range.to);
       const trimmed = text.trim();
-      // `www.x.com` 直接进括号会被当成站内相对路径，补上协议头
+      // `www.x.com` in the parentheses would be treated as a site-relative path, so add the protocol
       const url = URL_LIKE.test(trimmed)
         ? /^www\./i.test(trimmed)
           ? `https://${trimmed}`
@@ -94,8 +94,8 @@ export function insertLink(view: EditorView) {
           range: EditorSelection.range(range.from + 1, range.from + 1 + linkText.length),
         };
       }
-      // 地址位留空、放一个光标（不是选区）：即时渲染只认光标来现出链接源码，
-      // 选中一段藏起来的 `https://` 用户看不见，选区还会画成一条横跨整行的灰带
+      // Leave the address slot empty with a cursor (not a selection): live preview only reveals link source for a cursor,
+      // a selected hidden `https://` would be invisible to the user, and the selection would draw as a gray band across the whole line
       const insert = `[${text}]()`;
       return {
         changes: { from: range.from, to: range.to, insert },
@@ -106,7 +106,7 @@ export function insertLink(view: EditorView) {
   view.focus();
 }
 
-/** 添加或取消行内格式；取消时只删除定界符，保留内容和嵌套格式。 */
+/** Add or remove an inline format; removal deletes only the delimiters, keeping content and nested formats. */
 export function toggleInlineFormat(view: EditorView, marker: InlineMarker, placeholder: string) {
   const { state } = view;
   const changes = state.changeByRange((range) => {
@@ -124,23 +124,23 @@ export function toggleInlineFormat(view: EditorView, marker: InlineMarker, place
   view.focus();
 }
 
-/** 字体颜色：Markdown 没有颜色语法，用内联 <span style="color:…"> 承载
- *  （预览、公众号复制链路已放行该形态）。color 传 null 表示清除颜色。
- *  选区恰好是一个颜色 span、或恰好是其内部文字时，就地改写/剥掉原标签，避免嵌套套娃 */
+/** Font color: Markdown has no color syntax, so use inline <span style="color:…">
+ *  (the preview and WeChat copy paths allow this form). color null means clear color.
+ *  When the selection is exactly one color span, or exactly its inner text, rewrite/strip the original tag in place to avoid nesting */
 export function applyColor(view: EditorView, color: string | null) {
   const { state } = view;
-  // 多光标时不走「就地改写整段」那条路：两个光标落在同一个 span 里会生成两条重叠变更，
-  // ChangeSet 直接抛错。退回逐光标插占位的老行为，至少不会炸
+  // With multiple cursors, skip the "rewrite the whole span in place" path: two cursors in the same span would produce overlapping changes,
+  // and ChangeSet throws. Fall back to the old per-cursor placeholder insertion, which at least won't crash
   const single = state.selection.ranges.length === 1;
   const changes = state.changeByRange((range) => {
     let { from, to } = range;
-    // 光标停在有色文字里（含紧贴标签内侧的两个边界）：即时渲染下标签是藏着的，
-    // 用户眼里就是「光标在这段有色字里」，此时改色/清色的对象当然是这一整段，
-    // 而不是在中间再插一段「有色文字」占位、套出个嵌套 span
+    // Cursor inside colored text (including the two boundaries just inside the tags): in live preview the tags are hidden,
+    // so to the user "the cursor is in this colored text", and recoloring/clearing should apply to the whole span,
+    // not insert a "colored text" placeholder in the middle and create a nested span
     const pair = single && range.empty ? colorSpanPairAt(state, range.head) : null;
-    // 空 span 不走这条：它该被填上占位文字，那正是下面老逻辑干的事
+    // Empty spans skip this: they should be filled with placeholder text, which is exactly what the old logic below does
     if (pair && !pair.empty) {
-      const offset = range.head - pair.open.to; // 光标在文字里的相对位置，改完保持不变
+      const offset = range.head - pair.open.to; // Cursor's relative position in the text, preserved after the change
       if (color === null) {
         return {
           changes: [
@@ -156,7 +156,7 @@ export function applyColor(view: EditorView, color: string | null) {
         range: EditorSelection.cursor(pair.open.from + newOpen.length + offset),
       };
     }
-    // 选区两侧紧贴着一对颜色标签（比如刚上完色又换色）：扩到整个标签一起改写
+    // A pair of color tags sits right against both sides of the selection (e.g. recoloring right after coloring): expand to rewrite the tags too
     const beforeText = state.doc.sliceString(Math.max(0, from - COLOR_SPAN_LOOKBACK), from);
     const openAtLeft = beforeText.match(COLOR_SPAN_OPEN_AT_END);
     if (openAtLeft && state.doc.sliceString(to, to + COLOR_SPAN_CLOSE.length) === COLOR_SPAN_CLOSE) {
@@ -165,7 +165,7 @@ export function applyColor(view: EditorView, color: string | null) {
     }
     const text = state.doc.sliceString(from, to);
     const wrapped = text.match(COLOR_SPAN_WRAPPED);
-    if (color === null && !wrapped) return { range }; // 没颜色可清，原样不动
+    if (color === null && !wrapped) return { range }; // No color to clear, leave as-is
     const inner = (wrapped ? wrapped[1] : text) || t("有色文字");
     const open = color === null ? "" : colorSpanOpen(color);
     const insert = color === null ? inner : `${open}${inner}${COLOR_SPAN_CLOSE}`;
@@ -179,11 +179,11 @@ export function applyColor(view: EditorView, color: string | null) {
 }
 
 /**
- * 行级命令（加前缀、标题、任务项）的共同收尾：应用改动，空选区时把光标按 assoc=1 映射。
+ * Common finish for line-level commands (prefixes, headings, task items): apply the changes, mapping an empty selection with assoc=1.
  *
- * 事务默认按 assoc=-1 映射选区，光标恰在行首（斜杠菜单删完 "/query" 就是这种情况）时
- * 会被留在插入的 "# " 前面，接着打字就成了 "标题# "；空行上点任务按钮同理，光标要落到
- * 标记之后才能直接接着打字。非空选区照默认映射，保住用户选中的范围。
+ * Transactions map selections with assoc=-1 by default, so a cursor right at line start (as after the slash menu deletes "/query")
+ * would stay before the inserted "# ", and typing would produce "Heading# "; same for clicking the task button on an empty line, where the cursor must land
+ * after the marker to keep typing. Non-empty selections use the default mapping, preserving the user's selected range.
  */
 function dispatchKeepingCaret(view: EditorView, changes: ChangeSpec[], range: SelectionRange) {
   const changeSet = view.state.changes(changes);
@@ -200,7 +200,7 @@ export function prefixLines(view: EditorView, prefix: string) {
   const changes: ChangeSpec[] = [];
   for (let n = first; n <= last; n++) {
     const line = state.doc.line(n);
-    // 已有相同前缀则移除（toggle）
+    // Remove an identical existing prefix (toggle)
     if (line.text.startsWith(prefix)) {
       changes.push({ from: line.from, to: line.from + prefix.length, insert: "" });
     } else {
@@ -210,7 +210,7 @@ export function prefixLines(view: EditorView, prefix: string) {
   dispatchKeepingCaret(view, changes, state.selection.main);
 }
 
-/** 标题级别互相替换；保留引用、列表及缩进前缀，重复应用同级标题则回到正文。 */
+/** Swap heading levels; keeps quote, list, and indent prefixes, and reapplying the same level returns to body text. */
 export function toggleHeading(view: EditorView, level: number) {
   const { state } = view;
   const { first, last } = selectedLines(state);
@@ -233,9 +233,9 @@ export function toggleHeading(view: EditorView, level: number) {
 const TASK_ITEM = /^(\s*)[-*+] \[[ xX]\] /;
 const BULLET_ITEM = /^\s*[-*+] /;
 
-/** 任务列表 toggle：已是任务项 → 摘掉标记退回普通文字（勾没勾都摘）；
- *  已是无序列表项 → 就地补上 [ ]，不再套一层 -；其余（含空行）→ 补完整的 "- [ ] "。
- *  缩进一律保留，嵌套层级不会被拉平 */
+/** Task list toggle: already a task item → strip the marker back to plain text (checked or not);
+ *  already a bullet item → add [ ] in place without another -; otherwise (including empty lines) → add the full "- [ ] ".
+ *  Indentation is always kept, so nesting levels aren't flattened */
 export function toggleTaskLines(view: EditorView) {
   const { state } = view;
   const { first, last } = selectedLines(state);
@@ -277,14 +277,14 @@ export function insertBlock(view: EditorView, text: string) {
 }
 
 /**
- * 插入提示块：光标停在 `> [!tip] ` 之后，接着就能写标题，不写标题直接换行也成立。
- * 不复用 insertBlock —— 它会在插入内容后再补一个换行并把光标送到下一行，
- * 提示块要的恰恰是留在记号那一行继续打字。
+ * Insert a callout: the cursor stops after `> [!tip] ` ready for a title; pressing Enter without one also works.
+ * Doesn't reuse insertBlock: that appends a newline after the content and moves the cursor to the next line,
+ * while a callout needs to keep typing on the marker line.
  */
 export function insertCallout(view: EditorView, type = "tip") {
   const { state } = view;
   const line = state.doc.lineAt(state.selection.main.from);
-  // 当前行还有字就另起一段，免得把提示块接在别人段尾
+  // If the current line has text, start a new paragraph so the callout isn't attached to the end of someone else's
   const insert = `${line.text.trim() ? "\n\n" : ""}> [!${type}] `;
   const pos = line.to;
   view.dispatch({
@@ -295,13 +295,13 @@ export function insertCallout(view: EditorView, type = "tip") {
   view.focus();
 }
 
-/** 插入围栏代码块：不塞示例代码，光标落到块内空行；有选区时把选中文字收进块里 */
+/** Insert a fenced code block: no sample code, cursor lands on the empty line inside; with a selection, the selected text goes inside the block */
 export function insertCodeBlock(view: EditorView): void {
   const { state } = view;
   const range = state.selection.main;
   const line = state.doc.lineAt(range.from);
   if (!range.empty) {
-    // 选中的文字直接收进围栏；只有当选区左边还压着正文时才另起一行，免得凭空多出空行
+    // Selected text goes straight into the fence; only start a new line when body text precedes the selection, to avoid a spurious blank line
     const body = state.sliceDoc(range.from, range.to);
     const head = `${line.text.slice(0, range.from - line.from).trim() ? "\n" : ""}\`\`\`\n`;
     view.dispatch({
@@ -312,7 +312,7 @@ export function insertCodeBlock(view: EditorView): void {
     view.focus();
     return;
   }
-  // 空选区：与 insertBlock 一样落在行尾，光标停在开栏与闭栏之间那行空行上，直接开写
+  // Empty selection: like insertBlock, lands at line end with the cursor on the blank line between the opening and closing fences, ready to write
   const head = `${line.text.trim() ? "\n\n" : ""}\`\`\`\n`;
   const pos = line.to;
   view.dispatch({
@@ -323,7 +323,7 @@ export function insertCodeBlock(view: EditorView): void {
   view.focus();
 }
 
-/** 插入表格的骨架；写成函数是为了按插入那一刻的语言给表头 / 单元格占位字 */
+/** Insert a table skeleton; a function so header / cell placeholders use the language at insert time */
 export function tableTemplate(): string {
   const head = t("表头");
   const cell = t("内容");

@@ -15,15 +15,15 @@ import { tk, translate } from "@/i18n/t";
 import { localeOfRequest } from "@/i18n/server";
 
 /**
- * AI 生成公众号封面：Replicate Token 只在服务端用，浏览器全程碰不到，只拿得到图。
- * 生图按张收费、花的是站点的账户，所以只对开通了 ai_cover 权限的账号开放（见 lib/permissions，管理员自带），
- * 并按账号限量（同时只能生一张、每天默认 COVER_GENERATE_DAILY_LIMIT 张，后台可给单个账号另设，见 lib/coverGenerate/limit）。
+ * AI-generated WeChat covers: the Replicate token is used only server-side; the browser never touches it and only gets the image.
+ * Image generation is billed per image on the site's account, so it's only open to accounts with ai_cover permission (see lib/permissions; admins have it built in),
+ * and is rate-limited per account (one at a time, COVER_GENERATE_DAILY_LIMIT per day by default, overridable per account in admin; see lib/coverGenerate/limit).
  */
 
-/** 请求体上限：里面只有标题、两个重点词和两个产品名，16KB 绰绰有余 */
+/** Request body cap: it only holds a title, two key phrases and two product names; 16KB is plenty */
 const MAX_BODY_BYTES = 16 * 1024;
 
-/** 错误码 → HTTP 状态；没列的（上游的各种毛病）一律 502，别让浏览器以为是自己发错了 */
+/** Error code → HTTP status; anything unlisted (assorted upstream issues) is 502, so the browser doesn't think it sent something wrong */
 const STATUS: Partial<Record<string, number>> = {
   no_token: 503,
   bad_input: 400,
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       { status: 401 }
     );
   }
-  // 权限每次现查库（撤销立刻生效），不信任请求里的任何字段
+  // Permission is queried fresh from the DB each time (revocation takes effect immediately); trust nothing in the request
   const access = await requirePermission(session, "ai_cover");
   if (!access) {
     return NextResponse.json(
@@ -54,18 +54,18 @@ export async function POST(req: Request) {
     );
   }
 
-  // content-length 可以缺失也可以撒谎，所以读完再按真实字节数复核一次
+  // content-length can be missing or lie, so recheck the real byte count after reading
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return tooLarge();
   const raw = await req.text();
   if (Buffer.byteLength(raw) > MAX_BODY_BYTES) return tooLarge();
 
-  // 解析不出来（或答的不是对象）就当空对象：下面每个填空自带清洗，效果就是「标题是空的」
+  // If it can't be parsed (or isn't an object), treat it as empty: each field below sanitizes itself, so the effect is "the title is empty"
   let body: CoverRequest = {};
   try {
     const parsed: unknown = JSON.parse(raw);
     if (parsed && typeof parsed === "object") body = parsed as CoverRequest;
   } catch {}
-  // 填空先洗一遍：必填的缺了就 400，这一步要赶在限流之前，别让一个填错的请求白占掉今天的额度
+  // Sanitize fields first: a missing required one is a 400, and this must happen before rate limiting so a malformed request doesn't burn today's quota
   let fields: CoverFields;
   try {
     fields = coverFields(body);
@@ -88,11 +88,11 @@ export async function POST(req: Request) {
         );
   }
   try {
-    // 网页关掉面板就断连接，signal 一路传给上游，别让没人要的图接着烧额度
+    // Closing the panel in the page drops the connection; the signal is passed through to upstream so an unwanted image doesn't keep burning quota
     const images = await generateCovers(fields, { signal: req.signal });
     return NextResponse.json({ images });
   } catch (e) {
-    // 原始错误只进服务端日志：上游报文常带请求 id 之类的内部细节（口径同 lib/routeAuth 的 serverError）
+    // The raw error goes only to server logs: upstream messages often carry internal details like request ids (same rule as lib/routeAuth's serverError)
     console.error("AI 生成封面失败", e);
     const code = e instanceof CoverError ? e.code : "failed";
     const message = e instanceof CoverError ? e.message : tk("生成失败，请稍后再试");

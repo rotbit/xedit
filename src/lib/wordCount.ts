@@ -1,24 +1,24 @@
-// 全站统一的「字数」口径（中文写作惯例，客户端与服务端共用）：
-// - 每个 CJK 字符（汉字、假名）算 1 字
-// - 连续的西文字母/数字串算 1 字（"MiniMax" 是 1 字而不是 7 字符）
-// - 标点、Markdown 语法符号、空白不计
-// - 链接与图片只计可见文字，URL 不计（这一步与摘要共用 excerpt.ts 的实现，别再各抄一份正则）
+// Site-wide "word count" rule (Chinese writing convention, shared by client and server):
+// - each CJK character (hanzi, kana) counts as 1
+// - a run of Latin letters/digits counts as 1 ("MiniMax" is 1 word, not 7 characters)
+// - punctuation, Markdown syntax and whitespace don't count
+// - links and images count only visible text, not URLs (this step shares excerpt.ts's implementation; don't copy the regex again)
 
 import { stripLinkSyntax } from "@/lib/excerpt";
 
-// 假名 / CJK 扩展 A / 基本区 / 兼容区 / 扩展 B 及以后
+// Kana / CJK Extension A / Basic block / Compatibility / Extension B and later
 const CJK_RE = /[぀-ヿ㐀-䶿一-鿿豈-﫿\u{20000}-\u{2ebef}]/gu;
-// 西文单词：字母或数字开头，词内允许撇号、连字符与小数点（"don't"、"3.5"、"state-of-the-art" 各算 1）
+// Latin words: start with a letter or digit, may contain apostrophes, hyphens and decimal points ("don't", "3.5", "state-of-the-art" each count as 1)
 const WORD_RE = /[a-zA-Z0-9À-ɏ][a-zA-Z0-9À-ɏ'’._-]*/g;
 
 export function wordCount(md: string): number {
-  // keepAlt：图片 alt 算可见文字；pad：替换处补空格，否则紧挨的两个链接会被当成一个词
+  // keepAlt: image alt counts as visible text; pad: insert a space at replacements, or two adjacent links would merge into one word
   const text = stripLinkSyntax(md, { keepAlt: true, pad: true });
   const cjk = text.match(CJK_RE)?.length ?? 0;
   const words = text.match(WORD_RE)?.length ?? 0;
   return cjk + words;
 }
 
-// 阅读时长的估算口径：中文默认 400 字/分钟（阅读模式顶栏与文章页元信息行共用，
-// 两处显示的数字必须一致，别各写一遍除数）
+// Reading time estimate: 400 Chinese chars per minute by default (shared by the reader-mode top bar and the article page meta line;
+// both must show the same number, so don't write the divisor twice)
 export const CHARS_PER_MINUTE = 400;

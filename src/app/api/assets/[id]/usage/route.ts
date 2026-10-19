@@ -5,8 +5,8 @@ import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** 反查素材被哪些文章引用。按对象 key（URL 的路径部分）在正文里匹配，
- *  换 CDN 域名后旧文章里的旧链接也照样命中。 */
+/** Find which articles reference an asset. Matches the object key (URL path part) in the body,
+ *  so old links in old articles still hit after a CDN domain change. */
 export async function GET(_req: Request, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) {

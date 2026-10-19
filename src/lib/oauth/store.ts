@@ -2,17 +2,17 @@ import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { OAUTH } from "./config";
 
-/** 令牌/授权码只存 sha256 摘要，明文绝不落库 */
+/** Tokens/auth codes are stored only as sha256 digests; plaintext never hits the database */
 export function sha256(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
-/** 高熵随机串（base64url），用作授权码 / 刷新令牌明文 */
+/** High-entropy random string (base64url), used as auth code / refresh token plaintext */
 export function randomToken(bytes = 32): string {
   return randomBytes(bytes).toString("base64url");
 }
 
-/** 恒定时间字符串比较，避免时序侧信道 */
+/** Constant-time string comparison to avoid timing side channels */
 function safeEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a);
   const bb = Buffer.from(b);
@@ -20,14 +20,14 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 
-/** PKCE S256 校验：base64url(sha256(verifier)) === challenge */
+/** PKCE S256 check: base64url(sha256(verifier)) === challenge */
 export function verifyPkceS256(verifier: string, challenge: string): boolean {
   if (!verifier || !challenge) return false;
   const computed = createHash("sha256").update(verifier).digest("base64url");
   return safeEqual(computed, challenge);
 }
 
-// ---- 客户端（动态注册 RFC 7591）----
+// ---- Clients (dynamic registration, RFC 7591) ----
 
 export async function registerClient(params: {
   name: string;
@@ -57,7 +57,7 @@ export function parseRedirectUris(client: { redirectUris: string }): string[] {
   }
 }
 
-// ---- 授权码 ----
+// ---- Authorization codes ----
 
 export async function createAuthCode(params: {
   clientId: string;
@@ -94,8 +94,8 @@ export interface ConsumedAuthCode {
 }
 
 /**
- * 兑换授权码：校验存在/未过期/未用过/客户端与回调精确匹配，并原子性地一次性消费。
- * 校验不过或已被并发消费返回 null。PKCE 校验由调用方在拿到 codeChallenge 后完成。
+ * Redeem an auth code: verify it exists / isn't expired / is unused / client and redirect match exactly, and consume it atomically once.
+ * Returns null on failed checks or if consumed concurrently. PKCE verification is done by the caller once it has codeChallenge.
  */
 export async function consumeAuthCode(
   code: string,
@@ -110,7 +110,7 @@ export async function consumeAuthCode(
   if (rec.clientId !== clientId) return null;
   if (rec.redirectUri !== redirectUri) return null;
   if (rec.expiresAt.getTime() < Date.now()) return null;
-  // 原子消费：条件 consumedAt=null，防并发双花
+  // Atomic consume: conditioned on consumedAt=null, preventing concurrent double-spend
   const consumed = await prisma.oAuthAuthCode.updateMany({
     where: { id: rec.id, consumedAt: null },
     data: { consumedAt: new Date() },
@@ -125,7 +125,7 @@ export async function consumeAuthCode(
   };
 }
 
-// ---- 刷新令牌 ----
+// ---- Refresh tokens ----
 
 export async function issueRefreshToken(params: {
   clientId: string;
@@ -155,8 +155,8 @@ export interface RotatedRefresh {
 }
 
 /**
- * 轮换刷新令牌：校验旧令牌有效且属于该客户端，原子撤销旧的、签发新的。
- * 公有客户端必须轮换（规范要求），旧令牌用过即废，可检测重放。
+ * Rotate a refresh token: verify the old one is valid and belongs to this client, atomically revoke it and issue a new one.
+ * Public clients must rotate (spec requirement); old tokens die on use, so replay is detectable.
  */
 export async function rotateRefreshToken(
   oldToken: string,
@@ -172,7 +172,7 @@ export async function rotateRefreshToken(
     where: { id: rec.id, revokedAt: null },
     data: { revokedAt: new Date() },
   });
-  if (revoked.count === 0) return null; // 被并发轮换/撤销
+  if (revoked.count === 0) return null; // Rotated/revoked concurrently
   const refreshToken = await issueRefreshToken({
     clientId,
     userId: rec.userId,

@@ -1,8 +1,8 @@
 /**
- * /themes 静态落地页：把内置的 13 套排版主题逐个用真实 CSS 渲染成完整样张。
- * buildThemeStyles() 一次性把全部主题的 CSS 内联进本页，themeClass(id) 再给每块样张套上对应作用域，
- * 所以新增主题只要往 THEME_METAS 里加一项，这个文件不用动。
- * 纯服务端组件，需要交互的部分（页头、开始写作按钮）都在 LandingChrome 里。
+ * /themes static landing page: renders each of the 13 built-in layout themes as a full sample with real CSS.
+ * buildThemeStyles() inlines every theme's CSS into this page at once, and themeClass(id) scopes each sample,
+ * so adding a theme only needs a new entry in THEME_METAS; this file needs no changes.
+ * Pure server component; the interactive parts (header, start-writing button) live in LandingChrome.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -18,8 +18,8 @@ import {
 import { themeClass } from "@/features/landing/lib/paper";
 import { buildThemeStyles, THEME_METAS } from "@/features/landing/lib/themeStyles";
 
-// description 里把 13 个主题名全列一遍，是为了吃下「公众号 + 主题名」这类长尾搜索词；
-// canonical 固定成 /themes，避免带 #主题 锚点的分享链接被搜索引擎当成多个页面
+// The description lists all 13 theme names to capture long-tail searches like 「公众号 + 主题名」 (WeChat + theme name);
+// canonical is pinned to /themes so share links with #theme anchors aren't treated as separate pages by search engines
 export const metadata: Metadata = {
   title: "13 套微信公众号排版主题 · 完整样张",
   description:
@@ -35,8 +35,8 @@ export const metadata: Metadata = {
 
 const SHELL = "mx-auto max-w-[1140px] px-5 sm:px-8";
 
-/** 主题总览页：目录锚点 + 13 段样张 + 底部行动区。
- *  13 套主题的 CSS 用内联 <style> 注入、只在本页生效，不进全局样式表。 */
+/** Theme overview page: anchor index + 13 samples + bottom call to action.
+ *  The 13 themes' CSS is injected via an inline <style> and only applies on this page, not in the global stylesheet. */
 export default function ThemesPage() {
   return (
     <div className="landing-scroll h-full overflow-y-auto overflow-x-hidden bg-[var(--paper)]">
@@ -69,7 +69,7 @@ export default function ThemesPage() {
           </span>
         </div>
 
-        {/* 主题目录：既是导航，也把 13 个主题名一次性喂给搜索引擎 */}
+        {/* Theme index: both navigation and a way to feed all 13 theme names to search engines at once */}
         <nav className="mt-12 border-y border-[var(--hairline)] py-5" aria-label="主题目录">
           <ul className="flex flex-wrap gap-x-5 gap-y-2.5">
             {THEME_METAS.map((t) => (
@@ -107,7 +107,7 @@ export default function ThemesPage() {
                 </h2>
                 <span className="text-[13px] text-[var(--ink-faint)]">适合：{t.tag}</span>
               </div>
-              {/* 样张宽度收到接近公众号正文的可读宽度，比铺满整行更接近真实观感 */}
+              {/* Sample width is narrowed to roughly WeChat's readable body width, closer to the real look than full width */}
               <div className="mt-5 max-w-[720px] overflow-hidden rounded-xl border border-[var(--hairline-strong)] bg-white shadow-[0_10px_36px_-24px_rgba(0,0,0,0.4)]">
                 <div className={themeClass(t.id)} style={{ padding: "20px 26px 28px" }}>
                   <FullArticle name={t.name} />

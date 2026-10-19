@@ -4,17 +4,17 @@ import { Decoration, type WidgetType } from "@codemirror/view";
 import { StateEffect, type EditorState, type Range } from "@codemirror/state";
 
 /**
- * 即时渲染的共用判定与装饰收集器。
+ * Shared predicates and decoration collector for live rendering.
  *
- * 装饰分两条通路：行内/行级的走视图插件（livePreview/index.ts），跨行替换（表格、块级公式）
- * 只能走状态字段（CodeMirror 禁止插件提供跨行 replace）。两边必须共用同一套光标/选区
- * 规则，否则同一次移动会得到互相矛盾的还原结果，所以判定函数集中放这里。
+ * Decorations take two paths: inline/line-level ones go through the view plugin (livePreview/index.ts), multi-line replacements (tables, block math)
+ * can only use a state field (CodeMirror forbids plugins from providing multi-line replace). Both must share the same cursor/selection
+ * rules, or the same move would produce contradictory reveal results, so the predicates live here.
  */
 
-/** 用轻量 effect 触发一次装饰重算（鼠标点击收尾、MathJax 异步就绪时使用）。 */
+/** Trigger a decoration recompute via a lightweight effect (used at the end of mouse clicks and when MathJax becomes ready asynchronously). */
 export const refreshLivePreview = StateEffect.define<null>();
 
-/** 光标位置集合（仅空选区）：节点级还原的判定依据 */
+/** Cursor positions (empty selections only): basis for node-level reveal decisions */
 export function caretPositions(state: EditorState): number[] {
   return state.selection.ranges.filter((r) => r.empty).map((r) => r.head);
 }
@@ -23,9 +23,9 @@ export function hasTextSelection(state: EditorState): boolean {
   return state.selection.ranges.some((range) => !range.empty);
 }
 
-/** 光标是否落在围栏代码块内（含两侧边界行）。
-    两个用处共用同一份判定：即时渲染据此换浅色光标；斜杠菜单据此拒绝触发——
-    代码里敲 `/` 是路径、正则、注释，弹菜单只会碍事 */
+/** Whether the cursor is inside a fenced code block (including the fence lines).
+    The same check serves two purposes: live rendering switches to a light cursor; the slash menu refuses to open —
+    typing `/` in code means a path, regex, or comment, and a menu would just get in the way */
 export function caretInFencedCode(state: EditorState): boolean {
   const pos = state.selection.main.head;
   for (const side of [-1, 1] as const) {
@@ -35,33 +35,33 @@ export function caretInFencedCode(state: EditorState): boolean {
   return false;
 }
 
-/** 任一选区（含非空）与 [from, to] 有交叠 —— 行级标记（#、>、围栏行）的还原判定。
-    行级标记现出时是零宽悬挂盒或等宽替换，不推动正文，所以可以大方地跟着选区走：
-    选到哪一行就让那行的记号露出来，用户看得见自己选中/将要复制的是什么。
-    块级部件（表格/公式/图片）不用这一档 —— 它们现出源码是整块的高度变化，
-    ⌘A 或拖选一过全篇就炸开，见 blocks.ts 的 renderable */
+/** Any selection (including non-empty) overlaps [from, to] — the reveal check for line-level markers (#, >, fence lines).
+    Revealed line markers are zero-width hanging boxes or monospace replacements that don't shift the text, so they can generously follow the selection:
+    whichever lines are selected show their markers, so users see what they've selected / are about to copy.
+    Block widgets (tables/math/images) don't use this tier — revealing their source changes the whole block's height,
+    and ⌘A or a drag would burst the whole doc open; see renderable in blocks.ts */
 export function selectionTouches(state: EditorState, from: number, to: number): boolean {
   return state.selection.ranges.some((r) => r.to >= from && r.from <= to);
 }
 
-/** 有非空选区整个落在 (from, to) 内部 —— 块级部件「已经展开着、正在里面选文字」的判定。
-    必须严格内部：拖选扫过一整块时 atomicRanges 会把选区两端对齐到 from/to，
-    含边界就会把「从外面拖过整块」也认成「在里面选」，整块当场炸成源码 */
+/** A non-empty selection lies entirely inside (from, to) — the check for a block widget "already expanded, with text being selected inside".
+    Must be strictly interior: when a drag sweeps a whole block, atomicRanges snaps the selection ends to from/to,
+    so including boundaries would treat "dragging across the block from outside" as "selecting inside", bursting the block into source */
 export function selectionInside(state: EditorState, from: number, to: number): boolean {
   return state.selection.ranges.some((r) => !r.empty && r.from > from && r.to < to);
 }
 
-/** 光标落在 [from, to]（含边界）内 —— 行内语法与整体部件（图片/视频/分割线/表格/公式）
-    共用的还原判定。边界必须算数：点开源码后光标挪到区间两端（行首、`)` 之后、`---` 末尾）
-    就正好踩在边界上，用严格内部判定会当场翻回部件，在同一行里移动光标就成了来回闪。
-    只认光标不认选区：拖选/全选时每个部件都多出几行源码，版面会整体抖一下 */
+/** Cursor within [from, to] (inclusive) — the reveal check shared by inline syntax and whole widgets (images/video/dividers/tables/math).
+    Boundaries must count: after opening the source, the cursor moving to either end (line start, after `)`, end of `---`)
+    lands right on a boundary; a strict-interior check would flip back to the widget, so moving within the line would flicker.
+    Cursor only, not selections: on drag/select-all every widget would gain a few lines of source and the layout would jolt */
 export function caretTouches(caret: number[], from: number, to: number): boolean {
   return caret.some((p) => p >= from && p <= to);
 }
 
-/** 光标落在 [from, to) 内（含左边界、不含右边界）—— 任务记号 `[ ]` 的还原判定。
-    右边界（`]` 之后）是从正文首字按 ← 过来的落点，也是最常停的位置，含进来的话
-    复选框一按左键就翻成 `[x]` 文字；左边界是从行首往右走进记号的入口，得能现出源码改 */
+/** Cursor within [from, to) (left-inclusive, right-exclusive) — the reveal check for task markers `[ ]`.
+    The right boundary (after `]`) is where ← from the first text character lands and the most common resting spot; including it would
+    turn the checkbox into `[x]` text on a single left arrow; the left boundary is the entry point when walking right from line start, and must reveal the source for editing */
 export function caretAtStartOrInside(caret: number[], from: number, to: number): boolean {
   return caret.some((p) => p >= from && p < to);
 }
@@ -71,19 +71,19 @@ export interface CodeRange {
   to: number;
 }
 
-/** 位置是否落在任一围栏代码块里 */
+/** Whether a position falls inside any fenced code block */
 export function inCodeRanges(ranges: CodeRange[], pos: number): boolean {
   return ranges.some((r) => pos >= r.from && pos <= r.to);
 }
 
-/** 可见行区间（闭区间行号） */
+/** Visible line range (inclusive line numbers) */
 interface LineSpan {
   first: number;
   last: number;
 }
 
-/** 可见区各向外扩 margin 行，并对齐到整行。
-    留余量是为了滚动：视口边缘那一行滚进来的那一帧装饰才补上的话，行级底色会晚一拍。 */
+/** Widen visible ranges by margin lines in each direction and align to whole lines.
+    The margin is for scrolling: if decorations for the line at the viewport edge only arrive the frame it scrolls in, line backgrounds lag a beat. */
 export function visibleLineRanges(
   state: EditorState,
   ranges: readonly CodeRange[],
@@ -98,9 +98,9 @@ export function visibleLineRanges(
   });
 }
 
-/** 位置区间换算成行号区间，顺带把重叠/相邻的两段并成一段。
-    不并的话，两段可见区落在同一个块里时交叠处要走两遍：行级类有去重画不重，
-    但白跑一趟，行数指标也会虚高 */
+/** Convert position ranges to line ranges, merging overlapping/adjacent segments along the way.
+    Without merging, two visible segments in the same block would process the overlap twice: line classes are deduplicated so nothing is drawn twice,
+    but it's wasted work and inflates the line-count metric */
 function toLineSpans(state: EditorState, ranges: readonly CodeRange[]): LineSpan[] {
   const spans = ranges
     .map((r) => ({
@@ -122,37 +122,37 @@ export interface LpContext {
   readonly caret: number[];
   readonly decos: Range<Decoration>[];
   readonly atomics: Range<Decoration>[];
-  /** 本次收集到的围栏代码块区间：逐行扫描（空行、公式）要跳过它们 */
+  /** Fenced code block ranges collected this time: line scans (blank lines, math) skip them */
   readonly codeRanges: CodeRange[];
-  /** 本次扫出的行内公式区间（见 inlineMath.ts）：里面的字符是 TeX，不再当 Markdown 标记 */
+  /** Inline math ranges found this time (see inlineMath.ts): characters inside are TeX, no longer treated as Markdown markers */
   readonly mathRanges: CodeRange[];
-  /** 隐藏一段源码（不占位） */
+  /** Hide a span of source (takes no space) */
   hide(from: number, to: number): void;
-  /** 替换为部件并登记为 atomic：光标整体跳过，路过不还原 */
+  /** Replace with a widget and register as atomic: the cursor skips over it whole and passing doesn't reveal it */
   replaceAtomic(from: number, to: number, widget?: WidgetType): void;
-  /** 这一段是否落在行内公式里 —— hide/replaceAtomic 会默默拒绝这种区间（见下方 inMath）。
-      要「几段一起藏、要藏就全藏」的地方（颜色 span 的首尾标签）得先问一句再动手，
-      否则只藏住一头，另一头孤零零地露在正文里 */
+  /** Whether this span falls inside inline math — hide/replaceAtomic silently reject such ranges (see inMath below).
+      Places that need "hide several spans together, all or nothing" (the opening/closing tags of a color span) must ask first,
+      otherwise only one end gets hidden and the other is left dangling in the text */
   inMath(from: number, to: number): boolean;
-  /** 给 pos 所在行加行级类；同行同类只加一次（嵌套结构会重复命中） */
+  /** Add a line class to the line at pos; added once per class per line (nested structures hit repeatedly) */
   lineClass(pos: number, cls: string): void;
-  /** [from, to] 覆盖的每一行都加行级类；传了 visible 时只画落在可见区里的那几行。
-      回调拿到的 first/last 始终是块的真实首末行号，返回本次实际访问的行数 */
+  /** Add the line class to every line covered by [from, to]; with visible, only paint lines within the visible ranges.
+      The callback's first/last are always the block's real first/last line numbers; returns the number of lines actually visited */
   eachLine(
     from: number,
     to: number,
     cls: (n: number, first: number, last: number) => string
   ): number;
-  /** 光标或选区落在 pos 所在行 —— 行首标记（#、>）的还原判定 */
+  /** Cursor or selection on the line containing pos — the reveal check for line-start markers (#, >) */
   lineActive(pos: number): boolean;
-  /** 诊断/单测可读的计数：eachLine 累计访问过的行数 */
+  /** Count readable by diagnostics/tests: total lines visited by eachLine */
   readonly stats: { linesVisited: number };
 }
 
 /**
- * @param visible 可见区（位置区间，通常来自 view.visibleRanges 再外扩几行，见 visibleLineRanges）。
- *   不传就是老行为：eachLine 遍历整块。传了则只遍历与可见区相交的行——一个三千行的代码块
- *   只要有一行在视口里，以前就得铺三千条行级装饰，光标每动一下重来一遍。
+ * @param visible visible ranges (position ranges, usually view.visibleRanges widened by a few lines; see visibleLineRanges).
+ *   If omitted, the old behavior: eachLine walks the whole block. If given, only lines intersecting the visible ranges are walked — a 3,000-line code block
+ *   with just one line in the viewport used to lay down 3,000 line decorations, redone on every cursor move.
  */
 export function createLpContext(
   state: EditorState,
@@ -167,9 +167,9 @@ export function createLpContext(
   const spans = visible ? toLineSpans(state, visible) : null;
   const stats = { linesVisited: 0 };
 
-  /** 与已登记的行内公式区间相交。公式是先于语法树那一趟扫出来的，`$a*b*c$` 里的 `*`
-      是 TeX 的一部分：被当成强调标记藏掉的话，一来源码看不见也删不动，二来两条 replace
-      叠在同一段上 CodeMirror 直接抛错。所以所有替换类装饰都得先过这一关 */
+  /** Intersects a registered inline math range. Math is scanned before the syntax tree pass, and the `*` in `$a*b*c$`
+      is part of the TeX: hidden as an emphasis marker, it would be invisible and undeletable in source, and two replaces
+      stacked on the same span make CodeMirror throw. So every replacing decoration has to pass this check first */
   const inMath = (from: number, to: number) =>
     mathRanges.some((r) => from < r.to && to > r.from);
 
@@ -200,8 +200,8 @@ export function createLpContext(
     },
     lineClass,
     eachLine(from, to, cls) {
-      // first/last 按块的真实首末行算，与可见区无关：可见区只决定「画哪几行」，
-      // 不决定「谁是首行」——否则滚到代码块中段时，视口第一行会顶着圆角当块首画
+      // first/last are the block's real first/last lines, regardless of the visible range: visibility only decides "which lines to paint",
+      // not "which is the first line" — otherwise, scrolled to the middle of a code block, the viewport's top line would be drawn as the block start with rounded corners
       const first = state.doc.lineAt(from).number;
       const last = state.doc.lineAt(to).number;
       let visited = 0;

@@ -1,8 +1,8 @@
 /**
- * 文案里夹 JSX 节点（加粗的文章名、数字等）：整句交给 t() 翻译，
- * 节点位置用 `{name}` 占位，这里再按占位把节点插回去。
- * 不拆成「写了」+ 节点 两段翻：英文语序常常不同（「《X》存档」→ "Saved a version of X"），
- * 拆开的碎片翻不对。
+ * Strings with embedded JSX nodes (bold article names, numbers, etc.): the whole sentence goes through t(),
+ * node positions use `{name}` placeholders, and the nodes are inserted back here.
+ * Don't translate it as 「写了」 + node fragments: English word order often differs (「《X》存档」 → "Saved a version of X"),
+ * and split fragments can't be translated correctly.
  */
 import { Fragment, type ReactNode } from "react";
 

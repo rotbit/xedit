@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 「设置」页：工作区里的虚拟视图（同今天 / 历史已完成），从侧栏头像菜单进入。
- * 把散落各处的用户设置集中到一页：账号、通用（语言 / 外观）、阅读与编辑、AI 内容审查、
- * 已授权的应用、文件列表。每项都直接改原来那份状态（zustand store / ws.prefs / cookie /
- * localStorage），本页不另存一份，别处改了这里照样一致。
+ * The 「设置」 (Settings) page: a virtual view in the workspace (like Today / completed history), entered from the sidebar avatar menu.
+ * Gathers user settings scattered around into one page: account, general (language / appearance), reading & editing, AI content review,
+ * authorized apps, file list. Each item edits the original state directly (zustand store / ws.prefs / cookie /
+ * localStorage); this page keeps no copy of its own, so changes elsewhere stay consistent here.
  */
 import { useState } from "react";
 import { isDark, setDark } from "@/components/DarkToggle";
@@ -20,7 +20,7 @@ import { LinkBtn, Row, Section, Seg, Switch } from "./SettingsParts";
 import type { DocView } from "../../hooks/useSidebarPrefs";
 import type { Workspace } from "../../hooks/useWorkspace";
 
-/** 账号：邮箱、管理后台入口、退出登录 */
+/** Account: email, admin entry, sign out */
 function AccountSection({ ws }: { ws: Workspace }) {
   const t = useT();
   const user = ws.auth.session?.user;
@@ -49,11 +49,11 @@ function AccountSection({ ws }: { ws: Workspace }) {
   );
 }
 
-/** 通用：界面语言、日间 / 夜间 */
+/** General: UI language, light / dark */
 function GeneralSection() {
   const t = useT();
   const locale = useLocale();
-  // data-theme 不进 React 状态，这里自己记一份，点了就跟着改
+  // data-theme isn't in React state, so track it here and update on click
   const [dark, setDarkState] = useState(isDark);
   return (
     <Section title={t("通用")}>
@@ -61,7 +61,7 @@ function GeneralSection() {
         <Seg<Locale>
           value={locale}
           options={[
-            // i18n-ignore 语言名不翻译：看不懂当前语言的人也认得出自己的语言
+            // i18n-ignore language names aren't translated: people who can't read the current language still recognize their own
             { value: "zh", label: "中文" },
             { value: "en", label: "English" },
           ]}
@@ -85,7 +85,7 @@ function GeneralSection() {
   );
 }
 
-/** 阅读与编辑：导出、双屏、排版微调、自定义 CSS 与主题入口 */
+/** Reading & editing: export, split view, typography tweaks, custom CSS and theme entry */
 function EditingSection() {
   const t = useT();
   const linkFootnote = useStore((s) => s.linkFootnote);
@@ -102,7 +102,7 @@ function EditingSection() {
       <Row label={t("同步滚动")} hint={t("双屏时编辑区和预览一起滚")}>
         <Switch checked={syncScroll} label={t("同步滚动")} onChange={setSyncScroll} />
       </Row>
-      {/* 滑杆组件自带 px-3.5 行内边距（原本挂在下拉面板里），这里抵消掉对齐左边线 */}
+      {/* The slider component has its own px-3.5 horizontal padding (originally for the dropdown panel); offset it here to align with the left edge */}
       <TypographyTuner className="-mx-3.5 py-2" />
       <Row label={t("自定义 CSS")} hint={t("在所选主题之上追加自己的样式")}>
         <LinkBtn onClick={() => setCssDialogOpen(true)}>{t("编辑")}</LinkBtn>
@@ -114,7 +114,7 @@ function EditingSection() {
   );
 }
 
-/** 文件列表：默认视图、侧栏宽度 */
+/** File list: default view, sidebar width */
 function FilesSection({ ws }: { ws: Workspace }) {
   const t = useT();
   const { prefs } = ws;
@@ -139,7 +139,7 @@ function FilesSection({ ws }: { ws: Workspace }) {
 
 export function SettingsView({ ws }: { ws: Workspace }) {
   const t = useT();
-  // 账号与授权应用都要登录：本地模式下不摆这两段
+  // Account and authorized apps both require login: don't show these two sections in local mode
   const loggedIn = ws.auth.loggedIn;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">

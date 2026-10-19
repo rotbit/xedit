@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 管理后台整页。概览数据来自 /api/admin/overview，账号列表来自 /api/admin/users。
- * 管理员身份由服务端按 ADMIN_EMAILS 白名单判定，本文件不做任何权限判断，只按接口返回渲染。
- * 每次写操作成功后统一 refreshAll，让概览和列表一起重拉，避免两处数字对不上。
+ * Full admin dashboard page. Overview data comes from /api/admin/overview, the account list from /api/admin/users.
+ * Admin status is decided server-side by the ADMIN_EMAILS allowlist; this file does no permission checks and just renders what the API returns.
+ * After every successful write, refreshAll refetches the overview and list together so the numbers never disagree.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -37,11 +37,11 @@ import { AiPromptCard } from "./AiPromptCard";
 import { UserDetailDrawer } from "./UserDetailDrawer";
 import { PermissionBadge } from "./PermissionBadge";
 
-/** 超级管理员后台：全站概览 + 账号列表（封禁 / 配额 / 删号 / 明细） */
+/** Super-admin dashboard: site overview + account list (ban / quota / delete / details) */
 export function AdminDashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [list, setList] = useState<UserListResp | null>(null);
-  // q 是输入框里的字，query 是已提交的搜索词：分成两个状态，敲字时才不会每键一次就发请求
+  // q is what's in the input, query is the submitted search: two states so typing doesn't fire a request per keystroke
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -49,7 +49,7 @@ export function AdminDashboard() {
   const [quotaTarget, setQuotaTarget] = useState<AdminUser | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  // 操作成功后 +1，触发概览与列表重新拉取
+  // Incremented after a successful action, triggering a refetch of the overview and list
   const [tick, setTick] = useState(0);
   const refreshAll = useCallback(() => setTick((t) => t + 1), []);
 
@@ -84,7 +84,7 @@ export function AdminDashboard() {
     };
   }, [page, query, tick]);
 
-  /** PATCH 单个账号；成功后刷新列表与概览 */
+  /** PATCH one account; refresh the list and overview on success */
   const patchUser = async (id: string, body: Record<string, unknown>): Promise<boolean> => {
     const res = await fetch(`/api/admin/users/${id}`, {
       method: "PATCH",
@@ -131,12 +131,12 @@ export function AdminDashboard() {
     refreshAll();
   };
 
-  // 至少算 1 页：搜索无结果时 total 为 0，不兜底会显示成「第 1 / 0 页」
+  // At least 1 page: total is 0 when a search has no results, and without a floor it would read 「第 1 / 0 页」 (Page 1 / 0)
   const totalPages = list ? Math.max(1, Math.ceil(list.total / list.pageSize)) : 1;
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-      {/* 顶栏 */}
+      {/* Top bar */}
       <div className="mb-8 flex items-center gap-3">
         <Link
           href="/"
@@ -153,7 +153,7 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* 全站概览 */}
+      {/* Site overview */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={<Users size={16} />}
@@ -181,14 +181,14 @@ export function AdminDashboard() {
         />
       </div>
 
-      {/* 活跃用户曲线 */}
+      {/* Active users chart */}
       <DauChart />
 
-      {/* AI 设置：全站审核用哪个模型、各家 token */}
+      {/* AI settings: which model site-wide review uses, and each provider's token */}
       <AiSettingsCard />
       <AiPromptCard />
 
-      {/* 搜索 */}
+      {/* Search */}
       <div className="mt-8 flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search
@@ -214,7 +214,7 @@ export function AdminDashboard() {
         </p>
       </div>
 
-      {/* 账号列表 */}
+      {/* Account list */}
       <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--hairline)] bg-[var(--panel)]">
         <table className="w-full min-w-[900px] border-collapse text-[13px]">
           <thead>
@@ -293,7 +293,7 @@ export function AdminDashboard() {
                     </span>
                   )}
                 </td>
-                {/* 整行点击会打开明细抽屉，所以操作列要吞掉冒泡，否则点菜单的同时抽屉也弹出来 */}
+                {/* Clicking a row opens the detail drawer, so the actions column must swallow propagation, otherwise the drawer pops open along with the menu */}
                 <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <Dropdown
                     width={168}
@@ -322,7 +322,7 @@ export function AdminDashboard() {
                         只读封禁…
                       </button>
                     )}
-                    {/* 白名单管理员不给封禁和删除入口；服务端对这两个动作也会直接返回 400，前端只是少一次白跑 */}
+                    {/* Allowlisted admins get no ban or delete entries; the server returns 400 for both anyway, the frontend just saves a wasted round trip */}
                     {u.admin ? null : (
                       <>
                         <div className="my-1 border-t border-[var(--hairline)]" />
@@ -336,7 +336,7 @@ export function AdminDashboard() {
                 </td>
               </tr>
             ))}
-            {/* colSpan 必须等于表头列数，加减列时这两处空态要一起改，否则占位单元格会把表格撑歪 */}
+            {/* colSpan must equal the header column count; when adding/removing columns update both empty states, or the placeholder cell skews the table */}
             {list === null ? (
               <tr>
                 <td colSpan={8} className="px-4 py-14">
@@ -356,7 +356,7 @@ export function AdminDashboard() {
         </table>
       </div>
 
-      {/* 分页 */}
+      {/* Pagination */}
       {totalPages > 1 ? (
         <div className="mt-4 flex items-center justify-center gap-3 text-[13px] text-[var(--ink-soft)]">
           <button
@@ -407,7 +407,7 @@ export function AdminDashboard() {
         />
       ) : null}
       {detailId ? (
-        // key 让切换账号时整体重挂载，抽屉内部不用手动清状态
+        // key remounts the drawer on account switch, so it doesn't need to clear state manually
         <UserDetailDrawer
           key={detailId}
           id={detailId}
@@ -440,16 +440,16 @@ function StatCard({
       <p className="mt-1.5 text-[22px] font-semibold leading-none text-[var(--ink)] [font-family:var(--serif)]">
         {value}
       </p>
-      {/* 提示行留固定高度：四张卡里有的没有提示，不占位的话卡片高度会参差 */}
+      {/* Hint row has a fixed height: some of the four cards have no hint, and without reserving space card heights would be uneven */}
       <p className="mt-1.5 h-4 text-[11.5px] text-[var(--ink-faint)]">{hint}</p>
     </div>
   );
 }
 
-/** 用量条：已用 / 生效配额，逼近上限时染红 */
+/** Usage bar: used / effective quota, turns red near the limit */
 function StorageCell({ u, defaultQuota }: { u: AdminUser; defaultQuota: number }) {
   const percent = usagePercent(u.storageUsed, u.storageQuota, defaultQuota);
-  // 90% 就染红，留出腾挪余地：真到配额上限时上传会被 uploadBlocked 直接拒掉
+  // Turn red at 90% to leave headroom: at the actual quota limit uploads are rejected outright by uploadBlocked
   const nearLimit = percent >= 90;
   return (
     <div className="min-w-[140px]">

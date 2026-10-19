@@ -1,12 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Docker 部署用独立产物（.next/standalone）
+  // Standalone output (.next/standalone) for Docker deployment
   output: "standalone",
-  // ali-oss 及其依赖（urllib 等）包含运行时动态 require，交给 Node 直接加载，不参与打包
+  // ali-oss and its deps (urllib etc.) use dynamic require at runtime; let Node load them directly instead of bundling
   serverExternalPackages: ["ali-oss"],
-  // MCP OAuth 发现文档必须挂在根域 /.well-known 下（RFC 8414 / 9728），
-  // 用 rewrite 落到实际的 route handler。带 :path* 兼容「资源路径后缀」变体。
+  // MCP OAuth discovery documents must live under the root /.well-known (RFC 8414 / 9728),
+  // so rewrite them to the actual route handlers. :path* covers the "resource path suffix" variant.
   async rewrites() {
     return [
       {

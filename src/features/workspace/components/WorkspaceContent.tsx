@@ -11,7 +11,7 @@ import { DocListView } from "./DocListView";
 import { DocTimeline } from "./DocTimeline";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 重型视图按需加载：阅读器连带 markdown 渲染/主题/复制管线，不该进首屏包 */
+/** Heavy views load on demand: the reader pulls in markdown rendering / themes / the copy pipeline and shouldn't be in the initial bundle */
 const viewLoading = () => (
   <div className="flex justify-center pt-24">
     <Loader2 size={20} className="animate-spin text-[var(--ink-faint)]" />
@@ -26,29 +26,29 @@ const AssetsGallery = dynamic(
   { ssr: false, loading: viewLoading }
 );
 
-/** 今天页带着待办汇总与当日记录，只有点进来的人才需要 */
+/** The Today page carries todo aggregation and the daily log; only people who open it need it */
 const TodayView = dynamic(() => import("./today/TodayView").then((m) => m.TodayView), {
   ssr: false,
   loading: viewLoading,
 });
 
-/** 「历史已完成」月历回顾页：从今天页进入，同样按需加载 */
+/** "Completed history" calendar review page: entered from Today, also loaded on demand */
 const HistoryView = dynamic(() => import("./history/HistoryView").then((m) => m.HistoryView), {
   ssr: false,
   loading: viewLoading,
 });
 
-/** 「设置」页：从头像菜单进入，同样按需加载 */
+/** "Settings" page: entered from the avatar menu, also loaded on demand */
 const SettingsView = dynamic(() => import("./settings/SettingsView").then((m) => m.SettingsView), {
   ssr: false,
   loading: viewLoading,
 });
 
 /**
- * 列表首帧渲染完后趁浏览器空闲预热阅读器模块：
- * 它连带 markdown 渲染管线是最大的懒加载块，等点开文章再现拉，冷缓存下要转几秒圈；
- * 提前拉进模块缓存后，dynamic() 首次渲染即刻解析。import() 与上面 dynamic 的
- * 路径相同，打的是同一个 chunk，不会重复下载。
+ * After the list's first frame renders, warm up the reader module while the browser is idle:
+ * with its markdown rendering pipeline it's the largest lazy chunk, and fetching it only when a doc is opened means seconds of spinner on a cold cache;
+ * once it's in the module cache, dynamic() resolves immediately on first render. import() uses the same path
+ * as the dynamic above, so it's the same chunk and isn't downloaded twice.
  */
 function usePrefetchReader() {
   useEffect(() => {
@@ -57,12 +57,12 @@ function usePrefetchReader() {
       const id = window.requestIdleCallback(prefetch, { timeout: 3000 });
       return () => window.cancelIdleCallback(id);
     }
-    const t = setTimeout(prefetch, 1500); // Safari 没有 requestIdleCallback
+    const t = setTimeout(prefetch, 1500); // Safari has no requestIdleCallback
     return () => clearTimeout(t);
   }, []);
 }
 
-/** 文章列表区：装载中骨架 → 空态 → 紧凑列表 / 时间流 */
+/** Doc list area: loading skeleton → empty state → compact list / timeline */
 function DocList({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, filtered } = ws;
   const source = nav.isTrash ? library.trashDocs : library.docs;
@@ -73,15 +73,15 @@ function DocList({ ws }: { ws: Workspace }) {
       <DocListEmpty search={nav.search} isTrash={nav.isTrash} activeCat={nav.activeCat} />
     );
   }
-  // 回收站只有时间流形态（行右侧需要恢复 / 彻底删除按钮）
+  // The trash only has the timeline form (rows need restore / delete forever buttons on the right)
   if (prefs.docView === "list" && !nav.isTrash) return <DocListView ws={ws} />;
   return <DocTimeline ws={ws} />;
 }
 
-/** 内容区：面包屑顶栏 + 独立滚动的视图主体 */
+/** Content area: breadcrumb top bar + independently scrolling view body */
 export function WorkspaceContent({ ws }: { ws: Workspace }) {
   const { nav, library, docActions, config } = ws;
-  /** 阅读视图下，ArticleReader 的操作按钮通过 portal 挂进面包屑顶栏右侧，省掉一整条横栏 */
+  /** In reading view, ArticleReader's action buttons are portaled into the right side of the breadcrumb bar, saving a whole toolbar row */
   const [actionSlot, setActionSlot] = useState<HTMLDivElement | null>(null);
   usePrefetchReader();
 
@@ -89,8 +89,8 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
   const readingDoc = readingId
     ? ((library.docs ?? []).find((d) => d.id === readingId) ?? null)
     : null;
-  // 分类全集只在文库/自建分类变化时重算：中文 collator 排序不便宜，
-  // 且稳定的数组引用能避免把新引用每次都喂给 ArticleReader
+  // Recompute the full category set only when the library / custom categories change: Chinese collator sorting isn't cheap,
+  // and a stable array reference avoids feeding ArticleReader a new reference every time
   const categories = useMemo(
     () => allCategories(library.customCats, library.docs),
     [library.customCats, library.docs]
@@ -100,7 +100,7 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
     <main className="flex min-w-0 flex-1 flex-col">
       <ContentHeader ws={ws} readingDoc={readingDoc} onActionSlotRef={setActionSlot} />
       {readingId && !isTrash ? (
-        // 文章视图占满内容区高度：便于「双屏」左右各自独立滚动
+        // The doc view fills the content area's height so "split view" panes can scroll independently
         <ArticleReader
           docId={readingId}
           actionSlot={actionSlot}
@@ -114,13 +114,13 @@ export function WorkspaceContent({ ws }: { ws: Workspace }) {
             const d = (library.docs ?? []).find((x) => x.id === readingId);
             if (d) void docActions.removeDoc(d);
           }}
-          // [[双向链接]] 需要的三样：文库（按标题找目标）、打开、找不到时按标题新建
+          // The three things [[wikilinks]] need: the library (to find targets by title), open, and create-by-title when not found
           docs={library.docs ?? undefined}
           onOpenDoc={nav.openDoc}
           onCreateDoc={docActions.createDoc}
         />
       ) : activeCat === ASSETS ? (
-        // 图片库是通栏两栏（网格 + 右侧详情栏），不套居中窄容器、自己管滚动
+        // The image library is a full-width two-pane layout (grid + right detail panel): no centered narrow container, it manages its own scrolling
         <AssetsGallery ossConfigured={config?.oss ?? false} onOpenDoc={nav.openDoc} />
       ) : activeCat === TODAY ? (
         <TodayView ws={ws} />

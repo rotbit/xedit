@@ -1,12 +1,12 @@
 /**
- * data-line 与同步滚动的纯函数层。
- * 没有 DOM，所以只测两样能脱离 DOM 的东西：渲染出来的行号、锚点表上的插值。
+ * Pure-function layer for data-line and scroll sync.
+ * No DOM, so only test the two things that work without it: the rendered line numbers and interpolation over the anchor table.
  */
 import { describe, expect, it } from "vitest";
 import { renderMarkdown } from "@/lib/markdown/renderer";
 import { lineForTop, topForLine, type Anchor } from "@/hooks/useSyncScroll";
 
-/** 找出包住这段文字的那个 data-line（0 基，与编辑器行号同口径） */
+/** Find the data-line wrapping this text (0-based, same as editor line numbers) */
 function lineOfText(html: string, text: string): number {
   const parts = html.split(/data-line="(\d+)"/);
   for (let i = 1; i < parts.length; i += 2) {
@@ -44,8 +44,8 @@ describe("frontmatter 的行号偏移", () => {
   });
 
   it("多余空行补出来的空段落也跟着偏移", () => {
-    // 0:--- 1:a: 1 2:--- 3:空 4:正文 5:空 6:空 7:尾段
-    // 第 3 行只是 frontmatter 与正文的分隔，不补空段；第 6 行才是多余空行
+    // 0:--- 1:a: 1 2:--- 3:empty 4:body 5:empty 6:empty 7:last paragraph
+    // Line 3 is just the separator between frontmatter and body, no empty paragraph added; line 6 is the extra blank line
     const html = renderMarkdown("---\na: 1\n---\n\n正文\n\n\n尾段\n");
     expect(lineOfText(html, "<br>")).toBe(6);
     expect(lineOfText(html, "尾段")).toBe(7);

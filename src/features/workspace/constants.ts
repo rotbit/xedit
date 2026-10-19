@@ -1,78 +1,78 @@
-/** 侧栏里非分类的虚拟视图键，与真实分类路径共用 activeCat 一个字段 */
+/** Sidebar keys for virtual (non-category) views; they share the activeCat field with real category paths */
 export const ALL = "__all__";
 export const TRASH = "__trash__";
 export const ASSETS = "__assets__";
-/** 「今天」：待办汇总 + 当日记录，不是文章列表 */
+/** "Today": todo aggregation + daily log, not a doc list */
 export const TODAY = "__today__";
-/** 「历史已完成」：从今天页进入的月历回顾页，按天 / 按周看做完的事与写作量 */
+/** "Completed history": calendar review page entered from Today, showing what was done and how much was written by day / week */
 export const HISTORY = "__history__";
-/** 「设置」：从侧栏头像菜单进入，集中账号、外观、阅读编辑、AI 审查、授权应用等用户设置 */
+/** "Settings": entered from the sidebar avatar menu; gathers account, appearance, reading/editing, AI review, authorized apps and other user settings */
 export const SETTINGS = "__settings__";
 
-/** 是否为虚拟视图键（而非真实分类路径） */
+/** Whether this is a virtual view key (rather than a real category path) */
 export function isVirtualCat(path: string): boolean {
   return path === ALL || path === TRASH || path === ASSETS || path === TODAY || path === HISTORY || path === SETTINGS;
 }
 
-/** 无分类文章的归属；同时是保留名，不允许用户新建同名分类。
- *  定义在 lib/docDefaults 里（服务端也要用），这里只转出去，老的 import 路径照旧能用 */
+/** Where uncategorized docs belong; also a reserved name, so users can't create a category with it.
+ *  Defined in lib/docDefaults (the server needs it too); re-exported here so old import paths keep working */
 export { UNCATEGORIZED } from "@/lib/docDefaults";
 
-/** 分类树最大层级：飞书镜像前缀（飞书知识库/空间/…）自身就占 3~4 层，
- *  再叠用户目录轻松过 8 层；真正的硬约束是分类字段 100 字符（拖拽前另行校验），
- *  这里只作防失控的宽松上限 */
+/** Max category tree depth: Feishu mirror prefixes (飞书知识库/space/…) take 3–4 levels on their own,
+ *  and stacking user folders easily goes past 8; the real hard limit is the 100-char category field (checked separately before drag),
+ *  so this is only a loose cap against runaway nesting */
 export const MAX_DEPTH = 12;
 
-/** 树缩进：每层 17px，与 Obsidian 文件树同宽，等距不压缩——引导线要落在父级图标位正下方、
- *  行高亮要从缩进处起，层距一压缩就互相压住。深层标题靠截断；仍设总上限防超深历史路径 */
+/** Tree indent: 17px per level, the same as Obsidian's file tree, evenly spaced without compression — guide lines must sit directly under the parent icon slot
+ *  and row highlights start at the indent, so compressing levels makes them collide. Deep titles rely on truncation; a total cap still guards against very deep legacy paths */
 export function treeIndent(depth: number): number {
   return Math.min(depth * 17, 102);
 }
 
-/** 树行的左外边距：悬停/选中底色从这里起，父级引导线（x = 15 + treeIndent(depth-1)）
- *  留在行左缘外侧不被盖住（Obsidian 同款）。根行铺满整宽 */
+/** Left margin of tree rows: hover/selected backgrounds start here, so the parent guide line (x = 15 + treeIndent(depth-1))
+ *  stays outside the row's left edge and isn't covered (same as Obsidian). Root rows span the full width */
 export function rowInset(depth: number): number {
   return depth === 0 ? 0 : 2 + treeIndent(depth);
 }
 
 /**
- * 树行（文件夹行、文章行）的左内边距，让 14px 图标位的中心落在 15 + treeIndent(depth)：
- * - depth 0：行无外边距，内边距 8 → 图标中心 8 + 7 = 15，与 NavRow、搜索框的图标同一条线。
- * - depth > 0：外边距 rowInset(depth) = 2 + treeIndent(depth)，
- *   内边距 p 满足 2 + treeIndent(depth) + p + 7 = 15 + treeIndent(depth) → p = 6。
- *   父级引导线在 15 + treeIndent(depth - 1) = 行左缘 - 4，仍露在行左缘外侧；
- *   外边距取 2 而不是更大，是为了让底色到图标之间留足 6px，不显得挤。
- * 引导线由 CategoryRow 的 TreeGuide 画在 15 + treeIndent(父 depth)，正好对准父行图标位中心。
+ * Left padding of tree rows (folder rows, doc rows), placing the center of the 14px icon slot at 15 + treeIndent(depth):
+ * - depth 0: no row margin, padding 8 → icon center 8 + 7 = 15, aligned with the icons of NavRow and the search box.
+ * - depth > 0: margin rowInset(depth) = 2 + treeIndent(depth),
+ *   padding p satisfies 2 + treeIndent(depth) + p + 7 = 15 + treeIndent(depth) → p = 6.
+ *   The parent guide line at 15 + treeIndent(depth - 1) = row left edge - 4 still shows outside the row's left edge;
+ *   the margin is 2 rather than more so there's a full 6px between the background edge and the icon, which doesn't feel cramped.
+ * CategoryRow's TreeGuide draws guide lines at 15 + treeIndent(parent depth), right on the center of the parent row's icon slot.
  */
 export function rowPadLeft(depth: number): number {
   return depth === 0 ? 8 : 6;
 }
 
-/** 拖拽悬停时落点行的高亮样式（放入该分类） */
+/** Highlight style for the target row while hovering a drag (drop into this category) */
 export const DROP_HL = "bg-[var(--accent-wash)] shadow-[inset_0_0_0_1.5px_var(--accent)]";
-/** 拖拽排序的插入指示线：插到该行之前/之后。3px 才在浅色侧栏里一眼可见 */
+/** Insertion indicator for drag reordering: insert before/after this row. 3px is what's visible at a glance in a light sidebar */
 export const DROP_LINE_TOP = "shadow-[0_-3px_0_0_var(--accent)]";
 export const DROP_LINE_BOTTOM = "shadow-[0_3px_0_0_var(--accent)]";
 
-/** 侧栏行的基础样式：选中态强调，未选中态 hover 提亮 */
+/** Base sidebar row style: emphasized when selected, brightened on hover when not */
 export function rowCls(active: boolean): string {
   return active
     ? "bg-[var(--sidebar-active)] text-[var(--accent-deep)]"
     : "text-[var(--ink-soft)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--ink)]";
 }
 
-/** 侧栏行右侧计数：裸数字，不加胶囊底；选中与否同一灰度，数字只是旁注 */
+/** Count on the right of sidebar rows: bare number, no pill; same gray whether selected or not — the number is just a side note */
 export function countCls(): string {
   return "text-[11px] tabular-nums text-[var(--ink-faint)]";
 }
 
-/** 弹出菜单条目样式：定义在 components 层（下拉菜单也用同一份），这里只做转出 */
+/** Popup menu item style: defined in the components layer (dropdowns use the same one); only re-exported here */
 export { menuItemCls } from "@/components/menuStyles";
 
-/** 弹出菜单里的危险操作条目样式 */
+/** Style for destructive items in popup menus */
 export const menuDangerCls =
   "flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40";
 
-/** 弹出菜单浮层样式 */
+/** Popup menu overlay style */
 export const menuPanelCls =
   "fixed z-40 rounded-lg border border-[var(--hairline)] bg-[var(--panel)] py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.16)]";

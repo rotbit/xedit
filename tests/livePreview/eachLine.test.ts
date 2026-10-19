@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-// @codemirror/view 模块加载时就要读 document.documentElement.style 做浏览器探测，
-// node 环境的最小 document 桩里没有这一层，必须赶在 import 之前补上
+// @codemirror/view reads document.documentElement.style at module load for browser detection,
+// and the minimal document stub in node lacks it, so it must be patched in before the import
 vi.hoisted(() => {
   const doc = (globalThis as { document?: { documentElement?: unknown } }).document;
   if (doc && !doc.documentElement) doc.documentElement = { style: {} };
@@ -16,12 +16,12 @@ import { createLpContext, visibleLineRanges, type CodeRange } from "@/lib/livePr
 import { fencedCodeDecorations } from "@/lib/livePreview/fence";
 
 /**
- * eachLine 的可见区裁剪：一个三千行的代码块只要有一行落进视口，以前就得逐行铺三千条
- * 行级装饰，光标每动一下全部重来。这里守两条线：访问行数被限制在可见区内，
- * 以及 first/last 仍按块的真实首末行判定（滚到中段时中间行不能顶着圆角当块首画）。
+ * Visible-range clipping in eachLine: as soon as one line of a 3000-line code block entered the viewport, we used to lay down 3000
+ * line decorations, all redone on every cursor move. Two guarantees here: lines visited are limited to the visible range,
+ * and first/last are still judged by the block's real first and last lines (scrolled to the middle, a middle line mustn't get the rounded corners of a block start).
  */
 
-/** 三千行围栏代码块：首行 ```js、末行 ```、中间全是代码 */
+/** 3000-line fenced code block: first line ```js, last line ```, all code in between */
 function fencedDoc(total = 3000): string {
   const body = Array.from({ length: total - 2 }, (_, i) => `const v${i + 1} = ${i + 1};`);
   return ["```js", ...body, "```"].join("\n");
@@ -29,14 +29,14 @@ function fencedDoc(total = 3000): string {
 
 function makeState(doc: string): EditorState {
   let state = EditorState.create({ doc, extensions: [markdown()] });
-  // 语法树字段初始只解析前 3000 个字符。ensureSyntaxTree 把剩下的活干完，
-  // 但字段里挂着的仍是那棵半截树，还得过一道空事务才接上（syntaxTree(state) 这才是完整树）
+  // The syntax tree field initially parses only the first 3000 characters. ensureSyntaxTree finishes the rest,
+  // but the field still holds the partial tree, and it takes an empty transaction to pick it up (only then is syntaxTree(state) complete)
   ensureSyntaxTree(state, state.doc.length, 20_000);
   state = state.update({}).state;
   return state;
 }
 
-/** 第 first 行行首到第 last 行行尾的位置区间 —— 冒充 view.visibleRanges 的一段 */
+/** Position range from the start of line first to the end of line last — posing as one entry of view.visibleRanges */
 function lineSpan(state: EditorState, first: number, last: number): CodeRange {
   return { from: state.doc.line(first).from, to: state.doc.line(last).to };
 }
@@ -52,7 +52,7 @@ function firstFencedNode(state: EditorState): SyntaxNode {
   return found[0];
 }
 
-/** 行号 → 该行拿到的行级类（Decoration.line 的区间零宽、带 class） */
+/** Line number → line classes it received (Decoration.line ranges are zero-width with a class) */
 function lineClassMap(state: EditorState, decos: Range<Decoration>[]): Map<number, string[]> {
   const map = new Map<number, string[]>();
   for (const deco of decos) {
@@ -76,12 +76,12 @@ describe("eachLine 可见区裁剪", () => {
       return "cm-lp-code";
     });
 
-    // 1000–1050 共 51 行，各向外扩 2 行 = 55 行（改动前是整块 3000 行）
+    // 1000–1050 is 51 lines, plus 2 on each side = 55 lines (previously the whole 3000-line block)
     expect(visited).toBe(55);
     expect(ctx.stats.linesVisited).toBe(55);
     expect(seen[0].n).toBe(998);
     expect(seen[seen.length - 1].n).toBe(1052);
-    // 块的真实首末行号照旧下发，可见区里一行都不是首行/末行
+    // The block's real first/last line numbers are still passed down; no line in the visible range is first/last
     expect(seen.every((s) => s.first === 1 && s.last === 3000)).toBe(true);
     expect(seen.some((s) => s.n === s.first || s.n === s.last)).toBe(false);
   });
@@ -92,7 +92,7 @@ describe("eachLine 可见区裁剪", () => {
     fencedCodeDecorations(ctx, firstFencedNode(state));
 
     const classes = lineClassMap(state, ctx.decos);
-    // 55 行可见区，外加闭栏行那条常驻的 cm-lp-code-close：它按真实末行挂，与可见区无关
+    // 55 visible lines, plus the always-present cm-lp-code-close on the closing fence line: it's attached by the real last line, independent of the visible range
     expect(classes.size).toBe(56);
     expect(classes.get(3000)).toEqual(["cm-lp-code-close"]);
     const mids = [...classes].filter(([n]) => n !== 3000);
@@ -108,13 +108,13 @@ describe("eachLine 可见区裁剪", () => {
     const headClasses = lineClassMap(state, head.decos);
     expect(headClasses.get(1)).toEqual(["cm-lp-code cm-lp-code-first"]);
     expect(headClasses.get(2)).toEqual(["cm-lp-code cm-lp-code-mid"]);
-    // 末行在视口外：块级底色不画了，只剩与可见区无关的那条闭栏行内边距
+    // Last line is outside the viewport: block background isn't drawn, leaving only the closing-line padding, which doesn't depend on the visible range
     expect(headClasses.get(3000)).toEqual(["cm-lp-code-close"]);
 
     const tail = createLpContext(state, [], visibleLineRanges(state, [lineSpan(state, 2985, 3000)]));
     fencedCodeDecorations(tail, firstFencedNode(state));
     const tailClasses = lineClassMap(state, tail.decos);
-    // 闭栏行另有一个常驻的 cm-lp-code-close（压成块底内边距），与裁剪无关
+    // The closing fence line has its own always-present cm-lp-code-close (block bottom padding), unrelated to clipping
     expect(tailClasses.get(3000)).toEqual(["cm-lp-code cm-lp-code-last", "cm-lp-code-close"]);
     expect(tailClasses.has(1)).toBe(false);
   });
@@ -134,7 +134,7 @@ describe("eachLine 可见区裁剪", () => {
       return "cm-lp-code";
     });
 
-    // 998–1022 归并成一段，既不重复遍历也不重复装饰
+    // 998–1022 merge into one range, with no duplicate traversal or decoration
     expect(visited).toBe(25);
     expect(new Set(seen).size).toBe(seen.length);
     expect(lineClassMap(state, ctx.decos).size).toBe(25);
@@ -167,10 +167,10 @@ describe("eachLine 可见区裁剪", () => {
     const ctx = createLpContext(state, caret, visibleLineRanges(state, [lineSpan(state, 1000, 1050)]));
     fencedCodeDecorations(ctx, node);
 
-    // 开栏行 lineActive 为真 → 不换标题条部件，``` 原样留着（与可见区无关）
+    // lineActive is true on the opening fence line → the header bar widget isn't swapped in and ``` stays as-is (independent of the visible range)
     expect(ctx.lineActive(state.doc.line(1).from)).toBe(true);
     expect(ctx.atomics.some((deco) => deco.from === state.doc.line(1).from)).toBe(false);
-    // 可见区里的行照画不误
+    // Lines in the visible range are still drawn correctly
     expect(ctx.stats.linesVisited).toBe(55);
   });
 

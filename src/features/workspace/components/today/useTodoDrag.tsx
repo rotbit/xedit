@@ -1,26 +1,26 @@
 "use client";
 
 /**
- * 今天页的「拖动待办改日期」：把一条待办拖到右栏某一天（或拖回左栏今天的列表），松手就改到那天。
+ * Today page "drag a todo to change its date": drag a todo onto a day in the right column (or back onto the left column's today list) and drop to move it there.
  *
- * 为什么用原生 HTML5 拖放而不引 dnd-kit 之类：这里只有「整行拖到某个日子上」一种动作，不排序、不跨容器重排，
- * 原生事件几十行就够，不值得多背一个依赖；桌面鼠标场景原生拖放体验足够。
- * 触屏上原生拖放基本不可用，那里仍走行尾的「变更日期」菜单——拖放只是多一条路，菜单一直都在。
+ * Why native HTML5 drag and drop instead of something like dnd-kit: there's only one action here, "drag a whole row onto a day" — no sorting, no cross-container reordering.
+ * Native events take a few dozen lines, not worth another dependency; native DnD is good enough for desktop mouse use.
+ * Native DnD is basically unusable on touch screens, which still use the row-end "Change date" menu — dragging is just an extra path; the menu is always there.
  *
- * 状态（正在拖哪条、悬停在哪天）放在 Context 里：拖源在左右两栏的行里，落点也分散在两栏，
- * 由 TodayView 统一 Provider，行和落点只拿 dragProps / dropProps 两个小 helper 往元素上一摊。
+ * State (which item is being dragged, which day is hovered) lives in Context: drag sources are rows in both columns and drop targets are spread across both too,
+ * so TodayView provides it once, and rows and targets just spread the dragProps / dropProps helpers onto elements.
  */
 import { createContext, useContext, useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import type { TodoItem } from "@/lib/todos/collect";
 import { rowId, type RowActions } from "./parts";
 
-/** 拖着悬停在合并的空日子那一行上多久自动展开成单日，好让用户继续拖到其中具体某一天 */
+/** How long hovering over a merged empty-days row while dragging takes to auto-expand it into single days, so the user can keep dragging to a specific one */
 const LINGER_MS = 400;
 
 interface DropOptions {
-  /** 这个落点接不接这一条；不接就不 preventDefault，光标显示禁止、松手什么也不做 */
+  /** Whether this drop target accepts this item; if not, skip preventDefault so the cursor shows not-allowed and dropping does nothing */
   accept?: (item: TodoItem) => boolean;
-  /** 悬停超过 LINGER_MS 时调用（合并行用来自动展开） */
+  /** Called after hovering longer than LINGER_MS (used by merged rows to auto-expand) */
   onLinger?: () => void;
 }
 
@@ -38,9 +38,9 @@ interface TodoDrag {
     onDragLeave: (e: DragEvent) => void;
     onDrop: (e: DragEvent) => void;
   };
-  /** 这一行是不是正被拖着（画成半透明） */
+  /** Whether this row is being dragged (drawn semi-transparent) */
   isDragging: (item: TodoItem) => boolean;
-  /** 正拖着一条悬停在这一天的落点上（落点高亮） */
+  /** An item is being dragged over this day's drop target (target highlighted) */
   isOver: (day: string) => boolean;
 }
 
@@ -49,7 +49,7 @@ const Ctx = createContext<TodoDrag | null>(null);
 export function TodoDragProvider({ actions, children }: { actions: RowActions; children: ReactNode }) {
   const [dragging, setDragging] = useState<TodoItem | null>(null);
   const [overDay, setOverDay] = useState<string | null>(null);
-  // 合并行的展开计时：同一时刻只悬停在一个落点上，一个计时器就够；记下它属于哪天，dragover 连发时不重复起
+  // Expand timer for merged rows: only one target is hovered at a time, so one timer suffices; remember which day it belongs to so repeated dragover doesn't restart it
   const linger = useRef<{ day: string; timer: ReturnType<typeof setTimeout> } | null>(null);
 
   const stopLinger = () => {
@@ -64,7 +64,7 @@ export function TodoDragProvider({ actions, children }: { actions: RowActions; c
     setOverDay(null);
   };
 
-  // 拖到它当前所在那天等于没动，不当落点：光标显示禁止，松手原样弹回
+  // Dragging onto the day it's already on is a no-op, not a drop target: cursor shows not-allowed and it snaps back on drop
   const accepts = (day: string, opts?: DropOptions) =>
     dragging !== null && day !== dragging.due && (opts?.accept?.(dragging) ?? true);
 
@@ -72,22 +72,22 @@ export function TodoDragProvider({ actions, children }: { actions: RowActions; c
     dragProps: (item) => ({
       draggable: true,
       onDragStart: (e) => {
-        // 菜单开着时行里还有日期框等可交互的东西，从那里拖会误把整行拖走；取消这次拖动
+        // With the menu open the row contains interactive things like the date input; dragging from there would drag the whole row by mistake, so cancel this drag
         if (actions.menuId !== null) {
           e.preventDefault();
           return;
         }
         e.dataTransfer.effectAllowed = "move";
-        // Firefox 不 setData 不会真正开始拖
+        // Firefox won't actually start dragging without setData
         e.dataTransfer.setData("text/plain", item.text);
         setDragging(item);
       },
-      // 松在非落点上、或按 Esc 取消时只有这里收得到；落在别处后源行可能已卸载，所以 onDrop 也会清
+      // Dropping outside a target or cancelling with Esc is only seen here; after dropping elsewhere the source row may have unmounted, so onDrop clears too
       onDragEnd: reset,
     }),
     dropProps: (day, opts) => ({
       onDragOver: (e) => {
-        // 没有拖拽中的待办（比如从桌面拖进来的文件）不拦，交给页面别处处理
+        // No todo being dragged (e.g. a file dragged in from the desktop): don't intercept, let the rest of the page handle it
         if (!accepts(day, opts)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
@@ -103,7 +103,7 @@ export function TodoDragProvider({ actions, children }: { actions: RowActions; c
         }
       },
       onDragLeave: (e) => {
-        // 在落点内部的子元素之间移动也会触发 dragleave，真离开了才清，不然高亮一闪一闪
+        // Moving between children inside the target also fires dragleave; only clear on a real leave, or the highlight flickers
         if (e.currentTarget.contains(e.relatedTarget as Node)) return;
         if (linger.current?.day === day) stopLinger();
         setOverDay((d) => (d === day ? null : d));
@@ -112,7 +112,7 @@ export function TodoDragProvider({ actions, children }: { actions: RowActions; c
         e.preventDefault();
         const item = dragging;
         if (item && accepts(day, opts)) {
-          // 同菜单里点今天 / 明天的语义（MoveMenu 的 moveStart）：结束日照留，早于新开始日就丢掉
+          // Same semantics as picking today / tomorrow in the menu (MoveMenu's moveStart): keep the end date, drop it if earlier than the new start
           actions.onMove(item, { due: day, end: item.end && item.end > day ? item.end : null });
         }
         reset();
@@ -131,7 +131,7 @@ export function useTodoDrag(): TodoDrag {
   return v;
 }
 
-/** 行上的拖动手势样式：可拖的行显示抓手，正被拖的那行半透明 */
+/** Drag gesture styles for a row: draggable rows show a grab cursor, the one being dragged is semi-transparent */
 export function dragRowCls(drag: TodoDrag, item: TodoItem): string {
   return `cursor-grab active:cursor-grabbing ${drag.isDragging(item) ? "opacity-40" : ""}`;
 }

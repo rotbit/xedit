@@ -1,6 +1,6 @@
 /**
- * 浏览器后端：未登录时把本地文档库存在 localStorage，索引与正文分 key。
- * 原先直接写在 @/lib/localDocs 里，现在挪到 LocalBackend 实现下，登录后由首页批量同步上云并清空。
+ * Browser backend: when logged out, the local document library lives in localStorage, with index and bodies under separate keys.
+ * This used to live directly in @/lib/localDocs; now it's a LocalBackend implementation, synced to the cloud in bulk and cleared by the home page after login.
  */
 
 import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
@@ -31,9 +31,9 @@ function writeIndex(list: LocalDocMeta[]) {
 }
 
 /**
- * 批量改索引：整份读进来、内存里改完所有条目、最多写回一次。
- * 分类搬家/删除要动的是全库文档，逐篇走 updateDoc 的话每篇都要把整份索引
- * 反序列化再序列化写回，是 O(n²)。
+ * Batch-update the index: read it once, apply all entry changes in memory, write back at most once.
+ * Moving/deleting a category touches the whole library; going through updateDoc per document would
+ * deserialize and reserialize the whole index each time, which is O(n²).
  */
 function patchIndex(patch: (meta: LocalDocMeta) => boolean): void {
   const list = readIndex();
@@ -82,7 +82,7 @@ const backend: LocalBackend = {
       localStorage.setItem(DOC_PREFIX + id, patch.content);
       Object.assign(meta, summarize(patch.content));
     }
-    // 仅移动分类不算编辑，不刷新时间戳
+    // Moving categories alone isn't an edit; don't bump the timestamp
     if (patch.title !== undefined || patch.content !== undefined) {
       meta.updatedAt = new Date().toISOString();
     }
@@ -112,7 +112,7 @@ const backend: LocalBackend = {
   relocateCategory(from: string, to: string) {
     const remap = (c: string) =>
       c === from ? to : c.startsWith(`${from}/`) ? to + c.slice(from.length) : c;
-    // 只动 category，时间戳本来也不该变（仅移动分类不算编辑），所以能走批量路径
+    // Only category changes, and the timestamp shouldn't change anyway (moving isn't editing), so the batch path works
     patchIndex((meta) => {
       const cat = meta.category || UNCATEGORIZED;
       const next = remap(cat);

@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { layoutCards, locateInSource } from "@/features/review/locate";
 
 /**
- * 审核意见的两块纯逻辑：在源码里找引文、卡片的避让排版。
+ * Two pieces of pure logic for review comments: finding the quote in the source, and laying out cards to avoid overlap.
  *
- * 这两件事决定了「标注画在哪」「卡片站在哪」，出错的样子都是肉眼可见的错位，
- * 但等到肉眼看见时已经很难说清是哪一步歪的，所以在这里钉死。
+ * These decide "where the annotation is drawn" and "where the card sits"; when they go wrong it shows as visible misalignment,
+ * but by the time you see it it's hard to tell which step went off, so they're pinned down here.
  */
 
 describe("locateInSource", () => {
@@ -55,14 +55,14 @@ describe("layoutCards", () => {
 
   it("选中的那张回到自己的锚点，上面的卡片往上挤给它让位", () => {
     const tops = layoutCards([0, 200, 210], H, 2, 10);
-    expect(tops[2]).toBe(210); // 选中的就站在引文那一行
-    expect(tops[1]).toBe(160); // 上面那张被挤上去，正好留出 gap
+    expect(tops[2]).toBe(210); // The selected one sits on the quote's line
+    expect(tops[1]).toBe(160); // The one above gets pushed up, leaving exactly the gap
     expect(tops[0]).toBe(0);
   });
 
   it("上方实在挤不出空间时，选中的那张也只好往下走", () => {
     const tops = layoutCards([0, 20, 30], H, 2, 10);
-    expect(tops[0]).toBe(0); // 顶端不会被挤成负数
+    expect(tops[0]).toBe(0); // The top never gets pushed negative
     expect(tops).toEqual([0, 50, 100]);
   });
 

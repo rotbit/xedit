@@ -1,10 +1,10 @@
 /**
- * 成对符号：自动补右半边、选中文字后一键包裹、退格连着删。
+ * Paired symbols: auto-insert the closing half, wrap selected text in one keystroke, and delete both on backspace.
  *
- * 不用 @codemirror/autocomplete 的 closeBrackets：它虽然躺在 node_modules 里（被
- * lang-markdown 间接带进来），但并不在 package.json 的依赖表里，直接 import 等于
- * 赌包管理器的扁平化结果；而且中文写作要的几条规则（「」《》等全角对、`*` `~` 这类
- * 非括号的包裹标记、撇号不补）都得绕开它的配置，自己写一个 inputHandler 反而更短。
+ * Not using closeBrackets from @codemirror/autocomplete: although it's in node_modules (pulled in
+ * indirectly by lang-markdown), it isn't listed in package.json dependencies, so importing it directly means
+ * betting on the package manager's hoisting; and the rules Chinese writing needs (full-width pairs like 「」《》, non-bracket
+ * wrapping marks like `*` `~`, no pairing for apostrophes) would all fight its config, so a custom inputHandler is actually shorter.
  */
 
 import {
@@ -21,7 +21,7 @@ import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import { caretInFencedCode } from "@/lib/livePreview/context";
 
-/** 会自动补右半边的成对符号。全角那几对是中文正文里真正高频的，半角括号反而少 */
+/** Paired symbols that auto-insert the closing half. The full-width pairs are the truly frequent ones in Chinese text; half-width brackets are rarer */
 const PAIRS: Readonly<Record<string, string>> = {
   "(": ")",
   "[": "]",
@@ -38,13 +38,13 @@ const PAIRS: Readonly<Record<string, string>> = {
   "‘": "’",
 };
 
-/** 只在「有选区」时充当包裹符：单敲一个 `*` 是在写乘号或想打星号，补成 `**` 只会碍事 */
+/** Act as wrappers only when there's a selection: a single `*` means a multiplication sign or a literal asterisk, and auto-completing to `**` just gets in the way */
 const WRAP_ONLY = new Set(["*", "_", "~", "$", "="]);
 
-/** 右边是这些字符（或行尾）才补右半边：紧贴着文字补，会把后面的词整个圈进括号里 */
+/** Only insert the closing half when the next char is one of these (or line end): pairing right against text would wrap the following word in brackets */
 const CLOSE_BEFORE = /[\s)\]}>）】」』》”’,.;:!?，。；：！？、]/u;
 
-/** 词尾的撇号是单词的一部分（don't、it's），补成 don''t 是最招人烦的一种"智能" */
+/** A word-final apostrophe is part of the word (don't, it's); turning it into don''t is the most annoying kind of "smart" */
 const WORD_END = /[\p{L}\p{N}]$/u;
 
 function pairFor(ch: string): readonly [string, string] | null {
@@ -53,7 +53,7 @@ function pairFor(ch: string): readonly [string, string] | null {
   return WRAP_ONLY.has(ch) ? [ch, ch] : null;
 }
 
-/** 代码里的括号引号是语法不是标点（正则、字符串、数组下标），一律不插手 */
+/** Brackets and quotes in code are syntax, not punctuation (regexes, strings, array indices), so stay out of it */
 function inCode(state: EditorState, pos: number): boolean {
   if (caretInFencedCode(state)) return true;
   for (const side of [-1, 1] as const) {
@@ -64,17 +64,17 @@ function inCode(state: EditorState, pos: number): boolean {
   return false;
 }
 
-/** 刚补出来的那个右半边的位置 */
+/** Position of the closing half just auto-inserted */
 const markAutoClose = StateEffect.define<number>();
-/** 用户打了一遍右半边、已经跳过去了：这个位置不再享受"跳过"待遇 */
+/** The user typed the closing half and skipped over it: this position no longer gets "skip-over" treatment */
 const dropAutoClose = StateEffect.define<number>();
 
 /**
- * 自动补出来的右半边位置表。
+ * Position table of auto-inserted closing halves.
  *
- * 只有记在册的那些才允许被"打一遍跳过去"——否则在 `f(a|)` 里想再敲一个 `)` 补成
- * `f(a))` 就永远打不出来。位置随文档改动映射：assoc=1 让光标处的插入把它往右推，
- * TrackAfter 让它在自己那个字符被删掉时出局。
+ * Only registered ones may be "typed over"; otherwise in `f(a|)` typing another `)` to get
+ * `f(a))` would be impossible. Positions map through doc changes: assoc=1 lets inserts at the cursor push it right,
+ * and TrackAfter drops it when its own character is deleted.
  */
 const autoClosed = StateField.define<readonly number[]>({
   create: () => [],
@@ -96,7 +96,7 @@ const autoClosed = StateField.define<readonly number[]>({
   },
 });
 
-/** 选中文字时敲 `(`、`*`：意思是"给这段套个壳"，而不是"用这个字符换掉这段" */
+/** Typing `(` or `*` with text selected means "wrap this", not "replace it with this character" */
 function wrapSelectionWith(view: EditorView, open: string, close: string): boolean {
   const { state } = view;
   view.dispatch(
@@ -108,7 +108,7 @@ function wrapSelectionWith(view: EditorView, open: string, close: string): boole
               { from: range.from, insert: open },
               { from: range.to, insert: close },
             ],
-            // 选区留在内容上：连敲两下 `*` 就是 **加粗**，再套一层括号也顺手
+            // Keep the selection on the content: typing `*` twice gives **bold**, and adding brackets on top is easy too
             range: EditorSelection.range(range.from + open.length, range.to + open.length),
           }
     ),
@@ -118,16 +118,16 @@ function wrapSelectionWith(view: EditorView, open: string, close: string): boole
 }
 
 function handleInput(view: EditorView, from: number, to: number, text: string): boolean {
-  // 输入法组合期间这里会逐字回调，插进右半边会顶掉候选框，也会被随后的整段替换弄乱
+  // During IME composition this is called per character; inserting a closing half would push away the candidate box and get mangled by the subsequent whole-range replace
   if (view.composing || view.compositionStarted) return false;
   if (text.length !== 1) return false;
   const { state } = view;
   const main = state.selection.main;
-  // 只认"用户在主选区上敲的这一下"：程序化插入、拖拽等一律走默认路径
+  // Only handle "the user typing on the main selection": programmatic inserts, drags, etc. take the default path
   if (main.from !== from || main.to !== to) return false;
 
-  // 先试"跳过"，而且必须排在查配对表之前：`)` `》` 这些右半边自己不是"开符号"，
-  // 查表会直接落空返回；同字符的引号、反引号也得先判这条，否则永远在原地补新的
+  // Try "skip-over" first, and it must come before the pair-table lookup: closing halves like `)` `》` aren't "openers" themselves,
+  // so the lookup would just miss and return; same-character quotes and backticks must check this first too, or they'd keep inserting new pairs in place
   if (
     main.empty &&
     state.sliceDoc(main.head, main.head + 1) === text &&
@@ -146,7 +146,7 @@ function handleInput(view: EditorView, from: number, to: number, text: string): 
   const [open, close] = pair;
 
   if (!main.empty) {
-    // `*` `~` 这类是 Markdown 标记，包裹代码里的文字没有意义；括号引号则到处都能包
+    // `*` `~` are Markdown marks, meaningless for wrapping text in code; brackets and quotes can wrap anywhere
     if (WRAP_ONLY.has(text) && inCode(state, main.head)) return false;
     return wrapSelectionWith(view, open, close);
   }
@@ -168,14 +168,14 @@ function handleInput(view: EditorView, from: number, to: number, text: string): 
   return true;
 }
 
-/** 空的一对里退格：把两半一起删掉，省得留下个孤零零的右括号 */
+/** Backspace inside an empty pair: delete both halves so a lone closing bracket isn't left behind */
 function deleteEmptyPair(view: EditorView): boolean {
   const { state } = view;
   const range = state.selection.main;
   if (!range.empty || range.head === 0) return false;
   const before = state.sliceDoc(range.head - 1, range.head);
   if (!PAIRS[before] || PAIRS[before] !== state.sliceDoc(range.head, range.head + 1)) return false;
-  // 代码块里不补也不删：围栏内的删除键归 livePreview/fenceKeys 管，别抢它的活
+  // No pairing or deleting in code blocks: Delete inside fences belongs to livePreview/fenceKeys, don't take over its job
   if (inCode(state, range.head)) return false;
   view.dispatch({
     changes: { from: range.head - 1, to: range.head + 1 },
@@ -185,8 +185,8 @@ function deleteEmptyPair(view: EditorView): boolean {
   return true;
 }
 
-/** Backspace 用 Prec.highest 抢在 markdownKeymap 的 deleteMarkupBackward 之前；
- *  不在成对符号中间时立刻返回 false，围栏/列表的删除行为原样不动 */
+/** Backspace uses Prec.highest to run before markdownKeymap's deleteMarkupBackward;
+ *  returns false immediately when not between a pair, leaving fence/list deletion untouched */
 export const autoPairs: Extension = [
   autoClosed,
   EditorView.inputHandler.of(handleInput),

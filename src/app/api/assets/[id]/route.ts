@@ -9,12 +9,12 @@ import { tk } from "@/i18n/t";
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * 补录像素尺寸：服务端上传路径（MCP / 飞书导入 / OSS 历史同步）入库时没有尺寸，
- * 前端在图片库首次把图片解码出来后回填一次。
- * 只写空着的记录——已有值就当前端在重复回填，返回 204 不动，避免客户端反复改写。
+ * Backfill pixel dimensions: server-side upload paths (MCP / Feishu import / OSS history sync) store no dimensions,
+ * so the frontend backfills them once after the image library first decodes the image.
+ * Only writes empty records: an existing value means a duplicate backfill, so return 204 untouched to stop clients rewriting it repeatedly.
  *
- * 故意不加 readOnlyGuard：补录的是展示用的元数据（图片库要按尺寸排版），
- * 不是用户内容；被封成只读的账号照样要能正常浏览图片库。
+ * Deliberately no readOnlyGuard: this backfills display metadata (the image library lays out by size),
+ * not user content; read-only-banned accounts must still be able to browse the image library normally.
  */
 export async function PATCH(req: Request, { params }: Params) {
   const session = await auth();
@@ -35,7 +35,7 @@ export async function PATCH(req: Request, { params }: Params) {
   return NextResponse.json({ ok: true, ...dims });
 }
 
-/** 删除图片：先删 OSS 对象，再删索引 */
+/** Delete an image: delete the OSS object first, then the index */
 export async function DELETE(_req: Request, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -53,7 +53,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     try {
       await ossDelete(asset.key);
     } catch {
-      // OSS 删除失败不阻断索引清理（对象可能已不存在）
+      // An OSS delete failure doesn't block index cleanup (the object may already be gone)
     }
   }
   await prisma.asset.delete({ where: { id: asset.id } });

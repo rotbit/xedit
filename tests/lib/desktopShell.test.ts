@@ -1,5 +1,5 @@
-// 桌面壳探测：「发送到公众号」这类只在 xEdit 桌面版里成立的入口全靠它判断，
-// 判错了要么纯浏览器里冒出个 Chrome 窗口，要么桌面版里找不到功能。
+// Desktop shell detection: entries like 「发送到公众号」 (Send to WeChat) that only work in the xEdit desktop app depend on it;
+// get it wrong and either a Chrome window pops up in a plain browser, or the desktop app can't find the feature.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { desktopShell, isDesktopShell } from "@/lib/desktopShell";

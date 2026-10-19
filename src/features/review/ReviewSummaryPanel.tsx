@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 总评的阅读面板：从审核条底下垂下来的一张宽面板。
+ * Reading panel for the summary: a wide panel that drops down below the review bar.
  *
- * 总评常常是一两百字的一段话。早先把它塞在一条 12px 的窄条里（意见栏里则是 260px 宽的小卡），
- * 读起来像在看免责声明。现在给它一块正经读东西的地方：正文字号、宽行距、够宽，太长就自己滚。
- * 两种版式（有意见栏 / 没意见栏）点「总评」开的都是这一张。
+ * The summary is often a paragraph of a hundred or two characters. It used to be squeezed into a 12px strip (and a 260px card in the comment column),
+ * which read like a disclaimer. Now it gets a proper place to read: body font size, generous line height, wide enough, and it scrolls if too long.
+ * Both layouts (with / without comment column) open this same panel from 「总评」 (Summary).
  */
 import { useRef } from "react";
 import { X } from "lucide-react";
@@ -38,7 +38,7 @@ export function ReviewSummaryPanel({ text, onClose }: { text: string; onClose: (
           <X size={14} />
         </button>
       </div>
-      {/* 模型偶尔会分段写，换行照原样留着 */}
+      {/* Models sometimes write in paragraphs; keep line breaks as-is */}
       <p className="max-h-[min(60vh,480px)] overflow-y-auto whitespace-pre-wrap px-4 py-3.5 text-[14px] leading-[1.85] text-[var(--ink)]">
         {text}
       </p>

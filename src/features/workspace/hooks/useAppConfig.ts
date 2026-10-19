@@ -3,21 +3,21 @@
 import { useEffect, useState } from "react";
 import type { AppConfig } from "../types";
 
-/** 部署侧开关是进程级常量，一个会话只拉一次：多个挂载点（工作台、登录弹窗）共用这个 promise */
+/** Deployment flags are process-level constants, fetched once per session: multiple mount points (workspace, login dialog) share this promise */
 let configPromise: Promise<AppConfig | null> | null = null;
 
 function loadConfig(): Promise<AppConfig | null> {
   configPromise ??= fetch("/api/config")
     .then((r) => r.json() as Promise<AppConfig>)
     .catch(() => {
-      // 失败不缓存：下一个挂载点还能重试（弹窗第二次打开就可能有网了）
+      // Don't cache failures: the next mount point can retry (the dialog's second open may have network)
       configPromise = null;
       return null;
     });
   return configPromise;
 }
 
-/** 部署侧能力开关（OSS / 第三方登录是否配置） */
+/** Deployment capability flags (whether OSS / third-party login are configured) */
 export function useAppConfig(): AppConfig | null {
   const [config, setConfig] = useState<AppConfig | null>(null);
 

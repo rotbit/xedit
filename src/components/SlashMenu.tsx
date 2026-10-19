@@ -1,9 +1,9 @@
 "use client";
 
-// Notion 式 `/` 斜杠菜单的视觉层：portal 到 body、fixed 定位、跟随滚动。
-// 真相全在 CodeMirror 的 StateField 里（见 lib/slashMenu.ts），这里只订阅渲染 ——
-// 组件自己 setState，打字时重渲染范围就止步于这块菜单，不会波及整篇文章视图。
-// 定位（对齐触发符、上下翻面、跟随滚动）与 `[[` 补全共用 useAnchoredMenu。
+// Visual layer of the Notion-style `/` slash menu: portaled to body, fixed-positioned, follows scrolling.
+// All truth lives in CodeMirror's StateField (see lib/slashMenu.ts); this only subscribes and renders —
+// the component does its own setState, so re-renders while typing stop at this menu and don't touch the whole article view.
+// Positioning (aligning to the trigger, flipping up/down, following scroll) is shared with `[[` completion via useAnchoredMenu.
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -18,7 +18,7 @@ import {
 } from "@/lib/slashMenu";
 import { useT } from "@/i18n/useT";
 
-/** 菜单宽度（与 w-60 一致）、单行高度、最多显示的行数：超出内部滚动 */
+/** Menu width (matches w-60), row height, and max visible rows; beyond that it scrolls internally */
 const MENU_W = 240;
 const ROW_H = 32;
 const MAX_ROWS = 8;
@@ -28,10 +28,10 @@ export function SlashMenu({
   viewRef,
   scrollEl,
 }: {
-  /** 订阅编辑器下发的菜单状态；返回退订函数 */
+  /** Subscribe to menu state pushed by the editor; returns an unsubscribe function */
   subscribe: (cb: (s: SlashState | null) => void) => () => void;
   viewRef: React.RefObject<EditorView | null>;
-  /** 编辑区的滚动容器：滚动时跟着重算落点 */
+  /** The editor's scroll container: recompute position on scroll */
   scrollEl: HTMLElement | null;
 }) {
   const t = useT();
@@ -43,14 +43,14 @@ export function SlashMenu({
 
   const anchor = useAnchoredMenu(st?.from ?? null, viewRef, rootRef, scrollEl, MENU_W);
 
-  // 键盘上下移动高亮时把它带进可视区（列表最多露 8 行）
+  // When the highlight moves via keyboard, bring it into view (the list shows at most 8 rows)
   useEffect(() => {
     activeRef.current?.scrollIntoView({ block: "nearest" });
   }, [st?.index]);
 
   if (!st) return null;
   const items = filterSlashItems(st.query);
-  /** `/query` 的整段范围：选中后先删掉它 */
+  /** Full range of `/query`: deleted first once an item is chosen */
   const to = st.from + 1 + st.query.length;
 
   return createPortal(
@@ -63,7 +63,7 @@ export function SlashMenu({
         maxHeight: MAX_ROWS * ROW_H + 8,
         visibility: anchor.visible ? "visible" : "hidden",
       }}
-      // 按下不夺焦：编辑器保持焦点，光标与 `/` 都还在原处（同浮动工具条）
+      // Press without stealing focus: the editor keeps focus, and the cursor and `/` stay put (same as the floating toolbar)
       onMouseDown={(e) => e.preventDefault()}
     >
       {items.length === 0 ? (
@@ -85,7 +85,7 @@ export function SlashMenu({
               }}
               onClick={() => {
                 const v = viewRef.current;
-                // `/视频` 会拉起上传，提示由组件层的 toast 负责弹
+                // `/视频` starts an upload; its toast is shown by the component layer
                 if (v) runSlashItem(v, item, st.from, to, toast);
               }}
             >

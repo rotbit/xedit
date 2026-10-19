@@ -1,4 +1,4 @@
-/** GitHub 图标：独立小文件，登录页引用时不必连带整个 Topbar 依赖链 */
+/** GitHub icon: its own small file so the sign-in page doesn't pull in the whole Topbar dependency chain */
 export function GithubMark({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden>

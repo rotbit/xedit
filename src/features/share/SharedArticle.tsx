@@ -30,7 +30,7 @@ import { ArticleHeader } from "./components/ArticleHeader";
 import { CommentSidebar } from "./components/CommentSidebar";
 import { AnnotationOverlay } from "./components/AnnotationOverlay";
 
-/** 待提交的批注锚点（文字选区或媒体） */
+/** Anchor for an annotation about to be posted (text selection or media) */
 export interface PendingAnchor extends AnchorInput {
   type: AnchorType;
 }
@@ -41,13 +41,13 @@ export interface Thread {
   range: AnchorRange | null;
 }
 
-/** 选区「批注」浮动按钮的位置与锚点 */
+/** Position and anchor of the floating 「批注」 (Annotate) button for selections */
 export type SelBtnState = { x: number; y: number; anchor: AnchorInput & AnchorRange } | null;
-/** 媒体「批注」浮标的位置与锚点 */
+/** Position and anchor of the 「批注」 badge for media */
 export type MediaBtnState = { x: number; y: number; anchor: AnchorInput; video: boolean } | null;
-/** 新批注编辑卡的位置与待提交锚点 */
+/** Position and pending anchor of the new-annotation card */
 export type ComposerState = { x: number; y: number; anchor: PendingAnchor } | null;
-/** 线程面板的定位坐标 */
+/** Position of the thread panel */
 export type PanelPos = { x: number; y: number } | null;
 
 export function SharedArticle(props: SharePayload) {
@@ -56,8 +56,8 @@ export function SharedArticle(props: SharePayload) {
     themeCss, codeThemeId, customCss, macCode, allowComment, viewerIsOwner,
   } = props;
 
-  // 阅读区宽度随批注开关走：关批注时右侧 280px 批注栏整条不渲染，
-  // 省下的横向空间全给正文，读起来比原先的手机窄栏舒服得多
+  // Reading width follows the annotation toggle: with annotations off the 280px annotation column on the right isn't rendered at all,
+  // and the freed horizontal space all goes to the body, far more comfortable than the old phone-narrow column
   const layout = allowComment
     ? { page: "max-w-[1160px]", column: "max-w-[620px]", pad: "px-4" }
     : { page: "max-w-[1010px]", column: "max-w-[780px]", pad: "px-6" };
@@ -72,20 +72,20 @@ export function SharedArticle(props: SharePayload) {
   const [mediaBtn, setMediaBtn] = useState<MediaBtnState>(null);
   const [composer, setComposer] = useState<ComposerState>(null);
 
-  /** 线程收起：解决或删除后，浮层与激活态一起清掉 */
+  /** Close the thread: after resolve or delete, clear the popover and active state together */
   const closeThread = useCallback(() => {
     setActiveId(null);
     setPanelPos(null);
   }, []);
 
-  /** 新批注发表成功：收掉编辑卡与选区按钮，把新线程点亮 */
+  /** New annotation posted: dismiss the card and selection button, and highlight the new thread */
   const onRootPosted = useCallback((id: string) => {
     setComposer(null);
     setSelBtn(null);
     setActiveId(id);
   }, []);
 
-  // 批注的读写（身份、轮询、发表、解决、删除）全在这个 hook 里
+  // All annotation reads/writes (identity, polling, posting, resolving, deleting) live in this hook
   const {
     comments, guestName, setGuestName, busy,
     submit, resolveThread, removeComment,
@@ -94,7 +94,7 @@ export function SharedArticle(props: SharePayload) {
     viewerIsOwner,
     initialComments: props.initialComments,
     activeId,
-    // 新批注卡或线程面板开着就是读者正在交互，这一轮轮询先别换列表
+    // If the new-annotation card or thread panel is open the reader is interacting, so don't swap the list this polling round
     overlayOpen: composer !== null || activeId !== null,
     onRootPosted,
     onThreadClosed: closeThread,
@@ -102,12 +102,12 @@ export function SharedArticle(props: SharePayload) {
 
   const articleRef = useRef<HTMLElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  /** 正文由我们手动写入 innerHTML（React 不管理其子树），高亮 span 才不会被重渲染抹掉 */
+  /** We write the body into innerHTML by hand (React doesn't manage its subtree), so highlight spans aren't wiped by re-renders */
   const lastHtmlRef = useRef("");
-  /** 媒体「批注」浮标的延迟隐藏计时器（离开媒体→进入浮标之间留缓冲） */
+  /** Delayed-hide timer for the media 「批注」 badge (a buffer between leaving the media and entering the badge) */
   const mediaHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // —— 渲染正文（与编辑器预览完全同一条管线，DOMPurify 消毒后才入 DOM） ——
+  // —— Render the body (exactly the same pipeline as the editor preview; sanitized by DOMPurify before entering the DOM) ——
   const mayHaveMath = content.includes("$");
   useEffect(() => {
     if (!mayHaveMath) return;
@@ -127,10 +127,10 @@ export function SharedArticle(props: SharePayload) {
     return () => { cancelled = true; };
   }, [codeThemeId]);
 
-  // —— 线程组装 ——
+  // —— Assemble threads ——
   const threads = useMemo<Thread[]>(() => {
-    // 先按 parentId 把回复归一次堆：原先每个根批注都 filter 一遍全表，
-    // 是 O(批注数²)，几百条批注的热门文章每 30 秒轮询就白算一轮
+    // Bucket replies by parentId once up front: previously each root annotation filtered the whole list,
+    // which is O(annotations²); a popular article with hundreds of annotations would waste a full pass on every 30s poll
     const byParent = new Map<string, ShareCommentJson[]>();
     for (const c of comments) {
       if (!c.parentId) continue;
@@ -155,9 +155,9 @@ export function SharedArticle(props: SharePayload) {
     return { open: open.sort(byPos), resolved: resolved.sort(byPos) };
   }, [threads]);
 
-  // —— 正文写入 + 高亮铺设：正文或批注变化时整体重铺 ——
-  // html 经 DOMPurify 消毒后才写入；不用 dangerouslySetInnerHTML 是因为
-  // React 重渲染会把它重置，手动铺的高亮 span 会被抹掉。
+  // —— Write the body + lay highlights: re-lay everything when the body or annotations change ——
+  // html is written only after DOMPurify sanitizes it; we don't use dangerouslySetInnerHTML because
+  // React re-renders reset it, wiping the manually laid highlight spans.
   useEffect(() => {
     const root = articleRef.current;
     if (!root || !html) return;
@@ -167,10 +167,10 @@ export function SharedArticle(props: SharePayload) {
     } else {
       clearHighlights(root);
     }
-    // 全文纯文本在循环外取一次：locateAnchor 每条批注都要在全文里搜，
-    // 让它自己读 root.textContent 就成了 O(批注数 × 全文长度)。
-    // 下面的 highlightRange/markMedia 只切文本节点、加 span，不改文字内容，
-    // 所以这份快照在整轮铺设里一直有效。
+    // Take the full plain text once outside the loop: locateAnchor searches the whole text for every annotation,
+    // and letting it read root.textContent itself would be O(annotations × body length).
+    // highlightRange/markMedia below only split text nodes and add spans without changing the text,
+    // so this snapshot stays valid for the whole pass.
     const fullText = root.textContent ?? "";
     const next = new Map<string, AnchorRange | null>();
     for (const c of comments) {
@@ -180,8 +180,8 @@ export function SharedArticle(props: SharePayload) {
         if (el) {
           const off = textOffsetBefore(root, el);
           next.set(c.id, { start: off, end: off });
-          // 关批注后正文不再露出任何批注痕迹：既没有侧栏也点不开线程，
-          // 高亮留着只会变成读者点不动的怪框
+          // With annotations off, the body shows no trace of them: there's no sidebar and threads can't be opened,
+          // so leftover highlights would just be odd boxes readers can't click
           if (!c.resolvedAt && allowComment) markMedia(el, c.id);
         } else {
           next.set(c.id, null);
@@ -195,11 +195,11 @@ export function SharedArticle(props: SharePayload) {
     setRanges(next);
   }, [html, comments, allowComment]);
 
-  // —— 大纲：正文变化时从渲染结果里提取 h1~h3 ——
-  // 声明在正文写入 effect 之后：同一次 html 变更的提交里，先写正文再提取
+  // —— Outline: extract h1~h3 from the rendered output when the body changes ——
+  // Declared after the body-writing effect: within one html-change commit, write the body first, then extract
   const { outline, jumpToHeading } = useOutline(articleRef, html);
 
-  // —— 激活态样式 ——
+  // —— Active state styles ——
   useEffect(() => {
     const root = articleRef.current;
     if (!root) return;
@@ -207,14 +207,14 @@ export function SharedArticle(props: SharePayload) {
       el.classList.remove("xe-anno-active");
     }
     if (activeId) {
-      // ~= 按空格分词匹配：媒体元素可能挂多条批注 id
+      // ~= matches space-separated tokens: a media element may carry several annotation ids
       for (const el of Array.from(root.querySelectorAll(`[data-anno~="${activeId}"]`))) {
         el.classList.add("xe-anno-active");
       }
     }
   }, [activeId, html, comments]);
 
-  // —— 选区 → 批注按钮 ——
+  // —— Selection → annotate button ——
   const captureSelection = useCallback(() => {
     if (!allowComment) return;
     const root = articleRef.current;
@@ -244,7 +244,7 @@ export function SharedArticle(props: SharePayload) {
     return () => document.removeEventListener("selectionchange", onSelChange);
   }, []);
 
-  // —— 打开线程面板（点高亮或侧栏卡片） ——
+  // —— Open the thread panel (click a highlight or a sidebar card) ——
   const openThread = useCallback((id: string, scrollTo = false) => {
     const wrap = wrapRef.current;
     const span = articleRef.current?.querySelector<HTMLElement>(`[data-anno~="${id}"]`);
@@ -258,11 +258,11 @@ export function SharedArticle(props: SharePayload) {
         y: rect.bottom - wrapRect.top + 8,
       });
     } else {
-      setPanelPos(null); // 失效/已解决批注：无高亮，仅侧栏展开
+      setPanelPos(null); // Stale/resolved annotation: no highlight, only expand in the sidebar
     }
   }, []);
 
-  // —— 媒体「批注」浮标的显示与延迟隐藏 ——
+  // —— Show and delayed-hide of the media 「批注」 badge ——
   const cancelMediaHide = useCallback(() => {
     if (mediaHideTimer.current) {
       clearTimeout(mediaHideTimer.current);
@@ -306,7 +306,7 @@ export function SharedArticle(props: SharePayload) {
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement;
       const marked = target.closest<HTMLElement>("[data-anno]");
-      // 视频点击留给播放控件，已有批注经浮标或侧栏打开；图片与文字高亮点击直达
+      // Video clicks go to the player controls; existing annotations open via the badge or sidebar. Image and text highlight clicks open directly
       if (marked?.dataset.anno && marked.tagName !== "VIDEO") {
         e.preventDefault();
         const ids = marked.dataset.anno.split(" ");
@@ -319,13 +319,13 @@ export function SharedArticle(props: SharePayload) {
     [openThread, comments]
   );
 
-  // —— 访客署名 ——
+  // —— Visitor signature ——
   const needName = !viewerIsOwner && !guestName.trim();
 
   const activeThread = threads.find((t) => t.root.id === activeId) ?? null;
   const openCount = sortedThreads.open.length;
 
-  // —— 访客署名输入（批注与回复共用） ——
+  // —— Visitor signature input (shared by annotations and replies) ——
   const nameInput = needName ? (
     <input
       className="mb-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-2.5 py-1.5 text-[13px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
@@ -345,15 +345,15 @@ export function SharedArticle(props: SharePayload) {
       {customCss ? <style>{customCss}</style> : null}
       <style>{ANNO_CSS}</style>
 
-      {/* 顶栏 */}
+      {/* Top bar */}
       <ArticleHeader allowComment={allowComment} openCount={openCount} />
 
-      {/* 内容区（body 是 overflow-hidden，这里自建滚动） */}
+      {/* Content area (body is overflow-hidden, so we scroll here) */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={`mx-auto flex ${layout.page} justify-center gap-8 px-4 py-8`}>
-          {/* 大纲（桌面）：从渲染结果提取 h1~h3，点击平滑跳转 */}
+          {/* Outline (desktop): extracts h1~h3 from the rendered output, click to smooth-scroll */}
           {outline.length > 0 ? <OutlineNav outline={outline} onJump={jumpToHeading} /> : null}
-          {/* 文章列：宽度见 layout —— 批注开着让位给侧栏，关着则放宽 */}
+          {/* Article column: width per layout; makes room for the sidebar when annotations are on, wider when off */}
           <div ref={wrapRef} className={`relative w-full ${layout.column}`}>
             <div
               className={`light-lock rounded-xl bg-white ${layout.pad} py-6 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)]`}
@@ -377,8 +377,8 @@ export function SharedArticle(props: SharePayload) {
                 <section id="nice" ref={articleRef} />
               </div>
             </div>
-            {/* 落款：整条可点，回 xedit 首页。href 用相对路径，
-                自部署或 Mac 客户端下也不会把读者甩到别的域名去 */}
+            {/* Footer credit: the whole line is clickable and goes to the xedit home page. href is relative,
+                so self-hosted or Mac app readers aren't sent off to another domain */}
             <div className="py-6 text-center text-[12px] leading-relaxed text-[var(--ink-faint)]">
               <Link href="/" className="hover:text-[var(--accent)] hover:underline">
                 本页由 xedit 生成 · xedit.me
@@ -408,7 +408,7 @@ export function SharedArticle(props: SharePayload) {
             />
           </div>
 
-          {/* 批注侧栏（桌面）：关批注时整条不渲染，把宽度让给正文 */}
+          {/* Annotation sidebar (desktop): not rendered when annotations are off, giving the width to the body */}
           {allowComment ? (
             <CommentSidebar
               openCount={openCount}

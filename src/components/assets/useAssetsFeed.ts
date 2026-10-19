@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Asset } from "./types";
 
-/** 图片库的数据层：分页拉取 + 模块缓存 + 哨兵预取 + 过滤 + 历史尺寸补录 */
+/** Image library data layer: paginated fetching + module cache + sentinel prefetch + filtering + backfilling old dimensions */
 
 const PAGE_SIZE = 24;
 
-/** 工具栏分段控件的四档：前三档映射 kind，unused 走 filter=unused（服务端不分页） */
+/** The four segments of the toolbar control: the first three map to kind, unused uses filter=unused (not paginated server-side) */
 export type AssetFilter = "all" | "image" | "video" | "unused";
 
 interface AssetPage {
@@ -17,13 +17,13 @@ interface AssetPage {
 }
 
 /**
- * 视图键 = 过滤档，唯一决定一份列表。
- * 键一变，渲染期就把旧列表判为作废（而不是在 effect 里 setState 清空），
- * 既避免闪一帧旧数据，也不碰 react-hooks/set-state-in-effect。
+ * View key = filter segment, which uniquely identifies a list.
+ * When the key changes, the old list is treated as stale during render (instead of clearing it via setState in an effect),
+ * which avoids flashing a frame of old data and stays clear of react-hooks/set-state-in-effect.
  */
 const viewKeyOf = (filter: AssetFilter) => filter;
 
-/** 默认视图：无过滤，只有它享受模块缓存 */
+/** Default view: unfiltered; it's the only one that uses the module cache */
 const DEFAULT_KEY = viewKeyOf("all");
 
 function searchParams(filter: AssetFilter, cursor: string | null) {
@@ -42,13 +42,13 @@ async function fetchPage(filter: AssetFilter, cursor: string | null): Promise<As
 
 interface FeedState {
   key: string;
-  /** null = 该视图还在首次加载 */
+  /** null = this view is still on its first load */
   assets: Asset[] | null;
   total: number;
   nextCursor: string | null;
 }
 
-/** 已加载的默认视图留在模块里，切回图片库先用它即时渲染，再后台校验 */
+/** The loaded default view stays in the module, so returning to the image library renders it instantly, then revalidates in the background */
 let galleryCache: { assets: Asset[]; total: number; nextCursor: string | null } | null = null;
 
 const emptyState = (key: string): FeedState => ({
@@ -59,8 +59,8 @@ const emptyState = (key: string): FeedState => ({
 });
 
 /**
- * 第一页结果 → 新状态；null = 保持原状。
- * 拉取失败且手上有缓存时先留着旧图，不要把界面清空。
+ * First-page result → new state; null = keep as is.
+ * If the fetch fails while a cache is on hand, keep the old images instead of clearing the UI.
  */
 function firstPageState(
   key: string,
@@ -68,7 +68,7 @@ function firstPageState(
   cached: typeof galleryCache
 ): FeedState | null {
   if (!page) return cached ? null : { key, assets: [], total: 0, nextCursor: null };
-  // 首页头部没变就保留已加载的长列表（滚了很远再切回来，不至于退回 24 张）
+  // If the head of page one hasn't changed, keep the long loaded list (scrolling far and coming back shouldn't drop you to 24 items)
   const sameHead =
     cached &&
     cached.assets.length >= page.items.length &&
@@ -85,14 +85,14 @@ export interface AssetsFeed {
   hasMore: boolean;
   filter: AssetFilter;
   setFilter: (filter: AssetFilter) => void;
-  /** 是否处于「无过滤」的默认视图——空态文案要分情况 */
+  /** Whether we're on the unfiltered default view — the empty-state copy differs */
   isDefaultView: boolean;
   sentinelRef: React.RefObject<HTMLDivElement | null>;
   loadMore: () => Promise<void>;
   refresh: () => Promise<void>;
-  /** 删除成功后：本地摘掉这条、总数 -1 */
+  /** After a successful delete: drop the item locally and decrement the total */
   dropLocal: (id: string) => void;
-  /** 缩略图量出的历史图片尺寸：更新本地并回写服务端，同一 id 只发一次 */
+  /** Older image dimensions measured by thumbnails: update locally and write back to the server, once per id */
   measure: (id: string, width: number, height: number) => void;
 }
 
@@ -106,10 +106,10 @@ export function useAssetsFeed(): AssetsFeed {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const viewKey = viewKeyOf(filter);
-  // 键不匹配说明 state 属于上一个视图，渲染期直接当空处理
+  // A mismatched key means the state belongs to the previous view, so treat it as empty during render
   const view = state.key === viewKey ? state : emptyState(viewKey);
 
-  // 默认视图的结果回写模块缓存，下次进来直接有图
+  // Write the default view's result back to the module cache so images are there next time
   useEffect(() => {
     if (state.key === DEFAULT_KEY && state.assets !== null) {
       galleryCache = {
@@ -120,8 +120,8 @@ export function useAssetsFeed(): AssetsFeed {
     }
   }, [state]);
 
-  // 视图键一变（含挂载）就拉这个视图的第一页；
-  // setState 落在 then 回调里，不在 effect 体内同步改状态
+  // Whenever the view key changes (including mount), fetch that view's first page;
+  // setState happens in the then callback, not synchronously inside the effect body
   useEffect(() => {
     let cancelled = false;
     const cached = viewKey === DEFAULT_KEY ? galleryCache : null;
@@ -137,13 +137,13 @@ export function useAssetsFeed(): AssetsFeed {
     };
   }, [viewKey, filter]);
 
-  /** 上传 / 同步之后回到第一页重拉：要的是最新结果，绕开缓存比对直接整体替换 */
+  /** After upload / sync, refetch from page one: we want fresh results, so skip the cache comparison and replace wholesale */
   const refresh = useCallback(
     () =>
       fetchPage(filter, null)
         .catch(() => null)
         .then((page) => {
-          // 重拉失败就保持现状，不能把已经显示出来的列表清空
+          // If the refetch fails keep things as they are; never clear a list that's already showing
           if (!page) return;
           const next = firstPageState(viewKey, page, null);
           if (next) setState(next);
@@ -159,7 +159,7 @@ export function useAssetsFeed(): AssetsFeed {
       const page = await fetchPage(filter, cursor).catch(() => null);
       if (!page) return;
       setState((prev) => {
-        if (prev.key !== viewKey) return prev; // 翻页途中换了视图，结果作废
+        if (prev.key !== viewKey) return prev; // The view changed mid-pagination, so discard the result
         const seen = new Set((prev.assets ?? []).map((a) => a.id));
         return {
           key: viewKey,
@@ -173,7 +173,7 @@ export function useAssetsFeed(): AssetsFeed {
     }
   }, [view.nextCursor, filter, viewKey]);
 
-  // 滚动哨兵：离底部还有一段距离就预取下一页
+  // Scroll sentinel: prefetch the next page while still some distance from the bottom
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el || !view.nextCursor) return;
@@ -202,7 +202,7 @@ export function useAssetsFeed(): AssetsFeed {
       ...prev,
       assets: prev.assets?.map((a) => (a.id === id ? { ...a, width, height } : a)) ?? null,
     }));
-    // 补录失败静默：尺寸只是展示信息，下次进来还会再量
+    // Backfill failures are silent: dimensions are display-only and will be measured again next time
     void fetch(`/api/assets/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

@@ -7,7 +7,7 @@ import { tk } from "@/i18n/t";
 
 export const runtime = "nodejs";
 
-/** 当前飞书账号可访问的知识空间列表（同步目标的候选） */
+/** Wiki spaces the current Feishu account can access (candidate sync targets) */
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -21,7 +21,7 @@ export async function GET() {
     if (e instanceof FeishuReconnectError) {
       return NextResponse.json({ error: e.message, needReconnect: true }, { status: 400 });
     }
-    // 飞书接口的原始报文可能带内部 id 与凭证片段，只留一句给用户
+    // Raw Feishu API responses may contain internal ids and credential fragments; give the user just one line
     return serverError(e, tk("加载知识空间失败"));
   }
 }

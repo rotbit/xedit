@@ -1,11 +1,11 @@
 "use client";
 
-// 飞书对话框内的「使用说明」折叠面板：从 FeishuDialog 搬出，配置前后都可查看操作指引
+// The 「使用说明」 (How to use) collapsible in the Feishu dialog: moved out of FeishuDialog so the guide is visible before and after setup
 
 /**
- * 「使用说明」折叠面板，内容是纯文案。
- * 但里面列的 4+3 个权限点、重定向 URL 形态和同步规则必须和服务端实际申请的 scope 一致，
- * 改动飞书侧权限或回调路径时，这份说明要一起改，否则用户照着配会连不上。
+ * 「使用说明」 (How to use) collapsible panel; pure copy.
+ * But the 4+3 permissions, redirect URL shape and sync rules it lists must match the scopes the server actually requests;
+ * when changing Feishu permissions or the callback path, update this guide too, or users following it won't be able to connect.
  */
 import { useState } from "react";
 import { Check, ChevronDown, Copy } from "lucide-react";
@@ -14,10 +14,10 @@ import { tk } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 import { rich } from "@/i18n/rich";
 
-// 权限名一律等宽字体，左右各留一点空隙，免得和中文正文糊在一起认不出边界
+// Permission names are always monospace with a little padding on each side, so their boundaries don't blur into the Chinese body text
 const codeCls = "mx-0.5 [font-family:var(--mono)]";
 
-/** 同步规则逐条列出；「飞书知识库」是同步时真实写进去的分类名（lib/feishu/sync.ts 的 ROOT_CAT），英文里也保留原样 */
+/** Sync rules listed one by one; 「飞书知识库」 is the category name actually written during sync (ROOT_CAT in lib/feishu/sync.ts), kept as-is in English too */
 const SYNC_RULES = [
   tk("知识库目录层级映射为文件夹：飞书知识库/空间名/…"),
   tk("文档里的图片自动转存到你的图片库，不再依赖飞书"),
@@ -29,7 +29,7 @@ const SYNC_RULES = [
   tk("按飞书安全策略，授权满 365 天需重新连接一次"),
 ];
 
-/** 使用说明：折叠收纳在对话框底部，配置前后都可查看 */
+/** How-to guide: collapsed at the bottom of the dialog, viewable before and after setup */
 export function Guide({ callbackUrl, defaultOpen }: { callbackUrl: string; defaultOpen: boolean }) {
   const t = useT();
   const [open, setOpen] = useState(defaultOpen);
@@ -39,7 +39,7 @@ export function Guide({ callbackUrl, defaultOpen }: { callbackUrl: string; defau
     try {
       await navigator.clipboard.writeText(callbackUrl);
       setCopied(true);
-      // 只把按钮上的对勾复原，不额外弹 toast：用户此刻正盯着这个按钮，图标变化就是反馈
+      // Only revert the checkmark on the button, no extra toast: the user is looking right at the button, so the icon change is the feedback
       setTimeout(() => setCopied(false), 1500);
     } catch {
       toast(t("复制失败"), "error");

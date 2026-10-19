@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * 审核模式的全部状态：跑一趟审核、算每条意见此刻的状态、两处（编辑器里的标注 / 右侧的卡片）
- * 互相带动、采纳与忽略。
+ * All review-mode state: running a review, computing each comment's current status, keeping the two views (marks in the editor / cards on the right)
+ * in sync, accepting and ignoring.
  *
- * 三条自始至终的原则：
- * 1. 意见靠引文文字对位，不记任何偏移——正文随时在改，偏移当场就废；
- * 2. 能从正文里推出来的状态就别另存（见 status.ts），这样 ⌘Z 撤销之后卡片自己会活过来；
- * 3. 标注长在编辑器里（见 editorMarks.ts），审核就发生在作者正在改的那几个字上。
+ * Three principles throughout:
+ * 1. Comments are aligned by quote text, never by stored offsets; the body is always changing, so offsets go stale immediately;
+ * 2. Don't store state that can be derived from the body (see status.ts), so cards come back to life after ⌘Z undo;
+ * 3. Marks live in the editor (see editorMarks.ts), so review happens right on the words the author is editing.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,11 +34,11 @@ import type {
   ReviewResult,
 } from "./types";
 
-/** 「忽略 / 知道了」攒这么久再往历史里记一笔：连着点几条只发一次 */
+/** Batch 「忽略 / 知道了」 (Ignore / Got it) for this long before recording to history: clicking several in a row sends once */
 const SAVE_ACTIONS_DELAY = 600;
-/** 选中一条之后，把引文滚到可视区的这个位置（0 = 顶端） */
+/** After selecting a comment, scroll its quote to this position in the viewport (0 = top) */
 const SCROLL_BIAS = 0.3;
-/** 引文落在这个纵向区间里就算「已经看得见」，不再滚动打扰作者 */
+/** If the quote falls within this vertical band it counts as "already visible", so don't scroll and disturb the author */
 const COMFORT_TOP = 0.08;
 const COMFORT_BOTTOM = 0.78;
 
@@ -47,11 +47,11 @@ export interface ReviewApi {
   error: string | null;
   summary: string;
   categories: ReviewCategory[];
-  /** 全部意见，按文中出现的顺序，带此刻的状态 */
+  /** All comments, in document order, with their current status */
   items: ReviewItemView[];
-  /** 卡片栏要画的那些（已忽略的不画；再过一道分类筛选） */
+  /** Those the card column draws (ignored ones excluded; then filtered by category) */
   cards: ReviewItemView[];
-  /** 各分类下还待处理的条数（筛选胶囊上的数字） */
+  /** Pending count per category (the numbers on the filter pills) */
   counts: Map<string, number>;
   total: number;
   handled: number;
@@ -65,20 +65,20 @@ export interface ReviewApi {
   canPrev: boolean;
   canNext: boolean;
   rerun: () => void;
-  /** 翻出历史里的某一趟来看：不调模型、不花额度 */
+  /** Open a past run from history: no model call, no quota spent */
   openRecord: (id: string) => void;
-  /** 眼前这份结果在历史里的那条记录（没存成就是 null） */
+  /** The history record of the result currently shown (null if saving failed) */
   record: ReviewRecordMeta | null;
-  /** 眼前这份是从历史里翻出来的，不是刚跑的 */
+  /** The current result was opened from history, not freshly run */
   fromHistory: boolean;
   accept: (id: string) => void;
   ignore: (id: string) => void;
   ack: (id: string) => void;
-  /** 某条意见此刻在源码里的区间（已采纳 / 已失效的没有），卡片按它对位 */
+  /** Each comment's current range in the source (none for accepted / stale ones); cards align to it */
   spanOf: (id: string) => SourceSpan | null;
-  /** 当前编辑器实例：卡片要量行高，得自己问 CodeMirror */
+  /** The current editor instance: cards measure line heights, so they have to ask CodeMirror directly */
   editorView: () => EditorView | null;
-  /** 位置该重算了的信号（编辑器改了、折行了、视口推进了都会变） */
+  /** Signal that positions need recomputing (changes on edits, wrapping, viewport progress) */
   tick: number;
 }
 
@@ -90,26 +90,26 @@ export function useReview({
   editorRef,
   scrollEl,
 }: {
-  /** 审核模式开着没有 */
+  /** Whether review mode is on */
   active: boolean;
-  /** 当前正文（store 里那份，已节流）：状态就是从它推出来的 */
+  /** The current body (the throttled copy in the store): status is derived from it */
   content: string;
-  /** 换文档就把结果作废重跑 */
+  /** Switching documents discards the result and reruns */
   docKey: string;
-  /** 文章 id：审核历史按它归档 */
+  /** Document id: review history is filed by it */
   docId: string;
   editorRef: RefObject<EditorHandle | null>;
-  /** 标题 + 正文的共同滚动容器：选中一条时滚的是它 */
+  /** Shared scroll container for title + body: this is what scrolls when a comment is selected */
   scrollEl: HTMLElement | null;
 }): ReviewApi {
   const [phase, setPhase] = useState<ReviewPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReviewResult | null>(null);
-  /** 用户按过的按钮：只记「忽略 / 知道了」，采纳从正文里推 */
+  /** Buttons the user pressed: only 「忽略 / 知道了」 (Ignore / Got it) are recorded; acceptance is derived from the body */
   const [actions, setActions] = useState<Record<string, ReviewAction>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
-  /** 这一趟要干什么：recordId 为空 = 真跑一趟；有值 = 把历史里那条翻出来（只对 docId 这篇有效） */
+  /** What this run does: empty recordId = a real run; set = open that record from history (only valid for this docId) */
   const [run, setRun] = useState<{ token: number; recordId: string | null; docId: string }>({
     token: 0,
     recordId: null,
@@ -117,12 +117,12 @@ export function useReview({
   });
   const [record, setRecord] = useState<ReviewRecordMeta | null>(null);
   const [fromHistory, setFromHistory] = useState(false);
-  /** 已经记进历史的那份动作（JSON）：和它一样就不用再发 */
+  /** The actions (JSON) already recorded to history: if unchanged, no need to send again */
   const savedActionsRef = useRef("{}");
   const [tick, setTick] = useState(0);
 
-  // 取最新值而不进依赖：正文每敲一下都变，不能让它把审核重跑一遍
-  // （同步放在 effect 里：渲染期写 ref 被 react-hooks/refs 禁掉；它排在下面那些 effect 前面）
+  // Read the latest value without making it a dependency: the body changes on every keystroke and mustn't rerun the review
+  // (synced inside an effect: writing a ref during render is banned by react-hooks/refs; it sits before the effects below)
   const contentRef = useRef(content);
   const activeRef = useRef(active);
   useEffect(() => {
@@ -130,14 +130,14 @@ export function useReview({
     activeRef.current = active;
   }, [content, active]);
 
-  /** 跑一趟审核（或翻一条历史）。进入审核模式、换文档、点「重新审核」、点历史里的某一趟各触发一次 */
+  /** Run one review (or open one history record). Triggered by entering review mode, switching docs, clicking 「重新审核」 (Review again), or clicking a history entry */
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
-    // 真模型那条路要几十秒：退出审核、换文档、重跑都得能把上一趟掐断，
-    // 否则旧结果会盖在新文档上，用户也白等一次额度
+    // A real model run takes tens of seconds: exiting review, switching docs or rerunning must all be able to abort the previous run,
+    // otherwise stale results land on the new document and the user wastes a run of quota
     const abort = new AbortController();
-    // effect 里不能同步 setState（react-hooks/set-state-in-effect），推到微任务
+    // Can't setState synchronously in an effect (react-hooks/set-state-in-effect); defer to a microtask
     type Loaded = ReviewRun & { actions: Record<string, ReviewAction> | null };
     const started = Promise.resolve().then((): Promise<Loaded> | null => {
       if (cancelled) return null;
@@ -149,7 +149,7 @@ export function useReview({
       setFilter(null);
       setRecord(null);
       savedActionsRef.current = "{}";
-      // 审核途中切了文章：手里那个 recordId 是上一篇的，不能翻到这一篇上来
+      // Switched documents mid-review: the recordId in hand belongs to the previous one and mustn't be opened on this one
       const recordId = run.docId === docId ? run.recordId : null;
       setFromHistory(recordId !== null);
       return recordId
@@ -160,7 +160,7 @@ export function useReview({
       .then((r) => {
         if (!r) return;
         if (cancelled) return;
-        // 翻出来的历史带着当时按过的「忽略 / 知道了」；新跑的一趟没有
+        // A history record carries the 「忽略 / 知道了」 actions taken back then; a fresh run has none
         if (r.actions) {
           savedActionsRef.current = JSON.stringify(r.actions);
           setActions(r.actions);
@@ -190,8 +190,8 @@ export function useReview({
   );
 
   /**
-   * 「忽略 / 知道了」记进这一趟的历史，下次翻出来还是处理过的样子。
-   * 记不上就算了：这只是几个按钮的记忆，不值得为它打断作者。
+   * Record 「忽略 / 知道了」 to this run's history so it still looks handled when reopened.
+   * If recording fails, let it go: it's just memory of a few button presses, not worth interrupting the author.
    */
   const recordId = record?.id ?? null;
   useEffect(() => {
@@ -205,12 +205,12 @@ export function useReview({
     return () => clearTimeout(timer);
   }, [actions, recordId]);
 
-  // —— 每条意见此刻算什么状态：从正文现推 ——
+  // —— Each comment's current status, derived live from the body ——
   const items = useMemo<ReviewItemView[]>(() => {
     if (!result) return [];
     return result.items.map((it) => ({ ...it, status: deriveStatus(it, content, actions[it.id]) }));
   }, [result, content, actions]);
-  // 只在事件回调里读，放 effect 里同步就够
+  // Only read in event callbacks, so syncing in an effect is enough
   const itemsRef = useRef(items);
   useEffect(() => {
     itemsRef.current = items;
@@ -220,12 +220,12 @@ export function useReview({
     (it: ReviewItemView) => !filter || it.category === filter,
     [filter]
   );
-  /** 卡片栏：忽略掉的连卡片一起消失（计数里还留着） */
+  /** Card column: ignored ones disappear along with their cards (they still count) */
   const cards = useMemo(
     () => items.filter((it) => it.status !== "ignored" && matchFilter(it)),
     [items, matchFilter]
   );
-  /** 上一条 / 下一条只在「还待处理且没被筛掉」的里面走 */
+  /** Previous / next only walk through comments that are pending and not filtered out */
   const navList = useMemo(
     () => items.filter((it) => it.status === "open" && matchFilter(it)),
     [items, matchFilter]
@@ -240,14 +240,14 @@ export function useReview({
   }, [items]);
   const handled = useMemo(() => items.filter((it) => isHandled(it.status)).length, [items]);
 
-  // —— 编辑器里的标注 ——
+  // —— Marks in the editor ——
 
   const editorView = useCallback(() => editorRef.current?.view() ?? null, [editorRef]);
-  /** 每条意见此刻在源码里的位置，卡片按它对位（没有 = 采纳过或已失效） */
+  /** Each comment's current position in the source; cards align to it (none = accepted or stale) */
   const spansRef = useRef(new Map<string, SourceSpan>());
   const spanOf = useCallback((id: string) => spansRef.current.get(id) ?? null, []);
 
-  /** 位置该重算了：合到一帧里，别让编辑器每量一次高度就叫醒一次 React */
+  /** Positions need recomputing: coalesce into one frame instead of waking React every time the editor measures a height */
   const frameRef = useRef(0);
   const bump = useCallback(() => {
     if (frameRef.current) return;
@@ -265,10 +265,10 @@ export function useReview({
   );
 
   /**
-   * 重新对位 + 把这一套标注交给编辑器。
+   * Re-align + hand this set of marks to the editor.
    *
-   * 输入法打字途中不动它：正在合成的那几个字底下重画装饰，有些平台会把合成打断。
-   * 反正装饰本身会跟着文档变化自己挪位置，等这次合成落定，下一次正文变化会补上。
+   * Leave it alone during IME composition: redrawing decorations under the characters being composed interrupts composition on some platforms.
+   * The decorations move along with doc changes anyway; once composition settles, the next body change catches up.
    */
   useEffect(() => {
     const view = editorRef.current?.view();
@@ -287,7 +287,7 @@ export function useReview({
     const spans = new Map<string, SourceSpan>();
     const marks: ReviewMark[] = [];
     for (const it of items) {
-      // 按类型筛了，正文里也只留这一类的标注，免得别的颜色混在里面找不着
+      // When filtering by type, the body only keeps that type's marks too, so other colors don't get in the way
       if (it.status !== "open" || !matchFilter(it)) continue;
       const span = locateQuote(it, doc);
       if (!span) continue;
@@ -304,13 +304,13 @@ export function useReview({
     pushReviewMarks(view, marks);
   }, [active, items, matchFilter, activeId, docKey, editorRef, bump]);
 
-  // —— 联动：选中一条，标注与卡片一起走过去 ——
+  // —— Linking: selecting a comment moves both the mark and the card to it ——
 
   /**
-   * 把引文滚进可视区。看得见就不动——作者刚读到这儿，没必要因为点了张卡片就把版面抖一下。
+   * Scroll the quote into view. If it's already visible, don't move; the author was just reading there, no need to jolt the layout for a card click.
    *
-   * 不改选区：编辑器一有非空选区，浮动格式工具条就会浮出来盖在正文上（见 FloatingToolbar），
-   * 每选中一条意见都弹一次实在碍事。定位感由标注的选中态给，够了。
+   * Doesn't change the selection: any non-empty selection makes the floating format toolbar pop up over the body (see FloatingToolbar),
+   * and having it pop up on every comment selection is a real nuisance. The mark's selected state gives enough sense of location.
    */
   const revealInEditor = useCallback(
     (item: ReviewItemView) => {
@@ -345,8 +345,8 @@ export function useReview({
   const clearActive = useCallback(() => setActiveId(null), []);
 
   /**
-   * 点类型胶囊：筛出这一类，并直接跳到它在正文里的第一处（按位置排，不按结果顺序）。
-   * 光筛不跳，作者还得自己往下翻着找那几个颜色。
+   * Clicking a type pill: filter to that type and jump straight to its first occurrence in the body (by position, not result order).
+   * Filtering without jumping would leave the author scrolling around hunting for those colors.
    */
   const applyFilter = useCallback(
     (next: string | null) => {
@@ -363,7 +363,7 @@ export function useReview({
     [editorRef, activate]
   );
 
-  /** 点正文里的标注就选中那条意见：装饰上带着 data-review-id，在内容层上做一次委托即可 */
+  /** Clicking a mark in the body selects that comment: decorations carry data-review-id, so one delegated listener on the content layer suffices */
   useEffect(() => {
     if (!active) return;
     const view = editorRef.current?.view();
@@ -377,7 +377,7 @@ export function useReview({
     return () => view.contentDOM.removeEventListener("click", onClick);
   }, [active, docKey, editorRef, activate]);
 
-  // 上一条 / 下一条：只在待处理且没被筛掉的里面走，到头就停（不绕回）
+  // Previous / next: only through pending, unfiltered comments, stopping at the ends (no wraparound)
   const navIndex = useMemo(
     () => navList.findIndex((it) => it.id === activeId),
     [navList, activeId]
@@ -396,7 +396,7 @@ export function useReview({
   const canPrev = navList.length > 0 && navIndex !== 0;
   const canNext = navList.length > 0 && navIndex !== navList.length - 1;
 
-  // Alt+↓ / Alt+↑ 走下一条 / 上一条（⌥ 不跟编辑器的行内快捷键撞）；Esc 取消选中
+  // Alt+↓ / Alt+↑ go to next / previous (⌥ doesn't clash with the editor's inline shortcuts); Esc clears the selection
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
@@ -417,11 +417,11 @@ export function useReview({
     return () => window.removeEventListener("keydown", onKey);
   }, [active, goNext, goPrev]);
 
-  // —— 采纳 / 忽略 / 知道了 ——
+  // —— Accept / ignore / got it ——
 
   /**
-   * 采纳：一次事务把引文换成建议，于是 ⌘Z 一下就整条退回去，
-   * 状态也跟着从正文里重新推出来（不必另记一笔「已采纳」）。
+   * Accept: a single transaction replaces the quote with the suggestion, so one ⌘Z reverts it entirely,
+   * and status is re-derived from the body accordingly (no separate "accepted" record needed).
    */
   const accept = useCallback(
     (id: string) => {
@@ -430,9 +430,9 @@ export function useReview({
       const view = editorRef.current?.view();
       if (!view) return;
       const span = locateQuote(item, view.state.doc.toString());
-      if (!span) return; // 正文已经变了（或已经采纳过），这条没得再采
+      if (!span) return; // The body has changed (or it was already accepted); nothing left to accept
       view.dispatch({ changes: { from: span.from, to: span.to, insert: item.suggestion } });
-      // 编辑器的 onChange 有 120ms 节流，这里催一把，卡片立刻变成「已采纳」
+      // The editor's onChange is throttled by 120ms; nudge it here so the card turns 「已采纳」 (Accepted) immediately
       editorRef.current?.flush();
     },
     [editorRef]

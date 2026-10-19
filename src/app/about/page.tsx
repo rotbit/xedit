@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { Landing } from "@/features/landing/Landing";
 
 /**
- * 落地页的固定入口。`/` 一身二任——有工作区后就永远是工作台，
- * 老用户想再看产品介绍只能从这里进。内容与首页未登录态完全相同，
- * 所以不收录、canonical 指回 `/`，避免搜索引擎判定重复页。
+ * Permanent entry to the landing page. `/` does double duty: once you have a workspace it's always the workspace,
+ * so returning users can only see the product intro from here. Content is identical to the logged-out home page,
+ * so it's noindex with canonical pointing back to `/` to avoid being flagged as a duplicate.
  */
 export const metadata: Metadata = {
   title: "产品介绍",

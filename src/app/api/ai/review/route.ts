@@ -19,21 +19,21 @@ import { tk, translate } from "@/i18n/t";
 import { localeOfRequest } from "@/i18n/server";
 
 /**
- * AI 文章审核：正文进去，一份 ReviewResult 出来（形状见 features/review/types）。
+ * AI article review: body in, one ReviewResult out (shape in features/review/types).
  *
- * 用哪家的哪个模型、key 是什么、提示词怎么写，全由管理后台定（见 lib/ai/siteSettings，环境变量兜底）。
- * 请求体里只收正文和审核类型（可以一次勾几类，各跑各的提示词，合成一份结果）——provider / model / key 带了也不看。
- * 花的是站点的钱，口径与 AI 生成封面一致：必须登录，且账号开通了 ai_review 权限（见 lib/permissions，
- * 管理员自带），另按账号限量——后台给这个账号单设了额度就用它的，没设走全局默认。
+ * Which provider's model, which key and how prompts are written are all set in admin (see lib/ai/siteSettings, env vars as fallback).
+ * The request body only accepts the body text and review kinds (several can be checked at once, each runs its own prompt, merged into one result); provider / model / key are ignored if sent.
+ * It spends the site's money, same rule as AI cover generation: must be logged in with ai_review permission (see lib/permissions,
+ * admins have it built in), plus a per-account limit: an account-specific limit set in admin if any, otherwise the global default.
  *
- * 请求里带了 docId 的，跑成之后存一条历史（见 lib/ai/reviewHistory），回包里多一个 record；
- * 存不进去不算审核失败——意见照给，只是这一趟回看不了。
+ * If the request includes a docId, a history entry is saved after success (see lib/ai/reviewHistory) and the response gains a record;
+ * failing to save isn't a review failure: the suggestions are still returned, just not reviewable later.
  */
 
-/** 请求体上限：正文这边自己会截到 24k 字，留足余量，再多就是有人在灌 */
+/** Request body cap: the body side truncates to 24k chars itself, so this leaves ample headroom; more than this is someone flooding */
 const MAX_BODY_BYTES = 512 * 1024;
 
-/** 错误码 → HTTP 状态；没列的（上游的各种毛病）一律 502 */
+/** Error code → HTTP status; anything unlisted (assorted upstream issues) is 502 */
 const STATUS: Partial<Record<string, number>> = {
   no_key: 503,
   bad_key: 401,
@@ -44,11 +44,11 @@ const STATUS: Partial<Record<string, number>> = {
 
 interface Body {
   content?: unknown;
-  /** 审哪几类（表述 / 公众号规则，可多选）；见 lib/ai/reviewKinds */
+  /** Which kinds to review (wording / WeChat rules, multi-select); see lib/ai/reviewKinds */
   kinds?: unknown;
-  /** 单选时代的写法，老网页还在用；两个都不给就按表述审 */
+  /** Single-select era field, still used by old web clients; if neither is given, review wording */
   kind?: unknown;
-  /** 哪篇文章：给了才记历史 */
+  /** Which article: history is recorded only if given */
   docId?: unknown;
 }
 
@@ -63,8 +63,8 @@ export async function POST(req: Request) {
     if (parsed && typeof parsed === "object") body = parsed as Body;
   } catch {}
 
-  // 没给就是老版网页或第三方在调，按表述审核办；给了但不认识的一律挡下——
-  // 悄悄换成另一类审核，用户拿到的意见会驴唇不对马嘴
+  // Absent means an old web client or a third party is calling, so review wording; anything given but unrecognized is rejected:
+  // silently switching to another review kind would give the user suggestions that miss the point
   const asked: unknown[] = Array.isArray(body.kinds)
     ? body.kinds
     : [body.kind === undefined ? DEFAULT_REVIEW_KIND : body.kind];
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
   const key = await siteAiKey(provider);
   if (!key) {
     const locale = localeOfRequest(req);
-    // 供应商名也按语言显示（字典里没有就原样）
+    // Provider names are also shown per locale (as-is if not in the dictionary)
     const name = translate(provider.label, locale);
     return NextResponse.json(
       { error: "no_key", message: translate("还没有配置 {provider} 的 Key，到管理后台的「AI 设置」里填上", locale, { provider: name }) },
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
 
   try {
     const user = buildReviewUserPrompt(clipForReview(content));
-    // 几类同时发出去、各等各的：一起审不该比审一类慢一倍。一次点击只算一次额度
+    // Send all kinds at once and await each separately: reviewing several shouldn't take twice as long as one. One click counts as one quota use
     const parts = await Promise.all(
       kinds.map(async (kind): Promise<ReviewPart> => {
         try {
@@ -124,26 +124,26 @@ export async function POST(req: Request) {
               provider,
               model,
               apiKey: key,
-              // 「审核要求」管理员可以在后台改；输出格式那段是固定接在后面的
+              // 「审核要求」 (review requirements) is editable by admins; the output format part is always appended after it
               system: reviewSystemPrompt(kind, await getReviewGuide(kind)),
               user,
               json: true,
             },
-            // 网页退出审核就断连接，signal 一路传给上游
+            // Leaving review in the page drops the connection; the signal is passed all the way to upstream
             { signal: req.signal }
           );
-          // 用原始正文解析：定位要对的是编辑器里那一份，不是截断过的这份
+          // Parse with the original body: positions must match the editor's copy, not this truncated one
           return { kind, result: parseReviewResult(reply, content, kind) };
         } catch (e) {
-          // 原始错误只进服务端日志：上游报文常带请求 id 之类的内部细节（口径同 lib/routeAuth）
+          // The raw error goes only to server logs: upstream messages often carry internal details like request ids (same rule as lib/routeAuth)
           console.error(`AI 审核失败（${kind}）`, e);
           if (kinds.length === 1) throw e;
-          // 走到 Error 这一支基本就是模型没按格式回答，parseReviewResult 的那句话正好给用户看
+          // Reaching this Error branch almost always means the model didn't answer in format; parseReviewResult's message is fine to show the user
           return { kind, error: e instanceof Error ? e.message : tk("审核失败") };
         }
       })
     );
-    // 全军覆没就别装作有结果：按第一类的说法报错
+    // If every kind failed, don't pretend there's a result: report the first kind's error
     const failed = parts.find((p) => "error" in p);
     if (failed && "error" in failed && parts.every((p) => "error" in p)) {
       return NextResponse.json({ error: "failed", message: failed.error }, { status: 502 });

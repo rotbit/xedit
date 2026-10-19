@@ -15,9 +15,9 @@ import {
 } from "@/features/review/aiConfig";
 
 /**
- * 供应商目录本身要自洽（下拉框和服务端拼地址都靠它），
- * 本机那份设置现在只记「审哪一类」：模型和 key 都归后台管，
- * 旧版本留在浏览器里的模型选择和 key 读到就得擦掉。
+ * The provider catalog must be self-consistent (both the dropdown and server-side URL building rely on it).
+ * The local settings now only record "which kind to review": model and key are managed by the admin backend,
+ * and any model choice or key left in the browser by older versions must be wiped on read.
  */
 
 describe("供应商目录", () => {
@@ -52,7 +52,7 @@ describe("供应商目录", () => {
   it("每家都得有地址、模型和环境变量名", () => {
     for (const p of AI_PROVIDERS) {
       expect(p.baseUrl.startsWith("https://"), p.id).toBe(true);
-      expect(p.baseUrl.endsWith("/"), p.id).toBe(false); // 拼地址时自己加斜杠
+      expect(p.baseUrl.endsWith("/"), p.id).toBe(false); // Adds the slash itself when building the URL
       expect(p.models.length, p.id).toBeGreaterThan(0);
       expect(p.envKey, p.id).toMatch(/^[A-Z0-9_]+$/);
     }
@@ -106,7 +106,7 @@ describe("本机的 AI 设置", () => {
       JSON.stringify({ provider: "kimi", model: "x", kind: "wechat_rules", keys: { kimi: "sk-旧的" } })
     );
     __resetAiConfigForTests();
-    // 单选时代存的 kind 也认，升级后选择不被重置
+    // Also accepts the kind stored back in the single-select era, so upgrades don't reset the choice
     expect(readAiConfig()).toEqual({ kinds: ["wechat_rules"] });
     expect(localStorage.getItem("xedit.ai.config")).toBe(
       JSON.stringify({ kinds: ["wechat_rules"] })

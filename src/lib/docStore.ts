@@ -1,7 +1,7 @@
 /**
- * 云端文档的本地镜像库（完全本地优先的核心）：
- * 登录后所有云端文章在 localStorage 建镜像，读写永远先落镜像，
- * 云端只是同步目标——离线时列表、阅读、编辑全部照常，联网后由 sync 引擎推拉。
+ * Local mirror of cloud documents (the core of local-first):
+ * after login every cloud doc is mirrored into localStorage, and reads/writes always hit the mirror first;
+ * the cloud is just a sync target. Offline, listing, reading, and editing all work normally; once online the sync engine pushes and pulls.
  */
 
 import { clearAuthSnapshot } from "./authSnapshot";
@@ -14,22 +14,22 @@ export interface MirrorMeta {
   id: string;
   title: string;
   category?: string;
-  /** 创建时间（ISO）。老镜像没有这个字段，打开文章校新时补齐 */
+  /** Creation time (ISO). Old mirrors lack this field; it's backfilled when a doc is opened and revalidated */
   createdAt?: string;
   updatedAt: string;
   excerpt?: string;
   chars?: number;
-  /** 本地有云端未落盘的修改 */
+  /** Local has edits not yet persisted to the cloud */
   dirty?: boolean;
   /**
-   * 本地修订号：每次 saveMirrorLocal 自增，从 1 起。老索引没有这个字段，按 0 算。
-   * 推送时记下发出的 rev，响应回来只有 rev 没变才清 dirty——
-   * 否则「慢响应清掉了它出发之后的新编辑」，那几个字就再也推不上去了。
+   * Local revision: incremented on each saveMirrorLocal, starting at 1. Old indexes lack this field and count as 0.
+   * On push we record the rev sent, and only clear dirty when the response arrives and rev hasn't changed;
+   * otherwise a slow response would clear edits made after it was sent, and those changes would never get pushed.
    */
   rev?: number;
   /**
-   * 本地这份副本派生自的服务端 updatedAt。PUT 带上它，服务端据此判冲突：
-   * 别人（另一台设备 / MCP）在这中间改过，服务端回 409 而不是闷头覆盖。
+   * The server updatedAt this local copy derives from. PUT sends it so the server can detect conflicts:
+   * if someone else (another device / MCP) edited in between, the server returns 409 instead of silently overwriting.
    */
   baseUpdatedAt?: string;
 }
@@ -38,7 +38,7 @@ export interface ServerDoc {
   id: string;
   title: string;
   category?: string | null;
-  /** 列表 / 增量 / 全量 / 单篇接口都会带；旧服务端或别的来源可能没有 */
+  /** Sent by the list / incremental / full / single-doc APIs; older servers or other sources may omit it */
   createdAt?: string;
   updatedAt: string;
   content: string;
@@ -46,7 +46,7 @@ export interface ServerDoc {
 
 const INDEX_KEY = "xedit-mirror-index";
 const DOC_PREFIX = "xedit-mirror-doc:";
-/** 增量同步游标：上次成功拉取时见到的最大 updatedAt（服务端时间，ISO 串） */
+/** Incremental sync cursor: the max updatedAt seen at the last successful pull (server time, ISO string) */
 export const SYNC_CURSOR_KEY = "xedit-sync-cursor";
 
 function readIndex(): MirrorMeta[] {
@@ -78,18 +78,18 @@ export function getMirrorContent(id: string): string | null {
   return localStorage.getItem(DOC_PREFIX + id);
 }
 
-/** 当前本地修订号；没有这个字段的老索引按 0 算 */
+/** Current local revision; old indexes without this field count as 0 */
 export function getMirrorRev(id: string): number {
   return getMirrorMeta(id)?.rev ?? 0;
 }
 
 /**
- * 本地编辑落镜像：立即写入并标 dirty，由 sync 引擎稍后推送云端。
- * dirty=false 用于「云端已确认」的元数据修正（如在线移动分类成功后）。
+ * Write a local edit to the mirror: written immediately and marked dirty; the sync engine pushes it to the cloud later.
+ * dirty=false is for metadata corrections the cloud has already confirmed (e.g. after an online category move succeeds).
  *
- * 写失败（配额满）一律抛出、不吞：调用方要据此提示用户，内容还在编辑器里没丢。
- * 顺序是先正文后索引，正文写不进去索引就一个字节都不动，不会留下
- * 「索引说有 5000 字、正文还是旧的」这种半截状态。
+ * Write failures (quota full) are always thrown, never swallowed: callers need to tell the user, and the content is still in the editor.
+ * Body is written before the index, so if the body fails the index isn't touched at all, avoiding
+ * a half-written state like "index says 5000 chars but the body is still the old one".
  */
 export function saveMirrorLocal(
   id: string,
@@ -103,7 +103,7 @@ export function saveMirrorLocal(
     meta = { id, title: UNTITLED_DOC, createdAt: now, updatedAt: now };
     list.unshift(meta);
   }
-  // 正文先落盘：这一步抛了，下面的索引改动只活在这个临时数组里，本地状态没被动过
+  // Write the body first: if this throws, the index changes below only live in this temp array and local state is untouched
   if (patch.content !== undefined) localStorage.setItem(DOC_PREFIX + id, patch.content);
   if (patch.title !== undefined) meta.title = patch.title.slice(0, 200) || UNTITLED_DOC;
   if (patch.category !== undefined) meta.category = patch.category.trim() || UNCATEGORIZED;
@@ -115,27 +115,27 @@ export function saveMirrorLocal(
   notifyDocsChanged();
 }
 
-/** 云端文档落镜像；本地有未推送修改（dirty）时跳过，本地优先 */
+/** Write a cloud doc into the mirror; skipped if local has unpushed edits (dirty), local wins */
 export function applyServerDoc(doc: ServerDoc) {
   applyServerDocs([doc]);
 }
 
 export interface ApplyServerDocsResult {
-  /** 真正写进镜像的篇数 */
+  /** Number of docs actually written into the mirror */
   applied: number;
-  /** 本地更新（dirty）或内容完全一致而跳过的篇数 */
+  /** Number skipped because local is newer (dirty) or content is identical */
   skipped: number;
-  /** 正文写失败（配额满）的文档 id，这些篇不会进索引 */
+  /** Ids of docs whose body write failed (quota full); these don't enter the index */
   failed: string[];
 }
 
 /**
- * 整批云端文档落镜像。全量同步一次几百篇，逐篇走 applyServerDoc 的话
- * 索引要反序列化 + 序列化几百遍（O(n²)），列表也会被广播刷几百次：
- * 这里整批只读一次索引、写一次、广播一次。
+ * Write a whole batch of cloud docs into the mirror. A full sync is hundreds of docs; going through applyServerDoc one by one
+ * would deserialize + serialize the index hundreds of times (O(n²)) and broadcast list refreshes hundreds of times;
+ * here the whole batch reads the index once, writes once, and broadcasts once.
  *
- * 本地优先的规矩不变：dirty 的跳过；与镜像逐字段相同的也跳过，不白写一遍正文。
- * 单篇正文写失败（配额满）记进 failed 继续处理其余篇，索引只包含真正写成功的。
+ * Local-first rules still apply: dirty docs are skipped; docs identical to the mirror field by field are skipped too, so bodies aren't rewritten for nothing.
+ * A single body write failure (quota full) is recorded in failed and the rest continue; the index only includes docs written successfully.
  */
 export function applyServerDocs(docs: ServerDoc[]): ApplyServerDocsResult {
   const list = readIndex();
@@ -157,7 +157,7 @@ export function applyServerDocs(docs: ServerDoc[]): ApplyServerDocsResult {
       : existing?.createdAt;
     if (
       existing &&
-      // 老镜像缺创建时间而这次服务端给了：不能当「完全一致」跳过，借这趟顺手补上
+      // Old mirror lacks creation time but the server sent one this time: don't skip as identical, backfill it on this pass
       existing.createdAt === createdAt &&
       existing.title === doc.title &&
       existing.category === category &&
@@ -180,7 +180,7 @@ export function applyServerDocs(docs: ServerDoc[]): ApplyServerDocsResult {
       category,
       ...(createdAt ? { createdAt } : {}),
       updatedAt,
-      // 本地这份从此派生自服务端这个版本，下次 PUT 带它去判冲突
+      // This local copy now derives from this server version; the next PUT sends it for conflict detection
       baseUpdatedAt: updatedAt,
       rev: existing?.rev ?? 0,
       ...summarize(doc.content),
@@ -200,9 +200,9 @@ export function applyServerDocs(docs: ServerDoc[]): ApplyServerDocsResult {
 }
 
 /**
- * 只补创建时间：老镜像建立时还没有 createdAt，而增量同步只发有变动的篇，
- * 没改过的老文章永远等不到它。打开文章校新时拿整行回来顺手补上。
- * 只在缺失时写，不碰 updatedAt / dirty / rev——这不是一次编辑，不该触发推送或冲突判定。
+ * Backfill creation time only: old mirrors were created before createdAt existed, and incremental sync only sends changed docs,
+ * so untouched old docs would never get it. Backfill from the full row fetched when a doc is opened and revalidated.
+ * Writes only when missing, without touching updatedAt / dirty / rev: this isn't an edit and shouldn't trigger a push or conflict check.
  */
 export function setMirrorCreatedAt(id: string, iso: string) {
   const list = readIndex();
@@ -214,14 +214,14 @@ export function setMirrorCreatedAt(id: string, iso: string) {
 }
 
 /**
- * 推送成功后清 dirty。
+ * Clear dirty after a successful push.
  *
- * confirmedRev 是这次推送出发时镜像的 rev：不相等说明请求在途时用户又改了，
- * 这次响应只确认了旧内容，dirty 必须留着（那轮编辑还等着推）。
- * 不论相不相等，baseUpdatedAt 都记成服务端版本——本地确实见过这个版本了，
- * 下一次 PUT 带它去才不会被判成冲突。
+ * confirmedRev is the mirror's rev when this push was sent: if it differs, the user edited again while the request was in flight,
+ * so this response only confirms old content and dirty must stay (those edits still need pushing).
+ * Either way, baseUpdatedAt is set to the server version: local has indeed seen that version,
+ * so the next PUT carrying it won't be flagged as a conflict.
  *
- * @returns 是否真的清掉了 dirty
+ * @returns whether dirty was actually cleared
  */
 export function markMirrorSynced(
   id: string,
@@ -234,8 +234,8 @@ export function markMirrorSynced(
   const confirmed = (meta.rev ?? 0) === confirmedRev;
   if (confirmed) {
     meta.dirty = false;
-    // PUT 响应带回服务端 updatedAt：镜像记服务器时间，
-    // 本机时钟快的机器才不会把自己刚存的内容误判成「云端有更新」
+    // The PUT response returns the server updatedAt: the mirror stores server time,
+    // so machines with fast clocks don't mistake their own just-saved content for "cloud has updates"
     if (serverUpdatedAt) meta.updatedAt = serverUpdatedAt;
   }
   if (serverUpdatedAt) meta.baseUpdatedAt = serverUpdatedAt;
@@ -243,7 +243,7 @@ export function markMirrorSynced(
   return confirmed;
 }
 
-/** 只把「本地副本基于的服务端版本」改掉，dirty 与正文都不动（冲突解决后重推用） */
+/** Only change the server version the local copy is based on, leaving dirty and the body alone (used for re-pushing after conflict resolution) */
 export function rebaseMirror(id: string, serverUpdatedAt: string) {
   const list = readIndex();
   const meta = list.find((d) => d.id === id);
@@ -252,7 +252,7 @@ export function rebaseMirror(id: string, serverUpdatedAt: string) {
   writeIndex(list);
 }
 
-/** 对齐服务端列表：服务端已不存在（删除/移入回收站）且本地无修改的镜像一并移除 */
+/** Reconcile with the server list: remove mirrors that no longer exist on the server (deleted/moved to trash) and have no local edits */
 export function reconcileMirror(serverIds: Set<string>) {
   const list = readIndex();
   const keep = list.filter((d) => serverIds.has(d.id) || d.dirty);
@@ -271,15 +271,15 @@ export function listDirtyMirrorDocs(): MirrorMeta[] {
   return readIndex().filter((d) => d.dirty);
 }
 
-/** 登出时清空镜像，避免下一个账号看到上一个账号的文章；本机账号快照一并清掉 */
+/** Clear the mirror on logout so the next account can't see the previous account's docs; the local account snapshot is cleared too */
 export function clearMirror() {
   for (const d of readIndex()) localStorage.removeItem(DOC_PREFIX + d.id);
   localStorage.removeItem(INDEX_KEY);
   localStorage.removeItem(SYNC_CURSOR_KEY);
-  // 当日记录（含待推的脏标记）同属上一个账号，留着会被当成下一个账号的记录推上去
+  // Daily records (including pending dirty flags) also belong to the previous account; keeping them would push them as the next account's records
   clearDayLog();
   clearAuthSnapshot();
-  // 代际 +1：上一个账号还在飞的推拉请求回来时会发现代际变了，结果直接丢弃，
-  // 不会把上一个账号的内容写进刚清空的镜像里
+  // Generation +1: in-flight push/pull requests from the previous account will see the generation changed and discard their results,
+  // so the previous account's content won't be written into the freshly cleared mirror
   bumpSessionEpoch();
 }

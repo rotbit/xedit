@@ -1,8 +1,8 @@
 "use client";
 
-// 一条审核意见的卡片。四种样子：
-// 待处理（说的是哪一句 + 问题 + 改写对照 + 按钮）、已采纳 / 已知道（缩成一行淡下去）、
-// 原文已修改（灰掉，没得采纳）。
+// Card for one review comment. Four states:
+// pending (which sentence + issue + rewrite comparison + buttons), accepted / acknowledged (collapsed to one faded line),
+// original edited (grayed out, can't be accepted).
 
 import { Check, Undo2 } from "lucide-react";
 import { diffQuote } from "./diff";
@@ -13,7 +13,7 @@ import { useT } from "@/i18n/useT";
 const actionBtn =
   "cursor-pointer rounded-md px-2 py-[3px] text-[11px] transition-colors disabled:cursor-default disabled:opacity-40";
 
-/** 改写对照：删掉的划红线，新加的标绿，没动的按原样 */
+/** Rewrite comparison: deletions struck in red, additions in green, unchanged text as-is */
 function SuggestionDiff({ quote, suggestion }: { quote: string; suggestion: string }) {
   const d = diffQuote(quote, suggestion);
   return (
@@ -42,7 +42,7 @@ export function ReviewCard({
   onAck,
 }: {
   item: ReviewItemView;
-  /** 结果里带的分类（服务端给的，可能找不到——那就不画色点） */
+  /** Categories from the result (server-provided, may be missing; then no color dot is drawn) */
   category: ReviewCategory | undefined;
   active: boolean;
   onActivate: () => void;
@@ -51,7 +51,7 @@ export function ReviewCard({
   onAck: () => void;
 }) {
   const t = useT();
-  // 已处理的缩成一行，只留个交代，别再占着版面
+  // Handled ones collapse to one line, just a note, so they stop taking up space
   if (item.status === "accepted" || item.status === "acked") {
     return (
       <div className="flex items-center gap-1.5 rounded-lg border border-[var(--hairline-soft)] px-2.5 py-1.5 text-[11px] text-[var(--ink-faint)] opacity-70">
@@ -108,7 +108,7 @@ export function ReviewCard({
         ) : null}
       </div>
 
-      {/* 先摆出说的是哪一句：不能让人在正文里来回找 */}
+      {/* Show which sentence it's about first: don't make people hunt through the body */}
       <p className="mt-1.5 line-clamp-2 border-l-2 border-[var(--hairline-strong)] pl-2 text-[11px] leading-relaxed text-[var(--ink-faint)]">
         {item.quote}
       </p>

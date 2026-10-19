@@ -9,8 +9,8 @@ import { tk } from "@/i18n/t";
 export const runtime = "nodejs";
 
 /**
- * 把一篇 xedit 文章推送/写回飞书知识库。
- * 409 = 飞书侧有更新（带 force 重发即覆盖）；403 = 还没开通写入权限。
+ * Push / write back an xedit article to the Feishu wiki.
+ * 409 = Feishu side has newer changes (resend with force to overwrite); 403 = write scope not granted yet.
  */
 export async function POST(req: Request) {
   const session = await auth();
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     if (e instanceof FeishuReconnectError) {
       return NextResponse.json({ error: e.message, needReconnect: true }, { status: 400 });
     }
-    // 飞书接口的原始报文可能带内部 id 与凭证片段，只留一句给用户
+    // Raw Feishu API responses may contain internal ids and credential fragments; give the user just one line
     return serverError(e, tk("推送失败"));
   }
 }

@@ -4,54 +4,54 @@ import { parseFrontmatter } from "@/lib/frontmatter";
 import { inCodeRanges, type CodeRange } from "@/lib/livePreview/context";
 
 /**
- * 块级即时渲染的区间扫描（表格、$$ 公式、文首 frontmatter）。
+ * Range scanning for block-level live rendering (tables, $$ math, leading frontmatter).
  *
- * 从 blocks.ts 里抽出来是因为它有自己的一套状态：整篇的表格/围栏区间跨事务缓存，
- * 每次按键只重扫改动覆盖的那几行——全文 `syntaxTree().iterate()` 落在按键路径上
- * 是打字卡顿的直接来源（一篇长文有上千个块级节点）。
+ * Pulled out of blocks.ts because it has its own state: whole-doc table/fence ranges cached across transactions,
+ * with each keystroke rescanning only the lines the change covers — a full `syntaxTree().iterate()` on the keystroke path
+ * was the direct cause of typing lag (a long doc has thousands of block-level nodes).
  *
- * 增量的边界条件集中在 rescanBlocks 的注释里：能就地拼接的走增量，
- * 可能牵动远处结构的（围栏字符增删、大段改动、后台解析补完语法树）一律退回全扫。
+ * Incremental edge cases are collected in rescanBlocks' comments: changes that can be spliced in place go incremental,
+ * anything that might affect distant structure (adding/removing fence chars, large edits, background parse completing the tree) falls back to a full scan.
  */
 
 export interface BlockRange extends CodeRange {
   kind: "table" | "math" | "frontmatter";
-  /** 表格与 frontmatter 用原文、公式用 TeX，作为部件的 eq 依据 */
+  /** Source text for tables and frontmatter, TeX for math; used for the widget's eq */
   payload: string;
 }
 
 export interface BlockScan {
-  /** 语法树扫出的表格区间（全文），与 codeRanges 一起作为增量重扫的缓存 */
+  /** Table ranges from the syntax tree (whole doc), cached together with codeRanges for incremental rescans */
   tables: BlockRange[];
-  /** 围栏代码块区间：公式分隔符配对要靠它排除代码块里的 $$ */
+  /** Fenced code block ranges: pairing math delimiters relies on them to exclude $$ inside code blocks */
   codeRanges: CodeRange[];
   frontmatter: BlockRange | null;
-  /** 原文中独占行的 $$ 偏移；普通输入只更新改动涉及的行。 */
+  /** Offsets of $$ lines in the source; normal typing only updates the lines involved in the change. */
   mathDelimiters: number[];
-  /** 三类块合并排序后的最终列表，装饰构建直接消费 */
+  /** Final merged and sorted list of the three block kinds, consumed directly by decoration building */
   ranges: BlockRange[];
 }
 
-/** frontmatter 只可能在文首这几行；设个上限，免得把「文档以 --- 开头、很久以后又有一条 ---」
- *  的正文整段吞进卡片 */
+/** Frontmatter can only be in the first few lines; cap it so a body that "starts with --- and has another --- much later"
+ *  doesn't get swallowed whole into the card */
 const FRONTMATTER_MAX_LINES = 40;
 
-/** 插入/删除超过这个字符数就全扫：粘贴、整段删除本来就要重排大半篇，
- *  拼接缓存既不便宜也更容易出错 */
+/** Full scan when inserting/deleting more than this many chars: pastes and large deletions reflow most of the doc anyway,
+ *  and splicing the cache is neither cheap nor less error-prone */
 const FULL_RESCAN_LENGTH = 1000;
 
 /**
- * 会牵动远处结构的字符，出现在改动里就退回全扫：
- * - ` 与 ~：一对围栏的增删会把后文整段吞进/放出代码块
- * - <：HTML 块从开标签一直吃到空行，同样能把下面几行的表格吞掉
- * 这些字符在正文里都不常打，普通打字仍走增量。
+ * Characters that can affect distant structure; if they appear in a change, fall back to a full scan:
+ * - ` and ~: adding/removing a fence pair swallows or releases whole sections of what follows into/from a code block
+ * - <: an HTML block runs from its opening tag to a blank line, which can likewise swallow tables below
+ * These are rarely typed in prose, so normal typing still goes incremental.
  */
 const RISKY_CHARS = /[`~<]/;
 
 /**
- * 文首 frontmatter 的区间。走文本扫描而不是语法树：Setext 标题已被关掉，
- * `---` 在语法树里就是两条各自独立的 HorizontalRule，认不出成对关系。
- * 至少要解析出一个键才算数——否则一篇以分割线开头的文章会被误判成 frontmatter。
+ * Range of the leading frontmatter. Uses a text scan rather than the syntax tree: Setext headings are disabled,
+ * so `---` in the tree is just two independent HorizontalRules with no pairing.
+ * At least one key must parse for it to count — otherwise an article starting with a divider would be misdetected as frontmatter.
  */
 function scanFrontmatter(state: EditorState): BlockRange | null {
   if (state.doc.line(1).text.trimEnd() !== "---") return null;
@@ -67,7 +67,7 @@ function scanFrontmatter(state: EditorState): BlockRange | null {
   return null;
 }
 
-/** 首次装载全文建立索引；后续只扫描事务覆盖的行，避免每个按键遍历所有正文行。 */
+/** Build the index from the full doc on first load; afterwards only scan lines the transaction covers, avoiding a walk over every line per keystroke. */
 function collectMathDelimiters(state: EditorState, from = 0, to = state.doc.length): number[] {
   const positions: number[] = [];
   const first = state.doc.lineAt(from);
@@ -96,7 +96,7 @@ function updateMathDelimiters(previous: number[], tr: Transaction): number[] {
   return [...added].sort((a, b) => a - b);
 }
 
-/** 将分隔行配对成公式块；代码块内部或跨越代码块的分隔符不配对。 */
+/** Pair delimiter lines into math blocks; delimiters inside or spanning code blocks aren't paired. */
 function scanMathBlocks(state: EditorState, codeRanges: CodeRange[], mathDelimiters: number[]): BlockRange[] {
   const out: BlockRange[] = [];
   const doc = state.doc;
@@ -112,7 +112,7 @@ function scanMathBlocks(state: EditorState, codeRanges: CodeRange[], mathDelimit
       continue;
     }
     const to = doc.lineAt(from).to;
-    // 首尾两行是定界符，中间才是 TeX
+    // First and last lines are delimiters, the TeX is in between
     const tex = doc.sliceString(openFrom, to).split("\n").slice(1, -1).join("\n").trim();
     if (tex) out.push({ kind: "math", from: openFrom, to, payload: tex });
     openFrom = -1;
@@ -120,8 +120,8 @@ function scanMathBlocks(state: EditorState, codeRanges: CodeRange[], mathDelimit
   return out;
 }
 
-/** 在 [from, to] 上遍历语法树收集表格与围栏区间。与区间相交的节点会被完整给出
- *  （iterate 的语义），所以局部重扫拿到的仍是整块的起止，不会截半个表格。 */
+/** Walk the syntax tree over [from, to] collecting table and fence ranges. Nodes intersecting the range are returned whole
+ *  (iterate's semantics), so a partial rescan still gets full block bounds and never cuts a table in half. */
 function scanTree(state: EditorState, from: number, to: number) {
   const codeRanges: CodeRange[] = [];
   const tables: BlockRange[] = [];
@@ -142,7 +142,7 @@ function scanTree(state: EditorState, from: number, to: number) {
         });
         return false;
       }
-      // 行内格式不可能包含块级表格/围栏，不必逐个访问其中的强调、链接等节点。
+      // Inline formatting can't contain block-level tables/fences, so no need to visit the emphasis, link, etc. nodes inside.
       if (node.name === "Paragraph" || /^ATXHeading/.test(node.name)) return false;
       return undefined;
     },
@@ -154,7 +154,7 @@ function mergeRanges(frontmatter: BlockRange | null, tables: BlockRange[], math:
   return [...(frontmatter ? [frontmatter] : []), ...tables, ...math].sort((a, b) => a.from - b.from);
 }
 
-/** 全文重扫。mathDelimiters 可传入现成的索引（语法树补完时分隔行并没变，不必再遍历全文行）。 */
+/** Full rescan. mathDelimiters can take an existing index (when the tree completes, delimiter lines haven't changed, so no need to walk every line). */
 export function scanAll(state: EditorState, mathDelimiters = collectMathDelimiters(state)): BlockScan {
   const { tables, codeRanges } = scanTree(state, 0, state.doc.length);
   const frontmatter = scanFrontmatter(state);
@@ -168,9 +168,9 @@ export function scanAll(state: EditorState, mathDelimiters = collectMathDelimite
 }
 
 /**
- * 需要重扫的区间：改动一律扩到整行，再各向外扩一行。
- * 向外扩是必须的——块级结构在行边界处重组：表格尾行下面新敲一行 `| a | b |` 会把表格长大一行，
- * 只看改动那一行的话，缓存里的旧表格区间（不与改动相交）会被留下来，新表格反而被当成重叠丢掉。
+ * The range to rescan: changes are always widened to whole lines, then one more line each way.
+ * Widening is required — block structure regroups at line boundaries: typing a new `| a | b |` line under a table's last row grows the table by a row,
+ * and looking only at the changed line would leave the old cached table range (not intersecting the change) in place, while the new table gets dropped as overlapping.
  */
 function changedSpan(tr: Transaction): CodeRange | null {
   const doc = tr.state.doc;
@@ -189,7 +189,7 @@ function changedSpan(tr: Transaction): CodeRange | null {
   };
 }
 
-/** 改动是否可能牵动重扫区间以外的结构（围栏/HTML 字符增删、大段改动）——那就别增量了 */
+/** Whether a change might affect structure outside the rescan range (adding/removing fence/HTML chars, large edits) — if so, skip incremental */
 function needsFullRescan(tr: Transaction): boolean {
   let risky = false;
   let total = 0;
@@ -200,7 +200,7 @@ function needsFullRescan(tr: Transaction): boolean {
       risky = true;
       return;
     }
-    // 插入与删除的文字都要看：删掉一条 ``` 同样会让后文整段改变归属
+    // Check both inserted and deleted text: deleting a ``` likewise changes what the rest of the doc belongs to
     risky =
       RISKY_CHARS.test(inserted.toString()) ||
       RISKY_CHARS.test(tr.startState.doc.sliceString(fromA, toA));
@@ -209,9 +209,9 @@ function needsFullRescan(tr: Transaction): boolean {
 }
 
 /**
- * 把缓存区间平移到新坐标并与重扫结果合并。
- * 两种情况下缓存那份要让位给新结果：与重扫区间相交（重扫已按新语法树给出完整区间），
- * 或与某个新区间重叠（同一个块被两边各给出一份，留下旧的会导致装饰重叠）。
+ * Shift cached ranges to new coordinates and merge with the rescan results.
+ * A cached range yields to new results in two cases: it intersects the rescan range (the rescan already gives full ranges from the new tree),
+ * or it overlaps some new range (the same block reported by both sides; keeping the old one would cause overlapping decorations).
  */
 function mergeCached<T extends CodeRange>(cached: T[], fresh: T[], tr: Transaction, span: CodeRange): T[] {
   const out = [...fresh];
@@ -225,10 +225,10 @@ function mergeCached<T extends CodeRange>(cached: T[], fresh: T[], tr: Transacti
   return out.sort((a, b) => a.from - b.from);
 }
 
-/** 事务后的块区间。能增量就只重扫改动附近，其余情况退回全扫。 */
+/** Block ranges after a transaction. Rescan only near the change when incremental is possible, otherwise fall back to a full scan. */
 export function rescanBlocks(previous: BlockScan, tr: Transaction): BlockScan {
-  // 只有语法树变了（后台增量解析补完了后半篇，见 @codemirror/language 的 parseWorker）：
-  // 新旧树的差异区间无从得知，只能全扫。好在这类事务发生在空闲时段，不在按键路径上。
+  // Only the syntax tree changed (background incremental parse finished the latter half; see @codemirror/language's parseWorker):
+  // there's no way to know what differs between old and new trees, so full scan. Luckily these transactions happen when idle, not on the keystroke path.
   if (!tr.docChanged) return scanAll(tr.state, previous.mathDelimiters);
 
   const mathDelimiters = updateMathDelimiters(previous.mathDelimiters, tr);
@@ -238,8 +238,8 @@ export function rescanBlocks(previous: BlockScan, tr: Transaction): BlockScan {
   const fresh = scanTree(tr.state, span.from, span.to);
   const tables = mergeCached(previous.tables, fresh.tables, tr, span);
   const codeRanges = mergeCached(previous.codeRanges, fresh.codeRanges, tr, span);
-  // frontmatter 只可能落在文首 FRONTMATTER_MAX_LINES 行内：改动起点在这之后就影响不到它，
-  // 区间位置也在改动之前、无需平移，整份缓存原样留着（省掉一次 YAML 解析）
+  // Frontmatter can only fall within the first FRONTMATTER_MAX_LINES lines: a change starting after that can't affect it,
+  // and its range is before the change so needs no shifting; keep the whole cache as-is (saves a YAML parse)
   const head = tr.state.doc.line(Math.min(tr.state.doc.lines, FRONTMATTER_MAX_LINES)).to;
   const frontmatter = span.from <= head ? scanFrontmatter(tr.state) : previous.frontmatter;
 

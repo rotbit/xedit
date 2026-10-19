@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 稿纸风格的 prompt / confirm 替代品，两者共用 createDialogHost。
- * 业务侧只 await askInput() / askConfirm()，不必在每个调用处自己维护开关状态和 Promise。
- * 两个 Host 都必须挂在根布局；没挂载时 open() 会立刻 resolve 兜底值（null / false），调用方不会卡死。
+ * Paper-style replacements for prompt / confirm, both built on createDialogHost.
+ * Callers just await askInput() / askConfirm() without managing open state and Promises at each call site.
+ * Both hosts must be mounted in the root layout; if not mounted, open() resolves a fallback (null / false) immediately so callers never hang.
  */
 import { useEffect, useRef, useState } from "react";
 import { createDialogHost } from "@/hooks/useDialogHost";
@@ -20,7 +20,7 @@ export interface PromptOptions {
 
 const promptHost = createDialogHost<PromptOptions, string | null>(null);
 
-/** 稿纸风格的输入对话框，替代浏览器原生 prompt()；取消 / 宿主未挂载时 resolve null */
+/** Paper-style input dialog replacing the native prompt(); resolves null on cancel / when the host isn't mounted */
 export const askInput = promptHost.open;
 
 export interface ConfirmOptions {
@@ -28,30 +28,30 @@ export interface ConfirmOptions {
   message?: string;
   confirmText?: string;
   cancelText?: string;
-  /** 危险操作用红色确认按钮 */
+  /** Destructive actions get a red confirm button */
   danger?: boolean;
 }
 
 const confirmHost = createDialogHost<ConfirmOptions, boolean>(false);
 
-/** 稿纸风格的确认对话框，替代浏览器原生 confirm()；取消 / 宿主未挂载时 resolve false */
+/** Paper-style confirm dialog replacing the native confirm(); resolves false on cancel / when the host isn't mounted */
 export const askConfirm = confirmHost.open;
 
-/** 输入弹窗宿主。挂在根布局，未打开时不渲染任何 DOM。 */
+/** Input dialog host. Mounted in the root layout; renders no DOM when closed. */
 export function PromptHost() {
   const t = useT();
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  // 每次打开按本次的默认值重置输入框
+  // Reset the input to this open's default value each time
   const { state, close } = promptHost.useHost((opts) => setValue(opts.defaultValue ?? ""));
 
   useEffect(() => {
     if (state) {
-      // 弹出后聚焦并选中默认值，便于直接改写
+      // Focus and select the default value on open so it's easy to overwrite
       const timer = setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
-      // 延后一小会儿再聚焦：元素刚挂载且正在走入场动画，同步调 focus/select 不一定生效
+      // Focus after a short delay: the element just mounted and is mid-entrance animation, so a synchronous focus/select may not take
       }, 20);
       return () => clearTimeout(timer);
     }
@@ -59,7 +59,7 @@ export function PromptHost() {
 
   if (!state) return null;
 
-  // 全空白输入按取消处理：这个弹窗的用处（新建、重命名）都不接受空名字
+  // All-whitespace input counts as cancel: this dialog's uses (create, rename) don't accept empty names
   const submit = () => {
     const v = value.trim();
     close(v ? v : null);
@@ -103,7 +103,7 @@ export function PromptHost() {
   );
 }
 
-/** 确认弹窗宿主。没有内部状态，点任一按钮即 resolve 并关闭。 */
+/** Confirm dialog host. No internal state; clicking either button resolves and closes. */
 export function ConfirmHost() {
   const { state, close } = confirmHost.useHost();
   const t = useT();

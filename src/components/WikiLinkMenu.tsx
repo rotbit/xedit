@@ -1,8 +1,8 @@
 "use client";
 
-// 输入 `[[` 时的文章标题补全浮层：portal 到 body、fixed 定位、跟随滚动。
-// 真相全在 CodeMirror 的 StateField 里（见 lib/wikiLink/menu.ts），这里只订阅渲染 ——
-// 组件自己 setState，打字时重渲染范围就止步于这块菜单，不会波及整篇文章视图。
+// Article title completion popup for `[[`: portaled to body, fixed-positioned, follows scrolling.
+// All truth lives in CodeMirror's StateField (see lib/wikiLink/menu.ts); this only subscribes and renders —
+// the component does its own setState, so re-renders while typing stop at this menu and don't touch the whole article view.
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -21,7 +21,7 @@ import { UNCATEGORIZED } from "@/features/workspace/constants";
 import type { DocMeta } from "@/features/workspace/types";
 import { useT } from "@/i18n/useT";
 
-/** 菜单宽度（与 w-72 一致）、单行高度、最多显示的行数：超出内部滚动 */
+/** Menu width (matches w-72), row height, and max visible rows; beyond that it scrolls internally */
 const MENU_W = 288;
 const ROW_H = 32;
 const MAX_ROWS = 8;
@@ -34,12 +34,12 @@ export function WikiLinkMenu({
   scrollEl,
   docs,
 }: {
-  /** 订阅编辑器下发的菜单状态；返回退订函数 */
+  /** Subscribe to menu state pushed by the editor; returns an unsubscribe function */
   subscribe: (cb: (s: WikiMenuState | null) => void) => () => void;
   viewRef: React.RefObject<EditorView | null>;
-  /** 编辑区的滚动容器：滚动时跟着重算落点 */
+  /** The editor's scroll container: recompute position on scroll */
   scrollEl: HTMLElement | null;
-  /** 候选文章；与编辑器扩展里的 getDocs() 是同一份，只是这边用于渲染 */
+  /** Candidate articles; the same list as getDocs() in the editor extension, used here for rendering */
   docs?: DocMeta[];
 }) {
   const t = useT();
@@ -51,14 +51,14 @@ export function WikiLinkMenu({
 
   const anchor = useAnchoredMenu(st?.from ?? null, viewRef, rootRef, scrollEl, MENU_W);
 
-  // 键盘上下移动高亮时把它带进可视区（列表最多露 8 行）
+  // When the highlight moves via keyboard, bring it into view (the list shows at most 8 rows)
   useEffect(() => {
     activeRef.current?.scrollIntoView({ block: "nearest" });
   }, [st?.index]);
 
   if (!st) return null;
   const items = filterWikiCandidates(docs ?? NO_DOCS, st.query);
-  // 一篇都没匹配上、也没有「新建」可提（过滤词为空的空文库）：不挂空壳在正文上碍事
+  // No matches and no 「新建」 (New) to offer (empty library with an empty query): don't leave an empty shell over the body
   if (items.length === 0) return null;
   const active = activeWikiIndex(st.index, items.length);
   const to = wikiQueryEnd(st);
@@ -73,7 +73,7 @@ export function WikiLinkMenu({
         maxHeight: MAX_ROWS * ROW_H + 8,
         visibility: anchor.visible ? "visible" : "hidden",
       }}
-      // 按下不夺焦：编辑器保持焦点，光标与 `[[` 都还在原处（同浮动工具条）
+      // Press without stealing focus: the editor keeps focus, and the cursor and `[[` stay put (same as the floating toolbar)
       onMouseDown={(e) => e.preventDefault()}
     >
       {items.map((item, i) => {

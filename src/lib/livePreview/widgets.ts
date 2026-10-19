@@ -3,15 +3,15 @@ import { deleteFencedBlock, fencedCodeAt } from "@/lib/livePreview/fenceKeys";
 import { editOnClick } from "@/lib/livePreview/widgetUtils";
 import { t } from "@/i18n/t";
 
-/** 即时渲染用到的替换部件（图片/视频/代码语言下拉/分割线/列表点/复选框），
- *  装饰构建逻辑见 livePreview/index.ts */
+/** Replacement widgets used by live rendering (images/video/code language dropdown/dividers/list bullets/checkboxes);
+ *  decoration building is in livePreview/index.ts */
 
 /**
- * 图片部件的两种形态（视频部件同理），由 preview 决定：
- * - preview=false：替换整段 `![](…)` 源码的渲染形态，点击即进入编辑；
- * - preview=true：编辑源码时挂在源码下方的预览。源码此刻原样显示着，
- *   再点它只会把光标拽回 `![` 之后，所以不挂 editOnClick、只吞掉 mousedown 保住焦点。
- * 形态参与 eq：两种形态的 DOM 不一样，切换时必须重建部件。
+ * The image widget has two forms (same for video), chosen by preview:
+ * - preview=false: the rendered form replacing the whole `![](…)` source; clicking enters editing;
+ * - preview=true: the preview attached below the source while editing it. The source is showing as-is then,
+ *   and clicking the preview would only drag the cursor back after `![`, so no editOnClick — just swallow mousedown to keep focus.
+ * The form is part of eq: the two forms have different DOM, so switching must rebuild the widget.
  */
 export class ImageWidget extends WidgetType {
   constructor(
@@ -31,7 +31,7 @@ export class ImageWidget extends WidgetType {
     img.src = this.src;
     img.alt = this.alt || t("图片");
     if (!this.preview) img.title = t("点击编辑图片地址");
-    // 加载失败时收起破图标，换成占位签（点击同样可编辑）
+    // On load failure, hide the broken-image icon and show a placeholder label instead (also clickable to edit)
     img.addEventListener("error", () => wrap.classList.add("cm-lp-broken"));
     const fallback = document.createElement("span");
     fallback.className = "cm-lp-image-fallback";
@@ -39,11 +39,11 @@ export class ImageWidget extends WidgetType {
     wrap.appendChild(img);
     wrap.appendChild(fallback);
     if (this.preview) {
-      // 部件是 contenteditable=false 的外来节点，点它会把浏览器的 DOM 选区挪进来、
-      // 编辑器随之失焦或把光标丢到部件边上；preventDefault 掉就当没点过
+      // The widget is a contenteditable=false foreign node; clicking it moves the browser's DOM selection inside,
+      // making the editor lose focus or drop the cursor next to the widget; preventDefault makes it as if nothing was clicked
       wrap.addEventListener("mousedown", (e) => e.preventDefault());
     } else {
-      // 点击图片＝有意编辑：把光标放进语法内部（`![` 之后），仅此刻还原为源码
+      // Clicking the image = intentional edit: put the cursor inside the syntax (after `![`), reverting to source only now
       editOnClick(wrap, view, 2);
     }
     return wrap;
@@ -81,29 +81,29 @@ export class VideoWidget extends WidgetType {
     video.playsInline = true;
     wrap.appendChild(video);
     if (this.preview) {
-      // 播放/进度条要拿到原生事件才点得动，只有落到容器留白上的点击才吞掉（防失焦）
+      // Play/progress controls need native events to work, so only swallow clicks on the container's empty space (to prevent blur)
       wrap.addEventListener("mousedown", (e) => {
         if (e.target !== video) e.preventDefault();
       });
       return wrap;
     }
-    // 播放条把点击都吃掉了，编辑入口放在下方说明栏
+    // The play bar swallows all clicks, so the edit entry point is in the caption bar below
     const bar = document.createElement("span");
     bar.className = "cm-lp-video-bar";
     bar.textContent = this.alt ? `▶ ${this.alt}` : t("▶ 视频");
     bar.title = t("点击编辑视频源码");
-    // 监听挂在说明栏上，位置按外层容器回查（播放条自己会吃掉点击）
+    // The listener is on the caption bar, with the position looked up via the outer container (the play bar swallows clicks itself)
     editOnClick(bar, view, 2, wrap);
     wrap.appendChild(bar);
     return wrap;
   }
   ignoreEvent() {
-    // 交给原生 <video> 控件处理播放/进度等交互
+    // Let the native <video> controls handle playback/progress interactions
     return true;
   }
 }
 
-/** 语言下拉的候选（与飞书导入/导出常见语言对齐）；当前值不在列表时临时并入 */
+/** Language dropdown options (aligned with languages common in Feishu import/export); the current value is merged in temporarily if not listed */
 const FENCE_LANGS = [
   "", "bash", "c", "cpp", "csharp", "css", "diff", "dockerfile", "go", "graphql",
   "html", "java", "javascript", "json", "kotlin", "markdown", "php", "python",
@@ -111,7 +111,7 @@ const FENCE_LANGS = [
 ];
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-/** lucide trash-2 的路径（部件是纯 DOM，用不了 React 图标，只能自己搭一棵 SVG） */
+/** Path of lucide trash-2 (the widget is plain DOM, so React icons aren't available; we build the SVG ourselves) */
 const TRASH_PATHS = [
   "M3 6h18",
   "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6",
@@ -140,9 +140,9 @@ function trashIcon(): SVGSVGElement {
 }
 
 /**
- * 代码块开栏行（```lang）：光标不在时换成整块的标题条，选择即改写围栏语言标记。
- * 标题条里左边是语言下拉、右边是删除按钮，两者互为兄弟并各自绝对定位到块的两角；
- * 外层容器只负责在文档里占位（也是 posAtDOM 的锚点，用来回查这是哪一块）。
+ * Code block opening fence (```lang): when the cursor isn't there it becomes the block's header bar; selecting rewrites the fence language tag.
+ * The header has the language dropdown on the left and a delete button on the right, siblings each absolutely positioned to the block's corners;
+ * the outer container just holds the place in the document (and anchors posAtDOM to find which block this is).
  */
 export class CodeLangWidget extends WidgetType {
   constructor(
@@ -164,14 +164,14 @@ export class CodeLangWidget extends WidgetType {
     bar.className = "cm-lp-codefence-bar";
     const wrap = document.createElement("span");
     wrap.className = "cm-lp-codefence";
-    // 删除整块：围栏被渲染掉之后，光标删法再周全也不如一个明摆着的按钮
+    // Delete the whole block: once the fences are rendered away, no cursor-based delete logic beats an obvious button
     const del = document.createElement("button");
     del.type = "button";
     del.className = "cm-lp-codefence-del";
     del.title = t("删除代码块");
     del.setAttribute("aria-label", t("删除代码块"));
     del.appendChild(trashIcon());
-    // mousedown 不能落到编辑器：否则焦点/光标先被抢走，click 时定位到的已不是这一块
+    // mousedown mustn't reach the editor: otherwise focus/cursor get taken first, and by click time the position no longer points at this block
     del.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -183,8 +183,8 @@ export class CodeLangWidget extends WidgetType {
       if (block) deleteFencedBlock(view, block);
       view.focus();
     });
-    // 可见的是文字 + 箭头，原生 select 透明铺满整个标签：点标签任何位置都能打开菜单，
-    // 否则 select 只有文字那么宽，点到箭头或留白就落进编辑器、光标跳到围栏行，标签当场变回源码
+    // What's visible is text + arrow, with a transparent native select covering the whole label: clicking anywhere on the label opens the menu;
+    // otherwise the select is only as wide as the text, and clicking the arrow or padding falls into the editor, jumps the cursor to the fence line, and the label turns back into source
     const label = document.createElement("span");
     label.className = "cm-lp-codefence-label";
     label.textContent = this.lang || t("纯文本");
@@ -199,7 +199,7 @@ export class CodeLangWidget extends WidgetType {
       if (l === this.lang) opt.selected = true;
       select.appendChild(opt);
     }
-    // 标签整体都不能把 mousedown 漏给编辑器，否则光标先被抢走
+    // No part of the label may leak mousedown to the editor, or the cursor gets taken first
     wrap.addEventListener("mousedown", (e) => e.stopPropagation());
     select.addEventListener("change", () => {
       view.dispatch({
@@ -207,7 +207,7 @@ export class CodeLangWidget extends WidgetType {
       });
     });
     wrap.appendChild(select);
-    // 下拉在前、删除按钮在后：CSS 用 ~ 选择器让下拉获得焦点时也把按钮点亮
+    // Dropdown first, delete button after: CSS uses the ~ selector to also highlight the button when the dropdown is focused
     bar.appendChild(wrap);
     bar.appendChild(del);
     return bar;
@@ -233,7 +233,7 @@ export class HrWidget extends WidgetType {
 }
 
 export class BulletWidget extends WidgetType {
-  /** 视觉层级 1/2/3（实心点/空心圈/方点），嵌套更深时循环复用 */
+  /** Visual levels 1/2/3 (filled dot/hollow circle/square), cycled for deeper nesting */
   constructor(readonly level: number) {
     super();
   }
@@ -281,9 +281,9 @@ export class CheckboxWidget extends WidgetType {
 }
 
 /**
- * 提示块首行的 `[!tip]` 记号：换成一枚类型徽标（「提示」「注意」…）。
- * 只带一个通用类名，颜色由所在行的 cm-lp-callout-<type> 透过 CSS 变量给下来——
- * 徽标本身不需要知道自己是什么类型，换类型时不用重建部件。
+ * The `[!tip]` marker on a callout's first line: replaced with a type badge (「提示」 (Tip), 「注意」 (Note)…).
+ * It carries just one generic class; the color comes down via CSS variables from the line's cm-lp-callout-<type> —
+ * the badge doesn't need to know its own type, so changing the type doesn't rebuild the widget.
  */
 export class CalloutBadgeWidget extends WidgetType {
   constructor(readonly label: string) {
@@ -299,7 +299,7 @@ export class CalloutBadgeWidget extends WidgetType {
     return el;
   }
   ignoreEvent() {
-    // 点击要能把光标放回记号处改类型，事件交回 CodeMirror 自己定位
+    // Clicking should put the cursor back at the marker to change the type; let CodeMirror handle positioning
     return false;
   }
 }

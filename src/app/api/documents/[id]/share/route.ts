@@ -7,7 +7,7 @@ import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** 登录 + 归属校验。liveOnly：回收站里的废稿不该还能开分享链接 */
+/** Login + ownership check. liveOnly: trashed drafts shouldn't be able to open share links */
 async function author(id: string) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
@@ -19,7 +19,7 @@ function shareJson(
   commentCount = 0
 ) {
   if (!share) return { enabled: false };
-  // 链接默认永久；历史记录可能仍带到期时刻，过期一律视同关闭
+  // Links are permanent by default; legacy records may still carry an expiry, and expired means closed
   const expired = share.expiresAt !== null && share.expiresAt.getTime() <= Date.now();
   return {
     enabled: share.enabled && !expired,
@@ -33,7 +33,7 @@ async function countThreads(shareId: string) {
   return prisma.shareComment.count({ where: { shareId, parentId: null } });
 }
 
-/** 分享状态（含批注数）；过期视同关闭 */
+/** Share status (with annotation count); expired means closed */
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
   const doc = await author(id);
@@ -42,12 +42,12 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json(shareJson(share, share ? await countThreads(share.id) : 0));
 }
 
-/** 开启分享，链接永久有效（expiresAt 置空），只由作者手动关闭。
- * - 首次或重新开启（含历史上已过期的）：生成全新 token，旧链接立刻作废；
- *   批注靠外键 ON UPDATE CASCADE 跟着新 token 走，不会丢。
- * - 已开启时重复调用：沿用当前链接原样返回（幂等）——
- *   链接已发给审阅人，不该因为再点一次就换址。
- * body.allowComment 可选，让作者在开启的同时就定下批注开关。
+/** Enable sharing; the link never expires (expiresAt null) and only the author closes it manually.
+ * - First enable or re-enable (including ones that expired in the past): generate a fresh token, killing the old link immediately;
+ *   annotations follow the new token via the FK's ON UPDATE CASCADE, so nothing is lost.
+ * - Repeat calls while enabled: return the current link as-is (idempotent);
+ *   the link has already gone out to reviewers and shouldn't change because of another click.
+ * body.allowComment is optional, letting the author set the annotation toggle while enabling.
  */
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params;
@@ -87,12 +87,12 @@ export async function POST(req: Request, { params }: Params) {
   return NextResponse.json(shareJson(share, await countThreads(share.id)));
 }
 
-/** 更新开关：enabled（仅用于关闭）/ allowComment */
+/** Update toggles: enabled (only for closing) / allowComment */
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params;
   const doc = await author(id);
   if (isResponse(doc)) return doc;
-  // 改分享开关也是写操作，只读封禁一样要拦（与 POST 同一条守卫）
+  // Changing share toggles is also a write, so read-only bans must block it too (same guard as POST)
   const denied = await readOnlyGuard(doc.userId);
   if (denied) return denied;
   const body = await req.json().catch(() => ({}));

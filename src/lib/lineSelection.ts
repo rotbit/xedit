@@ -1,10 +1,10 @@
 import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
-/** 三击（及连击更多次）选行：只选到行尾，不含行尾换行符。
- *  CodeMirror 默认的行选区是 line.from ~ line.to + 1（带换行），drawSelection
- *  会在下一行行首画出一小截空选区和光标，看起来像"多选了下一行"。
- *  这里接管 detail >= 3 的鼠标手势：整行选择、拖拽按行扩展，都停在 line.to。 */
+/** Triple-click (or more) line selection: select only to the end of the line, excluding the newline.
+ *  CodeMirror's default line selection is line.from ~ line.to + 1 (with the newline), so drawSelection
+ *  paints a sliver of empty selection and a cursor at the start of the next line, looking like "the next line got selected too".
+ *  Here we take over mouse gestures with detail >= 3: whole-line selection and line-wise drag extension both stop at line.to. */
 export const lineSelectionWithoutNewline = EditorView.mouseSelectionStyle.of((view, event) => {
   if (event.button !== 0 || event.detail < 3) return null;
   const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
@@ -23,7 +23,7 @@ export const lineSelectionWithoutNewline = EditorView.mouseSelectionStyle.of((vi
       const cur = view.posAtCoords({ x: curEvent.clientX, y: curEvent.clientY }) ?? startFrom;
       const startLine = state.doc.lineAt(startFrom);
       const curLine = state.doc.lineAt(cur);
-      // 向下拖：锚在起始行行首、头在当前行行尾；向上拖反之。均不跨过换行符
+      // Dragging down: anchor at the start line's beginning, head at the current line's end; reversed when dragging up. Neither crosses a newline
       const range =
         curLine.from >= startLine.from
           ? EditorSelection.range(startLine.from, curLine.to)

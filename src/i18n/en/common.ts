@@ -1,6 +1,6 @@
 /**
- * 通用词：按钮、相对日期、单位这类各处都会用到的短文案。
- * key 是中文原文；值写成母语产品的说法——按钮和标题 Title Case，句子 Sentence case。
+ * Common words: short strings used everywhere, like buttons, relative dates and units.
+ * Keys are the Chinese originals; values should read like a native product -- Title Case for buttons and titles, Sentence case for sentences.
  */
 export const common: Record<string, string> = {
   确定: "OK",
@@ -26,18 +26,18 @@ export const common: Record<string, string> = {
   未命名文章: "Untitled",
   未分类: "Uncategorized",
 
-  // 相对日期（今天页标题、待办日期列、侧栏入口共用）
+  // Relative dates (shared by the Today page title, todo date column and sidebar entry)
   今天: "Today",
   昨天: "Yesterday",
   明天: "Tomorrow",
   上周: "Last week",
 
-  // 时长与字数：英文按数量挑单复数（{name, 单数, 复数}）
+  // Durations and word counts: English picks singular/plural by count ({name, singular, plural})
   "{m} 分钟": "{m} min",
   "{h} 小时": "{h} hr",
   "{h} 小时 {m} 分钟": "{h} hr {m} min",
   "{n} 字": "{n} {abs, char, chars}",
-  // 书名号是中文排版，英文用弯引号包标题
+  // 《》 title marks are Chinese typography; English wraps titles in curly quotes
   "《{title}》": "“{title}”",
   收起: "Collapse",
   展开: "Expand",

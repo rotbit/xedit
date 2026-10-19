@@ -5,8 +5,8 @@ import { useT } from "@/i18n/useT";
 import { closeVault, resumeVault, type VaultState } from "@/lib/localBackend/vaultSession";
 
 /**
- * 刷新后浏览器会把文件夹权限降回 prompt，重新授权必须发生在用户手势里——
- * 所以这一屏挡在工作台前面，等用户点一下「恢复访问」，或者干脆改用浏览器存储。
+ * After a reload the browser drops folder permission back to "prompt", and re-granting must happen inside a user gesture —
+ * so this screen sits in front of the workspace until the user clicks "Restore access", or switches to browser storage instead.
  */
 export function VaultGate({ vault }: { vault: VaultState }) {
   const opening = vault.status === "opening";

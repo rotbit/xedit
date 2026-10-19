@@ -1,9 +1,9 @@
 /**
- * 「AI 文章审核」的数据契约。
+ * Data contract for "AI article review".
  *
- * 界面只认这三个结构，由 /api/ai/review 给（见 lib/ai/reviewPrompt.ts 的 parseReviewResult）。
- * 有哪些问题类型由结果自己带（categories），前端不写死「语病/啰嗦/…」这几种——
- * 审核类型不同，整套分类都不一样（表述审核看语病，合规审核看诱导关注）。
+ * The UI only knows these three structures, provided by /api/ai/review (see parseReviewResult in lib/ai/reviewPrompt.ts).
+ * Issue categories come with the result itself (categories); the frontend doesn't hardcode "grammar / wordiness / ..."
+ * since each review type has an entirely different set (wording review checks grammar, compliance review checks follow-baiting).
  */
 
 import type { ReviewKind } from "@/lib/ai/reviewKinds";
@@ -11,7 +11,7 @@ import type { ReviewKind } from "@/lib/ai/reviewKinds";
 export interface ReviewCategory {
   id: string;
   label: string;
-  /** 十六进制色值，画正文里的标注与卡片上的类型标签用（夜间由前端提亮，见 editorMarks.ts） */
+  /** Hex color for the body marks and the type tag on cards (brightened by the frontend at night, see editorMarks.ts) */
   color: string;
 }
 
@@ -19,13 +19,13 @@ export interface ReviewItem {
   id: string;
   /** ReviewCategory.id */
   category: string;
-  /** 原文片段，逐字取自正文的纯文本：定位全靠它，不靠字符偏移 */
+  /** Original snippet, taken verbatim from the body's plain text: location relies entirely on it, not character offsets */
   quote: string;
-  /** 大致所在的编辑器行号（0 基，与渲染结果里的 data-line 同一口径），只当提示用 */
+  /** Approximate editor line number (0-based, same convention as data-line in the rendered output), only a hint */
   line: number;
-  /** 一句话说问题 */
+  /** One-sentence description of the issue */
   problem: string;
-  /** 建议改成的文字（替换 quote）；没有就只是提个意见，卡片上不出现「采纳」 */
+  /** Suggested replacement text (replaces quote); if absent it's just a remark and the card shows no 「采纳」 (Accept) */
   suggestion?: string;
 }
 
@@ -36,41 +36,41 @@ export interface ReviewResult {
 }
 
 /**
- * 一条意见此刻的状态。除了「忽略 / 知道了」这两个纯粹的用户动作，
- * 其余都是从当前正文里现推出来的（见 status.ts 的 deriveStatus）：
- * 正文改了、撤销了，状态跟着回去，不必另存一份随时会走样的副本。
+ * A comment's current status. Apart from the two pure user actions 「忽略 / 知道了」 (Ignore / Got it),
+ * everything is derived live from the current body (see deriveStatus in status.ts):
+ * when the body is edited or undone, status follows, with no separate copy that can drift.
  */
 export type ReviewStatus =
-  /** 还等着作者处理：上高亮、进上一条/下一条 */
+  /** Still awaiting the author: highlighted, included in previous/next */
   | "open"
-  /** 已采纳：正文里 quote 没了、suggestion 在原处 */
+  /** Accepted: quote gone from the body, suggestion in its place */
   | "accepted"
-  /** 点过「知道了」（没有建议可采纳的那种意见） */
+  /** Clicked 「知道了」 (Got it) (for comments with no suggestion to accept) */
   | "acked"
-  /** 点过「忽略」 */
+  /** Clicked 「忽略」 (Ignore) */
   | "ignored"
-  /** 原文已修改：quote 在正文里找不到了，也不像是采纳造成的 */
+  /** Original edited: quote can't be found in the body, and it doesn't look like acceptance caused it */
   | "stale";
 
-/** 用户对某条意见做过的动作。「采纳」不记在这里——它从正文本身就能推出来 */
+/** Actions the user took on a comment. 「采纳」 (Accept) isn't recorded here since it can be derived from the body */
 export type ReviewAction = "ignored" | "acked";
 
-/** 意见 + 它此刻的状态，界面拿到的就是这个 */
+/** Comment + its current status; this is what the UI receives */
 export interface ReviewItemView extends ReviewItem {
   status: ReviewStatus;
 }
 
-/** 审核这一趟走到哪了 */
+/** Where this review run is at */
 export type ReviewPhase = "idle" | "loading" | "done" | "error";
 
-/** 历史记录里的一趟审核：够认出是哪一趟（整份结果按 id 另取，见 history.ts） */
+/** One review run in history: enough to identify it (the full result is fetched separately by id, see history.ts) */
 export interface ReviewRecordMeta {
   id: string;
-  /** ISO 时间 */
+  /** ISO time */
   createdAt: string;
   kinds: ReviewKind[];
-  /** 当时用的模型，形如 deepseek/deepseek-chat */
+  /** Model used at the time, e.g. deepseek/deepseek-chat */
   model: string;
-  /** 这一趟一共给了几条意见 */
+  /** Total comments in this run */
   total: number;
 }

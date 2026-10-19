@@ -1,27 +1,27 @@
-/** 编辑器的对外类型契约：选区快照与命令式句柄，浮动工具条和各视图按它对接编辑器。 */
+/** Public type contract of the editor: selection snapshot and imperative handle, used by the floating toolbar and views. */
 
 import type { EditorView } from "@codemirror/view";
 import type { FormatCommand } from "@/lib/editor/commands";
 
-/** 选区快照：浮动工具条据此决定出现/隐藏与落点 */
+/** Selection snapshot: the floating toolbar uses it to decide show/hide and placement */
 export interface SelectionInfo {
   from: number;
   to: number;
   empty: boolean;
-  /** 编辑器当前是否持有焦点（失焦要收起工具条，除非焦点落在工具条自己身上） */
+  /** Whether the editor currently has focus (blur hides the toolbar, unless focus moved to the toolbar itself) */
   hasFocus: boolean;
-  /** 本次上报是否伴随文档变化（打字时要收起工具条） */
+  /** Whether this report came with a document change (typing hides the toolbar) */
   docChanged: boolean;
 }
 
 export interface EditorHandle {
-  /** 切换阅读前同步最后一次输入，不触发版本保存。 */
+  /** Flush the last input before switching to reading mode, without triggering a version save. */
   flush: () => void;
-  /** arg：color 命令的色值（缺省 = 清除颜色），其余命令忽略 */
+  /** arg: color value for the color command (omitted = clear color); ignored by other commands */
   applyFormat: (cmd: FormatCommand, arg?: string) => void;
   view: () => EditorView | null;
-  /** 跳转到指定行（0 基）：移动光标并平滑滚动，大纲点击用 */
+  /** Jump to a given line (0-based): move the cursor and smooth-scroll; used by outline clicks */
   scrollToLine: (line: number) => void;
-  /** 只把某行滚到容器顶端，不动光标、不抢焦点（预览→编辑器的同步滚动用） */
+  /** Only scroll a line to the top of the container, without moving the cursor or stealing focus (preview → editor scroll sync) */
   scrollLineToTop: (line: number) => void;
 }

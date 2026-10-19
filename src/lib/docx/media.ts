@@ -1,8 +1,8 @@
-// 导出 Word · 媒体准备：并发拉取图片字节、抓取视频封面帧、栅格化公式 SVG，供后续树遍历同步取用。
+// Word export · media preparation: fetch image bytes concurrently, grab video poster frames, rasterize formula SVGs, so the later tree walk can read them synchronously.
 
 import type { Build, PreparedImage } from "./types";
 
-// —— 媒体准备：并发拉取全部图片字节，之后的树遍历即可保持同步 ——
+// -- Media preparation: fetch all image bytes concurrently so the later tree walk can stay synchronous --
 
 async function fetchBlob(url: string): Promise<Blob | null> {
   if (url.startsWith("data:")) {
@@ -12,18 +12,18 @@ async function fetchBlob(url: string): Promise<Blob | null> {
       return null;
     }
   }
-  // 直连优先；图床未配 CORS 时退回同源代理
+  // Direct fetch first; fall back to the same-origin proxy when the image host lacks CORS
   try {
     const res = await fetch(url, { mode: "cors" });
     if (res.ok) return await res.blob();
   } catch {
-    /* 跨域被拦，走代理 */
+    /* Blocked cross-origin; use the proxy */
   }
   try {
     const res = await fetch(`/api/export/media?url=${encodeURIComponent(url)}`);
     if (res.ok) return await res.blob();
   } catch {
-    /* 代理也失败，按缺图处理 */
+    /* Proxy failed too; treat as a missing image */
   }
   return null;
 }
@@ -37,7 +37,7 @@ function loadHtmlImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-/** 经 canvas 转成 PNG（webp/svg 等 Word 不认的格式，以及公式的高清放大） */
+/** Convert to PNG via canvas (formats Word doesn't support like webp/svg, plus high-res upscaling for formulas) */
 async function rasterizeToPng(blob: Blob, scale: number): Promise<PreparedImage | null> {
   const url = URL.createObjectURL(blob);
   try {
@@ -76,13 +76,13 @@ async function blobToImage(blob: Blob): Promise<PreparedImage | null> {
       const data = await blob.arrayBuffer();
       return { data, type: kind, width: bmp.width, height: bmp.height };
     } catch {
-      /* 解码失败则走 canvas 兜底 */
+      /* Decode failed; fall back to canvas */
     }
   }
   return rasterizeToPng(blob, 1);
 }
 
-/** 抓取视频首帧作封面：依赖视频源允许跨域读取（本站 OSS 为支持直传已配 CORS），失败或超时降级为无封面 */
+/** Grab the first video frame as the poster: requires the video source to allow cross-origin reads (our OSS has CORS for direct uploads); on failure or timeout, degrade to no poster */
 function captureVideoFrame(src: string): Promise<PreparedImage | null> {
   const capture = new Promise<PreparedImage | null>((resolve) => {
     const v = document.createElement("video");
@@ -100,7 +100,7 @@ function captureVideoFrame(src: string): Promise<PreparedImage | null> {
     v.playsInline = true;
     v.onerror = () => done(null);
     v.onloadedmetadata = () => {
-      // 跳过纯黑的第 0 帧，取 0.1s（短视频取中点兜底）
+      // Skip the all-black frame 0 and take 0.1s (short videos fall back to the midpoint)
       v.currentTime = Math.min(0.1, (v.duration || 1) / 2);
     };
     v.onseeked = () => {
@@ -122,7 +122,7 @@ function captureVideoFrame(src: string): Promise<PreparedImage | null> {
           );
         }, "image/png");
       } catch {
-        done(null); // 源站未放开 CORS 时 canvas 被污染，drawImage/toBlob 会抛
+        done(null); // Without CORS on the source, the canvas is tainted and drawImage/toBlob throw
       }
     };
     v.src = src;
@@ -131,7 +131,7 @@ function captureVideoFrame(src: string): Promise<PreparedImage | null> {
   return Promise.race([capture, timeout]);
 }
 
-/** 换行后的行首空白在浏览器里不渲染（markdown-it 输出 <br>\n），导出前抹掉保持一致 */
+/** Leading whitespace after a line break isn't rendered in browsers (markdown-it emits <br>\n), so strip it before export to match */
 export function stripSpaceAfterBreaks(root: HTMLElement): void {
   root.querySelectorAll("br").forEach((br) => {
     let node = br.nextSibling;
@@ -163,7 +163,7 @@ export async function prepareMedia(root: HTMLElement, b: Build): Promise<void> {
       b.images.set(url, img);
     })
   );
-  // 视频封面：优先 poster（已随图片批量拉取），否则现场抓首帧
+  // Video poster: prefer poster (already fetched with the image batch), otherwise grab the first frame on the spot
   await Promise.all(
     Array.from(root.querySelectorAll("video")).map(async (v) => {
       const poster = v.getAttribute("poster");
@@ -172,7 +172,7 @@ export async function prepareMedia(root: HTMLElement, b: Build): Promise<void> {
       b.frames.set(v, fromPoster ?? (src ? await captureVideoFrame(src) : null));
     })
   );
-  // 公式：MathJax SVG 栅格化为 2x PNG；没有 SVG（MathJax 未就绪）留 null，走 TeX 文本兜底
+  // Formulas: rasterize MathJax SVG to 2x PNG; without SVG (MathJax not ready) leave null and fall back to TeX text
   for (const el of Array.from(root.querySelectorAll(".math"))) {
     const svg = el.querySelector("svg");
     if (!svg) {

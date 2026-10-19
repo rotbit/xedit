@@ -1,11 +1,11 @@
 import { beforeEach, vi } from "vitest";
 
-/** 最小 localStorage 桩：同步、可计数、可注入写失败（配额满） */
+/** Minimal localStorage stub: synchronous, countable, with injectable write failures (quota full) */
 class MemoryStorage implements Storage {
   private map = new Map<string, string>();
-  /** 测试可读的计数：索引读写次数等指标从这里来 */
+  /** Counters readable by tests: index read/write counts and similar metrics come from here */
   stats = { get: 0, set: 0, remove: 0 };
-  /** 设为函数后，命中的 key 写入即抛（模拟 QuotaExceededError） */
+  /** When set to a function, writes to matching keys throw (simulating QuotaExceededError) */
   failSetIf: ((key: string) => boolean) | null = null;
 
   get length() {
@@ -42,7 +42,7 @@ class MemoryStorage implements Storage {
 export const storage = new MemoryStorage();
 
 const g = globalThis as unknown as Record<string, unknown>;
-// 只桩测试用得到的那几样；window 指向 globalThis 让 `typeof window` 判定成立
+// Stub only what tests use; window points to globalThis so `typeof window` checks pass
 g.localStorage = storage;
 g.window = globalThis;
 if (!("document" in g)) {

@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 飞书导入弹窗的外壳，只负责按连接状态切界面。请求与状态都在 useFeishuConnection 里，
- * 同步进度在 FeishuSyncPanel，创建应用的图文步骤在 FeishuGuide。
- * 这里刻意不留业务逻辑，改流程先去看那个 hook。
+ * Shell of the Feishu import dialog; it only switches screens by connection state. Requests and state live in useFeishuConnection,
+ * sync progress in FeishuSyncPanel, and the illustrated app-creation steps in FeishuGuide.
+ * Business logic is deliberately kept out of here; to change the flow, look at that hook first.
  */
 import { BookDown, Loader2, Unlink } from "lucide-react";
 import { cancelFeishuSync } from "@/hooks/useFeishuSync";
@@ -16,14 +16,14 @@ import { htmlLang } from "@/i18n/locale";
 import { useLocale, useT } from "@/i18n/useT";
 import { rich } from "@/i18n/rich";
 
-// 两个输入框共用一份类名：凭证表单要看着是一组，别只改其中一处
+// Both inputs share one class string: the credentials form should look like a group, so don't change just one
 const fieldCls =
   "h-9 w-full rounded-md border border-[var(--hairline-strong)] bg-[var(--panel)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]";
 const labelCls = "mb-1 mt-3 block text-[12px] text-[var(--ink-soft)]";
 
 /**
- * 飞书知识库导入：每个账号配置自己的飞书应用凭证，连接（用户身份 OAuth）后
- * 选择知识空间分批增量同步为 xedit 文章。同步幂等——飞书侧没改动的文档整篇跳过。
+ * Feishu wiki import: each account configures its own Feishu app credentials, connects (user-identity OAuth), then
+ * picks a wiki space to sync incrementally in batches into xedit articles. Sync is idempotent — documents unchanged on the Feishu side are skipped entirely.
  */
 export function FeishuDialog({
   onClose,
@@ -68,7 +68,7 @@ export function FeishuDialog({
       width={520}
       onClose={onClose}
     >
-      {/* 四种界面按状态依次排除：加载中 → 未登录 → 凭证未存好/未授权 → 已连接可同步 */}
+      {/* The four screens are ruled out in order by state: loading → signed out → credentials not saved/not authorized → connected and ready to sync */}
       {loading ? (
         <div className="flex h-56 items-center justify-center text-[var(--ink-faint)]">
           <Loader2 size={20} className="animate-spin text-[var(--accent)]" />
@@ -92,7 +92,7 @@ export function FeishuDialog({
         </div>
       ) : !conn || !connected ? (
         <div className="flex flex-col gap-5 overflow-y-auto px-5 py-5">
-          {/* 第一步：账号自己的飞书应用凭证 */}
+          {/* Step one: the account's own Feishu app credentials */}
           <section>
             <p className="text-[12px] text-[var(--ink-soft)]">
               {rich(t("① 应用凭证（每个账号配置自己的，{hint}）"), {
@@ -119,7 +119,7 @@ export function FeishuDialog({
                 setSecretEdited(true);
                 markAppDirty();
               }}
-              // secret 在服务端加密存放，取不回明文，所以只回显后四位；留空表示这一项不改
+              // The secret is stored encrypted server-side and can't be read back in plaintext, so only the last four characters are echoed; leaving it blank means unchanged
               placeholder={
                 conn?.secretLast4
                   ? t("已保存 ····{last4}（留空则不修改）", { last4: conn.secretLast4 })
@@ -139,12 +139,12 @@ export function FeishuDialog({
             </div>
           </section>
 
-          {/* 第二步：授权连接 */}
+          {/* Step two: authorize the connection */}
           <section className="flex flex-col items-center gap-2.5 rounded-md border border-dashed border-[var(--hairline-strong)] px-4 py-6 text-center">
             <p className="text-[12px] leading-5 text-[var(--ink-soft)]">
               {t("② 连接后即可把你有权限的知识库整库导入为文章")}
             </p>
-            {/* 凭证有未保存的改动时禁掉连接：授权要跳出站外，飞书那边用的是服务端已存的凭证，会拿旧值去换 token */}
+            {/* Disable connecting while credentials have unsaved changes: authorization leaves the site and Feishu uses the server's stored credentials, so it would exchange the token with stale values */}
             <button className={btnPrimary} onClick={connect} disabled={!conn?.hasApp || appDirty}>
               {t("连接飞书")}
             </button>
@@ -155,7 +155,7 @@ export function FeishuDialog({
             ) : null}
           </section>
 
-          {/* 还没存过凭证的人第一次进来直接展开教程，存过的默认收起 */}
+          {/* First-timers without saved credentials see the tutorial expanded; for those who've saved it's collapsed by default */}
           <Guide callbackUrl={callbackUrl} defaultOpen={!conn?.hasApp} />
         </div>
       ) : (
@@ -226,7 +226,7 @@ export function FeishuDialog({
             ) : null}
             <button className={btnPrimary} onClick={runSync} disabled={syncing}>
               {syncing ? <Loader2 size={14} className="animate-spin" /> : null}
-              {/* 上次中断过（有错且留着进度）就改叫「继续同步」：同步是幂等的，接着跑不会重复导入 */}
+              {/* If last run was interrupted (an error with progress kept), relabel as 「继续同步」 (Resume sync): sync is idempotent, so resuming won't import duplicates */}
               {syncing ? t("同步中…") : sync.error && progress ? t("继续同步") : t("开始同步")}
             </button>
           </div>

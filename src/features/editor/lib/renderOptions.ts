@@ -1,7 +1,7 @@
 import { useStore } from "@/store/useStore";
 import { resolveTheme, getCodeThemeCss, buildTuneCss } from "@/lib/themes";
 
-/** 复制与导出共用的渲染参数：当前主题 + 代码高亮 + 排版微调 + 自定义 CSS */
+/** Render options shared by copy and export: current theme + code highlighting + typography tweaks + custom CSS */
 export async function buildRenderOptions() {
   const s = useStore.getState();
   const codeCss = await getCodeThemeCss(s.codeThemeId);

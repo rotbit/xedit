@@ -1,8 +1,8 @@
 /**
- * 后台单账号接口：明细（GET）、封禁 / 配额 / 功能权限与每日额度（PATCH）、删号（DELETE）。
- * 三个方法都先过 requireAdmin；管理员账号本身不允许被封禁或删除，免得把自己锁在门外。
- * 存储配额在库里是 BigInt，进出这层都要和 number 互转（见各处 Number() / BigInt()）。
- * 权限这里读写的是库里存的原值；管理员全开、封禁全关是在 lib/permissions 判定时才叠上去的。
+ * Admin single-account API: details (GET), ban / quota / feature permissions and daily limits (PATCH), account deletion (DELETE).
+ * All three methods go through requireAdmin first; admin accounts themselves can't be banned or deleted, so you can't lock yourself out.
+ * Storage quota is a BigInt in the DB and must be converted to/from number at this layer (see the Number() / BigInt() calls).
+ * Permissions here are the raw stored values; admin all-on and banned all-off are applied only when lib/permissions evaluates them.
  */
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
@@ -17,13 +17,13 @@ import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** 单账号配额上限（1TB）：挡住手滑输入的天文数字 */
+/** Per-account quota cap (1TB): blocks astronomical numbers typed by accident */
 const MAX_QUOTA = 1024 ** 4;
 
-/** 单账号每日 AI 次数上限：挡住手滑，也挡住「填个天文数字当不限」 */
+/** Per-account daily AI cap: blocks typos, and blocks "enter a huge number to mean unlimited" */
 const MAX_DAILY_LIMIT = 10000;
 
-/** 每日额度：null = 回到全局默认；1..10000 的整数照收；其余返回 undefined 让调用方报 400 */
+/** Daily limit: null = back to the global default; integers 1..10000 are accepted; anything else returns undefined so the caller replies 400 */
 function cleanDailyLimit(v: unknown): number | null | undefined {
   if (v === null) return null;
   if (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_DAILY_LIMIT) return v;
@@ -38,7 +38,7 @@ async function requireAdmin() {
 const forbidden = () => NextResponse.json({ error: tk("无权访问") }, { status: 403 });
 const notFound = () => NextResponse.json({ error: tk("账号不存在") }, { status: 404 });
 
-/** 账号明细：基本信息 + 文档列表 + 按体积排序的素材清单 */
+/** Account details: basic info + document list + assets sorted by size */
 export async function GET(_req: Request, { params }: Params) {
   if (!(await requireAdmin())) return forbidden();
   const { id } = await params;
@@ -72,7 +72,7 @@ export async function GET(_req: Request, { params }: Params) {
     prisma.document.findMany({
       where: { userId: id },
       orderBy: { updatedAt: "desc" },
-      // 文档、素材都只取前若干条：这个接口是给人看的明细页，不是导出工具，不做分页也不求全
+      // Docs and assets are limited to the first N: this API is for a human-readable detail page, not an export tool, so no pagination or completeness
       take: 100,
       select: { id: true, title: true, category: true, updatedAt: true, deletedAt: true },
     }),
@@ -82,7 +82,7 @@ export async function GET(_req: Request, { params }: Params) {
       take: 200,
       select: { id: true, url: true, size: true, mime: true, source: true, createdAt: true },
     }),
-    // 最近活跃日期：DailyActive.date 是东八区 YYYY-MM-DD，字符串倒序即时间倒序
+    // Last active date: DailyActive.date is YYYY-MM-DD in UTC+8, so descending string order is descending time order
     prisma.dailyActive.findFirst({
       where: { userId: id },
       orderBy: { date: "desc" },
@@ -106,7 +106,7 @@ export async function GET(_req: Request, { params }: Params) {
       permissions: knownPermissions(user.permissions),
       aiReviewDailyLimit: user.aiReviewDailyLimit,
       aiCoverDailyLimit: user.aiCoverDailyLimit,
-      // 登录方式：OAuth 平台名 + 是否设了密码
+      // Login methods: OAuth provider names + whether a password is set
       logins: [...user.accounts.map((a) => a.provider), ...(user.passwordHash ? [tk("密码")] : [])],
     },
     totals: {
@@ -115,7 +115,7 @@ export async function GET(_req: Request, { params }: Params) {
       assetCount,
       storageUsed: used,
       defaultQuota: DEFAULT_STORAGE_QUOTA,
-      // 单独额度留空时实际生效的全局默认，后台输入框拿来当占位提示
+      // The global default that applies when the per-account limit is empty; the admin input uses it as a placeholder
       defaultAiReviewDailyLimit: aiDailyLimit(),
       defaultAiCoverDailyLimit: coverDailyLimit(),
     },
@@ -125,8 +125,8 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 /**
- * 封禁/解封、调整存储配额（配额单位字节；null=恢复默认，0=不限制）、
- * 开关功能权限（整组覆盖）、单设 AI 审核 / 生成封面的每日额度（null=恢复默认）
+ * Ban/unban, adjust storage quota (in bytes; null = restore default, 0 = unlimited),
+ * toggle feature permissions (whole set replaced), set per-account daily limits for AI review / cover generation (null = restore default)
  */
 export async function PATCH(req: Request, { params }: Params) {
   if (!(await requireAdmin())) return forbidden();
@@ -158,7 +158,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if ("storageQuota" in body) {
     if (body.storageQuota === null) {
-      // null = 回到全局默认配额，0 = 明确不限制。两者含义不同，不能合并成一个
+      // null = back to the global default quota, 0 = explicitly unlimited. They mean different things and can't be merged
       data.storageQuota = null;
     } else if (typeof body.storageQuota === "number" && Number.isFinite(body.storageQuota)) {
       const bytes = Math.round(body.storageQuota);
@@ -172,7 +172,7 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   if ("permissions" in body) {
-    // 整组覆盖而不是增删：前端交上来的就是勾选框的全貌，混进认不出的 key 宁可报错也不静默吞掉
+    // Replace the whole set rather than add/remove: the frontend sends the full checkbox state; an unrecognized key errors rather than being silently swallowed
     const permissions = cleanPermissions(body.permissions);
     if (!permissions) return NextResponse.json({ error: tk("认不出这个权限") }, { status: 400 });
     data.permissions = permissions;
@@ -187,7 +187,7 @@ export async function PATCH(req: Request, { params }: Params) {
     data[field] = limit;
   }
 
-  // 一个可改字段都没命中就报错，而不是静默成功：否则前端会以为改上了
+  // Error if no editable field matched, rather than silently succeeding: otherwise the frontend would think the change applied
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: tk("没有要修改的字段") }, { status: 400 });
   }
@@ -216,7 +216,7 @@ export async function PATCH(req: Request, { params }: Params) {
   });
 }
 
-/** 删除账号：先清 OSS 素材，再删用户行（文档/版本/设置/授权全部级联） */
+/** Delete account: clear OSS assets first, then delete the user row (docs/versions/settings/authorizations all cascade) */
 export async function DELETE(_req: Request, { params }: Params) {
   if (!(await requireAdmin())) return forbidden();
   const { id } = await params;
@@ -230,7 +230,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     return NextResponse.json({ error: tk("管理员账号不能删除") }, { status: 400 });
   }
 
-  // OSS 清理失败不阻断删号（对象可能已不存在），残留可再用「同步 OSS 历史」找回排查
+  // An OSS cleanup failure doesn't block deletion (objects may already be gone); leftovers can be found via 「同步 OSS 历史」 (Sync OSS history)
   if (ossConfigured() && target.assets.length > 0) {
     try {
       await ossDeleteMany(target.assets.map((a) => a.key));

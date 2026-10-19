@@ -16,11 +16,11 @@ const A = { id: "u-a", email: "a@example.com", name: "A" };
 const B = { id: "u-b", email: "b@example.com", name: "B" };
 
 beforeEach(() => {
-  // 快照模块有一份进程内缓存，测试之间不清会把上一条用例的身份带过来
+  // The snapshot module has an in-process cache; without clearing it between tests the previous case's identity leaks in
   clearAuthSnapshot();
 });
 
-/** 造一篇「本地改过、还没推上云」的镜像文章 */
+/** Create a mirror article that was "edited locally but not yet pushed to the cloud" */
 function makeDirtyDoc(id = "d1") {
   saveMirrorLocal(id, { title: "没推上去的稿子", content: "正文正文", category: "随笔" });
 }
@@ -37,10 +37,10 @@ describe("换账号时的镜像归属", () => {
     expect(r.stashed).toBe(1);
     expect(r.cleared).toBe(true);
     expect(r.stashFailed).toBe(false);
-    // 镜像里已经找不到它了
+    // It's gone from the mirror
     expect(getMirrorMeta("d1")).toBeNull();
     expect(getMirrorContent("d1")).toBeNull();
-    // 但内容和旧归属都留着
+    // But the content and the old ownership are kept
     const orphans = listOrphanDrafts();
     expect(orphans).toHaveLength(1);
     expect(orphans[0]).toMatchObject({
@@ -69,17 +69,17 @@ describe("换账号时的镜像归属", () => {
   });
 
   it("归属未知 + dirty：不认领也不删，草稿记成 unknown 组", () => {
-    // 没有归属记录、也没有账号快照（老版本升级，或快照被探测清过）
+    // No ownership record and no account snapshot (upgraded from an old version, or the snapshot was cleared by the probe)
     makeDirtyDoc();
 
     const r = resolveAccountSwitch(B);
 
     expect(r.ownership).toBe("unknown");
     expect(r.stashed).toBe(1);
-    expect(r.reclaimed).toBe(0); // 新账号不许认领来路不明的稿子
+    expect(r.reclaimed).toBe(0); // A new account must not claim drafts of unknown origin
     expect(getMirrorMeta("d1")).toBeNull();
     expect(listOrphanDrafts()[0].owner).toEqual({ unknown: true });
-    // 换成谁登录都领不走
+    // Nobody can claim it, whoever signs in
     expect(reclaimOrphanDrafts(B)).toBe(0);
     expect(reclaimOrphanDrafts(A)).toBe(0);
     expect(readMirrorOwner()).toEqual({ id: B.id, email: B.email });
@@ -96,21 +96,21 @@ describe("换账号时的镜像归属", () => {
     expect(r.cleared).toBe(false);
     expect(getMirrorContent("d1")).toBe("正文正文");
     expect(getMirrorMeta("d1")?.dirty).toBe(true);
-    // 归属还是上一个人：下次登录会再试一遍
+    // Ownership still points at the previous user: the next sign-in will try again
     expect(readMirrorOwner()).toEqual({ id: A.id, email: A.email });
   });
 
   it("同一个人：镜像照用，顺手领回上次没推上去的草稿", () => {
     setMirrorOwner(A);
     makeDirtyDoc();
-    resolveAccountSwitch(B); // A 的草稿先被挪走
+    resolveAccountSwitch(B); // A's drafts are moved out first
     saveMirrorLocal("d2", { title: "B 的文章", content: "bbb" });
 
     const again = resolveAccountSwitch(B);
 
     expect(again.ownership).toBe("same");
     expect(again.cleared).toBe(false);
-    expect(getMirrorContent("d2")).toBe("bbb"); // B 自己的东西没被动
+    expect(getMirrorContent("d2")).toBe("bbb"); // B's own data is untouched
     expect(again.reclaimed).toBe(0);
   });
 
@@ -121,7 +121,7 @@ describe("换账号时的镜像归属", () => {
     const r = resolveAccountSwitch(A);
 
     expect(r.ownership).toBe("same");
-    expect(getMirrorContent("d1")).toBe("正文正文"); // 自己的缓存没被清
+    expect(getMirrorContent("d1")).toBe("正文正文"); // Its own cache isn't cleared
     expect(readMirrorOwner()).toEqual({ id: A.id, email: A.email });
   });
 });

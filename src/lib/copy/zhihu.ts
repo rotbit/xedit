@@ -3,20 +3,20 @@ import { ensureMathJax } from "@/lib/markdown/mathjax";
 import { sanitizeHtml } from "@/lib/markdown/sanitize";
 
 /**
- * 构建适合粘贴到知乎编辑器的 HTML。
- * 知乎会重新排版并忽略几乎所有样式，因此只保留语义结构：
- * - 公式转为知乎公式图片（eeimg），知乎会识别并转回可编辑公式
- * - 代码块保留 pre>code，知乎会重新高亮
- * - 链接保留原始 <a>
+ * Build HTML suitable for pasting into the Zhihu editor.
+ * Zhihu re-lays out the content and drops nearly all styling, so only semantic structure is kept:
+ * - Formulas become Zhihu formula images (eeimg), which Zhihu recognizes and turns back into editable formulas
+ * - Code blocks keep pre>code; Zhihu re-highlights them
+ * - Links keep the original <a>
  */
 export async function buildZhihuHtml(markdown: string): Promise<string> {
   await ensureMathJax();
-  // 渲染结果先经 DOMPurify 消毒再写入 DOM
+  // Sanitize the rendered output with DOMPurify before writing it into the DOM
   const html = sanitizeHtml(renderMarkdown(markdown, { macCode: false }));
   const root = document.createElement("div");
   root.innerHTML = html;
 
-  // 公式 → 知乎公式图片
+  // Formulas → Zhihu formula images
   for (const el of Array.from(root.querySelectorAll<HTMLElement>(".math"))) {
     const tex = el.dataset.tex ?? "";
     if (!tex) continue;
@@ -34,7 +34,7 @@ export async function buildZhihuHtml(markdown: string): Promise<string> {
     }
   }
 
-  // 视频：知乎编辑器同样不吃外部 <video>，降级为封面图 + 提示（需用知乎的视频按钮插入）
+  // Video: the Zhihu editor won't take an external <video> either, so fall back to the poster image + a hint (insert via Zhihu's video button)
   for (const video of Array.from(root.querySelectorAll("video"))) {
     const container = video.closest("figure") ?? video;
     const caption = container.querySelector("figcaption")?.textContent ?? "";
@@ -44,21 +44,21 @@ export async function buildZhihuHtml(markdown: string): Promise<string> {
       const p = document.createElement("p");
       const img = document.createElement("img");
       img.src = poster;
-      img.alt = caption || "视频封面"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+      img.alt = caption || "视频封面"; // i18n-ignore part of the exported/copied content format; stays Chinese for now
       p.appendChild(img);
       parts.push(p);
     }
     const noteP = document.createElement("p");
     const em = document.createElement("em");
     em.textContent = caption
-      ? `（此处有视频「${caption}」，请用知乎编辑器的视频按钮插入）` // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
-      : "（此处有视频，请用知乎编辑器的视频按钮插入）"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+      ? `（此处有视频「${caption}」，请用知乎编辑器的视频按钮插入）` // i18n-ignore part of the exported/copied content format; stays Chinese for now
+      : "（此处有视频，请用知乎编辑器的视频按钮插入）"; // i18n-ignore part of the exported/copied content format; stays Chinese for now
     noteP.appendChild(em);
     parts.push(noteP);
     container.replaceWith(...parts);
   }
 
-  // figure → 普通段落图片（知乎不识别 figcaption）
+  // figure → plain paragraph image (Zhihu doesn't recognize figcaption)
   for (const figure of Array.from(root.querySelectorAll("figure"))) {
     const img = figure.querySelector("img");
     const caption = figure.querySelector("figcaption")?.textContent ?? "";
@@ -74,7 +74,7 @@ export async function buildZhihuHtml(markdown: string): Promise<string> {
     }
   }
 
-  // 标题中的 prefix/suffix 装饰节点去掉，保留纯文本
+  // Strip prefix/suffix decoration nodes from headings, keeping plain text
   for (const span of Array.from(
     root.querySelectorAll("h1 span, h2 span, h3 span, h4 span, h5 span, h6 span")
   )) {

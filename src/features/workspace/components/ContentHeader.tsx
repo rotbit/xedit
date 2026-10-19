@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * 内容区顶栏。所有状态都从 ws（useWorkspace 的聚合对象）里取，自己不持有任何状态。
- * 桌面壳里这条同时充当系统窗口标题栏（app-titlebar），高度和左侧留白牵扯到红绿灯位置，改动前先看下面的说明。
+ * Content area top bar. All state comes from ws (useWorkspace's aggregate object); it holds no state of its own.
+ * In the desktop shell this also serves as the system window title bar (app-titlebar); its height and left padding affect the traffic-light position, so read the notes below before changing it.
  */
 import { ChevronRight, CalendarDays, List, PanelLeftOpen, Trash2, X } from "lucide-react";
 import { tk } from "@/i18n/t";
@@ -22,13 +22,13 @@ const sep = <ChevronRight size={12} className="shrink-0 text-[var(--ink-faint)]"
 const closeCls =
   "ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 
-// 顶层只存 key（tk 标记），渲染时才 t()：模块加载时就翻译的话，切换语言后这里不会跟着变
+// Store only keys at the top level (marked with tk) and t() at render time: translating at module load wouldn't follow language changes
 const VIEW_MODES: [DocView, typeof CalendarDays, string][] = [
   ["card", CalendarDays, tk("时间流")],
   ["list", List, tk("列表视图")],
 ];
 
-/** 面包屑：阅读态显示「分类 / 标题」，列表态显示当前分类路径；「最近打开」视图本身只显示自己，不作其他路径的根 */
+/** Breadcrumbs: reading view shows "category / title", list view shows the current category path; the 「最近打开」 (Recent) view shows only itself and isn't the root of other paths */
 function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | null }) {
   const { nav } = ws;
   const { activeCat, readingId, isTrash, openCategory, setReadingId } = nav;
@@ -46,7 +46,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
           </>
         ) : null}
         <span className={crumbNow}>{readingDoc.title || t(UNTITLED_DOC)}</span>
-        {/* 关闭文章：回到打开前所在的目录列表 */}
+        {/* Close document: back to the folder list it was opened from */}
         <button className={closeCls} title={t("关闭文章")} onClick={() => setReadingId(null)}>
           <X size={14} />
         </button>
@@ -54,9 +54,9 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
     );
   }
   if (activeCat === ASSETS) return <span className={crumbNow}>{t("图片库")}</span>;
-  // 带 !readingId：?doc= 直达时文章还没取回来的那一下，别先闪一个「今天」
+  // With !readingId: when arriving directly via ?doc= before the doc is fetched, don't flash 「今天」 (Today) first
   if (activeCat === TODAY && !readingId) return <span className={crumbNow}>{t("今天")}</span>;
-  // 历史页是今天页的子页：面包屑带上「今天」可点，末尾一个关闭钮，两条路都回今天页
+  // History is a subpage of Today: the breadcrumb includes a clickable 「今天」 and a close button at the end; both lead back to Today
   if (activeCat === HISTORY && !readingId)
     return (
       <>
@@ -70,7 +70,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
         </button>
       </>
     );
-  // 设置页从头像菜单进入，不挂在今天页下面：只显示自己，关闭钮回今天页
+  // Settings is entered from the avatar menu, not under Today: shows only itself, and the close button returns to Today
   if (activeCat === SETTINGS && !readingId)
     return (
       <>
@@ -81,12 +81,12 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
       </>
     );
   if (isTrash) return <span className={crumbNow}>{t("回收站")}</span>;
-  // readingId 有值但 readingDoc 还没取回来（正在加载）时也走这条，免得面包屑先闪一下空分类
+  // Also taken when readingId is set but readingDoc hasn't arrived yet (loading), so the breadcrumb doesn't flash an empty category
   if (activeCat === ALL || readingId)
     return (
       <>
         <span className={crumbNow}>{t("最近打开")}</span>
-        {/* 「最近打开」也从今天页进来：给个关闭钮回今天页 */}
+        {/* 「最近打开」 (Recent) is also entered from Today: give it a close button back to Today */}
         {!readingId ? (
           <button className={closeCls} title={t("回到今天")} onClick={() => openCategory(TODAY)}>
             <X size={14} />
@@ -95,7 +95,7 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
       </>
     );
 
-  // 分类路径按 / 拆成层级，除最后一层外都可点，点中间层就跳到那一层的列表
+  // Split the category path on / into levels; all but the last are clickable, jumping to that level's list
   const parts = activeCat.split("/");
   return (
     <>
@@ -120,8 +120,8 @@ function Breadcrumbs({ ws, readingDoc }: { ws: Workspace; readingDoc: DocMeta | 
 }
 
 /**
- * 内容区顶栏：面包屑 + 视图切换 + 新建/导入分体按钮。
- * 阅读态下 ArticleReader 的操作按钮会 portal 进 actionSlot，与面包屑同处一行，省掉一整条横栏。
+ * Content area top bar: breadcrumbs + view switcher + new/import split button.
+ * In reading view ArticleReader's action buttons portal into actionSlot, sharing a row with the breadcrumbs and saving a whole bar.
  */
 export function ContentHeader({
   ws,
@@ -134,20 +134,20 @@ export function ContentHeader({
 }) {
   const { nav, prefs, docActions, auth, vault, library } = ws;
   const t = useT();
-  // 图片库、今天、历史已完成、设置都不是文章列表：没有视图切换，也不在这里新建
+  // Image library, Today, completed history and Settings aren't document lists: no view switcher and no creating here
   const inList =
     !nav.readingId &&
     nav.activeCat !== ASSETS &&
     nav.activeCat !== TODAY &&
     nav.activeCat !== HISTORY &&
     nav.activeCat !== SETTINGS;
-  // 清空回收站只对磁盘文库开放：云端回收站有 30 天自动清理，逐篇彻底删除就够了
+  // Emptying the trash is only for disk libraries: the cloud trash auto-cleans after 30 days, and permanently deleting one by one is enough
   const canEmptyTrash =
     nav.isTrash && !nav.readingId && auth.localMode && vault.status === "open";
 
   return (
-    // app-titlebar：桌面壳里这条顶栏充当系统标题栏；
-    // 侧栏收起后红绿灯落在它上面，这时才需要 traffic-inset 留位
+    // app-titlebar: in the desktop shell this top bar acts as the system title bar;
+    // when the sidebar is collapsed the traffic lights sit on it, and only then is traffic-inset needed for spacing
     <div
       className={`app-titlebar flex h-12 shrink-0 items-center gap-1 bg-[var(--panel)] px-4 ${
         prefs.sidebarOpen ? "" : "traffic-inset"
@@ -155,7 +155,7 @@ export function ContentHeader({
     >
       {!prefs.sidebarOpen ? (
         <>
-          {/* 窄屏：抽屉式打开，不改动桌面记忆的折叠状态 */}
+          {/* Narrow screens: open as a drawer without changing the remembered desktop collapse state */}
           <button
             className="mr-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] md:hidden"
             title={t("打开侧栏")}
@@ -202,7 +202,7 @@ export function ContentHeader({
         <button
           className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline)] px-3 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:opacity-60"
           onClick={() => void docActions.emptyVaultTrash()}
-          // 回收站空着就禁用：点了什么都不会发生的按钮不如直接灰掉
+          // Disable when the trash is empty: better grayed out than a button that does nothing
           disabled={!library.trashDocs?.length}
         >
           <Trash2 size={14} />
@@ -210,7 +210,7 @@ export function ContentHeader({
         </button>
       ) : null}
 
-      {/* 只有正常阅读态才挂 actionSlot：回收站里的文章没有编辑、导出这些操作可放 */}
+      {/* Only mount actionSlot in normal reading view: documents in the trash have no edit/export actions to put there */}
       {nav.readingId && !nav.isTrash ? (
         <div ref={onActionSlotRef} className="flex shrink-0 items-center gap-2" />
       ) : null}

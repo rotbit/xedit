@@ -1,7 +1,7 @@
 /**
- * 会话代际：换账号、登出、清镜像时 +1。
- * 所有异步落盘路径在发起时记下当时的代际，回来时代际变了就丢弃结果，
- * 上一个账号的在途请求不会写进下一个账号的本地状态。
+ * Session epoch: incremented on account switch, logout and mirror clear.
+ * Every async persistence path records the epoch when it starts and discards the result if it changed on return,
+ * so in-flight requests from the previous account never write into the next account's local state.
  */
 let epoch = 1;
 
@@ -13,7 +13,7 @@ export function bumpSessionEpoch(): number {
   return ++epoch;
 }
 
-/** 发起异步操作时记下，回来时用它判断结果是否还算数 */
+/** Record when starting an async operation; use it on return to decide whether the result still counts */
 export function isCurrentEpoch(captured: number): boolean {
   return captured === epoch;
 }

@@ -14,12 +14,12 @@ import { logEvent } from "@/lib/todos/events";
 import { setMountedDocId } from "@/lib/editor/mounted";
 import { useStore, type SaveState } from "@/store/useStore";
 
-/** 保留两种入口的提示策略：手动保存失败显示待同步，自动保存在线失败显示错误。 */
+/** Keep both entry points' messaging: a failed manual save shows "pending sync", a failed online autosave shows an error. */
 function saveStateFor(result: PersistResult, manual: boolean): SaveState {
   switch (result) {
     case "draft":
     case "local": return "local";
-    // 本地都写不进去，谈不上「已保存」也谈不上「待同步」；内容还在编辑器里等下一次尝试
+    // Couldn't even write locally, so it's neither "saved" nor "pending sync"; the content stays in the editor for the next attempt
     case "local-error": return "local-error";
     case "offline": return "pending";
     case "push-failed": return manual || !navigator.onLine ? "pending" : "error";
@@ -27,10 +27,10 @@ function saveStateFor(result: PersistResult, manual: boolean): SaveState {
   }
 }
 
-/** 本地写失败只提醒一次，别让配额满的机器每隔几百毫秒弹一条 */
+/** Warn about local write failures only once, so a machine with a full quota doesn't get a toast every few hundred ms */
 let localErrorNotified = false;
 
-/** 上一次算过的字数：自动保存每次都要比前后两版，长文只数新的那一版 */
+/** Last computed word count: autosave compares the old and new versions every time, so long docs only count the new one */
 let counted: { content: string; count: number } | null = null;
 
 function countOf(content: string): number {
@@ -40,9 +40,9 @@ function countOf(content: string): number {
 }
 
 /**
- * 「做了」一栏的写作记录：这次落盘比上次多（少）了多少字。
- * 基准必须在落盘之前取——persistEditorDocument 成功后会把落盘基准刷成本次内容。
- * 基准不是这一篇（理论上装载时已记过，兜底）就退回存储里的旧正文，它此刻还没被覆盖。
+ * Writing log for the 「做了」 (Done) column: how many words this save added (or removed) since the last one.
+ * The baseline must be read before saving -- once persistEditorDocument succeeds it resets the baseline to this content.
+ * If the baseline isn't for this doc (it should have been recorded on load; this is a fallback), use the old body in storage, which hasn't been overwritten yet.
  */
 function previousContent(doc: EditorDocument): string {
   const saved = getSavedDocument();
@@ -52,7 +52,7 @@ function previousContent(doc: EditorDocument): string {
 
 function logWrite(doc: EditorDocument, before: string) {
   if (!doc.docId || before === doc.content) return;
-  // 先数旧版（多半正是上次缓存的那份），再数新版，单槽缓存刚好一次命中一次新算
+  // Count the old version first (usually the one cached last time), then the new one, so the single-slot cache gets one hit and one fresh count
   const prev = countOf(before);
   const delta = countOf(doc.content) - prev;
   if (delta !== 0) logEvent({ kind: "write", docId: doc.docId, title: doc.title, chars: delta });
@@ -73,22 +73,22 @@ async function saveDocument(doc: EditorDocument, manual: boolean): Promise<Persi
     if (result !== "draft") logWrite(doc, before);
   }
   const store = useStore.getState();
-  // 往返期间用户切走了：状态行归新文章所有，旧结果不能往上盖
+  // The user switched away during the round trip: the status line now belongs to the new doc, so don't let the stale result overwrite it
   if (store.docId !== doc.docId) return result;
   const state = saveStateFor(result, manual);
-  // 往返期间又改了：这次确认的是旧内容，别显示「已保存」误导人，
-  // 交给紧跟着的下一次自动保存去定状态
+  // Edited again during the round trip: this confirms old content, so don't show a misleading "saved";
+  // let the autosave that follows right after decide the status
   const edited =
     store.title !== doc.title || store.content !== doc.content || store.category !== doc.category;
   if (state === "saved" && edited) return result;
-  // 手动同步成功后继续显示保存中，等版本请求结束再提示；无文档草稿沿用现有状态。
+  // After a successful manual sync keep showing "saving" until the version request finishes; drafts without a doc keep the current status.
   if (!manual || (result !== "synced" && result !== "draft")) {
     store.setSaveState(state);
   }
   return result;
 }
 
-/** 手动存档只在同步成功后请求，版本失败不会把已保存的正文标成失败。 */
+/** Manual snapshots are only requested after a successful sync, so a failed version request never marks the saved body as failed. */
 async function saveManualVersion(id: string, title: string) {
   try {
     const response = await fetch(`/api/documents/${id}/versions`, {
@@ -98,7 +98,7 @@ async function saveManualVersion(id: string, title: string) {
     });
     await response.json().catch(() => ({}));
     if (response.ok) logEvent({ kind: "version", docId: id, title });
-    // 成功不弹提示：标题下的保存状态已经说明了，toast 盖在正文上反而挡视线
+    // No toast on success: the save status under the title already says so, and a toast over the body just gets in the way
     useStore.getState().setSaveState("saved");
   } catch {
     useStore.getState().setSaveState("saved");
@@ -110,68 +110,68 @@ async function saveNow() {
   const doc = useStore.getState();
   const result = await saveDocument(doc, true);
   switch (result) {
-    // 成功类结果一律静默，只有出问题才打断用户
+    // Success results stay silent; only interrupt the user when something goes wrong
     case "draft":
     case "local":
     case "offline": return;
-    // 本地写失败的提示已由 saveDocument 弹过（自动保存同样要提醒），这里不重复
+    // saveDocument already showed the local-write failure toast (autosave needs it too), so don't repeat it here
     case "local-error": return;
     case "push-failed": return toast(t("云端暂不可达，已存本地稍后自动同步"), "error");
     case "synced": return saveManualVersion(doc.docId!, doc.title);
   }
 }
 
-/** keepalive 请求的正文上限：规范规定同一页面所有 keepalive 请求合计 64KB，
- *  超了浏览器直接拒发（还会同步抛错），不如提前放弃、把内容留给同步引擎慢慢推。 */
+/** Body size limit for keepalive requests: the spec caps all keepalive requests from a page at 64KB combined;
+ *  over that the browser refuses to send (and throws synchronously), so give up early and leave the content to the sync engine. */
 const KEEPALIVE_LIMIT = 64 * 1024;
 
 /**
- * 页面即将隐藏/关闭时的兜底落盘。
+ * Last-chance save when the page is about to be hidden or closed.
  *
- * 输入要经 ~120ms 节流才进 store，自动保存又压着 500/800ms 防抖，这个窗口里关标签页
- * 或刷新，最后敲的几个字就没了。这里全程同步：pagehide 之后浏览器不保证再跑任何回调，
- * 任何 await / setTimeout 后面的代码都可能永远不执行。
+ * Input goes through a ~120ms throttle before reaching the store, and autosave adds a 500/800ms debounce; closing the tab
+ * or refreshing in that window loses the last few keystrokes. Everything here is synchronous: after pagehide the browser doesn't guarantee any more callbacks,
+ * so code after any await / setTimeout may never run.
  *
- * 全程静默：这一刻弹 toast 用户根本看不到，也不归档手动版本（那是 ⌘S 的语义）。
+ * Fully silent: a toast at this moment would never be seen, and no manual version is archived (that's what ⌘S means).
  */
 function persistOnHide() {
-  // 第一步：借 flushOnly 事件让编辑器把节流窗口里压着的最后一次输入吐进 store。
-  // dispatchEvent 是同步调用，监听器（MarkdownEditor 的 pushChange.flush）返回时
-  // store 里已经是最新正文；useEditorSave 自己的监听见到 flushOnly 会直接跳过。
+  // Step one: use the flushOnly event to make the editor flush the last throttled input into the store.
+  // dispatchEvent is synchronous, so by the time the listener (MarkdownEditor's pushChange.flush) returns,
+  // the store holds the latest body; useEditorSave's own listener skips flushOnly events.
   window.dispatchEvent(new CustomEvent("xedit:save-now", { detail: { flushOnly: true } }));
 
   const doc = useStore.getState();
   const { docId, title, content, category } = doc;
-  // 已经落过盘就别白写一遍：云端文档会平白标脏、多推一次
+  // Already saved, so don't write again: cloud docs would be marked dirty for nothing and pushed one extra time
   if (!docId || isDocumentSaved(doc)) return;
 
   if (isLocalId(docId)) {
-    // Vault（磁盘文件夹）后端的写盘是异步的：内存缓存同步更新，真正落到文件要等
-    // File System Access 的 Promise，pagehide 之后不一定跑得完 —— 尽力而为。
-    // 浏览器 localStorage 后端是同步写，能保住。
+    // The Vault (disk folder) backend writes asynchronously: the in-memory cache updates synchronously, but the actual file write waits on
+    // a File System Access Promise that may not finish after pagehide -- best effort only.
+    // The browser localStorage backend writes synchronously, so that one is safe.
     try {
       updateLocalDoc(docId, { title, content, category });
     } catch {
-      // 存储写满：这一刻没法提示用户，只能放弃
+      // Storage is full: there's no way to tell the user right now, so give up
     }
     return;
   }
 
-  // 云端文档沿用 persistEditorDocument 的「本地优先」第一步：先写镜像并标脏，
-  // 网络那半截换成下面的 keepalive 请求。写不进去就直接放弃，没有别的退路。
+  // Cloud docs reuse the first, local-first step of persistEditorDocument: write the mirror and mark it dirty,
+  // with the network half replaced by the keepalive request below. If the write fails, give up; there's no other fallback.
   try {
     saveMirrorLocal(docId, { title, content, category });
   } catch {
     return;
   }
-  // 这里刻意不调 rememberSavedDocument：落盘基准一旦推平，回到前台后自动保存会认为
-  // 「没有改动」而跳过云端推送，内容只能等同步引擎下一轮。保持脏值，正常那条链路照走。
+  // Deliberately not calling rememberSavedDocument: once the saved baseline is updated, autosave would think there are
+  // "no changes" when the page comes back and skip the cloud push, leaving it to the next sync round. Keep it dirty so the normal path still runs.
 
   if (!navigator.onLine) return;
-  // 同步引擎正推着这一篇：那一轮要么带的就是这份内容，要么会自动再跑一轮补上。
-  // 这时再发 keepalive 就是同一篇两个请求抢着写，到达顺序还不保证，不如让路。
+  // The sync engine is already pushing this doc: that round either carries this content or will run again to catch up.
+  // Sending a keepalive now would mean two requests racing to write the same doc with no ordering guarantee, so step aside.
   if (isPushInFlight(docId)) return;
-  // 冲突判定的基线：刚写完镜像，这里读到的就是这份本地副本派生自的服务端版本
+  // Baseline for conflict detection: the mirror was just written, so this reads the server version this local copy derives from
   const base = getMirrorMeta(docId)?.baseUpdatedAt;
   const body = JSON.stringify({
     title,
@@ -179,10 +179,10 @@ function persistOnHide() {
     content,
     ...(base ? { baseUpdatedAt: base } : {}),
   });
-  // Blob 按 UTF-8 计字节：中文一个字 3 字节，不能拿字符串 length 当大小
+  // Blob counts UTF-8 bytes: a CJK character is 3 bytes, so string length can't be used as the size
   if (new Blob([body]).size > KEEPALIVE_LIMIT) return;
-  // keepalive 让请求活过页面卸载。成功与否都不管：读不到响应就没法 markMirrorSynced，
-  // 镜像继续脏着，下次同步引擎再推一遍（服务端是整篇覆盖，重复推没有副作用）。
+  // keepalive lets the request outlive the page unload. Ignore the outcome: without a response we can't markMirrorSynced,
+  // so the mirror stays dirty and the sync engine pushes it again next time (the server overwrites the whole doc, so repeats are harmless).
   void fetch(`/api/documents/${docId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -191,7 +191,7 @@ function persistOnHide() {
   }).catch(() => undefined);
 }
 
-/** 管理保存触发时机与版本归档；文档加载完成后调用，保留同次提交中先装载再判脏的顺序。 */
+/** Manages when saves fire and version archiving; call after the doc loads, preserving the load-then-dirty-check order within one commit. */
 export function useEditorSave() {
   const idleVersionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedThisSession = useRef(false);
@@ -200,8 +200,8 @@ export function useEditorSave() {
     if (idleVersionTimer.current) clearTimeout(idleVersionTimer.current);
   }, []);
 
-  // 页面离开时：先把还没落盘的正文存住（persistOnHide），再补一次自动存档；
-  // 服务端负责自动版本的节流与改动量门槛。
+  // On page leave: first save any unsaved body (persistOnHide), then add an automatic snapshot;
+  // the server handles throttling and the change-size threshold for automatic versions.
   useEffect(() => {
     const archiveVersion = () => {
       const id = useStore.getState().docId;
@@ -217,8 +217,8 @@ export function useEditorSave() {
       persistOnHide();
       archiveVersion();
     };
-    // visibilitychange 是移动端与「切走标签页后被系统回收」唯一可靠的信号：
-    // 这些场景下 pagehide 常常根本不发。回到前台不用做什么，正常的防抖保存会接着跑。
+    // visibilitychange is the only reliable signal on mobile and when "the tab is discarded after switching away":
+    // pagehide often never fires in those cases. Nothing to do on return; the normal debounced save just continues.
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") persistOnHide();
     };
@@ -232,8 +232,8 @@ export function useEditorSave() {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      // 切标签前的落盘只是借这条事件让编辑器把节流中的输入吐进 store，
-      // 保存由发起方（useWorkspaceNav）就地完成，这里不该再弹提示、归档手动版本
+      // The pre-tab-switch flush only borrows this event to make the editor push throttled input into the store;
+      // the initiator (useWorkspaceNav) does the save itself, so don't show toasts or archive a manual version here
       if ((e as CustomEvent<{ flushOnly?: boolean }>).detail?.flushOnly) return;
       void saveNow();
     };
@@ -246,7 +246,7 @@ export function useEditorSave() {
   const content = useStore((s) => s.content);
   const category = useStore((s) => s.category);
 
-  // 登记「编辑器正开着这篇」：待办写回据此决定走 store 还是直接写存储
+  // Register that the editor has this doc open: todo write-backs use it to choose between the store and writing storage directly
   useEffect(() => {
     setMountedDocId(docId);
     return () => setMountedDocId(null);
@@ -254,7 +254,7 @@ export function useEditorSave() {
 
   useEffect(() => {
     if (!docId) {
-      // 装载 effect 可能在同一次提交中设好 docId，不能用旧的 null 覆盖已装载文档的状态。
+      // The load effect may set docId in the same commit, so don't overwrite the loaded doc's state with a stale null.
       if (!useStore.getState().docId) useStore.getState().setSaveState("local");
       return;
     }
@@ -264,7 +264,7 @@ export function useEditorSave() {
       const result = await saveDocument(doc, false);
       if (result !== "synced") return;
       savedThisSession.current = true;
-      // 停止编辑 5 分钟后存档；成功保存下一次编辑时重新计时。
+      // Snapshot after 5 minutes of no edits; after a successful save the timer restarts on the next edit.
       if (idleVersionTimer.current) clearTimeout(idleVersionTimer.current);
       idleVersionTimer.current = setTimeout(() => {
         void fetch(`/api/documents/${docId}/versions`, {

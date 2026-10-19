@@ -1,9 +1,9 @@
 /**
- * 「今天」视图的日期口径：一律本地时区的 `YYYY-MM-DD`。
+ * Date convention for the Today view: always local-time `YYYY-MM-DD`.
  *
- * 不用 toISOString：它折回 UTC，东八区凌晨写的待办会被算到前一天
- * （同 features/workspace/lib/recencyGroups.ts 的 dayKey）。这里比 dayKey 多补了零，
- * 因为日期键要拿来直接做字符串比较（逾期 = due < today），不补零 "2026-10-9" 会大于 "2026-10-10"。
+ * No toISOString: it folds back to UTC, so a todo written in the early morning in UTC+8 would land on the previous day
+ * (same as dayKey in features/workspace/lib/recencyGroups.ts). Unlike dayKey this zero-pads,
+ * because date keys are compared as strings (overdue = due < today), and unpadded "2026-10-9" sorts after "2026-10-10".
  */
 
 import { getLocale, type Locale } from "@/i18n/locale";
@@ -11,7 +11,7 @@ import { translate } from "@/i18n/t";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** 本地 YYYY-MM-DD（月日补零） */
+/** Local YYYY-MM-DD (zero-padded month and day) */
 export function dayKeyOf(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
@@ -20,21 +20,21 @@ export function todayKey(now: Date = new Date()): string {
   return dayKeyOf(now);
 }
 
-/** 日期键还原成本地零点；键不合法时返回 null */
+/** Date key back to local midnight; null if the key is invalid */
 function parseKey(key: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
   if (!m) return null;
   return makeDate(Number(m[1]), Number(m[2]), Number(m[3]));
 }
 
-/** 只接受真实存在的日期：2/30 这种 Date 会自己进位成 3/2，得拦下来 */
+/** Only accept dates that actually exist: Date rolls 2/30 over to 3/2, so it has to be caught */
 function makeDate(y: number, m: number, d: number): Date | null {
   const date = new Date(y, m - 1, d);
   if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
   return date;
 }
 
-/** 前后挪 delta 天：交给 setDate 处理月末、年末与夏令时的退位 */
+/** Shift by delta days: let setDate handle month-end, year-end and DST rollover */
 export function shiftDay(key: string, delta: number): string {
   const date = parseKey(key);
   if (!date) return key;
@@ -42,12 +42,12 @@ export function shiftDay(key: string, delta: number): string {
   return dayKeyOf(date);
 }
 
-/** 两个日期相差几天（b - a），按本地零点算，夏令时那一小时用四舍五入抹平 */
+/** Difference in days (b - a) by local midnight; rounding smooths over the DST hour */
 function diffDays(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);
 }
 
-/** 两个日期键相差几天（b - a）；任一个键不合法返回 0 */
+/** Difference in days between two date keys (b - a); 0 if either key is invalid */
 export function daysBetween(a: string, b: string): number {
   const da = parseKey(a);
   const db = parseKey(b);
@@ -55,13 +55,13 @@ export function daysBetween(a: string, b: string): number {
 }
 
 /**
- * 不带年份的 `@M/D`：默认今年；但若比今天早超过 180 天，多半是年底写明年初的事，算明年。
- * 180 天这个窗口让「刚过去的几个月」仍按今年算——那是真逾期，不能悄悄挪到明年。
+ * Year-less `@M/D`: defaults to this year, but if that's more than 180 days before today it's most likely a year-end note about early next year, so use next year.
+ * The 180-day window keeps "the past few months" in this year — those are genuinely overdue and must not quietly move to next year.
  */
 function inferYear(m: number, d: number, today: Date): Date | null {
   const thisYear = makeDate(today.getFullYear(), m, d);
   if (!thisYear) {
-    // 2/29 在今年不存在时，明年也多半不存在；照样走一遍兜底
+    // If 2/29 doesn't exist this year it probably doesn't next year either; run the fallback anyway
     return makeDate(today.getFullYear() + 1, m, d);
   }
   if (diffDays(thisYear, today) > 180) return makeDate(today.getFullYear() + 1, m, d);
@@ -69,12 +69,12 @@ function inferYear(m: number, d: number, today: Date): Date | null {
 }
 
 /**
- * 相对日期标签 → 偏移天数。中英文标签并存且与界面语言无关：
- * 标签写在文章正文里，同一篇可能中英混用，换了界面语言也不能让已有的待办失去日期。
+ * Relative date tag → day offset. Chinese and English tags coexist regardless of UI language:
+ * tags live in the article body, one doc may mix both, and switching UI language must not strip dates from existing todos.
  */
-// 用 Map 而不是对象字面量：`@constructor` 这类标签不能命中原型链上的属性
+// Map rather than an object literal: tags like `@constructor` must not hit prototype properties
 const RELATIVE_TAGS = new Map<string, number>([
-  ["今天", 0], // i18n-ignore 数据，不是界面文案
+  ["今天", 0], // i18n-ignore data, not UI copy
   ["明天", 1], // i18n-ignore
   ["昨天", -1], // i18n-ignore
   ["today", 0],
@@ -82,7 +82,7 @@ const RELATIVE_TAGS = new Map<string, number>([
   ["yesterday", -1],
 ]);
 
-/** 认得的标签 → 日期键；不认识返回 null（调用方原样保留那段文字） */
+/** Recognized tag → date key; null if unrecognized (caller keeps the text as-is) */
 function resolveTag(tag: string, today: string): string | null {
   const rel = RELATIVE_TAGS.get(tag.toLowerCase());
   if (rel !== undefined) return rel === 0 ? today : shiftDay(today, rel);
@@ -103,8 +103,8 @@ function resolveTag(tag: string, today: string): string | null {
 }
 
 /**
- * 标签（不含 @）→ 开始日 + 结束日。`a~b` 是时间段，两边各按 resolveTag 认；
- * 结束早于开始、或任一边不认识，整个标签都不认（返回 null）。单个日期的 end 为 null。
+ * Tag (without @) → start + end date. `a~b` is a range, each side resolved via resolveTag;
+ * if end precedes start or either side is unrecognized, the whole tag is rejected (null). end is null for a single date.
  */
 function resolveRange(tag: string, today: string): { due: string; end: string | null } | null {
   const i = tag.indexOf("~");
@@ -119,13 +119,13 @@ function resolveRange(tag: string, today: string): { due: string; end: string | 
 }
 
 /**
- * 每日重复标签（不含 @）：`每天` / `daily`，可带上次完成日 `每天:2026-10-10`。
- * 完成日记在标签里而不是另起一处：勾一下只改这一行，同步、导出、换设备都跟着正文走。
- * 冒号后不是真实存在的补零日期就整个不认（当普通文字留着），免得半截手误被悄悄当成每日任务。
- * word 是用户写的那个词（每天 / daily 原样大小写），改写时照用，不替用户换语言。
+ * Daily repeat tag (without @): `每天` / `daily`, optionally with the last completion date `每天:2026-10-10`.
+ * The completion date lives in the tag rather than elsewhere: checking it edits only this line, and sync, export and other devices follow the body.
+ * If what follows the colon isn't a real zero-padded date the whole tag is rejected (kept as plain text), so a half-typed typo doesn't silently become a daily task.
+ * word is the user's own word (每天 / daily, case preserved); rewrites reuse it rather than switching language for them.
  */
 export function parseRepeatTag(tag: string): { word: string; last: string | null } | null {
-  const m = /^(每天|daily)(?::(.*))?$/i.exec(tag); // i18n-ignore 标签数据
+  const m = /^(每天|daily)(?::(.*))?$/i.exec(tag); // i18n-ignore tag data
   if (!m) return null;
   if (m[2] === undefined) return { word: m[1], last: null };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(m[2]) || !parseKey(m[2])) return null;
@@ -133,16 +133,16 @@ export function parseRepeatTag(tag: string): { word: string; last: string | null
 }
 
 /**
- * 这个 `@xxx`（不含 @）是不是 parseDueTag 认得的标签（日期、`a~b` 时间段、每日重复）；
- * 改日期 / 改关联时据此决定剥不剥——重复标签和日期标签同占行尾那个位置，一视同仁
+ * Whether this `@xxx` (without @) is a tag parseDueTag recognizes (date, `a~b` range, daily repeat);
+ * used to decide whether to strip it when changing date / link — repeat and date tags occupy the same end-of-line slot, treated alike
  */
 export function isDueTag(tag: string, today: string): boolean {
   return parseRepeatTag(tag) !== null || resolveRange(tag, today) !== null;
 }
 
 /**
- * 文字末尾的每日重复标签（规则同 parseDueTag：行尾一个、前面有空白）：
- * 拆成前面的文字和标签本身（不含 @）；没有返回 null。记一件事时据此决定还要不要补日期标签。
+ * Daily repeat tag at the end of the text (same rules as parseDueTag: one at end of line, preceded by whitespace):
+ * split into the preceding text and the tag itself (without @); null if absent. Used when logging a task to decide whether to add a date tag.
  */
 export function splitRepeatTag(text: string): { text: string; tag: string } | null {
   const trimmed = text.trimEnd();
@@ -151,7 +151,7 @@ export function splitRepeatTag(text: string): { text: string; tag: string } | nu
   return { text: trimmed.slice(0, m.index).trimEnd(), tag: m[2] };
 }
 
-/** 下周一：今天之后的第一个周一（今天就是周一则是七天后） */
+/** Next Monday: the first Monday after today (seven days out if today is Monday) */
 export function nextMonday(today: string): string {
   const d = parseKey(today);
   if (!d) return today;
@@ -160,9 +160,9 @@ export function nextMonday(today: string): string {
 }
 
 /**
- * 剥掉任务文字末尾的日期标签。只认行尾一个、且前面有空白的 `@xxx`（或时间段 `@开始~结束`）：
- * 句中的 `@某人` 或邮箱不是日期，不该被吃掉；不认识的 `@xxx` 原样留在文字里。
- * end 是时间段的结束日，单个日期为 null。
+ * Strip the date tag at the end of task text. Only one trailing `@xxx` preceded by whitespace counts (or a range `@start~end`):
+ * a mid-sentence `@someone` or an email isn't a date and mustn't be eaten; unrecognized `@xxx` stays in the text.
+ * end is the range's end date, null for a single date.
  */
 export function parseDueTag(
   text: string,
@@ -173,8 +173,8 @@ export function parseDueTag(
 }
 
 /**
- * parseDueTag 的完整版：多给出每日重复的信息。每日任务的 due 恒为今天、没有结束日——
- * 它每天都该出现在左栏，既不会逾期也不会排到「接下来」；last 是标签里记的上次完成日。
+ * Full version of parseDueTag that also reports daily-repeat info. A daily task's due is always today with no end date —
+ * it should show in the left column every day, never overdue and never in 「接下来」 (Up next); last is the last completion date stored in the tag.
  */
 export function parseTaskTag(
   text: string,
@@ -188,7 +188,7 @@ export function parseTaskTag(
   const range = rep ? { due: today, end: null } : resolveRange(m[2], today);
   if (!range) return none;
   const rest = trimmed.slice(0, m.index).trimEnd();
-  // 整行只有一个标签时剥完就空了：保留原文，免得出现一条看不见文字的待办
+  // If the line is only a tag, stripping leaves nothing: keep the original so we don't get a todo with no visible text
   return {
     text: rest || trimmed,
     due: range.due,
@@ -198,7 +198,7 @@ export function parseTaskTag(
   };
 }
 
-/** Intl 格式化器按语言缓存：今天页每行待办都要格式化一次，别反复 new */
+/** Intl formatters cached per language: every todo row on the Today page formats once, don't keep new-ing them */
 const fmtCache = new Map<string, Intl.DateTimeFormat>();
 function fmt(locale: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
   const key = `${locale}|${JSON.stringify(opts)}`;
@@ -211,8 +211,8 @@ function fmt(locale: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFor
 }
 
 /**
- * 日期列的显示：今天 / 明天 / 同年 / 跨年。
- * zh：`10/6`、`2027/1/3`；en：`Oct 6`、`Jan 3, 2027`。
+ * Date column display: today / tomorrow / same year / different year.
+ * zh: `10/6`, `2027/1/3`; en: `Oct 6`, `Jan 3, 2027`.
  */
 export function formatDue(due: string, today: string, locale: Locale = getLocale()): string {
   if (due === today) return translate("今天", locale);
@@ -221,8 +221,8 @@ export function formatDue(due: string, today: string, locale: Locale = getLocale
 }
 
 /**
- * 永远显示数字的月日（formatDue 对今天 / 明天会换成文字，菜单右侧的提示要数字）。
- * zh：`10/12`、跨年 `2027/1/3`；en：`Oct 12`、`Jan 3, 2027`。
+ * Always-numeric month/day (formatDue swaps in words for today / tomorrow; the menu's right-hand hint needs numbers).
+ * zh: `10/12`, next year `2027/1/3`; en: `Oct 12`, `Jan 3, 2027`.
  */
 export function formatMonthDay(key: string, today: string, locale: Locale = getLocale()): string {
   const d = parseKey(key);
@@ -238,19 +238,19 @@ export function formatMonthDay(key: string, today: string, locale: Locale = getL
   return sameYear ? md : `${d.getFullYear()}/${md}`;
 }
 
-/** 短星期：zh `周三`，en `Wed`（窄日期列放不下 Wednesday） */
+/** Short weekday: zh `周三`, en `Wed` (Wednesday doesn't fit the narrow date column) */
 export function formatWeekday(key: string, locale: Locale = getLocale()): string {
   const d = parseKey(key);
   if (!d) return "";
   return locale === "en" ? fmt("en-US", { weekday: "short" }).format(d) : fmt("zh-CN", { weekday: "short" }).format(d);
 }
 
-/** 日数字（日期列的大号宋体那个） */
+/** Day number (the large serif one in the date column) */
 export function dayOfMonth(key: string): number {
   return parseKey(key)?.getDate() ?? 0;
 }
 
-/** 页面标题：zh `10 月 8 日` + `周四`；en `October 8` + `Thursday` */
+/** Page title: zh `10 月 8 日` + `周四`; en `October 8` + `Thursday` */
 export function formatDayTitle(key: string, locale: Locale = getLocale()): { main: string; sub: string } {
   const d = parseKey(key);
   if (!d) return { main: key, sub: "" };
@@ -261,14 +261,14 @@ export function formatDayTitle(key: string, locale: Locale = getLocale()): { mai
     };
   }
   return {
-    main: `${d.getMonth() + 1} 月 ${d.getDate()} 日`, // i18n-ignore 中文分支，英文走上面的 Intl
+    main: `${d.getMonth() + 1} 月 ${d.getDate()} 日`, // i18n-ignore Chinese branch; English uses Intl above
     sub: fmt("zh-CN", { weekday: "short" }).format(d),
   };
 }
 
 export type RelativeDay = "today" | "yesterday" | "tomorrow";
 
-/** 相对今天的叫法（语言无关的标识，由 UI 用 t() 显示）；不是前后一天就返回 null */
+/** Relative name for the date (a language-neutral id, shown by the UI via t()); null unless it's one day either side */
 export function relativeDayLabel(key: string, today: string): RelativeDay | null {
   if (key === today) return "today";
   if (key === shiftDay(today, -1)) return "yesterday";

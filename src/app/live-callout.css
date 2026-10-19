@@ -1,12 +1,12 @@
-/* 即时渲染里的提示块（Obsidian 式 Callout）。
-   与 live-preview.css 分开只为控制单文件长度（那份已经顶到上限），入口仍在 globals.css。
+/* Callout blocks (Obsidian-style) in live rendering.
+   Split from live-preview.css only to keep file length in check (that one is at the limit); still imported from globals.css.
 
-   配色走两层变量：每个类型只写一条「基色 + 浅底」，边框/底色/徽标/标题都从变量取，
-   加类型时只多一条声明。色值与 lib/callout.ts 的类型表逐条对应 ——
-   那张表同时是复制到公众号时内联样式的色值来源，两边对不上就会出现
-   「编辑器里是绿的、粘进公众号是灰的」。 */
+   Colors use two layers of variables: each type defines just a "base color + light background", and border/background/badge/title all read from them,
+   so adding a type is one more declaration. Color values match lib/callout.ts's type table entry for entry;
+   that table is also the source of inline style colors when copying to WeChat, so if the two disagree you get
+   "green in the editor, gray when pasted into WeChat". */
 
-/* 每种类型的基色与浅底 */
+/* Base color and light background per type */
 .cm-live-preview .cm-lp-callout-note { --lp-base: #4a6a85; --lp-wash: #f3f6fa; }
 .cm-live-preview .cm-lp-callout-tip { --lp-base: #2f8f5b; --lp-wash: #eef8f2; }
 .cm-live-preview .cm-lp-callout-info { --lp-base: #2b7cd3; --lp-wash: #eef4fd; }
@@ -17,28 +17,28 @@
 .cm-live-preview .cm-lp-callout-example { --lp-base: #4f5bd5; --lp-wash: #eff0fc; }
 .cm-live-preview .cm-lp-callout-success { --lp-base: #2f8f5b; --lp-wash: #eef8f2; }
 
-/* 亮色：直接用基色与浅底 */
+/* Light mode: use the base color and light background directly */
 .cm-live-preview .cm-lp-callout {
   --lp-hue: var(--lp-base);
   --lp-bg: var(--lp-wash);
 }
-/* 暗色：浅底会在深色纸面上亮成一块白斑，基色压在深底上又发闷 ——
-   底色改由基色兑出、主色提亮，一条规则覆盖全部类型 */
+/* Dark mode: the light background glows as a white patch on dark paper, and the base color looks dull on dark;
+   so the background is mixed from the base color and the main color is brightened, one rule for all types */
 [data-theme="dark"] .cm-live-preview .cm-lp-callout {
   --lp-hue: color-mix(in srgb, var(--lp-base) 55%, #ffffff);
   --lp-bg: color-mix(in srgb, var(--lp-base) 16%, transparent);
 }
 
-/* 整块：左侧类型色竖线 + 淡底。行级类，不随光标变化，零位移 */
+/* Whole block: left type-colored bar + faint background. A line-level class that doesn't change with the cursor, zero shift */
 .cm-live-preview .cm-line.cm-lp-callout {
   position: relative;
   border-left: 3px solid var(--lp-hue);
   padding-left: 10px;
-  /* 提示块是正文的一部分，不该像引用那样整体变浅 */
+  /* Callouts are part of the body and shouldn't fade as a whole like blockquotes */
   color: var(--ink);
 }
-/* 底色画在伪元素上并压到 z-index -3：直接给 .cm-line 上背景会盖住 drawSelection
-   画在 .cm-scroller 里的选区层（-2），选中后看不见高亮（与代码块卡片同一套做法） */
+/* The background is drawn on a pseudo-element pushed to z-index -3: a background on .cm-line itself would cover drawSelection's
+   selection layer (-2) in .cm-scroller, hiding the highlight when selected (same approach as code block cards) */
 .cm-live-preview .cm-line.cm-lp-callout::before {
   content: "";
   position: absolute;
@@ -47,8 +47,8 @@
   background: var(--lp-bg);
 }
 
-/* 类型徽标：替掉裸露的 [!tip]，小圆角描边的行内徽章。
-   保持行内元素（不改 display）：加了内边距也不会撑高行盒 */
+/* Type badge: replaces the bare [!tip] with a small rounded outlined inline badge.
+   Stays inline (display unchanged): the padding won't make the line box taller */
 .cm-live-preview .cm-lp-callout-badge {
   padding: 0 6px;
   margin-right: 4px;
@@ -59,7 +59,7 @@
   font-weight: 600;
 }
 
-/* 用户自定义标题：取类型色并加粗。不做替换，光标进出首行时字形宽度不变 */
+/* User-defined title: takes the type color and goes bold. No replacement, so glyph width doesn't change as the cursor enters/leaves the first line */
 .cm-live-preview .cm-lp-callout-title {
   color: var(--lp-hue);
   font-weight: 600;

@@ -35,7 +35,7 @@ interface Params {
   nav: WorkspaceNav;
 }
 
-/** 文章的增删改与列表刷新，按本地模式 / 离线 / 云端三条路径分派 */
+/** Doc create/update/delete and list refresh, dispatched across three paths: local mode / offline / cloud */
 export function useDocActions({ auth, library, nav }: Params) {
   const { localMode, online } = auth;
   const { setDocs, setCustomCats, setTrashDocs } = library;
@@ -43,7 +43,7 @@ export function useDocActions({ auth, library, nav }: Params) {
   const [refreshing, setRefreshing] = useState(false);
   const [pushingFeishu, setPushingFeishu] = useState(false);
 
-  /** 手动刷新：登录态跑一轮完整同步（拉取其他设备 / MCP 客户端的改动），本地模式重读本地库 */
+  /** Manual refresh: when logged in, run a full sync (pulling changes from other devices / MCP clients); in local mode, reread the local library */
   const refreshDocs = async () => {
     if (refreshing) return;
     setRefreshing(true);
@@ -59,11 +59,11 @@ export function useDocActions({ auth, library, nav }: Params) {
             .catch(() => []);
           setTrashDocs(list);
         } else {
-          await syncNow(); // 完成后 SYNC_DONE_EVENT 会刷新列表，这里再兜底读一次
+          await syncNow(); // SYNC_DONE_EVENT refreshes the list when done; read once more here as a fallback
           setDocs(mergedCloudList());
         }
       };
-      // 至少转 400ms，避免瞬间完成时图标闪一下看不出反馈
+      // Spin for at least 400ms so an instant finish doesn't just flash the icon with no visible feedback
       await Promise.all([work(), new Promise((r) => setTimeout(r, 400))]);
       toast(t("已刷新"), "success");
     } finally {
@@ -71,7 +71,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     }
   };
 
-  /** 本地建稿（未登录，或登录但离线——联网后由同步引擎自动上云） */
+  /** Create a doc locally (logged out, or logged in but offline — the sync engine uploads it once back online) */
   const createDocLocally = (
     cat: string,
     relist: () => DocMeta[],
@@ -88,7 +88,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     }
   };
 
-  /** @param init 预填字段：标题（`[[双向链接]]` 指向不存在的文章时按目标标题建稿）与正文（套模板） */
+  /** @param init Prefilled fields: title (when a `[[wikilink]]` points to a missing doc, create it with the target title) and body (from a template) */
   const createDoc = async (category?: string, init?: { title?: string; content?: string }) => {
     const cat = category ?? (isVirtualCat(nav.activeCat) ? UNCATEGORIZED : nav.activeCat);
     const title = init?.title?.trim() || UNTITLED_DOC;
@@ -105,7 +105,7 @@ export function useDocActions({ auth, library, nav }: Params) {
       });
       if (!res.ok) throw new Error();
       const doc = await res.json();
-      applyServerDoc(doc); // 新文档立即入镜像，编辑页/离线随时可用
+      applyServerDoc(doc); // New docs go into the mirror right away, available to the editor and offline at any time
       logEvent({ kind: "create", docId: doc.id, title: doc.title });
       setDocs(mergedCloudList());
       nav.openDoc(doc.id);
@@ -117,17 +117,17 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 
   /**
-   * 静默建稿：建好只刷新列表，不跳转打开。给「今天」页的快速输入用——
-   * 记一件事时自动建出待办清单那篇，用户人还该留在今天页。
-   * 失败直接抛（存储写满 / 接口报错），由调用方决定怎么提示。返回新文章 id。
-   * opts.log 为 false 时不记「新建」到当日记录：待办清单那篇是实现细节，
-   * 不该出现在「做了」和月统计的「新建的文章」里。
+   * Silent create: only refresh the list after creating, without opening it. Used by Today page quick add —
+   * noting a task auto-creates the todo-list doc, and the user should stay on the Today page.
+   * Failures throw directly (storage full / API error); the caller decides how to report them. Returns the new doc id.
+   * With opts.log false, "created" isn't recorded in the daily log: the todo-list doc is an implementation detail
+   * and shouldn't appear in "Done" or the monthly stats' "Docs created".
    */
   const createDocQuietly = async (
     title: string,
     content: string,
     opts?: { log?: boolean },
-    /** 落到哪个分类；不给就是「未分类」（待办清单那篇、快速建稿都走默认） */
+    /** Which category it goes into; defaults to 「未分类」 (the todo-list doc and quick creates both use the default) */
     category: string = UNCATEGORIZED
   ): Promise<string> => {
     const log = opts?.log !== false;
@@ -152,8 +152,8 @@ export function useDocActions({ auth, library, nav }: Params) {
   };
 
   /**
-   * 按模板建稿：复制模板正文（含 frontmatter），替换 `{{date}}` 之类的变量。
-   * 先问标题，因为 `{{title}}` 要用它，写完才能落库。
+   * Create from a template: copy the template body (including frontmatter) and substitute variables like `{{date}}`.
+   * Ask for the title first, since `{{title}}` needs it before the doc can be saved.
    */
   const createFromTemplate = async (template: DocMeta, category?: string) => {
     const name = (
@@ -163,9 +163,9 @@ export function useDocActions({ auth, library, nav }: Params) {
         defaultValue: defaultTitleFromTemplate(template.title),
       })
     )?.trim();
-    if (!name) return; // 取消
+    if (!name) return; // Cancelled
     const title = name.slice(0, 200);
-    // 从模板建出来的是正经文章，不该落回模板分类（当前正停在「模板」目录里时尤其）
+    // A doc created from a template is a real doc and shouldn't land back in the template category (especially when currently inside the 「模板」 folder)
     const fallback =
       isVirtualCat(nav.activeCat) || isTemplateCategory(nav.activeCat)
         ? UNCATEGORIZED
@@ -179,7 +179,7 @@ export function useDocActions({ auth, library, nav }: Params) {
   const removeDoc = async (doc: DocMeta) => {
     const label = doc.title || t(UNTITLED_DOC);
     if (localMode) {
-      // 磁盘文库的删除是移进 .trash/（后端 deleteDoc 已如此），浏览器存储则是真删
+      // Deleting in a disk library moves into .trash/ (the backend's deleteDoc already does this); browser storage deletes for real
       const vault = getActiveVault();
       const ok = await askConfirm({
         title: t("删除文章"),
@@ -192,8 +192,8 @@ export function useDocActions({ auth, library, nav }: Params) {
       if (!ok) return;
       deleteLocalDoc(doc.id);
       setDocs(listLocalDocs());
-      notifyDocsChanged(); // 回收站列表也听这个事件
-      // 删掉的文章不该还开着：正读着它就退回列表
+      notifyDocsChanged(); // The trash list listens for this event too
+      // A deleted doc shouldn't stay open: if it's being read, go back to the list
       if (nav.readingId === doc.id) nav.setReadingId(null);
       toast(vault ? t("已移入回收站") : t("已删除"), "success");
       return;
@@ -213,7 +213,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     if (res.ok) {
       removeMirrorDoc(doc.id);
       setDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      // 移进回收站的文章同样不该还开着
+      // A doc moved to the trash shouldn't stay open either
       if (nav.readingId === doc.id) nav.setReadingId(null);
       toast(t("已移入回收站"), "success");
     } else {
@@ -224,8 +224,8 @@ export function useDocActions({ auth, library, nav }: Params) {
   const restoreDoc = async (doc: DocMeta) => {
     const vault = localMode ? getActiveVault() : null;
     if (vault) {
-      // 先看恢复成不成，再动列表：失败时把行留在回收站里，否则文件还在 .trash/
-      // 却已从列表消失，用户再也找不到它（只能刷新页面）
+      // Check whether the restore succeeded before touching the list: on failure keep the row in the trash; otherwise the file would still be in .trash/
+      // but gone from the list, and the user could never find it again (short of reloading the page)
       const back = vault.restoreFromTrash(doc.id);
       if (!back) {
         toast(t("恢复失败：回收站里找不到这个文件"), "error");
@@ -244,7 +244,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     });
     if (res.ok) {
       setTrashDocs((prev) => prev?.filter((d) => d.id !== doc.id) ?? null);
-      // 恢复的文章由同步引擎拉回镜像并刷新列表
+      // The sync engine pulls the restored doc back into the mirror and refreshes the list
       void syncNow();
       toast(t("已恢复"), "success");
     } else {
@@ -280,7 +280,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     }
   };
 
-  /** 清空回收站：只在磁盘文库下可用（.trash/ 里的文件全删） */
+  /** Empty the trash: only available for disk libraries (deletes everything in .trash/) */
   const emptyVaultTrash = async () => {
     const vault = localMode ? getActiveVault() : null;
     if (!vault) return;
@@ -303,11 +303,11 @@ export function useDocActions({ auth, library, nav }: Params) {
 
   const moveDoc = async (doc: DocMeta, category: string) => {
     const local = localMode || isLocalId(doc.id);
-    // 正在编辑的就是这篇：编辑器 store 里的分类必须同步换掉，
-    // 否则下一次自动保存会带着旧分类整包回写，文章又「跳回」原文件夹
+    // This is the doc being edited: the category in the editor store must change too,
+    // otherwise the next autosave writes the whole thing back with the old category and the doc "jumps back" to its old folder
     const store = useStore.getState();
     if (store.docId === doc.id) store.setCategory(category);
-    // 本地优先：未上云的落本地库，已上云的先落镜像（离线同样生效）再推送
+    // Local-first: docs not yet in the cloud go to the local library; cloud docs go to the mirror first (works offline too), then get pushed
     if (local) updateLocalDoc(doc.id, { category });
     else saveMirrorLocal(doc.id, { category });
     setDocs((prev) => prev?.map((d) => (d.id === doc.id ? { ...d, category } : d)) ?? null);
@@ -325,8 +325,8 @@ export function useDocActions({ auth, library, nav }: Params) {
     )?.trim();
     if (!name || name === doc.title) return;
     const title = name.slice(0, 200);
-    // 正在编辑的就是这篇：只改编辑器状态，持久化与推送交给自动保存，
-    // 免得这里先写库、编辑器又用旧标题回写覆盖
+    // This is the doc being edited: only change editor state and leave persistence and pushing to autosave,
+    // so we don't write the library here only to have the editor overwrite it with the old title
     const store = useStore.getState();
     if (nav.readingId === doc.id && store.docId === doc.id) {
       store.setTitle(title);
@@ -351,7 +351,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     void moveDoc(doc, name.slice(0, 100));
   };
 
-  /** 推送/写回飞书：冲突时确认后强制覆盖；未开写入权限时引导升级授权 */
+  /** Push/write back to Feishu: on conflict, force overwrite after confirmation; without write permission, guide the user to upgrade the authorization */
   const pushToFeishu = async (doc: DocMeta) => {
     if (localMode || isLocalId(doc.id)) {
       toast(t("本地文章还没上云，登录并同步后才能推送到飞书"), "error");
@@ -364,7 +364,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     if (pushingFeishu) return;
     setPushingFeishu(true);
     try {
-      await syncNow(); // 先把手上未保存的改动冲上云，推的才是最新内容
+      await syncNow(); // Flush unsaved local changes to the cloud first so what gets pushed is the latest content
       toast(t("正在推送到飞书，篇幅长或图片多时需要一点时间…"), "info");
       const push = (force: boolean) =>
         fetch("/api/feishu/push", {

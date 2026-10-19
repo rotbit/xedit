@@ -33,14 +33,14 @@ interface Params {
   activeCat: string;
 }
 
-/** 排序存哪儿看当前后端：Vault 的那份跟着文件夹走（换设备也带着），
- *  浏览器存储的仍落 localStorage */
+/** Where the ordering is stored depends on the backend: for a Vault it travels with the folder (follows you across devices);
+ *  browser storage still uses localStorage */
 function readActiveOrder(): SidebarOrder {
   const vault = getActiveVault();
   return vault ? parseSidebarOrder(vault.loadOrder()) : readLocalOrder();
 }
 
-/** 两份列表在侧栏可见字段上是否一致（顺序敏感，列表本身已排好序） */
+/** Whether two lists match on the fields visible in the sidebar (order-sensitive; the lists are already sorted) */
 function sameDocList(a: DocMeta[], b: DocMeta[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((d, i) => {
@@ -55,10 +55,10 @@ function sameDocList(a: DocMeta[], b: DocMeta[]): boolean {
 }
 
 /**
- * 拿掉待办清单那篇：它只是今天页独立待办的存储载体（借文章走同步，跨设备免费），
- * 对用户是实现细节，不该出现在分类树、文章数、搜索、最近列表里。
- * findNotesDoc 按 updatedAt 缓存解析结果（侧栏计数本就每次遍历同一批），这里不另付读正文的开销。
- * 没有清单那篇时原样返回同一引用，免得白换引用打穿下游的 useMemo。
+ * Remove the todo-list doc: it's just the storage vehicle for standalone todos on the Today page (riding on doc sync, cross-device for free),
+ * an implementation detail that shouldn't show up in the category tree, doc counts, search or recent lists.
+ * findNotesDoc caches parse results by updatedAt (sidebar counts walk the same batch every time anyway), so no extra cost of reading bodies here.
+ * Without a todo-list doc, return the same reference unchanged so a needless new reference doesn't bust downstream useMemos.
  */
 function hideNotesDoc(list: DocMeta[]): DocMeta[] {
   const notes = findNotesDoc(list);
@@ -66,25 +66,25 @@ function hideNotesDoc(list: DocMeta[]): DocMeta[] {
 }
 
 /**
- * 文章库与分类的数据装载。完全本地优先：登录态列表先从本地镜像
- * （+ 待上云的本地文档）秒出，同步引擎每轮完成后再刷新。
+ * Loads the doc library and categories. Fully local-first: when logged in the list comes instantly from the local mirror
+ * (+ local docs pending upload) and is refreshed after each sync engine round.
  */
 export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }: Params) {
   const [docs, setDocs] = useState<DocMeta[] | null>(null);
   const [customCats, setCustomCats] = useState<string[]>([]);
   const [trashDocs, setTrashDocs] = useState<DocMeta[] | null>(null);
-  // 侧栏手动排序：本地缓存秒出，登录后被服务端覆盖
+  // Manual sidebar ordering: shown instantly from local cache, overwritten by the server after login
   const [order, setOrder] = useState<SidebarOrder>(readActiveOrder);
   const migratedRef = useRef(false);
 
-  // updater 里只能算新值：StrictMode 会把它跑两遍，写盘/PUT 放进去就成了双份。
-  // 副作用挪到外面，新值靠这个 ref 前移（同一 tick 里连着调也基于最新值）
+  // The updater may only compute the new value: StrictMode runs it twice, so writing to disk / PUT inside would happen twice.
+  // Side effects move outside, and the new value advances through this ref (so back-to-back calls in the same tick build on the latest)
   const orderRef = useRef(order);
   useEffect(() => {
     orderRef.current = order;
   }, [order]);
 
-  /** 更新排序：本地立即生效并缓存，登录态经防抖通道推服务端（失败不打扰，下次改动再带上） */
+  /** Update ordering: applies and caches locally right away; when logged in, pushed to the server via a debounced channel (failures stay quiet and ride along with the next change) */
   const updateOrder = (mutate: (prev: SidebarOrder) => SidebarOrder) => {
     const next = mutate(orderRef.current);
     orderRef.current = next;
@@ -92,11 +92,11 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     const vault = localMode ? getActiveVault() : null;
     if (vault) vault.saveOrder(next);
     else writeLocalOrder(next);
-    // 连续拖排序会连着调好几次，交给通道合并成一个 PUT
+    // Consecutive drag reorders call this several times in a row; the channel merges them into one PUT
     if (loggedIn) queueSettingsWrite({ sidebarOrder: next });
   };
 
-  // 本地模式：文章与分类都从本地库读；渲染期间带守卫地装载（React 推荐模式）
+  // Local mode: docs and categories are read from the local library; loaded during render with a guard (React's recommended pattern)
   const [localLoaded, setLocalLoaded] = useState(false);
   if (localMode && !localLoaded) {
     setLocalLoaded(true);
@@ -104,15 +104,15 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     setCustomCats(listLocalCats());
   }
 
-  // 登录态列表同样在渲染期间带守卫地从本地镜像秒出
+  // When logged in the list likewise comes instantly from the local mirror during render, with a guard
   const [cloudLoaded, setCloudLoaded] = useState(false);
   if ((loggedIn || offlineAuthed) && !cloudLoaded) {
     setCloudLoaded(true);
     setDocs(mergedCloudList());
   }
 
-  // 本机数据一有写入（编辑器改标题/正文、移动分类）立即刷新列表，
-  // 不用等同步引擎跑完一整轮——侧栏文件名要跟着编辑实时变
+  // Refresh the list as soon as anything is written locally (editor title/body changes, category moves),
+  // without waiting for a full sync engine round — sidebar file names should follow edits live
   useEffect(() => {
     const refresh = () => {
       const next = localMode
@@ -120,15 +120,15 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
         : loggedIn || offlineAuthed
           ? mergedCloudList()
           : null;
-      // 内容没变就复用旧引用：DOCS_CHANGED 广播比实际变化频繁，
-      // 空换新数组会打穿侧栏树/筛选的所有 useMemo 引发全树重渲染
+      // Reuse the old reference if nothing changed: DOCS_CHANGED fires more often than real changes,
+      // and swapping in a new array would bust every useMemo in the sidebar tree/filters and re-render the whole tree
       if (next) setDocs((prev) => (prev && sameDocList(prev, next) ? prev : next));
     };
     window.addEventListener(DOCS_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(DOCS_CHANGED_EVENT, refresh);
   }, [loggedIn, offlineAuthed, localMode]);
 
-  // 本地后端被换掉（打开/关闭 Vault）：文章、分类、排序全是另一个库的，整份重读
+  // The local backend was swapped (Vault opened/closed): docs, categories and ordering all belong to another library, so reread everything
   useEffect(() => {
     if (!localMode) return;
     const reload = () => {
@@ -140,8 +140,8 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     return () => window.removeEventListener(LOCAL_BACKEND_CHANGED_EVENT, reload);
   }, [localMode]);
 
-  // 自建分类（允许空分类存在）与侧栏排序。与排版偏好共用 useSettings 里那一次 GET，
-  // 首屏不再为同一份设置发两个请求
+  // Custom categories (empty ones allowed) and sidebar ordering. Shares the single GET in useSettings with typography prefs,
+  // so the first screen doesn't send two requests for the same settings
   const applySettings = useCallback((st: UserSettingsRow) => {
     try {
       const list = JSON.parse(st.categories ?? "[]");
@@ -149,9 +149,9 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
         setCustomCats(list.filter((c: unknown): c is string => typeof c === "string"));
       }
     } catch {
-      // 忽略脏数据
+      // Ignore bad data
     }
-    // 服务端的排序覆盖本地缓存（跨设备一致）；服务端还没存过则保留本地
+    // Server ordering overrides the local cache (consistent across devices); if the server has none yet, keep the local one
     if (st.sidebarOrder && st.sidebarOrder !== "{}") {
       const remote = parseSidebarOrder(st.sidebarOrder);
       setOrder(remote);
@@ -160,10 +160,10 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
   }, []);
   useCloudSettings(loggedIn, applySettings);
 
-  // 同步引擎：每轮完成后刷新列表；云端为空且编辑器里有未登录时写的稿子，就把它搬上云
-  //（欢迎稿由服务端在账号创建时生成一次，这里不补：删光文章的老用户不该每次登录都多一篇）
+  // Sync engine: refresh the list after each round; if the cloud is empty and the editor holds a draft written while logged out, move it to the cloud
+  // (the welcome doc is created once by the server at account creation and isn't added here: returning users who deleted everything shouldn't get one more on every login)
   useEffect(() => {
-    // 本机账号快照由 useAuthMode 写（它排在前面，换账号的清库也在那儿做完了）
+    // The local account snapshot is written by useAuthMode (it runs earlier, and clearing the library on account switch is done there too)
     if (!loggedIn && !offlineAuthed) return;
     const refresh = () => {
       setDocs(mergedCloudList());
@@ -171,7 +171,7 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
         loggedIn &&
         !migratedRef.current &&
         listMirrorDocs().length === 0 &&
-        // 只看浏览器后端：Vault 里有文件不代表要往云端搬
+        // Only look at the browser backend: files in a Vault don't mean they should be moved to the cloud
         getBrowserBackend().listDocs().length === 0
       ) {
         migratedRef.current = true;
@@ -194,7 +194,7 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
       }
     };
     window.addEventListener(SYNC_DONE_EVENT, refresh);
-    // 日志同步的监听先挂上：startSync 首轮 syncNow 里就会推拉当日记录
+    // Attach the log sync listener first: startSync's first syncNow already pushes and pulls the daily log
     const stopDayLog = startDayLogSync();
     const stop = startSync();
     return () => {
@@ -204,15 +204,15 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
     };
   }, [loggedIn, offlineAuthed]);
 
-  // 回收站列表（进入回收站时拉取）：本地模式读 Vault 的 .trash/，登录态问服务端
+  // Trash list (fetched on entering the trash): local mode reads the Vault's .trash/, logged-in mode asks the server
   useEffect(() => {
     if (activeCat !== TRASH || !localMode) return;
     const refresh = () => {
       const vault = getActiveVault();
-      // 浏览器存储没有回收站（删除即删除），列表留空由 DocListStates 出空文案
+      // Browser storage has no trash (delete means delete); the list stays empty and DocListStates shows the empty copy
       setTrashDocs(vault ? vault.listTrash() : []);
     };
-    // effect 里不能同步 setState（react-hooks/set-state-in-effect），推到微任务
+    // Can't setState synchronously in an effect (react-hooks/set-state-in-effect), so defer to a microtask
     queueMicrotask(refresh);
     window.addEventListener(DOCS_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(DOCS_CHANGED_EVENT, refresh);
@@ -237,9 +237,9 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
   const visibleDocs = useMemo(() => docs && hideNotesDoc(docs), [docs]);
 
   return {
-    /** 用户看得见的文章：不含待办清单那篇。侧栏、计数、搜索、列表一律用它 */
+    /** User-visible docs: excluding the todo-list doc. Used everywhere for the sidebar, counts, search and lists */
     docs: visibleDocs,
-    /** 全库（含待办清单那篇）：待办汇总 / 写回、导入去重、缓存清理这类要看全库的地方用 */
+    /** The whole library (including the todo-list doc): for places that need everything, like todo aggregation / write-back, import dedupe and cache cleanup */
     allDocs: docs,
     setDocs,
     customCats,

@@ -9,38 +9,38 @@ import { colorSpanPairFromOpen } from "@/lib/editor/colorSpan";
 import { t, tk } from "@/i18n/t";
 
 /**
- * 行内语法的即时渲染分支（强调、行内代码、删除线、链接、颜色 span、图片/视频、分割线）。
- * 从 livePreview/index.ts 里抽出来只为控制单文件长度，判定规则一以贯之：
- * 光标进入该语法范围内才显示标记，位移只发生在焦点处。
+ * Live-render branches for inline syntax (emphasis, inline code, strikethrough, links, color spans, images/video, dividers).
+ * Pulled out of livePreview/index.ts only to keep file length in check; the rule is consistent throughout:
+ * markers show only when the cursor enters that syntax range, so shifts happen only at the focus point.
  *
- * 只有颜色 span 不守这条规矩：它的标签常隐，光标进去也不现出源码（见下方 HTMLTag 分支）。
- * 别的行内标记就两三个字符，现出来位移小、也确实要手改（`**` 改 `*`）；
- * 颜色的开标签有三十多个字符，光标一进去整行被推出老远还夹着一串代码，
- * 而用户从没想改那串 style —— 要改颜色有工具栏，要看源码有源码模式。
+ * Color spans are the only exception: their tags stay hidden even with the cursor inside (see the HTMLTag branch below).
+ * Other inline markers are two or three chars, so revealing them shifts little, and they really do get hand-edited (`**` to `*`);
+ * a color opening tag is thirty-plus chars, so entering it would shove the line far right with a chunk of code in it,
+ * and users never want to edit that style — the toolbar changes colors, and source mode shows the source.
  *
- * 链接的点击语义（协议白名单、⌘/Ctrl+点击打开）也放这里 —— 生成 data-lp-href 的是本文件，
- * 让「什么样的地址可点」和「点了怎么办」待在一处，改一边不会漏掉另一边。
+ * Link click semantics (protocol allowlist, ⌘/Ctrl+click to open) also live here — this file produces data-lp-href,
+ * so "which URLs are clickable" and "what clicking does" stay together and changing one won't miss the other.
  */
 
 /**
- * 光标进入行内语法时现出的标记（**、*、~~、`）。
- * 直接现出原文会把同行文字向右推出一大截，看着像整行在抖；缩到 0.75em 再挤掉字距，
- * 占位只剩原来的一半多一点，抖动幅度随之减半。line-height 是无单位继承值，
- * 会跟着这里的字号一起缩小，所以行高不受影响、不会引起竖向跳动。
+ * Markers revealed when the cursor enters inline syntax (**, *, ~~, `).
+ * Revealing them at full size pushes the line's text far right and makes the whole line look like it's shaking; shrinking to 0.75em and tightening letter spacing
+ * leaves just over half the original footprint, halving the jitter. line-height is a unitless inherited value
+ * that scales with the font size here, so line height is unaffected and there's no vertical jump.
  */
 const INLINE_MARK = Decoration.mark({ class: "cm-lp-mark-inline" });
 
-/** Mac 上 Ctrl+点击等同右键（会弹上下文菜单），打开链接只认 ⌘；其余平台只认 Ctrl。
-    模块级算一次就够：装饰每次重建都要拼提示串，点击每次都要判修饰键 */
+/** On Mac, Ctrl+click is a right click (opens the context menu), so opening links only accepts ⌘; other platforms only accept Ctrl.
+    Computing it once at module level is enough: every decoration rebuild builds the hint string and every click checks modifiers */
 const IS_MAC = typeof navigator === "undefined" || /Mac|iPhone|iPad/i.test(navigator.userAgent);
 const OPEN_HINT = IS_MAC ? tk("⌘ + 点击打开") : tk("Ctrl + 点击打开");
 
-/** 允许交给 window.open 的协议：其余（javascript:、data:、vbscript: …）点一下就是在
-    自己的页面里跑别人写的代码，而文档内容可能来自导入/分享/协作，必须挡在渲染这一层——
-    过不了这关的链接连 data-lp-href 都不挂，既打不开也不给指针样式，看着就不是能点的东西 */
+/** Protocols allowed through to window.open: anything else (javascript:, data:, vbscript: …) means one click runs someone else's code
+    in our page, and document content may come from import/share/collaboration, so it must be blocked at the render layer —
+    links that fail this don't even get data-lp-href, so they can't open and get no pointer cursor; they don't look clickable */
 const SAFE_SCHEME = /^(?:https?|mailto|tel):/i;
 
-/** 通过则返回可安全打开的地址，挡下的返回 null。无协议的相对路径/锚点一律放行 */
+/** Returns a safe-to-open URL if allowed, null if blocked. Relative paths/anchors without a protocol are always allowed */
 function safeHref(raw: string): string | null {
   const href = raw.trim();
   if (!href) return null;
@@ -48,23 +48,23 @@ function safeHref(raw: string): string | null {
   return href;
 }
 
-/** 渲染态链接的点击目标：外链给 href，[[双向链接]] 给 wiki 标题 */
+/** Click target of a rendered link: href for external links, wiki title for [[wikilinks]] */
 export interface LinkTarget {
   readonly href?: string;
   readonly wiki?: string;
 }
 
 /**
- * ⌘/Ctrl+点击落在渲染出来的链接上时取出跳转目标，其余情况一律返回 null。
- * 单击＝定位光标（交回 CodeMirror 默认行为，随即现出源码可编辑），⌘/Ctrl+点击＝打开，
- * 与 Obsidian/Typora 一致：渲染后的链接文字首先是正文，点它多半是想在那儿落笔改字。
+ * Get the navigation target when ⌘/Ctrl+click lands on a rendered link; null in all other cases.
+ * Click = position the cursor (left to CodeMirror's default, which then reveals source for editing), ⌘/Ctrl+click = open,
+ * matching Obsidian/Typora: rendered link text is body text first, and clicking it usually means wanting to edit there.
  */
 export function linkTargetAt(e: MouseEvent): LinkTarget | null {
   if (e.button !== 0 || !(IS_MAC ? e.metaKey : e.ctrlKey)) return null;
   const dom = e.target as HTMLElement | null;
   const raw = dom?.closest?.("[data-lp-href]")?.getAttribute("data-lp-href");
   if (raw) {
-    // 装饰属性是 DOM 里的一串字符，渲染时虽已过滤，打开前仍再验一次
+    // The decoration attribute is just a string in the DOM; it was filtered at render time, but verify again before opening
     const href = safeHref(raw);
     return href ? { href } : null;
   }
@@ -72,12 +72,12 @@ export function linkTargetAt(e: MouseEvent): LinkTarget | null {
   return wiki ? { wiki } : null;
 }
 
-/** 给一组标记节点铺上缩小淡化的样式（空区间会被 RangeSet 拒绝，先滤掉） */
+/** Apply the shrunken, faded style to a set of marker nodes (empty ranges are rejected by RangeSet, so filter them first) */
 function softenMarks(ctx: LpContext, marks: readonly SyntaxNode[]) {
   for (const m of marks) if (m.from < m.to) ctx.decos.push(INLINE_MARK.range(m.from, m.to));
 }
 
-/** 由 livePreview 的装饰构建分发到这里的节点名 */
+/** Node names dispatched here by livePreview's decoration building */
 export const INLINE_NODE_NAMES = new Set([
   "Emphasis",
   "StrongEmphasis",
@@ -91,7 +91,7 @@ export const INLINE_NODE_NAMES = new Set([
   "WikiLink",
 ]);
 
-/** 返回 false 表示不再深入子节点（与 CodeMirror iterate 的约定一致） */
+/** Returning false means don't descend into children (same convention as CodeMirror's iterate) */
 export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | void {
   const { state, caret } = ctx;
   const { name } = node;
@@ -104,15 +104,15 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   }
 
   if (name === "HTMLTag") {
-    // 工具栏字体颜色写出的 <span style="color:…">…</span>：首尾标签一律藏起来、中间文字上色，
-    // 光标在不在范围里都一样（Notion/飞书式的「颜色是属性，不是代码」）。标签登记成 atomic，
-    // 左右键整体跳过；光标停在有色文字里可以直接改字，删除键由 editor/colorSpanKeys.ts 兜着。
+    // <span style="color:…">…</span> written by the toolbar font color: both tags are always hidden and the text between is colored,
+    // whether or not the cursor is in range (Notion/Feishu-style "color is an attribute, not code"). Tags are registered as atomic,
+    // so arrow keys skip them whole; with the cursor in colored text you can edit directly, and delete keys are handled by editor/colorSpanKeys.ts.
     const pair = colorSpanPairFromOpen(state, node.node);
     if (!pair) return;
-    // 中间一个字都没有：藏了就成了看不见又删不掉的垃圾，原样现出源码让用户处理
-    // （真删空了还有 colorSpanKeys 的兜底清理把这对空标签收走）
+    // Nothing in between: hiding it would leave invisible, undeletable junk, so show the source as-is for the user to handle
+    // (if it's truly emptied, colorSpanKeys' fallback cleanup removes the empty tag pair)
     if (pair.empty) return;
-    // 要藏就两个都藏：行内公式区间会被 hide 默默拒绝，只藏住一头会留个孤零零的标签在正文里
+    // Hide both or neither: inline math ranges are silently rejected by hide, and hiding just one end would leave a lone tag in the text
     if (ctx.inMath(pair.open.from, pair.open.to) || ctx.inMath(pair.close.from, pair.close.to)) {
       return;
     }
@@ -133,7 +133,7 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
       softenMarks(ctx, marks);
     } else {
       for (const m of marks) ctx.hide(m.from, m.to);
-      // 内容打上胶囊样式（内衬 + 圆角），只作用于行内代码，不波及代码块
+      // Give the content a pill style (inner padding + rounded corners), only for inline code, not code blocks
       if (marks.length >= 2 && marks[1].from > marks[0].to) {
         ctx.decos.push(Decoration.mark({ class: "cm-lp-ic" }).range(marks[0].to, marks[1].from));
       }
@@ -150,13 +150,13 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
 
   if (name === "Link") {
     const n = node.node;
-    // lezer 不认脚注，`[^id]` 会被解析成一个没有 URL 的链接。交给脚注分支处理并就此收手：
-    // 两边都装饰会在同一段上叠出两条 replace，CodeMirror 直接抛错
+    // lezer doesn't know footnotes, so `[^id]` parses as a link without a URL. Hand it to the footnote branch and stop here:
+    // decorating both would stack two replaces on the same span, and CodeMirror throws
     if (footnoteRef(ctx, n)) return false;
     if (caretTouches(caret, node.from, node.to)) {
-      // 编辑链接时现出的源码是全篇位移最大的一处（一条 URL 能有几十个字符）。
-      // URL 不截断也不 replace —— 要能正常编辑 —— 只把 "](url)" 整段缩小淡化，
-      // 前面的 "[" 按行内标记处理，位移就压到可接受的范围
+      // The source revealed when editing a link is the biggest shift in the whole doc (a URL can be dozens of chars).
+      // The URL is neither truncated nor replaced — it must be editable normally — only the "](url)" segment is shrunk and faded,
+      // and the leading "[" is treated as an inline marker, keeping the shift acceptable
       const marks = n.getChildren("LinkMark");
       if (marks.length > 0) softenMarks(ctx, [marks[0]]);
       if (marks.length >= 2 && marks[1].from < node.to) {
@@ -170,8 +170,8 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
     for (const m of marks) ctx.hide(m.from, m.to);
     if (url) ctx.hide(url.from, url.to);
     if (title) ctx.hide(title.from, title.to);
-    // 链接文字提示 URL，⌘/Ctrl+点击打开；单击照常定位光标（随即现出源码可编辑）——
-    // 与 Obsidian/Typora 一致：链接文字首先是正文，点它多半是想在那儿落笔改字
+    // Link text shows the URL as a tooltip and ⌘/Ctrl+click opens it; a plain click positions the cursor as usual (then reveals source for editing) —
+    // matching Obsidian/Typora: link text is body text first, and clicking it usually means wanting to edit there
     const href = url ? safeHref(state.sliceDoc(url.from, url.to)) : null;
     if (href && marks.length >= 2 && marks[1].from > marks[0].to) {
       ctx.decos.push(
@@ -185,10 +185,10 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   }
 
   if (name === "URL") {
-    // 裸链接 / 自动链接：Link、Image 里的 URL 已由整体处理，这里只管独立出现的
+    // Bare links / autolinks: URLs inside Link and Image are already handled as a whole; this only covers standalone ones
     const parent = node.node.parent?.name;
     if (parent === "Link" || parent === "Image") return;
-    if (caretTouches(caret, node.from, node.to)) return; // 编辑中不拦点击
+    if (caretTouches(caret, node.from, node.to)) return; // don't intercept clicks while editing
     const raw = state.sliceDoc(node.from, node.to);
     const href = safeHref(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`);
     if (!href) return;
@@ -202,12 +202,12 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   }
 
   if (name === "WikiLink") {
-    // `[[目标]]` / `[[目标|显示文字]]`：渲染成只剩显示文字的站内链接。
-    // 子节点已在这里整体处理完，返回 false 不再深入
+    // `[[target]]` / `[[target|display text]]`: rendered as an in-site link showing only the display text.
+    // Children are fully handled here, so return false to stop descending
     const n = node.node;
     const marks = n.getChildren("WikiLinkMark");
     if (caretTouches(caret, node.from, node.to)) {
-      softenMarks(ctx, marks); // 编辑时现出 [[ | ]]，与其他行内标记同一套淡化处理
+      softenMarks(ctx, marks); // reveal [[ | ]] while editing, faded like other inline markers
       return false;
     }
     const targetNode = n.getChild("WikiLinkTarget");
@@ -215,7 +215,7 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
     const target = targetNode ? state.sliceDoc(targetNode.from, targetNode.to).trim() : "";
     if (!target) return false;
     for (const m of marks) ctx.hide(m.from, m.to);
-    // 有别名时目标标题也一并藏起来，只留别名——与 Obsidian 的显示一致
+    // With an alias, the target title is hidden too and only the alias remains — matches Obsidian's display
     if (aliasNode && targetNode) ctx.hide(targetNode.from, targetNode.to);
     const textFrom = aliasNode ? aliasNode.from : targetNode?.from;
     const textTo = aliasNode ? aliasNode.to : targetNode?.to;
@@ -225,8 +225,8 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
           class: "cm-lp-wikilink",
           attributes: {
             "data-lp-wiki": target,
-            // 与外链同一套规矩：单击落笔改字，⌘/Ctrl+点击才跳转
-            title: `「${target}」\n${t(OPEN_HINT)}`, // i18n-ignore 「」只是给链接目标加引号，标点不译
+            // Same rule as external links: a click edits text, only ⌘/Ctrl+click navigates
+            title: `「${target}」\n${t(OPEN_HINT)}`, // i18n-ignore 「」 just quotes the link target; punctuation isn't translated
           },
         }).range(textFrom, textTo)
       );
@@ -235,10 +235,10 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
   }
 
   if (name === "Image") {
-    // 图片/视频的还原判定含边界（caretTouches）：点击部件把光标送到 from+2，
-    // 之后在这行源码里挪到行首或 `)` 之后就踩在 from/to 上——按严格内部判定会当场翻回图片，
-    // 同一行里移动光标于是来回闪。只认光标不认选区：全选/拖选时每张图都多出一行源码，
-    // 版面会整体抖一下，而图片被选中时本来就看得出来（整块高亮），不必现原文。
+    // Image/video reveal includes boundaries (caretTouches): clicking the widget puts the cursor at from+2,
+    // and moving to line start or after `)` in this source line then lands on from/to — a strict-interior check would flip back to the image,
+    // making the cursor flicker while moving within the line. Cursor only, not selections: on select-all/drag every image would gain a source line
+    // and the layout would jolt, while a selected image is already visibly highlighted, so no need to reveal the source.
     const editing = caretTouches(caret, node.from, node.to);
     const n = node.node;
     const url = n.getChild("URL");
@@ -246,35 +246,35 @@ export function inlineDecorations(ctx: LpContext, node: SyntaxNodeRef): false | 
     const src = url ? state.sliceDoc(url.from, url.to) : "";
     const alt = marks.length >= 2 ? state.sliceDoc(marks[0].to, marks[1].from) : "";
     if (src) {
-      // 视频复用图片语法，title 位携带 poster= 封面约定
+      // Video reuses image syntax, with the title slot carrying the poster= cover convention
       const titleNode = n.getChild("LinkTitle");
       const rawTitle = titleNode
         ? state.sliceDoc(titleNode.from, titleNode.to).replace(/^["'(]|["')]$/g, "")
         : "";
-      // 磁盘文库里的相对路径（attachments/…）换成能显示的 object URL；还没读出来先留原样，
-      // 附件解析好后 livePreview 会收到刷新事件重建部件（src 变了 eq 不成立）
+      // Relative paths in a disk library (attachments/…) are swapped for displayable object URLs; leave as-is until read,
+      // and once attachments resolve livePreview gets a refresh event and rebuilds the widget (src changed, eq fails)
       const shown = isAttachmentSrc(src) ? (resolveAttachmentSrc(src) ?? src) : src;
       const widget = isVideoUrl(src)
         ? new VideoWidget(shown, alt, posterFromTitle(rawTitle), editing)
         : new ImageWidget(shown, alt, editing);
       if (editing) {
-        // 编辑态不藏源码，另在 node.to 后挂一份预览：图片整张消失会让版面塌一块，
-        // 改地址时也看不到改成了什么。side:1 让光标停在 `)` 之后时画在预览之前（还在源码行上）。
-        // 不登记 atomic —— 此刻源码要能逐字符编辑、正常插入换行
+        // In edit state the source isn't hidden; a preview is attached after node.to instead: the whole image vanishing would collapse the layout,
+        // and you couldn't see what the edited URL points to. side:1 makes a cursor after `)` draw before the preview (still on the source line).
+        // Not registered as atomic — the source must be editable char by char and accept newlines normally right now
         ctx.decos.push(Decoration.widget({ widget, side: 1 }).range(node.to));
       } else {
         ctx.replaceAtomic(node.from, node.to, widget);
       }
     }
-    return false; // 内部标记已整体处理
+    return false; // inner markers already handled as a whole
   }
 
   if (name === "HorizontalRule") {
-    // 与图片同一档的含边界判定：光标一碰到 `---` 两端就现出源码。
-    // 用严格内部判定时，光标停在 `---` 的首/尾（点开部件后按 Home、或从下一行按 ← 上来）
-    // 会当场翻回分割线，在这一行里挪光标就成了来回闪。
-    // 顺带把「一次退格抹掉整条线」也解决了：atomicRanges 只登记此刻真被替换的区间，
-    // 光标贴着 `---` 时压根不登记，删除键于是按字符走，退一次只掉一个 `-`，看得见
+    // Same boundary-inclusive check as images: the source appears as soon as the cursor touches either end of `---`.
+    // With a strict-interior check, the cursor at the start/end of `---` (Home after opening the widget, or ← up from the next line)
+    // would flip straight back to the divider, so moving the cursor on this line would flicker.
+    // It also fixes "one backspace wipes the whole line": atomicRanges only registers ranges currently replaced,
+    // so with the cursor against `---` it isn't registered at all, and delete goes char by char — one backspace removes one visible `-`
     if (!caretTouches(caret, node.from, node.to)) {
       ctx.replaceAtomic(node.from, node.to, new HrWidget());
     }

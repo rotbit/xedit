@@ -1,17 +1,17 @@
 /**
- * markdown-it 的公式插件：行内 $...$ 与块级 $$...$$，在渲染期就交给 MathJax 出 SVG，
- * 因为公众号那边拿不到本站的脚本和字体，只有内联 SVG 能原样贴过去。
- * 两条规则都得自己数转义反斜杠、自己推进 state，写法贴着 markdown-it 的 tokenizer 约定，改之前先看各处说明。
+ * markdown-it math plugin: inline $...$ and block $$...$$, handed to MathJax for SVG at render time,
+ * since WeChat can't load this site's scripts or fonts and only inline SVG pastes over intact.
+ * Both rules count escaping backslashes and advance state themselves, following markdown-it's tokenizer conventions; read the notes throughout before changing.
  */
 import type MarkdownIt from "markdown-it";
 import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 import type StateBlock from "markdown-it/lib/rules_block/state_block.mjs";
 import { texToSvg } from "./mathjax";
 
-// 行内 $...$ 与块级 $$...$$ 公式，渲染为 MathJax SVG。
-// 渲染结果外层保留 data-tex（原始 TeX），供“复制到知乎”时转换为知乎公式图片。
+// Inline $...$ and block $$...$$ math, rendered as MathJax SVG.
+// The output keeps data-tex (raw TeX) on the wrapper so "复制到知乎" (Copy to Zhihu) can convert it into Zhihu formula images.
 
-/** 只服务于把原始 TeX 塞进 data-tex 属性：TeX 里 & < > " 都是常见字符，不转义会把属性截断。 */
+/** Only for stuffing raw TeX into the data-tex attribute: & < > " are common in TeX and would truncate the attribute unescaped. */
 function escapeAttr(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -20,7 +20,7 @@ function escapeAttr(str: string): string {
     .replace(/>/g, "&gt;");
 }
 
-/** TeX 转 SVG。语法错误时退化成 <code> 原文——宁可读者看到公式源码，也不要整篇渲染失败。 */
+/** TeX to SVG. On syntax errors fall back to the raw source in <code>: better readers see the TeX than the whole render failing. */
 function renderTex(tex: string, displayMode: boolean): string {
   try {
     return texToSvg(tex, displayMode);
@@ -29,7 +29,7 @@ function renderTex(tex: string, displayMode: boolean): string {
   }
 }
 
-/** 行内公式规则。silent 表示 markdown-it 只在试探能否匹配，此时不许产出 token、也不许写 pending。 */
+/** Inline math rule. silent means markdown-it is only probing for a match: no tokens may be emitted and pending must not be written. */
 function mathInline(state: StateInline, silent: boolean): boolean {
   if (state.src[state.pos] !== "$") return false;
 
@@ -37,11 +37,11 @@ function mathInline(state: StateInline, silent: boolean): boolean {
   let match = start;
   let pos: number;
 
-  // 找到未被转义的闭合 $
+  // Find the unescaped closing $
   while ((match = state.src.indexOf("$", match)) !== -1) {
     pos = match - 1;
     while (state.src[pos] === "\\") pos -= 1;
-    // pos 停在连续反斜杠的前一位，差值为奇数说明反斜杠是偶数个，这个 $ 没被转义，可以当闭合符
+    // pos stops just before the run of backslashes; an odd difference means an even number of backslashes, so this $ is unescaped and can close
     if ((match - pos) % 2 === 1) break;
     match += 1;
   }
@@ -51,7 +51,7 @@ function mathInline(state: StateInline, silent: boolean): boolean {
     state.pos = start;
     return false;
   }
-  // 两个 $ 紧挨着：这是空公式，按字面输出 $$ 交给块级规则或普通文本，不要吞掉
+  // Two adjacent $: an empty formula; emit $$ literally for the block rule or plain text, don't swallow it
   if (match - start === 0) {
     if (!silent) state.pending += "$$";
     state.pos = start + 1;
@@ -59,7 +59,7 @@ function mathInline(state: StateInline, silent: boolean): boolean {
   }
 
   const content = state.src.slice(start, match);
-  // 前后是空白，或后跟数字（如价格 $5），视为普通字符
+  // Whitespace on either side, or followed by a digit (e.g. a price like $5): treat as a plain character
   if (/^\s/.test(content) || /\s$/.test(content) || /^\d/.test(state.src.slice(match + 1))) {
     if (!silent) state.pending += "$";
     state.pos = start;
@@ -75,7 +75,7 @@ function mathInline(state: StateInline, silent: boolean): boolean {
   return true;
 }
 
-/** 块级公式规则，同时认 $$..$$ 写在一行和跨多行两种形态。 */
+/** Block math rule, accepting both $$..$$ on one line and spanning multiple lines. */
 function mathBlock(
   state: StateBlock,
   startLine: number,
@@ -105,7 +105,7 @@ function mathBlock(
     if (next >= endLine) break;
     pos = state.bMarks[next] + state.tShift[next];
     max = state.eMarks[next];
-    // 缩进退回到当前块之外（例如列表项已结束），公式就此中断，不跨结构边界去找闭合符
+    // Indentation fell back outside the current block (e.g. the list item ended): the formula stops here, never crossing structure boundaries to find a closer
     if (pos < max && state.tShift[next] < state.blkIndent) break;
     const line = state.src.slice(pos, max);
     if (line.trim().endsWith("$$")) {
@@ -114,7 +114,7 @@ function mathBlock(
     }
   }
 
-  // 找不到闭合 $$ 时 next 已经走到 endLine，这里照样吃掉剩下的行：未闭合的公式按「一直到文末」处理，不回退
+  // Without a closing $$, next has reached endLine; still consume the remaining lines: an unclosed formula runs "to end of document", no backtracking
   state.line = next + 1;
 
   const token = state.push("math_block", "math", 0);
@@ -128,8 +128,8 @@ function mathBlock(
   return true;
 }
 
-/** 把两条规则注册进 MarkdownIt。行内规则排在 escape 之后，\$ 才能照常转义；
- *  块级规则排在 blockquote 之后并声明 alt 列表，公式块才允许出现在段落、引用和列表内部。 */
+/** Register both rules on MarkdownIt. The inline rule goes after escape so \$ still escapes normally;
+ *  the block rule goes after blockquote with an alt list so math blocks can appear inside paragraphs, quotes and lists. */
 export function mathPlugin(md: MarkdownIt): void {
   md.inline.ruler.after("escape", "math_inline", mathInline);
   md.block.ruler.after("blockquote", "math_block", mathBlock, {

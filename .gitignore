@@ -30,7 +30,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files —— 真实密钥一律不提交，只保留占位用的 .env.example
+# env files: never commit real secrets; keep only the placeholder .env.example
 .env*
 !.env.example
 
@@ -42,5 +42,5 @@ yarn-error.log*
 next-env.d.ts
 
 
-# AI 工具过程产物（生图候选、playwright 截图/日志、宣传素材），只留本地
+# AI tool artifacts (generated image candidates, Playwright screenshots/logs, promo assets): local only
 /output/

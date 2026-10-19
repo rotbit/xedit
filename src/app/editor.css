@@ -1,8 +1,8 @@
-/* CodeMirror 编辑器的外壳样式：尺寸、滚动容器、光标、滚动条。
-   整块从 globals.css 搬来（语义未变），只为把「主题变量」和「编辑器外观」分开维护；
-   即时渲染的排版规则另见 live-preview.css。 */
+/* CodeMirror editor shell styles: sizing, scroll container, cursor, scrollbars.
+   Moved wholesale from globals.css (semantics unchanged), just to maintain "theme variables" and "editor appearance" separately;
+   live-rendering typography rules are in live-preview.css. */
 
-/* —— CodeMirror 编辑器外观 —— */
+/* —— CodeMirror editor appearance —— */
 .cm-editor {
   height: 100%;
   background: var(--panel);
@@ -17,20 +17,20 @@
   padding: 20px 4px 45vh 4px;
   caret-color: var(--accent);
 }
-/* 首页阅读态：正文居中约束在可读宽度内，滚动容器仍铺满整列，
-   于是滚动条落到列最右缘（贴面板边），右侧留白变成对称的正常边距 */
+/* Home reading mode: the body is centered within a readable width while the scroll container still fills the column,
+   so the scrollbar sits at the column's right edge (against the panel border) and the right gutter becomes a symmetric normal margin */
 .cm-doc .cm-editor .cm-content {
   max-width: 760px;
   margin-inline: auto;
 }
-/* 标题区到正文的空隙收紧（仅首页文章视图，不影响 /edit 老编辑页） */
+/* Tighten the gap from the title area to the body (home article view only, doesn't affect the old /edit page) */
 .cm-reader .cm-editor .cm-content {
   padding-top: 10px;
 }
-/* 行内缩与标题区对齐：单屏 12+4=16px（标题 px-4）、双屏 20+4=24px（标题 px-6，
-   同时让正文不贴分隔条）。
-   基础值同时存进 --lp-pad 供即时渲染的缩进引导线定位；--lp-hang 是即时渲染列表行的
-   悬挂缩进量（见 live-preview.css 的 .cm-lp-hang），非列表行没有该变量，退回 0 */
+/* Line padding aligns with the title area: single pane 12+4=16px (title px-4), split pane 20+4=24px (title px-6,
+   which also keeps the body off the divider).
+   The base value is also stored in --lp-pad to position live rendering's indent guides; --lp-hang is the hanging indent
+   of live-rendered list lines (see .cm-lp-hang in live-preview.css); non-list lines lack the variable and fall back to 0 */
 .cm-doc .cm-editor .cm-line {
   --lp-pad: 12px;
   padding: 0 12px;
@@ -50,8 +50,8 @@
   border-left-color: var(--accent);
   border-left-width: 2px;
 }
-/* 光标平滑滑到新位置（点击定位、上下翻行）。只在根元素挂着 cm-caret-smooth 时生效：
-   打字那一拍插件会把类摘掉（见 lib/editor/caret.ts），否则光标追不上字符，拖出残影 */
+/* The cursor glides smoothly to its new position (click placement, line up/down). Only applies while the root has cm-caret-smooth:
+   the plugin removes the class on each keystroke (see lib/editor/caret.ts), otherwise the cursor lags behind characters and leaves trails */
 .cm-editor.cm-caret-smooth .cm-cursor {
   transition:
     left 80ms,
@@ -62,12 +62,12 @@
     transition: none;
   }
 }
-/* 光标落进代码卡时（livePreview 的插件在编辑器根上打 cm-caret-in-code）：
-   跟随卡内文字色，浅色卡上是墨色、夜间深色卡上是浅色，不会与卡底同色隐身 */
+/* When the cursor is inside a code card (livePreview's plugin sets cm-caret-in-code on the editor root):
+   follow the card's text color, ink on light cards and light on dark cards at night, so it never blends into the card */
 .cm-editor.cm-caret-in-code .cm-cursor {
   border-left-color: var(--codeblock-fg);
 }
-/* 选区圆角：整块直角在中文行里显得生硬，3px 刚好收住四角又不显圆润 */
+/* Rounded selection: fully square blocks look harsh on Chinese lines; 3px softens the corners without looking round */
 .cm-editor .cm-selectionBackground,
 .cm-editor.cm-focused .cm-selectionBackground {
   background: var(--cm-selection) !important;
@@ -75,7 +75,7 @@
 }
 .cm-editor .cm-scroller {
   overflow: auto;
-  /* Firefox：细滚动条，默认隐藏，进入编辑区/滚动时才浮现 */
+  /* Firefox: thin scrollbar, hidden by default, appears on entering the editor/scrolling */
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
@@ -83,7 +83,7 @@
 .cm-editor .cm-scroller:focus-within {
   scrollbar-color: var(--hairline-strong) transparent;
 }
-/* WebKit：内缩成一根悬浮胶囊（约 5px），默认透明，避免在正文右侧空白里孤零零地突兀 */
+/* WebKit: inset as a floating pill (~5px), transparent by default so it doesn't stick out alone in the blank space right of the body */
 .cm-editor .cm-scroller::-webkit-scrollbar {
   width: 11px;
   height: 11px;
@@ -107,7 +107,7 @@
   background-clip: padding-box;
 }
 
-/* —— 首页文章视图的即时渲染编辑器：随内容自然增高、透明底、跟随页面滚动 —— */
+/* —— Live-rendering editor in the home article view: grows with content, transparent background, scrolls with the page —— */
 .reader-live .cm-editor {
   height: auto;
   background: transparent;
@@ -124,13 +124,13 @@
   padding-left: calc(var(--lp-pad) + var(--lp-hang, 0px));
 }
 
-/* ================= 第一期：版式节奏重建带来的外壳调整 ================= */
+/* ================= Phase 1: shell adjustments from the layout rhythm rebuild ================= */
 
-/* 行首标记（# / >）改成悬挂在文字左缘之外（见 live-preview.css 的 .cm-lp-mark），
-   行内缩必须留够一个标记的宽度，否则 H1 的 "# " 会被滚动容器裁掉。
-   28px 同时是标题输入框的左内缩（ArticleReader 的 px-7），两者左缘对齐。
-   --lp-pad 是这里最终生效的基础内缩（即时渲染的缩进引导线据此定位），
-   --lp-hang 是即时渲染列表行的悬挂缩进量，非列表行没有该变量，退回 0 */
+/* Line-start markers (# / >) now hang outside the text's left edge (see .cm-lp-mark in live-preview.css),
+   so line padding must leave room for one marker, or the H1's "# " gets clipped by the scroll container.
+   28px is also the title input's left padding (ArticleReader's px-7), so both left edges align.
+   --lp-pad is the base padding that finally applies here (live rendering's indent guides are positioned from it),
+   --lp-hang is the hanging indent of live-rendered list lines; non-list lines lack the variable and fall back to 0 */
 .cm-doc .cm-editor .cm-line,
 .cm-split .cm-editor .cm-line {
   --lp-pad: 28px;
@@ -138,17 +138,17 @@
   padding-right: 28px;
 }
 
-/* 标题区与正文合用一个滚动容器后，正文顶部只留极小的一点缓冲：
-   标题区到 H1 的距离由 .cm-lp-first 的 12px 补齐（合计 16px） */
+/* With the title area and body sharing one scroll container, the body top keeps only a tiny buffer:
+   the title-to-H1 distance is made up by .cm-lp-first's 12px (16px total) */
 .cm-reader.reader-live .cm-editor .cm-content {
   padding-top: 4px;
 }
 
-/* ============ 浮出层（Notion 式）：浮动工具条 .float-toolbar 与斜杠菜单 .slash-menu ============ */
+/* ============ Popovers (Notion-style): floating toolbar .float-toolbar and slash menu .slash-menu ============ */
 
-/* 阴影与出入场动画两者同一套，抽成 .float-pop 复用。
-   阴影带主题差：夜间面板本身就深，日间那档 12% 的投影会糊成一团，要加重到 50% 才浮得起来。
-   两者都 portal 到 body，只能靠 [data-theme]（挂在 <html> 上）区分明暗 */
+/* Both share the same shadow and enter/exit animation, extracted into .float-pop for reuse.
+   The shadow differs by theme: the dark panel is already dark, so the light theme's 12% shadow turns to mush and must go up to 50% to lift it.
+   Both are portaled to body, so only [data-theme] (on <html>) can tell light from dark */
 .float-toolbar,
 .float-pop {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
@@ -158,7 +158,7 @@
 [data-theme="dark"] .float-pop {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
-/* 收起时先播完淡出再卸载（React 侧延迟 80ms 卸载，两边时长一致） */
+/* On close, finish the fade-out before unmounting (React delays unmount by 80ms; the durations match) */
 .float-toolbar[data-closing="true"],
 .float-pop[data-closing="true"] {
   animation: float-pop-out 80ms ease both;
@@ -190,9 +190,9 @@
   }
 }
 
-/* 编辑器里的浮层列表（斜杠菜单、`[[` 文章补全共用这个类）：
-   行高与项数由组件定（8 行封顶后内部滚动），这里只收拾滚动条 ——
-   默认那根粗白条压在两百多像素宽的卡片上太抢眼，收成一根细的发丝色胶囊 */
+/* Popover lists in the editor (shared by the slash menu and `[[` article completion):
+   row height and item count are set by the component (capped at 8 rows, then it scrolls internally); this only tidies the scrollbar;
+   the default thick white bar is too loud on a card a couple hundred pixels wide, so it becomes a thin hairline-colored pill */
 .slash-menu {
   scrollbar-width: thin;
   scrollbar-color: var(--hairline-strong) transparent;
@@ -210,30 +210,30 @@
   border-radius: 999px;
   background-clip: padding-box;
 }
-/* 高亮行的底色用 --accent-wash（两套主题各自定义过），行内不再另设 hover 色：
-   hover 会直接改 CodeMirror 侧的高亮下标，键鼠共用同一份高亮，不会出现两处同时亮 */
+/* The highlighted row's background uses --accent-wash (defined by each theme); rows set no separate hover color:
+   hover directly changes the highlight index on the CodeMirror side, so keyboard and mouse share one highlight and two rows never light up at once */
 
-/* ==================== ⌘F 查找替换面板（扩展装配见 lib/editor/searchPanel.ts）====================
+/* ==================== ⌘F find/replace panel (extension setup in lib/editor/searchPanel.ts) ====================
 
-   面板 DOM 是 @codemirror/search 生成的，结构与类名都改不了，只能整块重画皮肤。
-   两条必须知道的前提：
-   1) 我们没给 CodeMirror 配深色主题，编辑器根上永远挂着 .cm-light —— 官方那批
-      `&light .cm-panels/.cm-button/.cm-textfield` 规则在夜间也照样生效，逐条都得盖掉，
-      盖不掉的地方夜里就会冒出一块 #f5f5f5 的浅灰面板。
-   2) 官方样式由 style-mod 插在 <head> 最前面，本文件在其后，同权重时我们胜出；
-      仍统一比官方多一级选择器，免得将来注入顺序变了又被盖回去。
-   颜色一律走主题变量，不另写 [data-theme="dark"] 分支。 */
+   The panel DOM is generated by @codemirror/search; its structure and class names can't be changed, so we can only reskin it wholesale.
+   Two premises you must know:
+   1) We give CodeMirror no dark theme, so the editor root always has .cm-light; the official
+         `&light .cm-panels/.cm-button/.cm-textfield` rules apply at night too and must each be overridden,
+         or a #f5f5f5 light-gray panel pops up at night wherever we miss one.
+   2) Official styles are inserted by style-mod at the very top of <head> and this file comes after, so we win at equal specificity;
+         still, we consistently use one more selector level than the official ones, so a future change in injection order can't override us again.
+   All colors use theme variables; no separate [data-theme="dark"] branch. */
 
 .cm-editor .cm-panels.cm-panels-top {
   background: var(--panel);
   color: var(--ink);
   border-bottom: 1px solid var(--hairline);
-  /* 面板浮在正文之上，给一点向下的投影交代层次（夜间面板本就深，投影同样能读出来） */
+  /* The panel floats above the body, so a slight downward shadow conveys layering (the dark panel is already dark, and the shadow still reads) */
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.06);
-  /* 首页文章视图里 .cm-scroller 是 overflow:visible，真正滚动的是标题+正文的外层容器
-     （见 MarkdownEditor 的 scrollParent）。面板挂在 .cm-editor 上，sticky 的参照就是那个
-     容器，top:0 正好贴它的顶沿——而它的顶沿已经在应用固定头部之下，不用再加偏移。
-     position/top 官方已设过，这里重申一次，避免以后升级把它改成 static 而无人察觉 */
+  /* In the home article view .cm-scroller is overflow:visible, and the real scroller is the outer title+body container
+     (see MarkdownEditor's scrollParent). The panel hangs off .cm-editor, so sticky is relative to that
+     container, and top:0 sits right at its top edge, which is already below the app's fixed header, so no offset is needed.
+     position/top are already set officially; restated here so a future upgrade can't silently change it to static */
   position: sticky;
   top: 0;
 }
@@ -243,12 +243,12 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  /* 右侧多留 34px 给绝对定位的关闭按钮 */
+  /* Leave an extra 34px on the right for the absolutely positioned close button */
   padding: 8px 34px 8px 14px;
   font-family: inherit;
   font-size: 13px;
 }
-/* 面板里那个 <br> 在 flex 容器里不再换行：撑满一整行把「替换」挤到第二排 */
+/* The panel's <br> no longer breaks in the flex container: it would span a full row and push 「替换」 (Replace) to a second line */
 .cm-editor .cm-panel.cm-search br {
   flex-basis: 100%;
   height: 0;
@@ -276,8 +276,8 @@
   box-shadow: 0 0 0 2px var(--accent-wash);
 }
 
-/* 官方按钮是一层灰色渐变 + #888 边框，与整站的发丝线按钮完全不搭：
-   渐变要显式置 none，只改 background-color 盖不住 background-image */
+/* The official buttons are a gray gradient + #888 border, totally at odds with the site's hairline buttons:
+   the gradient must be set to none explicitly; changing only background-color doesn't cover background-image */
 .cm-editor .cm-panel.cm-search .cm-button {
   margin: 0;
   height: 28px;
@@ -309,7 +309,7 @@
   align-items: center;
   gap: 4px;
   margin: 0;
-  /* 官方给的是 80%（≈10px）加 white-space: pre，中文勾选项挤成一团 */
+  /* The official value is 80% (≈10px) with white-space: pre, which crams Chinese checkbox labels together */
   font-size: 12px;
   white-space: nowrap;
   color: var(--ink-soft);
@@ -348,9 +348,9 @@
   background: var(--accent-wash);
 }
 
-/* 命中高亮：正文里所有匹配一层淡墨底，当前那一处加深并加一圈描边。
-   不用纯色块压字——选区本身也是半透明灰，纯色会把两种状态糊在一起。
-   多一级 .cm-line 是为了稳压官方那四条 &light/&dark 的写死颜色（黄/橙、青/品红） */
+/* Match highlighting: every match in the body gets a faint ink background; the current one is darker with an outline.
+   No solid blocks over text: the selection is also semi-transparent gray, and solid colors would blur the two states together.
+   The extra .cm-line level reliably overrides the official four &light/&dark hardcoded colors (yellow/orange, cyan/magenta) */
 .cm-editor .cm-line .cm-searchMatch {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 2px;
@@ -359,22 +359,22 @@
   background: color-mix(in srgb, var(--accent) 30%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
 }
-/* 选中一段文字时，正文里相同片段的浅标（门槛 2 字符，见 searchPanel.ts）：
-   比查找命中更淡，只是「顺带看见」，不该抢走注意力 */
+/* When a span of text is selected, light marks on identical snippets in the body (2-char threshold, see searchPanel.ts):
+   fainter than search matches, just "noticed in passing", shouldn't steal attention */
 .cm-editor .cm-line .cm-selectionMatch {
   background: color-mix(in srgb, var(--accent) 9%, transparent);
   border-radius: 2px;
 }
 
-/* ==================== 标题折叠（扩展装配见 lib/editor/folding.ts）====================
+/* ==================== Heading folding (extension setup in lib/editor/folding.ts) ====================
 
-   这版编辑器是所见即所得的版式，没有 gutter 也不打算加 —— 加一条 gutter 会把「文档」
-   重新变回「代码编辑器」。折叠把手挂在标题行尾：折起来之后同一位置换成 "…" 药丸，
-   折与展的入口在同一处；左边距则留给光标进标题行时显形的 "## "。 */
+   This editor is a WYSIWYG layout with no gutter, and none is planned: adding a gutter would turn the "document"
+   back into a "code editor". The fold handle sits at the end of the heading line; once folded, the same spot becomes a "…" pill,
+   so fold and unfold share one entry point; the left margin is left for the "## " that appears when the cursor enters a heading line. */
 
 .cm-editor .cm-fold-chevron {
   display: inline-flex;
-  /* 钉成 px 不跟标题字号缩放，和 "…" 药丸一个量级 */
+  /* Pinned in px so it doesn't scale with the heading font size, matching the "…" pill */
   width: 16px;
   height: 16px;
   margin-left: 0.35em;
@@ -388,7 +388,7 @@
     opacity 120ms ease,
     color 120ms ease;
 }
-/* 悬停到标题行才淡入，平时不给正文添噪点 */
+/* Fades in only when hovering a heading line, so it adds no noise to the body otherwise */
 .cm-editor .cm-line:hover .cm-fold-chevron {
   opacity: 1;
 }
@@ -400,8 +400,8 @@
   height: 100%;
 }
 
-/* 折叠后的占位：标题行尾一枚弱化的小药丸，点一下展开。
-   字号钉成 13px 不跟标题缩放，否则 H1 上会鼓成一颗突兀的大药丸 */
+/* Placeholder after folding: a subdued little pill at the end of the heading line; click to unfold.
+   Font size is pinned to 13px rather than scaling with the heading, or it would balloon into an awkward big pill on H1 */
 .cm-editor .cm-fold-pill {
   display: inline-block;
   margin-left: 0.4em;
@@ -421,7 +421,7 @@
   color: var(--ink);
 }
 
-/* 触屏没有 hover 这一态，三角以低不透明度常显：摸得到，又不抢正文 */
+/* Touch screens have no hover state, so the triangle is always shown at low opacity: reachable without competing with the body */
 @media (hover: none) {
   .cm-editor .cm-fold-chevron {
     opacity: 0.35;
@@ -434,11 +434,11 @@
   }
 }
 
-/* ── AI 审核的正文标注 ───────────────────────────────────────────
-   有意见的那几个字底下画一道彩色波浪线，配一层极淡的底色：认得出、找得到，
-   又不至于把正文糊成一片花。每一类的颜色由结果现给（见 editorMarks.ts 的
-   reviewMarkCss），这里只固定画法，用 --rv-* 变量接色；
-   没接上色（分类对不上）时退到强调色，不会变成透明看不见。 */
+/* ── Body annotations for AI review ───────────────────────────────
+   The characters a suggestion refers to get a colored wavy underline with a very faint background: recognizable and findable,
+   without turning the body into a mess. Each kind's color comes with the result (see reviewMarkCss
+   in editorMarks.ts); this only fixes the drawing style, taking colors via --rv-* variables;
+   when no color arrives (category mismatch) it falls back to the accent color instead of going invisible. */
 .cm-editor .cm-review-mark {
   background: var(--rv-tint, color-mix(in srgb, var(--accent) 10%, transparent));
   border-radius: 2px;
@@ -452,7 +452,7 @@
     background-color 120ms ease,
     box-shadow 120ms ease;
 }
-/* 选中的那条：底色加重、波浪线换成实线，一眼看出说的是这句 */
+/* The selected one: a stronger background and a solid line instead of the wave, so it's obvious which sentence is meant */
 .cm-editor .cm-review-mark.cm-review-active {
   background: var(--rv-tint-on, color-mix(in srgb, var(--accent) 22%, transparent));
   text-decoration-style: solid;

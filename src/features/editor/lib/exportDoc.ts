@@ -6,7 +6,7 @@ import { buildRenderOptions } from "./renderOptions";
 
 export type ExportKind = "md" | "html" | "pdf" | "image" | "docx";
 
-/** 导出格式清单：⋯ 菜单的「导出」小节与命令面板共用这一份，别各写各的；label 存中文原文，显示处再 t() */
+/** Export format list: shared by the ⋯ menu's 「导出」 (Export) section and the command palette, so don't duplicate it; labels are stored as the Chinese source and passed through t() at display */
 export const EXPORT_ITEMS: { kind: ExportKind; label: string }[] = [
   { kind: "md", label: tk("导出 Markdown") },
   { kind: "html", label: tk("导出 HTML") },
@@ -15,9 +15,9 @@ export const EXPORT_ITEMS: { kind: ExportKind; label: string }[] = [
   { kind: "image", label: tk("导出长图（PNG）") },
 ];
 
-/** 按当前主题与排版设置导出全文。
- *  各导出函数先弹「另存为」再生成：用户取消时它们返回 false，这里什么都不提示。
- *  不弹「正在生成…」：选完位置到生成完成一般就一两秒，和结果提示叠在一起反而吵 */
+/** Export the full text with the current theme and typography settings.
+ *  Each exporter shows "Save as" before generating: if the user cancels it returns false, and nothing is shown here.
+ *  No "Generating…" toast: picking a location to finished generation usually takes a second or two, and stacking it with the result toast is just noise */
 export async function runExport(kind: ExportKind): Promise<void> {
   const s = useStore.getState();
   if (kind === "md") {
@@ -25,7 +25,7 @@ export async function runExport(kind: ExportKind): Promise<void> {
     return;
   }
   if (kind === "docx") {
-    // Word 导出不吃主题样式（飞书/Word 导入会重排视觉），无需渲染选项；成功/失败提示由 exportDocx 自己弹
+    // Word export ignores theme styles (Feishu/Word imports re-lay out visuals), so no render options; exportDocx shows its own success/failure toast
     const { exportDocx } = await import("@/lib/exportDocx");
     await exportDocx(s.title, s.content);
     return;
@@ -34,12 +34,12 @@ export async function runExport(kind: ExportKind): Promise<void> {
   if (kind === "html") await exportHtml(s.title, s.content, opts);
   else if (kind === "pdf") {
     try {
-      // jspdf 体积不小，点了才加载，不进首屏 bundle
+      // jspdf is hefty, so load it on click rather than in the first-load bundle
       const { exportPdf } = await import("@/lib/exportPdf");
       const saved = await exportPdf(s.title, s.content, opts);
       if (saved) toast(t("PDF 已导出"));
     } catch (e) {
-      // 原因留在控制台，不然用户反馈「导不出来」时无从查起
+      // Keep the cause in the console, otherwise "export doesn't work" reports are impossible to investigate
       console.error("exportPdf failed", e);
       toast(t("PDF 生成失败（外链图片可能跨域受限）"), "error");
     }
@@ -48,7 +48,7 @@ export async function runExport(kind: ExportKind): Promise<void> {
     try {
       await exportImage(s.title, s.content, opts);
     } catch {
-      // 跨域外链图片会让 html-to-image 整张失败，给用户一个能看懂的原因
+      // Cross-origin external images make html-to-image fail entirely; give the user a reason they can understand
       toast(t("长图生成失败（外链图片可能跨域受限）"), "error");
     }
   }

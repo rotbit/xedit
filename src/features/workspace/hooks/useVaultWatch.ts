@@ -16,16 +16,16 @@ import { useStore } from "@/store/useStore";
 import { UNCATEGORIZED } from "../constants";
 import type { WorkspaceNav } from "./useWorkspaceNav";
 
-/** 回前台的对账去抖：切标签页、点一下窗口会连着来好几个事件，合成一次 */
+/** Debounce for reconciling on return to foreground: switching tabs or clicking the window fires several events in a row; merge them into one */
 const DEBOUNCE_MS = 1000;
 
 /**
- * 磁盘文库的外部改动检测：用 Obsidian / Finder 改过的文件，回到 xedit 就该看到新内容。
- * File System Access API 没有变更通知，只能在回到前台时跟磁盘对一次账
- * （rescan 已是可重入安全的，这里再压一层去抖，少扫几遍）。
+ * Detect external changes to a disk library: files edited in Obsidian / Finder should show their new content when you return to xedit.
+ * The File System Access API has no change notifications, so we can only reconcile with the disk when returning to the foreground
+ * (rescan is already reentrancy-safe; this adds a debounce on top to scan less).
  */
 export function useVaultWatch({ enabled, nav }: { enabled: boolean; nav: WorkspaceNav }) {
-  // 对账在事件回调里执行（必然晚于本次渲染的 effect），effect 里同步 ref 足够新鲜
+  // Reconciling runs in event callbacks (necessarily after this render's effect), so syncing the ref in the effect is fresh enough
   const navRef = useRef(nav);
   useEffect(() => {
     navRef.current = nav;
@@ -38,7 +38,7 @@ export function useVaultWatch({ enabled, nav }: { enabled: boolean; nav: Workspa
     let disposed = false;
 
     const run = async () => {
-      if (running) return; // 上一轮还没完：它扫到的已经是最新的磁盘状态
+      if (running) return; // The previous round isn't done: what it scans is already the latest disk state
       running = true;
       try {
         const result = await rescanVault();
@@ -60,7 +60,7 @@ export function useVaultWatch({ enabled, nav }: { enabled: boolean; nav: Workspa
     };
 
     const schedule = () => {
-      if (timer) return; // 已经排上了：多个事件合成这一次
+      if (timer) return; // Already queued: multiple events merge into this one
       timer = setTimeout(() => {
         timer = null;
         void run();
@@ -82,17 +82,17 @@ export function useVaultWatch({ enabled, nav }: { enabled: boolean; nav: Workspa
 }
 
 /**
- * 当前打开的这篇在磁盘上变了：没有未保存改动就换成磁盘版本，有就只提示、不动用户的编辑。
- * 注意 rescan 按 mtime 判定，可能把我们自己刚落盘的写入也算进 changed，
- * 所以先比内容——与 store 一致就是这种误报，什么都不用做。
+ * The currently open doc changed on disk: with no unsaved changes, swap in the disk version; otherwise just notify and leave the user's edits alone.
+ * Note rescan judges by mtime and may count our own just-saved writes as changed,
+ * so compare content first — matching the store means it's such a false positive and nothing needs doing.
  */
 function applyExternalChange(id: string) {
   const fresh = getLocalDocContent(id);
-  if (fresh === null) return; // 又没了，下一轮对账再说
+  if (fresh === null) return; // Gone again; leave it for the next reconcile
   const meta = listLocalDocs().find((d) => d.id === id);
   const s = useStore.getState();
   if (fresh === s.content) {
-    if (meta && meta.title !== s.title) s.setTitle(meta.title); // 只改了文件名
+    if (meta && meta.title !== s.title) s.setTitle(meta.title); // Only the file name changed
     return;
   }
   if (hasPendingContent(id, s.content)) {
@@ -104,6 +104,6 @@ function applyExternalChange(id: string) {
   rememberSavedDocument({ docId: id, title, content: fresh, category });
   s.setDoc({ id, title, content: fresh });
   s.setCategory(category);
-  // 编辑器持有自己的 CodeMirror 文档，光改 store 不会更新，得让它重挂载一次
+  // The editor holds its own CodeMirror document, so updating the store alone won't refresh it; it needs a remount
   notifyDocReplaced(id);
 }

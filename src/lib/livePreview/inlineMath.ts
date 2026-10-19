@@ -8,23 +8,23 @@ import type { ScanGuards, ScanLine } from "@/lib/livePreview/lineScan";
 import { t } from "@/i18n/t";
 
 /**
- * 行内公式 `$…$` 的即时渲染。
+ * Live rendering of inline math `$…$`.
  *
- * 识别口径逐条对着 markdown/math.ts 的 mathInline 抄（导出、预览走的就是那条规则）：
- * 编辑器里认了、导出时不认，是最难查的一类“我明明看见渲染了”。对齐的细节见 scanLine。
+ * Recognition rules are copied point by point from mathInline in markdown/math.ts (the rule export and preview use):
+ * recognized in the editor but not on export is the hardest kind of "but I saw it render" bug. Alignment details are in scanLine.
  *
- * 渲染沿用块级公式那套异步就绪机制（mathReady.ts）：MathJax 没加载完时原文原样留着，
- * 加载完了发一次 refreshLivePreview 重建装饰——行内公式不做“加载中”占位，
- * 原文本来就在行里占着位置，换成等宽占位反而会让整行先跳一次。
+ * Rendering reuses block math's async readiness mechanism (mathReady.ts): while MathJax isn't loaded the source stays as-is,
+ * and once loaded a refreshLivePreview rebuilds decorations — inline math has no "loading" placeholder,
+ * since the source already occupies its place in the line; swapping in a fixed-width placeholder would just make the line jump first.
  */
 
-/** 渲染结果缓存：装饰每次重建都要把可见范围里的公式过一遍，同一条 TeX 不该反复跑 MathJax。
-    失败也记（null）——语法错的公式每敲一个字都重新解析一次是纯粹的浪费 */
+/** Render result cache: every decoration rebuild walks the math in the visible range, and the same TeX shouldn't rerun MathJax.
+    Failures are cached too (null) — reparsing a malformed formula on every keystroke is pure waste */
 const svgCache = new Map<string, string | null>();
 const SVG_CACHE_MAX = 200;
 
-/** 渲染一条行内 TeX；解析失败返回 null（调用方保留源码并打上错误样式，不抛错）。
-    产出的 SVG 与块级公式走同一条消毒管线（DOMPurify），之后才允许进 DOM */
+/** Render one inline TeX; returns null on parse failure (the caller keeps the source with an error style instead of throwing).
+    The SVG goes through the same sanitizing pipeline (DOMPurify) as block math before it may enter the DOM */
 function renderInlineTex(tex: string): string | null {
   const hit = svgCache.get(tex);
   if (hit !== undefined) return hit;
@@ -34,22 +34,22 @@ function renderInlineTex(tex: string): string | null {
   } catch {
     svg = null;
   }
-  // 满了整锅倒掉（与 markdown/mathjax.ts 的缓存同思路）：长文里公式不会多到需要 LRU，
-  // 而清空的代价只是下一轮重算一次
+  // When full, dump the whole cache (same idea as the cache in markdown/mathjax.ts): long docs never have enough math to need LRU,
+  // and clearing only costs one recompute next round
   if (svgCache.size >= SVG_CACHE_MAX) svgCache.clear();
   svgCache.set(tex, svg);
   return svg;
 }
 
-/** 把消毒过的 SVG 挂进部件。走 DOMParser 而不是 innerHTML：内容虽然已过 DOMPurify，
-    但部件的 DOM 是现成的模板，少留一处赋值 HTML 的写法，以后被抄到没消毒的地方的机会也少一处。
-    解析器不会执行脚本，代价与 innerHTML 相当（都是一次解析） */
+/** Mount the sanitized SVG into the widget. Uses DOMParser rather than innerHTML: the content has passed DOMPurify,
+    but the widget DOM is a ready-made template, and one fewer HTML assignment means one fewer place to get copied somewhere unsanitized.
+    The parser doesn't execute scripts, and the cost is similar to innerHTML (one parse either way) */
 function setSvg(el: HTMLElement, html: string): void {
   const parsed = new DOMParser().parseFromString(html, "text/html");
   el.append(...Array.from(parsed.body.childNodes));
 }
 
-/** 光标停在公式里时给源码垫的淡底；错误样式则是原文加一条红波浪线 */
+/** Light background under the source when the cursor is in the math; the error style is the source with a red squiggly underline */
 const SRC_MARK = Decoration.mark({ class: "cm-lp-math-src" });
 const BAD_MARK = Decoration.mark({ class: "cm-lp-math-src cm-lp-math-bad" });
 
@@ -57,8 +57,8 @@ class InlineMathWidget extends WidgetType {
   constructor(readonly tex: string) {
     super();
   }
-  /** 只比 TeX 源：同一条公式在重建装饰时复用现成的 DOM，不必再摆一次 SVG。
-      不像块级那样把就绪状态也比进去——没就绪时这里压根不出部件 */
+  /** Compare TeX source only: the same formula reuses its existing DOM on decoration rebuild, no need to lay out the SVG again.
+      Unlike block math, readiness isn't part of the comparison — when not ready, no widget is produced here at all */
   eq(other: InlineMathWidget) {
     return other.tex === this.tex;
   }
@@ -66,9 +66,9 @@ class InlineMathWidget extends WidgetType {
     const el = document.createElement("span");
     el.className = "cm-lp-imath";
     el.title = t("点击编辑公式");
-    // 建部件前已经确认渲染得出来（见 inlineMathLine），这里必然拿得到消毒过的 SVG
+    // Before building the widget we already confirmed it renders (see inlineMathLine), so a sanitized SVG is guaranteed here
     setSvg(el, renderInlineTex(this.tex) ?? "");
-    // +1 跳过开头的 `$`：光标落进区间内部，装饰随即让位给源码
+    // +1 skips the leading `$`: a cursor inside the range makes the decoration yield to source
     editOnClick(el, view, 1);
     return el;
   }
@@ -77,7 +77,7 @@ class InlineMathWidget extends WidgetType {
   }
 }
 
-/** 下标 i 处的字符是否被反斜杠转义（前面连续的反斜杠为奇数个） */
+/** Whether the char at index i is backslash-escaped (an odd number of consecutive backslashes before it) */
 function isEscaped(text: string, i: number): boolean {
   let n = 0;
   while (i - n - 1 >= 0 && text[i - n - 1] === "\\") n++;
@@ -91,16 +91,16 @@ export interface InlineMathRange {
 }
 
 /**
- * 扫一行里的 `$…$`，坐标已换算成文档偏移。判定与 markdown/math.ts 的 mathInline 一一对应：
- * - `\$` 不算定界符（那边靠 escape 规则先吃掉，这里自己数反斜杠）；
- * - 找不到闭合 `$`：这个 `$` 当普通字符，从它后面一位接着扫；
- * - `$$` 紧挨着：空公式不成立，跳过两个字符（一行里的 `$$…$$` 因此不会被拆成两段行内公式）；
- * - 内容首尾是空白、或闭合 `$` 后面紧跟数字：一律当普通字符——
- *   `$5 和 $10` 这种价格写法正是靠这两条排除的，两边行为必须完全一致；
- * - 定界符落在代码/链接/图片/表格/$$ 块里的不算（guards 的两档见 lineScan.ts）。
+ * Scan `$…$` in one line, with coordinates converted to document offsets. Each rule maps one-to-one to mathInline in markdown/math.ts:
+ * - `\$` isn't a delimiter (there the escape rule consumes it first; here we count backslashes ourselves);
+ * - no closing `$`: this `$` is a plain character, and scanning continues from the next position;
+ * - adjacent `$$`: empty math doesn't count, skip both chars (so `$$…$$` on one line isn't split into two inline formulas);
+ * - content starting/ending with whitespace, or a closing `$` immediately followed by a digit: treated as plain characters —
+ *   prices like 「$5 和 $10」 are excluded precisely by these two rules, so both sides must behave identically;
+ * - delimiters inside code/links/images/tables/$$ blocks don't count (the two guard tiers are in lineScan.ts).
  *
- * 与 markdown-it 的差异只剩一处：那边的行内解析跨整段，`$a\nb$` 这种跨行公式也能成立，
- * 这里按行扫描不认——编辑器里跨行公式会保持源码，导出仍渲染，方向上是安全的那一侧。
+ * Only one difference from markdown-it remains: its inline parsing spans the whole paragraph, so multi-line math like `$a\nb$` works there,
+ * while we scan per line and don't recognize it — in the editor multi-line math stays as source while export still renders it, which is the safe direction.
  */
 function scanLine(line: ScanLine, guards: ScanGuards): InlineMathRange[] {
   const out: InlineMathRange[] = [];
@@ -118,7 +118,7 @@ function scanLine(line: ScanLine, guards: ScanGuards): InlineMathRange[] {
       pos = open + 1;
       continue;
     }
-    // 往后找未被转义的闭合 `$`
+    // Look ahead for an unescaped closing `$`
     let close = -1;
     for (let i = open + 1; i < text.length; i++) {
       const hit = text.indexOf("$", i);
@@ -153,10 +153,10 @@ function scanLine(line: ScanLine, guards: ScanGuards): InlineMathRange[] {
 }
 
 /**
- * 一行里的行内公式装饰。三种形态：
- * - 光标碰到（含两端边界，与图片/分割线同一档）：显示源码，垫一层淡底标明这是公式；
- * - TeX 解析不了：同样保留源码，加一条红波浪线，绝不因为一个写错的公式吞掉内容；
- * - 其余：整段 `$…$` 换成 MathJax 的行内 SVG。
+ * Inline math decorations for one line. Three forms:
+ * - cursor touching (boundaries included, same tier as images/dividers): show source with a light background marking it as math;
+ * - TeX fails to parse: also keep the source, with a red squiggly underline — never swallow content because of a malformed formula;
+ * - otherwise: the whole `$…$` is replaced by MathJax's inline SVG.
  */
 export function inlineMathLine(
   ctx: LpContext,
@@ -169,16 +169,16 @@ export function inlineMathLine(
     if (caretTouches(ctx.caret, from, to)) {
       ctx.decos.push(SRC_MARK.range(from, to));
     } else if (!mathJaxReady()) {
-      // 还没加载完：原文原样留着，就绪后由 refreshLivePreview 把这一轮重来一遍
+      // Not loaded yet: keep the source as-is; once ready, refreshLivePreview reruns this round
       refreshWhenMathReady(view);
     } else {
       const svg = renderInlineTex(math.tex);
       if (svg) ctx.replaceAtomic(from, to, new InlineMathWidget(math.tex));
       else ctx.decos.push(BAD_MARK.range(from, to));
     }
-    // 登记必须排在装饰之后：ctx 的替换装饰会避开已登记的公式区间，先登记就把自己也挡掉了。
-    // 不论此刻是部件还是源码都要登记——公式里的 `*`、`[` 是 TeX 的一部分，
-    // 后面那趟语法树遍历不能再把它们当成 Markdown 标记藏起来（见 context.ts）
+    // Registration must come after decoration: ctx's replacing decorations avoid registered math ranges, so registering first would block ourselves.
+    // Register whether it's a widget or source right now — `*` and `[` inside math are part of the TeX,
+    // and the later syntax tree pass must not hide them as Markdown markers (see context.ts)
     ctx.mathRanges.push({ from, to });
   }
 }

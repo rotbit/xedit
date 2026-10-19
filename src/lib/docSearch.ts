@@ -1,11 +1,11 @@
 /**
- * 文章全文检索（纯函数，无 React）。
- * 正文全部躺在 localStorage —— 本地库 `xedit-local-doc:*`、云端镜像 `xedit-mirror-doc:*`，
- * 所以检索完全在客户端做：离线照样能搜，也不必为搜索开一条接口。
- * 逐篇读 localStorage 的开销由调用方兜住（快速切换器防抖 120ms，侧栏用 useMemo 缓存一轮结果）。
+ * Full-text document search (pure functions, no React).
+ * All bodies live in localStorage (local library `xedit-local-doc:*`, cloud mirror `xedit-mirror-doc:*`),
+ * so search runs entirely on the client: it works offline and needs no search API.
+ * The cost of reading localStorage per doc is absorbed by callers (quick switcher debounces 120ms, sidebar caches a round via useMemo).
  *
- * 出口两个：要展示的列表用 searchDocs（带摘要与高亮区间），只要「哪些文章命中」用 searchDocIds。
- * 两者共用同一套匹配判定，语义必然一致；差别只在命不命中之后还做不做摘要。
+ * Two exports: searchDocs for display lists (with snippets and highlight ranges), searchDocIds when you only need which docs match.
+ * Both share the same matching logic, so semantics always agree; the only difference is whether snippets are built after a match.
  */
 
 import { indexOf } from "@/lib/docIndex";
@@ -13,26 +13,26 @@ import type { DocMeta } from "@/features/workspace/types";
 
 export interface DocHit {
   doc: DocMeta;
-  /** 命中位置：标题命中排在正文命中之前，高亮目标也由它决定 */
+  /** Where it matched: title matches rank before body matches and also decide the highlight target */
   where: "title" | "content";
-  /** 展示用的一行上下文：正文命中取命中处前后文，标题命中退回列表摘要 */
+  /** One line of context for display: body matches show surrounding text, title matches fall back to the list excerpt */
   snippet: string;
-  /** snippet 内的命中区间（按起点升序、重叠已合并），供高亮 */
+  /** Match ranges within snippet (sorted by start, overlaps merged), for highlighting */
   ranges: [number, number][];
 }
 
-/** 正文命中时的取景窗：命中位置前 30 字、后 90 字 */
+/** Snippet window for body matches: 30 chars before the match, 90 after */
 const SNIPPET_BEFORE = 30;
 const SNIPPET_AFTER = 90;
 
-/** 查询词：按空白拆开并小写，词与词之间是 AND */
+/** Query terms: split on whitespace and lowercased; terms are ANDed */
 export function splitQuery(query: string): string[] {
   return query.toLowerCase().split(/\s+/).filter(Boolean);
 }
 
 /**
- * text 里所有词的命中区间。重叠的合并成一段——
- * 否则「编辑 编辑器」这种前缀重叠的词会把同一处切成两个 <mark>，中间露出一道缝。
+ * All match ranges of the terms in text. Overlapping ranges are merged;
+ * otherwise prefix-overlapping terms like "edit editor" would split one spot into two <mark>s with a visible seam.
  */
 export function matchRanges(text: string, terms: string[]): [number, number][] {
   const hay = text.toLowerCase();
@@ -52,17 +52,17 @@ export function matchRanges(text: string, terms: string[]): [number, number][] {
   return merged;
 }
 
-/** 标题是否全词命中：只碰元信息，不读正文，全库扫一遍也便宜 */
+/** Whether all terms match the title: touches only metadata, not the body, so a full-library scan is cheap */
 function titleHit(doc: DocMeta, terms: string[]): boolean {
   const title = doc.title.toLowerCase();
   return terms.every((t) => title.includes(t));
 }
 
 /**
- * 正文是否命中；命中返回那份正文（给摘要用），没中返回 null。
- * 词可以分散在标题和正文里：搜「张三 采访」应该命中标题带张三、正文提采访的那篇。
- * 正文走 docIndex 的缓存（`[[目标|别名]]` 已摊平成显示文字，搜别名也能命中）；
- * 镜像没拉下来时退回摘要，至少不漏掉能匹配的那点文字。
+ * Whether the body matches; returns that body on a match (for the snippet), otherwise null.
+ * Terms may be split across title and body: searching "alice interview" should match a doc with Alice in the title and "interview" in the body.
+ * Bodies go through docIndex's cache (`[[target|alias]]` already flattened to display text, so aliases match too);
+ * if the mirror hasn't been fetched, fall back to the excerpt so at least that text can still match.
  */
 function bodyHit(doc: DocMeta, terms: string[]): string | null {
   const body = indexOf(doc).text || (doc.excerpt ?? "");
@@ -70,7 +70,7 @@ function bodyHit(doc: DocMeta, terms: string[]): string | null {
   return terms.every((t) => hay.includes(t)) ? body : null;
 }
 
-/** 摘要窗口的锚点：优先第一个词，它只在标题里时退而用最早出现的那个词 */
+/** Anchor for the snippet window: prefer the first term; if it's only in the title, use the earliest-occurring term */
 function anchorAt(hay: string, terms: string[]): number {
   const first = hay.indexOf(terms[0]);
   if (first !== -1) return first;
@@ -82,7 +82,7 @@ function anchorAt(hay: string, terms: string[]): number {
   return at === -1 ? 0 : at;
 }
 
-/** 截命中处上下文；两头有截断就补省略号（高亮区间在成串之后再算，省得跟着偏移） */
+/** Cut context around the match; add ellipses where either end is truncated (highlight ranges are computed after joining to avoid offset drift) */
 function buildSnippet(text: string, terms: string[]): string {
   if (!text) return "";
   const at = anchorAt(text.toLowerCase(), terms);
@@ -91,7 +91,7 @@ function buildSnippet(text: string, terms: string[]): string {
   return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
 }
 
-/** 空查询时的结果：按更新时间倒序，摘要用列表摘要 */
+/** Results for an empty query: sorted by update time descending, using the list excerpt */
 function listOnly(docs: DocMeta[], limit: number): DocHit[] {
   return docs.slice(0, limit).map((doc) => ({
     doc,
@@ -102,8 +102,8 @@ function listOnly(docs: DocMeta[], limit: number): DocHit[] {
 }
 
 /**
- * 搜文章：标题命中排前，正文命中排后，同级内按更新时间倒序。
- * 空查询返回最近更新的 limit 篇（快速切换器的「最近编辑」）。
+ * Search documents: title matches first, then body matches, each tier sorted by update time descending.
+ * An empty query returns the `limit` most recently updated docs (the quick switcher's "recently edited").
  */
 export function searchDocs(
   docs: DocMeta[],
@@ -118,8 +118,8 @@ export function searchDocs(
   const terms = splitQuery(query);
   if (terms.length === 0) return listOnly(recent, limit);
 
-  // 先扫一遍标题（只碰元信息，便宜），标题没中的再读正文：
-  // 凑满 limit 就收手，免得每次查询都把几百篇正文从 localStorage 全捞一遍
+  // Scan titles first (metadata only, cheap), then read bodies only for docs whose titles didn't match;
+  // stop once limit is reached, so each query doesn't pull hundreds of bodies out of localStorage
   const titleHits: DocHit[] = [];
   const rest: DocMeta[] = [];
   for (const doc of recent) {
@@ -143,10 +143,10 @@ export function searchDocs(
 }
 
 /**
- * 只要命中的 id 集合：侧栏过滤列表用这个。
- * 与 searchDocs 同一套判定，但不排序、不截长度、不做摘要也不算高亮区间——
- * 那三样的结果侧栏当场就扔了，几百篇文章白算一轮。
- * 空查询（只打了空格）当全部命中，与 searchDocs 的「列出全部」对齐。
+ * Only the set of matching ids: used by the sidebar to filter its list.
+ * Same matching as searchDocs, but no sorting, no length cap, no snippets or highlight ranges;
+ * the sidebar throws those away immediately, which would be a wasted pass over hundreds of docs.
+ * An empty query (only spaces) matches everything, consistent with searchDocs' "list all".
  */
 export function searchDocIds(docs: DocMeta[], query: string): Set<string> {
   const ids = new Set<string>();

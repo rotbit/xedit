@@ -1,18 +1,18 @@
-// 将 CSS 规则内联到元素 style 属性上。
-// 微信公众号编辑器会丢弃 <style> 与 class，只保留内联样式，
-// 因此复制前必须把主题样式全部内联。
-// 用浏览器自身的 CSSOM 解析 CSS、querySelectorAll 匹配选择器，
-// 按 (important, 特异性, 出现顺序) 实现层叠，行为与真实渲染一致。
+// Inlines CSS rules into elements' style attributes.
+// The WeChat Official Account editor drops <style> and class and keeps only inline styles,
+// so all theme styles must be inlined before copying.
+// Uses the browser's own CSSOM to parse CSS and querySelectorAll to match selectors,
+// cascading by (important, specificity, source order) so the result matches real rendering.
 
 interface ParsedRule {
   selector: string;
   decls: { prop: string; value: string; important: boolean }[];
 }
 
-/** 借浏览器解析 CSS 文本为规则列表（忽略 @media/@font-face 等） */
+/** Uses the browser to parse CSS text into a rule list (ignoring @media/@font-face etc.) */
 function parseCss(cssText: string): ParsedRule[] {
   const style = document.createElement("style");
-  style.media = "not all"; // 不影响页面渲染
+  style.media = "not all"; // Doesn't affect page rendering
   style.textContent = cssText;
   document.head.appendChild(style);
 
@@ -39,7 +39,7 @@ function parseCss(cssText: string): ParsedRule[] {
   return rules;
 }
 
-/** 简化版选择器特异性：(id, class/attr/伪类, 元素) → 一个可比较的数值 */
+/** Simplified selector specificity: (id, class/attr/pseudo-class, element) → one comparable number */
 function specificity(selector: string): number {
   let s = selector;
   let a = 0;
@@ -66,7 +66,7 @@ function specificity(selector: string): number {
 }
 
 function splitSelectors(selectorText: string): string[] {
-  // 主题 CSS 由我们自己维护，不使用含逗号的函数式选择器，直接按逗号拆分
+  // We maintain the theme CSS ourselves and don't use functional selectors containing commas, so just split on commas
   return selectorText.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
@@ -79,8 +79,8 @@ interface PendingDecl {
 }
 
 /**
- * 把 cssTexts（按优先级从低到高排列）内联到 root 及其后代的 style 属性。
- * 元素原有的内联样式（如 MathJax SVG 自带的）优先级最高，保持不变。
+ * Inlines cssTexts (ordered from lowest to highest priority) into the style attributes of root and its descendants.
+ * Elements' existing inline styles (e.g. MathJax SVG's own) have the highest priority and are left untouched.
  */
 export function inlineStyles(root: HTMLElement, cssTexts: string[]): void {
   const rules = cssTexts.flatMap(parseCss);
@@ -94,7 +94,7 @@ export function inlineStyles(root: HTMLElement, cssTexts: string[]): void {
         matched = Array.from(root.querySelectorAll<HTMLElement>(sel));
         if (root.matches(sel)) matched.push(root);
       } catch {
-        continue; // 无法解析的选择器直接跳过
+        continue; // Skip selectors that can't be parsed
       }
       for (const el of matched) {
         let list = pending.get(el);
@@ -116,11 +116,11 @@ export function inlineStyles(root: HTMLElement, cssTexts: string[]): void {
       if (x.spec !== y.spec) return x.spec - y.spec;
       return x.order - y.order;
     });
-    // 从低优先级到高依次写入，后写覆盖先写，等价于层叠结果
+    // Write from lowest to highest priority; later writes override earlier ones, equivalent to the cascade result
     for (const d of decls) {
       el.style.setProperty(d.prop, d.value);
     }
-    // 元素原有内联样式最后写入，保证其优先级最高
+    // Write the element's original inline styles last so they keep the highest priority
     if (original) {
       el.setAttribute("style", `${el.getAttribute("style") ?? ""};${original}`);
     }

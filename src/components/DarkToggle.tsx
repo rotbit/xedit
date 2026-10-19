@@ -4,18 +4,18 @@ import { Moon, Sun } from "lucide-react";
 import { useT } from "@/i18n/useT";
 
 /**
- * 夜间偏好的 localStorage key。同一个 key 还写在两处首屏脚本里：
- * src/app/layout.tsx 的 THEME_INIT_SCRIPT 与 public/theme-init.js——它们是要在 React
- * 之前同步执行的裸 JS 字符串，没法 import 这个常量，改 key 时记得一起改。
+ * localStorage key for the dark-mode preference. The same key is also hard-coded in two first-paint scripts:
+ * THEME_INIT_SCRIPT in src/app/layout.tsx and public/theme-init.js — they're raw JS strings that must run synchronously before React
+ * and can't import this constant, so update them together if the key changes.
  */
 const DARK_KEY = "xedit-dark";
 
-/** 当前是否夜间：以 <html data-theme> 为准（首屏脚本已按偏好挂好） */
+/** Whether dark mode is on: <html data-theme> is the source of truth (already set from the preference by the first-paint script) */
 export function isDark(): boolean {
   return typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
 }
 
-/** 设定日间 / 夜间：偏好存 localStorage，data-theme 挂在 <html> 上 */
+/** Set light / dark: the preference goes to localStorage, data-theme goes on <html> */
 export function setDark(on: boolean) {
   const el = document.documentElement;
   if (on) el.dataset.theme = "dark";
@@ -23,16 +23,16 @@ export function setDark(on: boolean) {
   try {
     localStorage.setItem(DARK_KEY, on ? "1" : "0");
   } catch {
-    // 隐私模式下 localStorage 会抛，主题当次生效即可
+    // localStorage throws in private mode; applying the theme for this session is enough
   }
 }
 
-/** 切换日间 / 夜间 */
+/** Toggle light / dark */
 export function toggleDark() {
   setDark(!isDark());
 }
 
-/** 夜间模式开关按钮；图标显隐交给 CSS dark: 变体 */
+/** Dark mode toggle button; icon visibility is handled by the CSS dark: variant */
 export function DarkToggle() {
   const t = useT();
   return (

@@ -23,10 +23,10 @@ import {
 import { tk } from "@/i18n/t";
 
 /**
- * xedit 文章 → 飞书知识库（推送/写回）。
- * 已关联（导入或推送过）的文章整篇覆盖飞书原文档；未关联的在上次同步的知识空间
- * 根下新建节点。写回前比对 obj_edit_time 做冲突检查；写完把新的编辑时间记回
- * FeishuDocLink，防止下次拉取把自己刚推的内容当成飞书改动拉回来。
+ * xedit article → Feishu wiki (push / write back).
+ * Linked articles (imported or pushed before) overwrite the whole Feishu source document; unlinked ones get a new node at the root
+ * of the last synced wiki space. Before writing back, obj_edit_time is compared for conflict detection; afterwards the new edit time is recorded in
+ * FeishuDocLink so the next pull doesn't treat what we just pushed as a Feishu-side change and pull it back.
  */
 
 export type PushResult =
@@ -35,16 +35,16 @@ export type PushResult =
   | { conflict: true }
   | { error: string };
 
-/** 单次创建调用的块数上限（官方限制 50，留余量） */
+/** Max blocks per create call (official limit is 50, leaving headroom) */
 const BATCH_BLOCKS = 45;
-/** 全文块数上限：超长文章直接拒绝，避免几百次写调用把请求拖死 */
+/** Max blocks per document: reject overly long articles outright rather than stall the request with hundreds of write calls */
 const MAX_BLOCKS = 2000;
-/** 单图字节上限（飞书素材上限 20MB） */
+/** Max bytes per image (Feishu asset limit is 20MB) */
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** 拉平安全的图片源：仅 http(s)，下载失败返回 null（对应块降级为链接） */
+/** Fetch image sources safely: http(s) only, null on download failure (the block degrades to a link) */
 async function fetchImage(url: string): Promise<{ buffer: Buffer; mime: string } | null> {
   if (!/^https?:\/\//i.test(url)) return null;
   try {
@@ -59,7 +59,7 @@ async function fetchImage(url: string): Promise<{ buffer: Buffer; mime: string }
   }
 }
 
-/** 下载不了的图片占位块换成链接段落，别让飞书里出现空图 */
+/** Replace placeholder blocks for undownloadable images with link paragraphs, so no empty images show up in Feishu */
 function degradeImage(build: MdBuild, blockId: string, url: string, alt: string): void {
   const block = build.blocks.get(blockId);
   if (!block) return;
@@ -69,7 +69,7 @@ function degradeImage(build: MdBuild, blockId: string, url: string, alt: string)
     elements: [
       {
         text_run: {
-          content: alt || "图片", // i18n-ignore 推到飞书的图片替代文字，属于内容
+          content: alt || "图片", // i18n-ignore image alt text pushed to Feishu, it's content
           text_element_style: { link: { url: encodeURIComponent(url) } },
         },
       },
@@ -77,7 +77,7 @@ function degradeImage(build: MdBuild, blockId: string, url: string, alt: string)
   };
 }
 
-/** 顶层块按子树规模分批，逐批调创建接口写入 */
+/** Batch top-level blocks by subtree size and write each batch via the create API */
 async function writeBlocks(
   token: string,
   feishuDocId: string,
@@ -105,7 +105,7 @@ async function writeBlocks(
   await flush();
 }
 
-/** 已下载好的图片上传为飞书素材并回填 image 块。失败计数，不中断整体 */
+/** Upload downloaded images as Feishu assets and fill in the image blocks. Failures are counted without aborting the whole push */
 async function fillImages(
   token: string,
   feishuDocId: string,
@@ -113,7 +113,7 @@ async function fillImages(
   media: Map<string, { buffer: Buffer; mime: string }>
 ): Promise<number> {
   if (build.images.length === 0) return 0;
-  // 空 image 块的真实 id 从页面顶层子块里按序取：整篇是我们刚写的，顺序可靠
+  // Real ids of the empty image blocks are taken in order from the page's top-level children: we just wrote the whole doc, so order is reliable
   const blocks = await listDocBlocks(token, feishuDocId);
   const page = blocks.find((b) => b.block_type === 1);
   const map = new Map(blocks.map((b) => [b.block_id, b]));
@@ -153,9 +153,9 @@ export async function pushDocumentToFeishu(
 
   const build = markdownToFeishuBlocks(doc.content);
   if (build.blocks.size > MAX_BLOCKS) {
-    return { error: `文章过长（超过 ${MAX_BLOCKS} 个内容块），暂不支持推送` }; // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    return { error: `文章过长（超过 ${MAX_BLOCKS} 个内容块），暂不支持推送` }; // i18n-ignore server error message with variables; client-side t() can't match it, keep Chinese for now
   }
-  // 图片先全部预下载：拉不到的在建块前降级成链接，不会在飞书里留下空图
+  // Pre-download all images first: ones that can't be fetched degrade to links before blocks are created, so no empty images are left in Feishu
   const media = new Map<string, { buffer: Buffer; mime: string }>();
   for (const spec of [...build.images]) {
     const m = await fetchImage(spec.url);
@@ -196,7 +196,7 @@ export async function pushDocumentToFeishu(
     action = "created";
   }
 
-  // 整篇覆盖：清空现有正文再写入
+  // Full overwrite: clear the existing body, then write
   const existing = await listDocBlocks(token, feishuDocId);
   const page = existing.find((b) => b.block_type === 1);
   if (!page) return { error: tk("读取飞书文档结构失败") };
@@ -205,7 +205,7 @@ export async function pushDocumentToFeishu(
   await writeBlocks(token, feishuDocId, page.block_id, build);
   const imageFailed = await fillImages(token, feishuDocId, build, media);
 
-  // 回读编辑时间记入关联，防回声；飞书更新时间戳有延迟，稍等再读
+  // Read back the edit time into the link to prevent echo; Feishu's update timestamp lags, so wait a bit before reading
   await sleep(2000);
   const after = await getWikiNode(token, nodeToken).catch(() => null);
   await prisma.feishuDocLink.upsert({

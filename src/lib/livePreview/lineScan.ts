@@ -5,23 +5,23 @@ import { blockGuardRanges } from "@/lib/livePreview/blocks";
 import type { CodeRange } from "@/lib/livePreview/context";
 
 /**
- * 行内公式（$…$）与脚注定义行（[^id]: …）共用的「按行读原文」通道。
+ * Shared "read the source line by line" channel for inline math ($…$) and footnote definition lines ([^id]: …).
  *
- * 为什么不走语法树：lezer 的 markdown 解析器压根不认 `$`；脚注定义行也只有在内容
- * 恰好是个不含空格的词时才会被解析成 LinkReference，写成 `[^1]: 一段 说明` 就是普通段落。
- * 两样东西都只能自己扫文本。
+ * Why not use the syntax tree: lezer's markdown parser doesn't know `$` at all; and a footnote definition line only parses as a LinkReference
+ * when its content happens to be a single word without spaces — written as 「[^1]: 一段 说明」 it's just a normal paragraph.
+ * Both can only be found by scanning the text ourselves.
  *
- * 扫文本就得自己划出「这里的字符不作数」的区间，否则代码块里的 `$` 会被当成公式定界符。
- * 区间分两档，因为两个功能要跳过的东西不一样：
- * - block：代码块、HTML 块，以及块级字段已经认领的表格/$$/frontmatter。两边都跳过。
- * - inline：行内代码、链接、图片、URL 这些已有归属的行内结构。只有公式跳过——
- *   脚注定义行行首那个 `[^id]` 本身就会被 lezer 当成 Link，拿这一档去挡就把自己挡没了。
+ * Scanning text means marking out "characters here don't count" ranges ourselves, otherwise `$` in code blocks would be taken as math delimiters.
+ * There are two tiers, because the two features need to skip different things:
+ * - block: code blocks, HTML blocks, and tables/$$/frontmatter already claimed by the block field. Both features skip these.
+ * - inline: inline structures already owned by something — inline code, links, images, URLs. Only math skips these —
+ *   the `[^id]` at the start of a footnote definition is itself treated as a Link by lezer, so using this tier would block the footnote itself.
  *
- * 成本上守两条线：只走 view.visibleRanges；可见文本里连 `$` 和 `[^` 都没有时直接收工，
- * 连语法树都不遍历（绝大多数文档是这种情况）。
+ * Cost is kept in check two ways: only walk view.visibleRanges; if the visible text contains neither `$` nor `[^`, bail out immediately
+ * without even walking the syntax tree (true for the vast majority of documents).
  */
 
-/** 会把内部字符整段带走的块级结构（进去了就不必再往里走） */
+/** Block structures that take their inner characters wholesale (no need to descend once inside) */
 const BLOCK_NODES = new Set([
   "FencedCode",
   "CodeBlock",
@@ -31,8 +31,8 @@ const BLOCK_NODES = new Set([
   "ProcessingInstruction",
 ]);
 
-/** 已有归属的行内结构。Link/Image 整段算数：`![$a$](x)` 里的 `$` 是图片说明的一部分，
-    认成公式的话公式部件与图片部件会叠在同一段上（两条 replace 重叠，CodeMirror 直接抛错） */
+/** Inline structures already owned by something. Link/Image count as whole spans: the `$` in `![$a$](x)` is part of the image caption,
+    and treating it as math would stack a math widget and an image widget on the same span (two overlapping replaces make CodeMirror throw) */
 const INLINE_NODES = new Set([
   "InlineCode",
   "HTMLTag",
@@ -46,15 +46,15 @@ const INLINE_NODES = new Set([
 ]);
 
 export interface ScanLine {
-  /** 行首在文档中的偏移，行内匹配到的下标加上它就是文档坐标 */
+  /** Document offset of the line start; add it to in-line match indexes to get document coordinates */
   from: number;
   text: string;
 }
 
 export interface ScanGuards {
-  /** 与代码块/HTML/已成块的区间相交 */
+  /** Intersects code blocks/HTML/claimed block ranges */
   inBlock(from: number, to: number): boolean;
-  /** 与行内代码/链接/图片/URL 相交 */
+  /** Intersects inline code/links/images/URLs */
   inInline(from: number, to: number): boolean;
 }
 
@@ -65,8 +65,8 @@ function overlaps(ranges: CodeRange[], from: number, to: number): boolean {
 function collectGuards(state: EditorState, view: EditorView): ScanGuards {
   const visibleFrom = view.visibleRanges[0]?.from ?? 0;
   const visibleTo = view.visibleRanges[view.visibleRanges.length - 1]?.to ?? 0;
-  // 块级那份是全文的，先裁到可见范围：后面每个候选字符都要拿它过一遍，
-  // 长文里几百个代码块全留着就是白跑几百次比较
+  // The block-level ranges are whole-doc, so clip them to the visible range first: every candidate char below is checked against them,
+  // and keeping hundreds of code blocks from a long doc would mean hundreds of wasted comparisons
   const block = blockGuardRanges(state).filter((r) => r.from <= visibleTo && r.to >= visibleFrom);
   const inline: CodeRange[] = [];
   for (const range of view.visibleRanges) {
@@ -93,9 +93,9 @@ function collectGuards(state: EditorState, view: EditorView): ScanGuards {
 }
 
 /**
- * 遍历可见行，逐行交给 handle。guards 懒建一次（可见文本里有 `$` 或 `[^` 才建）。
- * 行号只增不回头：相邻可见区间理论上可能落在同一行，同一行扫两遍会把装饰也加两遍，
- * 两条一模一样的 replace 叠在一起 CodeMirror 会抛错。
+ * Walk visible lines, handing each to handle. guards are built lazily once (only if the visible text has `$` or `[^`).
+ * Line numbers only increase, never go back: adjacent visible ranges can in theory fall on the same line, and scanning a line twice would add decorations twice;
+ * two identical replaces stacked together make CodeMirror throw.
  */
 export function scanVisibleLines(
   view: EditorView,

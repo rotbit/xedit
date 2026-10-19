@@ -12,15 +12,15 @@ import { useT } from "@/i18n/useT";
 import { ReadingMeta, ReadingTitle, ThemeTrigger } from "@/features/editor/components/ReadingChrome";
 import { createPreviewUpdater } from "@/lib/markdown/preview";
 
-/** 阅读模式大纲开合的记忆位（"1" 展开 / "0" 收起，缺省当展开） */
+/** Remembered open state of the reading-mode outline ("1" expanded / "0" collapsed, missing means expanded) */
 const OUTLINE_OPEN_KEY = "xedit.readingOutlineOpen";
 
 interface Props {
   onScroll?: () => void;
-  /** split：双屏右栏，手机窄栏 + 「公众号效果」顶栏；
-   *  reading：阅读模式，整块编辑区换成 720px 宽栏成品，顶栏可退出 */
+  /** split: right pane of the split view, narrow phone column + 「公众号效果」 (WeChat preview) top bar;
+   *  reading: reading mode, the whole editing area becomes a 720px-wide finished article, with an exit in the top bar */
   variant?: "split" | "reading";
-  /** 阅读模式的退出回调 */
+  /** Exit callback for reading mode */
   onExit?: () => void;
 }
 
@@ -30,28 +30,28 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
 ) {
   const t = useT();
   const reading = variant === "reading";
-  // [[双向链接]] 的点击：渲染结果是整段注入的 HTML，没有 React 节点可挂事件，
-  // 只能在容器上做委托。点击后只派事件，找文章的活在应用层
+  // Clicks on [[wiki links]]: the rendered output is injected HTML as a whole, with no React nodes to attach handlers to,
+  // so delegation on the container is the only option. On click we just dispatch an event; finding the article is the app layer's job
   const onContentClick = (e: React.MouseEvent) => {
     const target = (e.target as HTMLElement).closest?.("[data-wiki]")?.getAttribute("data-wiki");
     if (target) requestOpenWikiLink(target);
   };
-  // 渲染管线（含 DOMPurify 消毒）：阅读模式不跟着击键跑，进来即渲染，不必防抖
+  // Render pipeline (including DOMPurify sanitizing): reading mode doesn't follow keystrokes, it renders on entry, so no debounce
   const { blocks, codeCss, themeCss, themeName, tuneCss, customCss } = usePreviewRender(
     reading ? 0 : 180
   );
-  // 大纲只在阅读模式露出。hook 照样两个变体都调（React 不许条件调用），
-  // 但双屏传 enabled=false，里面就不去扫 DOM 了
+  // The outline only shows in reading mode. The hook is still called in both variants (React forbids conditional calls),
+  // but the split view passes enabled=false so it doesn't scan the DOM
   const sectionRef = useRef<HTMLElement>(null);
   const updateRef = useRef<ReturnType<typeof createPreviewUpdater> | null>(null);
-  // 在大纲 effect 和浏览器绘制之前更新正文，目录与同步滚动读到的仍是当次内容。
+  // Update the body before the outline effect and browser paint, so the outline and synced scrolling still read this render's content.
   useLayoutEffect(() => {
     updateRef.current ??= createPreviewUpdater(sectionRef.current!);
     updateRef.current(blocks);
   }, [blocks]);
   const { outline, jumpToHeading } = useOutline(sectionRef, blocks, reading);
-  // 大纲开合：初值固定 true，localStorage 留到 useEffect 里回读——
-  // 惰性初始化会让服务端渲的首帧与客户端不一致，直接踩 hydration
+  // Outline open state: the initial value is fixed at true and localStorage is read back in useEffect —
+  // lazy initialization would make the server-rendered first frame differ from the client and trip hydration
   const [outlineOpen, setOutlineOpen] = useState(true);
   useEffect(() => {
     if (readLocal(OUTLINE_OPEN_KEY) === "0") setOutlineOpen(false);
@@ -60,12 +60,12 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
     setOutlineOpen(v);
     writeLocal(OUTLINE_OPEN_KEY, v ? "1" : "0");
   }, []);
-  // 有标题才谈开合：无标题时大纲与展开入口都不该出现
+  // Open/close only matters with headings: without them neither the outline nor its expand entry should appear
   const hasOutline = reading && outline.length > 0;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
-      {/* 顶栏：左侧标识 / 退出阅读，右侧是排版主题入口，压到 40px 少占版面 */}
+      {/* Top bar: brand / exit reading on the left, typography theme entry on the right, kept to 40px to save space */}
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4">
         {reading ? (
           <button
@@ -79,13 +79,13 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
         ) : (
           <span className="text-[11px] tracking-[0.15em] text-[var(--ink-faint)]">{t("公众号效果")}</span>
         )}
-        {/* 右侧：主题入口常驻，阅读模式再多一段字数/时长 */}
+        {/* Right side: the theme entry is always there; reading mode adds word count/reading time */}
         <span className="flex min-w-0 items-center gap-2">
           {reading ? <ReadingMeta /> : null}
           <ThemeTrigger themeName={themeName} />
         </span>
       </div>
-      {/* 收起后的目录入口，落在 40px 顶栏下方的留白里，展开后交回大纲标题行的收起按钮 */}
+      {/* Outline entry when collapsed, sitting in the gap below the 40px top bar; when expanded it hands back to the collapse button in the outline title row */}
       {hasOutline && !outlineOpen ? (
         <button
           type="button"
@@ -107,15 +107,15 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
         <style>{themeCss}</style>
         <style>{tuneCss}</style>
         {customCss ? <style>{customCss}</style> : null}
-        {/* 阅读模式的外层栅格：大纲 + 正文并排居中。双屏用 contents 把这层从布局里摘掉，
-            正文列仍是滚动容器的直接子级，窄栏版式分毫不动 */}
+        {/* Reading mode's outer grid: outline + body side by side, centered. The split view uses contents to drop this layer from layout,
+            so the body column stays a direct child of the scroll container and the narrow layout is untouched */}
         <div
           className={
             reading ? "mx-auto flex w-full max-w-[960px] justify-center gap-8" : "contents"
           }
         >
-          {/* 大纲（桌面）：从渲染结果提取 h1~h3，点击平滑跳转；无标题或已收起时整条不渲染，
-              正文照旧居中。sticky 相对外层 overflow-y-auto 的滚动容器生效 */}
+          {/* Outline (desktop): extracts h1–h3 from the rendered output, click to smooth-scroll; not rendered at all without headings or when collapsed,
+              and the body stays centered. sticky works relative to the outer overflow-y-auto scroll container */}
           {hasOutline && outlineOpen ? (
             <OutlineNav
               outline={outline}
@@ -124,9 +124,9 @@ export const Preview = forwardRef<HTMLDivElement, Props>(function Preview(
               className="hidden w-[190px] shrink-0 lg:block"
             />
           ) : null}
-          {/* 双屏：手机阅读宽度，公众号文章以读者手机上的真实比例呈现，窄列 + 两侧留白
-              让右栏与宽幅编辑区一眼可辨。阅读模式：宽出一截的 720px 通读长文，不做卡片、无边框阴影，
-              居中让给外层 flex。两者夜间模式下文章面都保持日间白 */}
+          {/* Split view: phone reading width, so WeChat articles appear at the true proportions of a reader's phone; a narrow column with side margins
+              makes the right pane instantly distinguishable from the wide editor. Reading mode: a wider 720px column for long reads, no card, no border or shadow,
+              centering left to the outer flex. In dark mode both keep the article surface light */}
           <div
             className={
               reading

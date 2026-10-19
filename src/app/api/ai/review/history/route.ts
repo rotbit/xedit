@@ -3,7 +3,7 @@ import { cleanDocId, listReviewRecords } from "@/lib/ai/reviewHistory";
 import { historyUser } from "./guard";
 import { tk } from "@/i18n/t";
 
-/** 某篇文章的审核历史（只有摘要行，整份结果按 id 另取） */
+/** Review history for an article (summary rows only; full results are fetched by id) */
 export async function GET(req: Request) {
   const who = await historyUser();
   if ("response" in who) return who.response;

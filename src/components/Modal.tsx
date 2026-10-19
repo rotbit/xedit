@@ -3,18 +3,18 @@
 import { X } from "lucide-react";
 import { useEscape } from "@/hooks/useEscape";
 
-/** 弹窗里的主按钮：确定 / 保存 / 开始同步… */
+/** Primary dialog button: OK / Save / Start sync… */
 export const btnPrimary =
   "flex cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-deep)] disabled:opacity-60";
 
-/** 弹窗里的次级按钮：停止 / 取消这类描边按钮 */
+/** Secondary dialog button: outlined buttons like Stop / Cancel */
 export const btnSecondary =
   "flex cursor-pointer items-center rounded-md border border-[var(--hairline-strong)] px-4 py-1.5 text-[13px] text-[var(--ink-soft)] hover:bg-[var(--paper)] disabled:opacity-60";
 
 /**
- * 带标题栏的功能弹窗外壳：遮罩 + 面板 + 48px 标题栏（图标 + 标题 + X）+ Esc 关闭。
- * 飞书导入 / Markdown 导入 / 自定义 CSS 共用，三者只差尺寸与层级，用 prop 表达；
- * 面板本身是纵向 flex，内容区自己决定滚动还是撑满。
+ * Shell for functional dialogs with a title bar: backdrop + panel + 48px title bar (icon + title + X) + Esc to close.
+ * Shared by Feishu import / Markdown import / custom CSS, which differ only in size and stacking, expressed via props;
+ * the panel itself is a vertical flex, and the content area decides whether to scroll or fill.
  */
 export function Modal({
   title,
@@ -29,16 +29,16 @@ export function Modal({
   children,
 }: {
   title: string;
-  /** 标题左侧的小图标；不传时标题栏不进 flex 布局，与原来的纯文字标题逐字一致 */
+  /** Small icon left of the title; when omitted the title bar skips flex layout, identical to the old text-only title */
   icon?: React.ReactNode;
   width: number;
-  /** 固定高度（自定义 CSS 那种编辑器面板要定高），不传则由内容撑开 */
+  /** Fixed height (editor panels like custom CSS need one); omitted means sized by content */
   height?: number;
   maxWidth?: string;
   maxHeight?: string;
-  /** 叠放层级：导入类 95，主题/CSS 类 90 */
+  /** Stacking level: imports 95, theme/CSS 90 */
   z?: number;
-  /** 锁住关闭入口（如导入进行中）：遮罩、Esc、X 都不响应 */
+  /** Lock the close affordances (e.g. while importing): backdrop, Esc and X all do nothing */
   locked?: boolean;
   onClose: () => void;
   children: React.ReactNode;
@@ -84,9 +84,9 @@ export function Modal({
 }
 
 /**
- * 稿纸风格的轻弹窗外壳：淡遮罩 + toast-in 弹入的圆角面板，标题行与按钮区由 children 自带。
- * askInput / askConfirm / askCategoryPick / 登录弹窗共用——它们比 Modal 更轻（无标题栏、无 X），
- * 所以是第二种外壳而不是给 Modal 加开关。
+ * Lightweight paper-style dialog shell: faint backdrop + rounded panel that pops in with toast-in; title row and buttons come from children.
+ * Shared by askInput / askConfirm / askCategoryPick / the sign-in dialog — they're lighter than Modal (no title bar, no X),
+ * hence a second shell rather than a flag on Modal.
  */
 export function PaperDialog({
   width,
@@ -100,14 +100,14 @@ export function PaperDialog({
   width: number;
   maxWidth?: string;
   z?: number;
-  /** 遮罩留 16px 白边：内容较高的登录弹窗在窄屏上不贴边 */
+  /** 16px margin around the backdrop so the taller sign-in dialog doesn't touch the edges on narrow screens */
   padded?: boolean;
-  /** 面板追加类：分类选择要纵向 flex + 限高滚动 */
+  /** Extra panel classes: the category picker needs vertical flex + capped-height scrolling */
   panelClass?: string;
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  // 面板渲染出来才挂 Esc，等价于各宿主原来的 `useEscape(cancel, 打开中)`
+  // Esc is attached only once the panel renders, equivalent to each host's old `useEscape(cancel, isOpen)`
   useEscape(onClose);
 
   return (

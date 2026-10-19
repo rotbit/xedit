@@ -1,7 +1,7 @@
 "use client";
 
-// Notion 式浮动工具条：选中正文才浮出的一行胶囊，取代原来的常驻横栏。
-// 只放「对选区生效」的格式化命令；插入类（图片/表格/代码块…）挪到顶栏的 + 菜单。
+// Notion-style floating toolbar: a pill row that only appears when body text is selected, replacing the old always-on bar.
+// It only holds formatting commands that "act on the selection"; insert actions (image/table/code block…) moved to the top bar's + menu.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -14,18 +14,18 @@ import type { FormatCommand } from "@/lib/editor/commands";
 
 const ICON = 16;
 
-/** 胶囊高度（与 CSS 的 h-9 一致），量不到元素时兜底用 */
+/** Pill height (matches CSS h-9); fallback when the element can't be measured */
 const BAR_H = 36;
-/** 工具条与选区之间的呼吸位 */
+/** Breathing room between the toolbar and the selection */
 const GAP = 8;
-/** 选区离滚动容器顶部太近时翻到下方，免得工具条盖住上方 UI 或出屏 */
+/** Flip below when the selection is too close to the scroll container's top, so the toolbar doesn't cover UI above or go off-screen */
 const FLIP_TOP = 56;
-/** 选区稳定多久才浮出：拖选途中一直重置，松手（或键盘选完）才出现 */
+/** How long the selection must stay stable before appearing: reset continuously while drag-selecting, shown on release (or once keyboard selection ends) */
 const SHOW_DELAY = 80;
-/** 淡出时长，与 CSS 的 float-toolbar-out 对齐 */
+/** Fade-out duration, matching CSS float-toolbar-out */
 const HIDE_MS = 80;
 
-/** 标题按钮不用 lucide 的 H₁/H₂/H₃（下标拥挤、辨识度差），改用清晰的字面「H1/H2/H3」 */
+/** Heading buttons skip lucide's H₁/H₂/H₃ (cramped subscripts, hard to read) in favor of plain literal "H1/H2/H3" */
 function HeadingGlyph({ level }: { level: 1 | 2 | 3 }) {
   return (
     <span className="flex items-baseline font-semibold leading-none tracking-tight [font-family:var(--sans)]">
@@ -37,7 +37,7 @@ function HeadingGlyph({ level }: { level: 1 | 2 | 3 }) {
 
 type Btn = { cmd: FormatCommand; icon: React.ReactNode; label: string };
 
-/** 顺序：加粗 · 斜体 · 删除线 · 字体颜色 ｜ H1 · H2 · H3 ｜ 引用 · 行内代码 · 链接 */
+/** Order: bold · italic · strikethrough · font color | H1 · H2 · H3 | quote · inline code · link */
 const GROUP_A: Btn[] = [
   { cmd: "bold", icon: <Bold size={ICON} />, label: tk("加粗（⌘B）") },
   { cmd: "italic", icon: <Italic size={ICON} />, label: tk("斜体（⌘I）") },
@@ -65,33 +65,33 @@ export function FloatingToolbar({
   scrollEl,
   onCommand,
 }: {
-  /** 订阅编辑器的选区流：走订阅而非 props，免得每次移动光标都重渲染整个文章视图 */
+  /** Subscribe to the editor's selection stream: subscription instead of props, so moving the cursor doesn't re-render the whole article view */
   subscribe: (cb: (info: SelectionInfo | null) => void) => () => void;
   editorRef: React.RefObject<EditorHandle | null>;
-  /** 编辑区的滚动容器：滚动时跟随重算，并用它的顶缘判断要不要翻到选区下方 */
+  /** The editor's scroll container: recompute on scroll, and use its top edge to decide whether to flip below the selection */
   scrollEl: HTMLElement | null;
   onCommand: (cmd: FormatCommand, arg?: string) => void;
 }) {
-  // 延迟卸载：mounted 负责在不在 DOM 里，closing 负责淡出这 80ms
+  // Delayed unmount: mounted controls DOM presence, closing covers the 80ms fade-out
   const [mounted, setMounted] = useState(false);
   const t = useT();
   const [closing, setClosing] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
-  /** 逻辑上「该显示」——比 mounted 早一步，淡出期间已经是 false */
+  /** Logically "should show" — one step ahead of mounted, already false during the fade-out */
   const visibleRef = useRef(false);
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 色板展开期间编辑器会失焦（原生取色器抢焦点），此时别把工具条收掉
+  // The editor loses focus while swatches are open (the native color picker steals it), so don't collapse the toolbar then
   const holdRef = useRef(false);
-  // 工具条自己发起的编辑：dispatch 是同步的，标记只在这一次调用内有效
+  // Edits initiated by the toolbar itself: dispatch is synchronous, so the flag only holds for this one call
   const selfEditRef = useRef(false);
-  // Esc 收起后记住当时的选区，选区没变就不再自动弹回来
+  // After Esc closes it, remember that selection; if it hasn't changed, don't pop back up automatically
   const escKeyRef = useRef<string | null>(null);
   const selKeyRef = useRef<string | null>(null);
 
-  /** 按当前选区把胶囊摆到位：锚在选区起点行，同行时水平居中于选区中点 */
+  /** Position the pill for the current selection: anchored to the selection's starting line, horizontally centered on its midpoint when on one line */
   const place = useCallback(() => {
     const view = editorRef.current?.view();
     const el = rootRef.current;
@@ -101,13 +101,13 @@ export function FloatingToolbar({
     const a = view.coordsAtPos(sel.from);
     if (!a) return;
     const b = view.coordsAtPos(sel.to);
-    // 起止在同一行才按中点居中；跨行时贴起点，免得胶囊飘到毫不相干的横向位置
+    // Only center on the midpoint when start and end share a line; across lines hug the start so the pill doesn't drift somewhere unrelated
     const sameLine = !!b && Math.abs(b.top - a.top) < 1;
     const anchorX = sameLine ? (a.left + b.right) / 2 : a.left;
 
     const w = el.offsetWidth || 0;
     const h = el.offsetHeight || BAR_H;
-    // 横向不许溢出编辑列，超了就贴边
+    // Never overflow the editor column horizontally; clamp to the edge if it would
     const col = view.dom.getBoundingClientRect();
     const min = col.left + 8;
     const max = Math.max(min, col.right - w - 8);
@@ -144,18 +144,18 @@ export function FloatingToolbar({
     }, HIDE_MS);
   }, []);
 
-  /** 选区流的唯一入口：出现 / 隐藏 / 跟随都在这里裁决 */
+  /** Single entry point for the selection stream: show / hide / follow are all decided here */
   const onSelection = useCallback(
     (sel: SelectionInfo | null) => {
-      // 每来一次上报都重置延迟：拖选途中一直不出现，稳定 80ms 才浮出
+      // Every report resets the delay: nothing appears mid-drag, it floats in after 80ms of stability
       if (showTimerRef.current) {
         clearTimeout(showTimerRef.current);
         showTimerRef.current = null;
       }
       if (!sel || sel.empty) return hide();
-      // 打字要收起；工具条自己刚发的命令引发的那次文档变化不算
+      // Typing hides it; the doc change caused by the toolbar's own command doesn't count
       if (sel.docChanged && !selfEditRef.current) return hide();
-      // 失焦收起：焦点落在工具条自身（或色板开着）时除外
+      // Hide on blur, except when focus lands on the toolbar itself (or the swatches are open)
       if (
         !sel.hasFocus &&
         !holdRef.current &&
@@ -167,7 +167,7 @@ export function FloatingToolbar({
       selKeyRef.current = key;
       if (escKeyRef.current === key) return;
       escKeyRef.current = null;
-      // 已经显示了就只更新落点，别再走一遍延迟（点按钮后选区会移位）
+      // Already visible: just update the position, don't go through the delay again (the selection shifts after clicking a button)
       if (visibleRef.current) return place();
       showTimerRef.current = setTimeout(() => {
         showTimerRef.current = null;
@@ -187,12 +187,12 @@ export function FloatingToolbar({
     []
   );
 
-  // 首帧就摆好：布局副作用在绘制前跑完，不会看到胶囊从角落飞过来
+  // Position on the first frame: the layout effect runs before paint, so the pill never flies in from a corner
   useLayoutEffect(() => {
     if (mounted) place();
   }, [mounted, place]);
 
-  // 滚动/改窗口尺寸时跟随；rAF 合帧，别让 scroll 每个事件都触发一次量算
+  // Follow on scroll/resize; coalesce with rAF so each scroll event doesn't trigger a measurement
   useEffect(() => {
     if (!mounted) return;
     let raf = 0;
@@ -212,7 +212,7 @@ export function FloatingToolbar({
     };
   }, [mounted, scrollEl, place]);
 
-  // Esc 收起（capture：抢在 CodeMirror 的 Escape 之前记下当前选区）
+  // Esc hides it (capture: record the current selection before CodeMirror handles Escape)
   useEffect(() => {
     if (!mounted) return;
     const onKey = (e: KeyboardEvent) => {
@@ -224,8 +224,8 @@ export function FloatingToolbar({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [mounted, hide]);
 
-  /** 工具条发命令：CodeMirror 的 dispatch 与 updateListener 同步执行，
-   *  所以这一对赋值刚好圈住命令引发的那次 docChanged，不会误伤用户的下一次击键 */
+  /** Toolbar dispatches a command: CodeMirror's dispatch and updateListener run synchronously,
+   *  so this pair of assignments brackets exactly the docChanged caused by the command and won't affect the user's next keystroke */
   const run = useCallback(
     (cmd: FormatCommand, arg?: string) => {
       selfEditRef.current = true;
@@ -252,10 +252,10 @@ export function FloatingToolbar({
       style={{
         left: pos?.left ?? 0,
         top: pos?.top ?? 0,
-        // 量到落点之前先藏着，避免第一帧闪在 (0,0)
+        // Stay hidden until positioned, to avoid flashing at (0,0) on the first frame
         visibility: pos ? "visible" : "hidden",
       }}
-      // 按下不夺焦：编辑器保持焦点，选区不会因为点按钮而消失
+      // Press without stealing focus: the editor keeps focus, so the selection doesn't vanish when a button is clicked
       onMouseDown={(e) => e.preventDefault()}
     >
       {GROUP_A.map((b) => (

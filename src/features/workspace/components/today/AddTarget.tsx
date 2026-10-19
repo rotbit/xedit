@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 「记一件事」时可选的关联目标，左栏快速输入（QuickAdd）和右栏每天末尾的输入行（UpcomingColumn）共用。
+ * Optional link target when 「记一件事」 (adding a task), shared by the left-column quick input (QuickAdd) and the input row at the end of each day in the right column (UpcomingColumn).
  *
- * 两处的交互必须一致：默认独立待办，右侧「关联文章」点开才出搜索，选中后显示《标题》+ X 可撤回；
- * 抽到这里是为了不让两份拷贝各自走样。状态与渲染分开：useAddTarget 管选了什么，
- * TargetControl 只负责画右侧那块，各输入行自己决定选择器何时开、怎么关。
+ * Both must behave the same: default is a standalone todo; clicking 「关联文章」 (Link document) on the right opens search, and once chosen it shows 《title》 + X to undo;
+ * it's extracted here so two copies don't drift apart. State and rendering are separate: useAddTarget tracks what's selected,
+ * TargetControl only draws the right-hand part, and each input row decides when its picker opens and how it closes.
  */
 import { useState, type RefObject } from "react";
 import { X } from "lucide-react";
@@ -17,26 +17,26 @@ import type { DocMeta } from "../../types";
 import { DocPicker, type Option } from "./DocPicker";
 
 /**
- * 任务记到哪：一律记进待办清单（有就追加、没有就建），可选关联一篇现有文章（link）；
- * 或新建一篇再关联上——title 为空串时用任务文字当标题，category 是选好的文件夹。
+ * Where the task is recorded: always in the todo list document (appended if it exists, created if not), optionally linked to an existing document (link);
+ * or to a newly created document that's then linked: when title is an empty string the task text becomes the title, and category is the chosen folder.
  */
 export type AddTarget = { kind: "notes"; link?: string } | { kind: "new"; title: string; category: string };
 
 export const NOTES: AddTarget = { kind: "notes" };
 
-/** 是否还是默认目标（独立待办、没关联任何文章） */
+/** Whether it's still the default target (standalone todo, not linked to any document) */
 export const isDefaultTarget = (target: AddTarget) => target.kind === "notes" && !target.link;
 
 /**
- * 选择器里点了「新建」后问落到哪个文件夹，三处（行尾关联、快速输入、每天末尾）共用。
- * 返回分类路径，null = 取消。调用方各自先收起自己的弹层再 await 它——
- * 弹窗是全局宿主，不依赖调用方还挂着，所以行尾弹层关掉即卸载也不影响后续回调。
+ * After clicking 「新建」 (New) in the picker, ask which folder it goes in; shared by three places (row-end link, quick input, end of each day).
+ * Returns the category path, null = cancelled. Callers each close their own popover first, then await it;
+ * the dialog is a global host that doesn't depend on the caller staying mounted, so the row-end popover unmounting on close doesn't affect later callbacks.
  */
 export function askNewDocFolder(categories: string[], t: TFn): Promise<string | null> {
   return askCategoryPick({ title: t("新建文章到哪个文件夹"), categories });
 }
 
-/** 输入行下方的文章选择器外框 */
+/** Frame for the document picker below the input row */
 export function Picker({ docs, onPick }: { docs: DocMeta[]; onPick: (o: Option) => void }) {
   const t = useT();
   return (
@@ -51,16 +51,16 @@ export function Picker({ docs, onPick }: { docs: DocMeta[]; onPick: (o: Option) 
 }
 
 /**
- * 关联目标的状态：选了什么（target）、右侧标签文字（targetLabel）、选择器开没开（picking）、
- * 文件夹弹窗开没开（choosingFolder）。选中 / 取消之后焦点还给输入框，让用户接着打字或直接回车。
+ * Link target state: what's selected (target), the right-hand label text (targetLabel), whether the picker is open (picking),
+ * whether the folder dialog is open (choosingFolder). After selecting / cancelling, focus returns to the input so the user can keep typing or hit Enter.
  *
- * choosingFolder 要交给输入行：弹窗是 modal，点在弹窗里对输入行来说是「外部点击」，
- * Esc 也会同时传到输入行——不挂起它们的关闭逻辑，输入行就会被收起（快速输入那行还会卸载、字丢掉）。
+ * choosingFolder must be passed to the input row: the dialog is modal, so clicks inside it count as "outside clicks" for the input row,
+ * and Esc also reaches the input row; without suspending their close logic the input row would collapse (and the quick input row would unmount, losing the text).
  */
 export function useAddTarget(inputRef: RefObject<HTMLInputElement | null>, categories: string[]) {
   const t = useT();
   const [target, setTarget] = useState<AddTarget>(NOTES);
-  /** 关联文章时右侧标签的文字；默认目标不显示标签 */
+  /** Text of the right-hand label when a document is linked; no label for the default target */
   const [targetLabel, setTargetLabel] = useState("");
   const [picking, setPicking] = useState(false);
   const [choosingFolder, setChoosingFolder] = useState(false);
@@ -77,10 +77,10 @@ export function useAddTarget(inputRef: RefObject<HTMLInputElement | null>, categ
     setChoosingFolder(true);
     const category = await askNewDocFolder(categories, t);
     setChoosingFolder(false);
-    // 取消就当没点过「新建」：目标保持原样
+    // Cancelling is as if 「新建」 (New) was never clicked: the target stays as it was
     if (category !== null) {
       setTarget({ kind: "new", title, category });
-      // 带上文件夹末级名：不然选完看不出落到哪，提交前也没机会发现选错了
+      // Include the last-level folder name: otherwise you can't tell where it'll land, and there's no chance to catch a wrong choice before submitting
       const what = title ? t("新建《{title}》", { title }) : t("新建文章");
       setTargetLabel(`${what} · ${displayCatName(nameOf(category), t)}`);
     }
@@ -93,7 +93,7 @@ export function useAddTarget(inputRef: RefObject<HTMLInputElement | null>, categ
     inputRef.current?.focus();
   };
 
-  /** 提交成功后回到默认：连记时每条各自选关联，不沿用上一条的 */
+  /** Reset to default after a successful submit: when adding several in a row each picks its own link, not inheriting the previous one */
   const reset = () => {
     setTarget(NOTES);
     setTargetLabel("");
@@ -109,8 +109,8 @@ const SIZES = {
 } as const;
 
 /**
- * 输入行右侧那块：默认目标时是「关联文章」文字按钮，选了文章后是《标题》+ X。
- * md 配左栏 14px 的输入行，sm 配右栏 12px 的。
+ * The right-hand part of the input row: a 「关联文章」 (Link document) text button for the default target, or 《title》 + X once a document is chosen.
+ * md pairs with the left column's 14px input row, sm with the right column's 12px one.
  */
 export function TargetControl({
   target,

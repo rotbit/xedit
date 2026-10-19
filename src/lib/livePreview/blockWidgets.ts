@@ -6,18 +6,18 @@ import { texToSvg } from "@/lib/markdown/mathjax";
 import { mathJaxReady, refreshWhenMathReady } from "@/lib/livePreview/mathReady";
 import { editOnClick } from "@/lib/livePreview/widgetUtils";
 
-/** 即时渲染的块级部件（表格、$$ 公式）。跨行替换只能由状态字段提供，
- *  装饰构建见 blocks.ts。所有写进 DOM 的 HTML 一律先过 DOMPurify（sanitizeHtml） */
+/** Block-level live-render widgets (tables, $$ math). Multi-line replacement can only come from a state field;
+ *  decoration building is in blocks.ts. All HTML written to the DOM goes through DOMPurify first (sanitizeHtml) */
 
-/** 单元格只跑 inline 渲染：块级规则会把一格内容再包成 <p>，撑坏表格行高。
- *  实例懒建一次，编辑器里每次重排都复用 */
+/** Cells run inline rendering only: block rules would wrap a cell's content in <p> again and blow up row height.
+ *  The instance is created lazily once and reused across every editor relayout */
 let inlineMd: MarkdownIt | null = null;
 function renderCell(source: string): string {
   if (!inlineMd) inlineMd = new MarkdownIt({ html: false }).use(intrawordStarPlugin);
   return sanitizeHtml(inlineMd.renderInline(source));
 }
 
-/** 单元格同时保留原文偏移，点击时直接定位到对应行列；转义交给 Markdown 渲染。 */
+/** Cells keep their source offsets so a click jumps straight to the matching row/column; escaping is left to Markdown rendering. */
 function splitRow(line: string): { text: string; from: number }[] {
   const cells: { text: string; from: number }[] = [];
   let start = 0;
@@ -39,7 +39,7 @@ function splitRow(line: string): { text: string; from: number }[] {
   return cells;
 }
 
-/** 第二行分隔行决定各列对齐（:-- / --: / :-:） */
+/** The second (delimiter) row determines column alignment (:-- / --: / :-:) */
 function parseAlign(cell: string): "left" | "right" | "center" | null {
   const left = cell.startsWith(":");
   const right = cell.endsWith(":");
@@ -49,17 +49,17 @@ function parseAlign(cell: string): "left" | "right" | "center" | null {
   return null;
 }
 
-/** 表格一行的高度：单元格上下内边距 6+6，加 15px 字号 × 1.6 行高，取整约 33px
- *  （见 live-blocks.css 的 .cm-lp-table table 与 th/td） */
+/** Height of a table row: cell vertical padding 6+6, plus 15px font × 1.6 line height, rounded to ~33px
+ *  (see .cm-lp-table table and th/td in live-blocks.css) */
 const TABLE_ROW_HEIGHT = 33;
-/** 外框上下边框各 1px，再留一点零头（.cm-lp-table 的 border + border-radius） */
+/** 1px top and bottom border on the outer frame, plus a bit of slack (.cm-lp-table's border + border-radius) */
 const TABLE_CHROME_HEIGHT = 4;
 
-/** 公式块的估高：上下内边距各 10px（.cm-lp-math），加一行公式 SVG 的常见高度 */
+/** Estimated height of a math block: 10px vertical padding each side (.cm-lp-math), plus a typical one-line formula SVG height */
 const MATH_BLOCK_HEIGHT = 64;
 
 export class TableWidget extends WidgetType {
-  /** 切行只做一次：估高与建 DOM 都要按行走，而 source 变了就是另一个部件（见 eq） */
+  /** Split lines only once: height estimation and DOM building both go row by row, and a changed source is a different widget anyway (see eq) */
   private readonly rows: string[];
   constructor(readonly source: string) {
     super();
@@ -84,7 +84,7 @@ export class TableWidget extends WidgetType {
     rows.forEach((line, index) => {
       const rowOffset = lineOffset;
       lineOffset += line.length + 1;
-      if (index === 1) return; // 分隔行只提供对齐信息，不出现在表里
+      if (index === 1) return; // the delimiter row only provides alignment, it isn't shown in the table
       const tr = document.createElement("tr");
       splitRow(line).forEach((cell, col) => {
         const td = document.createElement(index === 0 ? "th" : "td");
@@ -100,7 +100,7 @@ export class TableWidget extends WidgetType {
     if (head.childElementCount > 0) table.appendChild(head);
     if (body.childElementCount > 0) table.appendChild(body);
     wrap.appendChild(table);
-    // +1 跳过行首的 `|`：落在表格区间内部，装饰才会让位给源码
+    // +1 skips the leading `|`: landing inside the table range makes the decoration yield to source
     editOnClick(wrap, view, 1);
     return wrap;
   }
@@ -109,9 +109,9 @@ export class TableWidget extends WidgetType {
   }
 }
 
-/** MathJax 是异步动态加载的：首次渲染多半还没就绪，先出原文占位，就绪后由
- *  refreshLivePreview 触发重建（就绪状态与刷新见 mathReady.ts，行内公式共用同一份）。
- *  ready 进 eq 比较，否则部件“相等”会留住旧 DOM */
+/** MathJax loads asynchronously: on first render it's usually not ready, so show the source as a placeholder; once ready
+ *  refreshLivePreview triggers a rebuild (readiness and refresh are in mathReady.ts, shared with inline math).
+ *  ready is part of eq, otherwise the widget would be "equal" and keep the stale DOM */
 export class MathBlockWidget extends WidgetType {
   private readonly ready = mathJaxReady();
   constructor(readonly tex: string) {
@@ -134,14 +134,14 @@ export class MathBlockWidget extends WidgetType {
       refreshWhenMathReady(view);
     } else {
       try {
-        // texToSvg 产出的是 MathJax 自己的 SVG，仍按统一管线消毒后再入 DOM
+        // texToSvg produces MathJax's own SVG; still sanitize it through the shared pipeline before it enters the DOM
         wrap.innerHTML = sanitizeHtml(texToSvg(this.tex, true));
       } catch {
         wrap.classList.add("cm-lp-math-error");
         wrap.textContent = this.tex;
       }
     }
-    // +2 跳过开头的 `$$`：光标落进区间内部即还原源码
+    // +2 skips the leading `$$`: a cursor inside the range restores the source
     editOnClick(wrap, view, 2);
     return wrap;
   }

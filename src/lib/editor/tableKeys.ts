@@ -1,12 +1,12 @@
 /**
- * 表格里的 Tab / Shift-Tab：在单元格之间跳，而不是给整行加缩进。
+ * Tab / Shift-Tab inside a table: jump between cells instead of indenting the whole line.
  *
- * 起因：默认的 indentWithTab 在表格行上按 Tab 会往行首插两个空格，表格当场错位，
- * 而且这个缩进还会顺着往下几行传染。写表格时 Tab 的本意只有一个——去下一格。
+ * Why: the default indentWithTab inserts two spaces at the start of a table row, which instantly
+ * breaks the table — and the indent bleeds into the following lines. In a table, Tab only ever means "next cell".
  *
- * 判定用语法树的 Table 节点；表格刚开头（只敲了表头行、还没有 `| --- |`）时解析不出
- * Table，就退回"整行以 `|` 起手"的形状判断，并且先排除围栏代码块（代码里的竖线是
- * 位运算、正则分支，不是表格）。
+ * Detection uses the syntax tree's Table node. When a table has just been started (header row only, no `| --- |` yet)
+ * it doesn't parse as a Table, so we fall back to a "line starts with `|`" shape check, after first ruling out fenced code
+ * (pipes in code are bitwise ops or regex alternation, not tables).
  */
 
 import { EditorSelection, Prec, type EditorState, type Extension, type Line } from "@codemirror/state";
@@ -16,12 +16,12 @@ import type { SyntaxNode } from "@lezer/common";
 import { caretInFencedCode } from "@/lib/livePreview/context";
 
 interface Cell {
-  /** 单元格的整段范围（含两侧填充空格），不含竖线本身 */
+  /** Full cell range (including padding spaces on both sides), excluding the pipes */
   from: number;
   to: number;
 }
 
-/** 分隔行 `| --- | :-: |`：它不是内容，Tab 一律跨过去 */
+/** Delimiter row `| --- | :-: |`: not content, Tab always skips over it */
 function isDelimiterRow(line: Line): boolean {
   return line.text.includes("-") && /^[\s|:-]+$/.test(line.text);
 }
@@ -39,7 +39,7 @@ function inTableNode(state: EditorState, pos: number): boolean {
   return false;
 }
 
-/** 按竖线切出这一行的各个格子；`\|` 是转义的竖线，不算分隔 */
+/** Split this line into cells on pipes; `\|` is an escaped pipe and doesn't count */
 function cellsOf(line: Line): Cell[] {
   const text = line.text;
   const bars: number[] = [];
@@ -49,7 +49,7 @@ function cellsOf(line: Line): Cell[] {
   }
   if (bars.length === 0) return [];
   const cells: Cell[] = [];
-  // 行首/行尾的竖线可有可无：没有时，竖线外侧那一段也是一个格子
+  // Leading/trailing pipes are optional; without them, the segment outside the pipe is a cell too
   if (text.slice(0, bars[0]).trim()) cells.push({ from: line.from, to: line.from + bars[0] });
   for (let i = 0; i + 1 < bars.length; i++) {
     cells.push({ from: line.from + bars[i] + 1, to: line.from + bars[i + 1] });
@@ -59,7 +59,7 @@ function cellsOf(line: Line): Cell[] {
   return cells;
 }
 
-/** 格子里的内容范围：跳到这一格时把内容选中，直接打字就是替换（空格子则只落光标） */
+/** Content range of a cell: jumping in selects the content so typing replaces it (empty cells just get a cursor) */
 function contentRange(state: EditorState, cell: Cell): [number, number] {
   const text = state.sliceDoc(cell.from, cell.to);
   const lead = text.length - text.trimStart().length;
@@ -71,7 +71,7 @@ function contentRange(state: EditorState, cell: Cell): [number, number] {
   return [cell.from + lead, cell.to - trail];
 }
 
-/** 表格占据的行号范围：从光标那行往两头看，连续的表格行都算 */
+/** Line range the table occupies: scan both ways from the cursor line, all contiguous table rows count */
 function rowRange(state: EditorState, line: Line): { first: number; last: number } {
   let first = line.number;
   let last = line.number;
@@ -80,12 +80,12 @@ function rowRange(state: EditorState, line: Line): { first: number; last: number
   return { first, last };
 }
 
-/** 在最后一格再按 Tab：照抄列数补一行空行，光标落到新行第一格 */
+/** Tab in the last cell: append an empty row with the same column count, cursor in its first cell */
 function appendRow(view: EditorView, lastLine: Line, columns: number): void {
   const row = `|${"  |".repeat(Math.max(1, columns))}`;
   view.dispatch({
     changes: { from: lastLine.to, insert: `\n${row}` },
-    // 换行符 + `| ` 之后正好是第一格里那个空位
+    // After the newline + `| ` is exactly the empty slot in the first cell
     selection: { anchor: lastLine.to + 3 },
     userEvent: "input",
     scrollIntoView: true,
@@ -102,8 +102,8 @@ function moveCell(view: EditorView, dir: 1 | -1): boolean {
   let cells = cellsOf(line);
   if (cells.length === 0) return false;
   const at = cells.findIndex((c) => pos >= c.from && pos <= c.to);
-  // 光标落在首尾竖线外侧时当作"在第一格之前 / 最后一格之后"；
-  // 光标本来就停在分隔行上（点进去过）则直接判为越界，让下面的循环把它带到相邻的内容行
+  // A cursor outside the leading/trailing pipe counts as "before the first cell / after the last cell";
+  // a cursor already on the delimiter row (clicked into) is treated as out of bounds, so the loop below moves it to the adjacent content row
   let next = isDelimiterRow(line)
     ? dir > 0
       ? cells.length
@@ -115,7 +115,7 @@ function moveCell(view: EditorView, dir: 1 | -1): boolean {
   while (next < 0 || next >= cells.length) {
     const step = row + dir;
     if (step < first || step > last) {
-      // 往前越界：停在第一格不动，但仍然吞掉按键，免得 Tab 把整张表缩进了
+      // Out of bounds backwards: stay in the first cell, but still swallow the key so Tab doesn't indent the whole table
       if (dir < 0) return true;
       appendRow(view, state.doc.line(last), cells.length);
       return true;
@@ -132,8 +132,8 @@ function moveCell(view: EditorView, dir: 1 | -1): boolean {
   return true;
 }
 
-/** Prec.highest：必须跑在 markdownKeymap 与 indentWithTab 之前；
- *  不在表格里时返回 false，Tab 照旧缩进。Enter 不接管，换行行为保持默认 */
+/** Prec.highest: must run before markdownKeymap and indentWithTab;
+ *  returns false outside tables so Tab indents as usual. Enter isn't intercepted; newline behavior stays default */
 export const tableKeymap: Extension = Prec.highest(
   keymap.of([
     {

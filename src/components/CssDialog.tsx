@@ -5,7 +5,7 @@ import { useStore } from "@/store/useStore";
 import { Modal, btnPrimary } from "./Modal";
 import { useT } from "@/i18n/useT";
 
-/** 占位示例的 CSS 部分；首行注释随界面语言，在渲染时拼上 */
+/** CSS portion of the placeholder example; the first-line comment follows the UI language and is prepended at render */
 const PLACEHOLDER_CSS = `#nice p {
   text-align: justify;
 }
@@ -22,7 +22,7 @@ export function CssDialog() {
 function CssDialogInner() {
   const setOpen = useStore((s) => s.setCssDialogOpen);
   const setCustomCss = useStore((s) => s.setCustomCss);
-  // 弹窗打开（组件挂载）时以当前值初始化草稿
+  // Initialize the draft from the current value when the dialog opens (component mounts)
   const [draft, setDraft] = useState(() => useStore.getState().customCss);
   const t = useT();
   const placeholder = `/* ${t("自定义 CSS，作用于预览与复制结果，选择器需以 #nice 开头，例如：")} */\n${PLACEHOLDER_CSS}`;

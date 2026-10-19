@@ -1,7 +1,7 @@
 /**
- * 新账号的欢迎稿。只在账号创建那一刻由服务端（auth 的 createUser 事件）生成一次；
- * 客户端不再「看到云端为空就补一篇」——删光文章的老用户每次登录都会被塞一篇新的。
- * 未登录的本地模式首篇也用它。
+ * Welcome doc for new accounts. Generated once by the server at account creation (auth's createUser event);
+ * the client no longer "adds one when the cloud looks empty" — longtime users who deleted all their articles got a new one on every sign-in.
+ * Also used as the first doc in signed-out local mode.
  */
 
 export const WELCOME_TITLE = "欢迎使用 xEdit";

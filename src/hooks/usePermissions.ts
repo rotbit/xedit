@@ -5,17 +5,17 @@ import { useSession } from "next-auth/react";
 import { knownPermissions, type Permission } from "@/lib/permissionKeys";
 
 /**
- * 当前账号开通了哪些功能（/api/me/permissions 给的是生效值：管理员全开、封禁全关）。
- * 审核按钮、封面页签等好几处都要问，结果按用户 id 缓存在模块里，同一个人整页只发一次请求；
- * 换号登录 id 变了自然会重拉。加载中、未登录、请求失败一律当作什么都没开——
- * 界面只是不摆按钮，真正的闸在服务端。
+ * Which features the current account has (/api/me/permissions returns effective values: all on for admins, all off when banned).
+ * Several places ask (review button, cover tab, ...), so results are cached per user id at module level and fetched once per page;
+ * switching accounts changes the id and naturally refetches. Loading, logged out, or failed requests all count as nothing enabled --
+ * the UI just hides the buttons; the real gate is on the server.
  */
 
 const EMPTY: Permission[] = [];
 
-/** 已拿到的结果；没有这一项说明还没拉过或正在拉 */
+/** Fetched results; a missing entry means not fetched yet or in flight */
 const cache = new Map<string, Permission[]>();
-/** 正在拉的用户 id，防止多个组件同时挂载时各发一遍 */
+/** User id currently being fetched, so components mounting together don't each send a request */
 const inflight = new Set<string>();
 const listeners = new Set<() => void>();
 
@@ -28,7 +28,7 @@ function load(userId: string) {
       cache.set(userId, knownPermissions(data?.permissions));
     })
     .catch(() => {
-      // 失败不写缓存：下次有组件挂载时还能再试一次
+      // Don't cache failures, so the next component mount can retry
     })
     .finally(() => {
       inflight.delete(userId);
@@ -43,10 +43,10 @@ function subscribe(cb: () => void) {
   };
 }
 
-/** 当前账号生效的权限列表 */
+/** Effective permission list for the current account */
 export function usePermissions(): Permission[] {
   const userId = useSession().data?.user?.id;
-  // 订阅时顺手触发拉取；按 userId 记住，免得每次渲染都退订重订
+  // Kick off the fetch on subscribe; keyed by userId so we don't unsubscribe/resubscribe every render
   const sub = useCallback(
     (cb: () => void) => {
       if (userId) load(userId);
@@ -61,7 +61,7 @@ export function usePermissions(): Permission[] {
   );
 }
 
-/** 当前账号能不能用某项功能 */
+/** Whether the current account can use a given feature */
 export function useCan(perm: Permission): boolean {
   return usePermissions().includes(perm);
 }

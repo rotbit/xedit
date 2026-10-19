@@ -1,9 +1,9 @@
 /**
- * 更新日志的数据：官网 /changelog 页就是照这份渲染的。
+ * Changelog data: the site's /changelog page renders straight from this.
  *
- * 维护约定：每次发版（推 main）之前，把这次用户能感知到的变化记在最前面——
- * 同一天的并进同一条，新的一天就在数组开头加一条。写给用户看的人话，不是 commit message：
- * 说「能做什么了 / 哪里变好了」，不说改了哪个文件。纯重构、纯内部调整不用记。
+ * Maintenance convention: before every release (push to main), record user-visible changes at the top —
+ * merge same-day changes into one entry, and add a new entry at the start of the array for a new day. Write plain language for users, not commit messages:
+ * say "what you can do now / what got better", not which files changed. Pure refactors and internal tweaks don't need entries.
  */
 
 export type ChangeKind = "new" | "improved" | "fixed";
@@ -17,19 +17,19 @@ export const CHANGE_KIND_LABEL: Record<ChangeKind, string> = {
 export interface ChangeItem {
   kind: ChangeKind;
   text: string;
-  /** 还没对所有人开放的功能，标一下，免得有人找不到入口 */
+  /** Features not yet open to everyone are flagged, so people don't go hunting for a missing entry point */
   beta?: boolean;
 }
 
 export interface ChangelogEntry {
-  /** YYYY-MM-DD，同时用作页面锚点 */
+  /** YYYY-MM-DD, also used as the page anchor */
   date: string;
-  /** 这一天最值得说的一句话 */
+  /** The one line most worth saying about this day */
   title: string;
   items: ChangeItem[];
 }
 
-/** 新的在前 */
+/** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-23",
@@ -177,7 +177,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   },
 ];
 
-/** 「2026-09-20」→「2026 年 9 月 20 日」 */
+/** "2026-09-20" → 「2026 年 9 月 20 日」 */
 export function formatChangelogDate(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
   return `${y} 年 ${m} 月 ${d} 日`;

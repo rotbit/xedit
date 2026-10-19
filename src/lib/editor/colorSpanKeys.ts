@@ -1,18 +1,18 @@
 /**
- * 颜色 span 常隐之后的编辑兜底：删除键接管 + 孤儿标签清理。
+ * Editing safeguards once color spans are hidden: Delete-key takeover + orphan tag cleanup.
  *
- * 即时渲染下 `<span style="color:…">` 的首尾标签是藏着的、还登记成了 atomic（见
- * livePreview/inline.ts）。代价全在删除键上：默认的 Backspace 往左退一格正好退进被藏起来的
- * 标签里，@codemirror/commands 的 skipAtomic 于是把整段标签一起删掉 —— 用户以为删了一个字，
- * 实际删掉了三十多个看不见的字符，正文里留下一个孤零零的 `</span>`。
+ * In live preview the opening/closing tags of `<span style="color:…">` are hidden and registered as atomic (see
+ * livePreview/inline.ts). The cost falls entirely on Delete: default Backspace stepping one char left lands inside the hidden
+ * tag, so @codemirror/commands' skipAtomic deletes the whole tag; the user thinks they deleted one char,
+ * but actually deleted thirty-odd invisible ones, leaving a lone `</span>` in the text.
  *
- * 所以这里做两件事：
- * - 按键接管：光标紧贴隐藏标签时跳过标签，删它外侧的那一个字符，标签本身不动；
- * - 兜底清理：标签仍被整段删掉时（选中一片文字删除、剪切、粘贴覆盖），把配对的另一半
- *   一并删掉；中间文字被删空的一对标签也一起收走——留着就是看不见又删不掉的垃圾。
+ * So this does two things:
+ * - Key takeover: when the cursor is right next to a hidden tag, skip the tag and delete the one char outside it, leaving the tag alone;
+ * - Cleanup: when a tag still gets deleted whole (deleting a selection, cut, paste-over), delete the other half of the pair
+ *   too; pairs whose inner text was emptied are removed as well, since they'd be invisible, undeletable junk.
  *
- * 两者都只挂在即时渲染上（livePreview/index.ts）：源码模式下标签是看得见的普通文字，
- * 该怎么删就怎么删，插手反而是捣乱。
+ * Both only apply in live preview (livePreview/index.ts): in source mode tags are visible plain text
+ * and should delete normally; interfering would only get in the way.
  */
 
 import {
@@ -30,7 +30,7 @@ import {
   type ColorSpanTag,
 } from "@/lib/editor/colorSpan";
 
-/** 单个空选区才接管；其余（有选区、多光标、输入法合成中）一律交回默认行为 */
+/** Only take over for a single empty selection; everything else (selections, multiple cursors, IME composition) uses default behavior */
 function loneCaret(view: EditorView): number | null {
   if (view.composing || view.compositionStarted) return null;
   const { selection } = view.state;
@@ -42,18 +42,18 @@ function backspaceOverTag(view: EditorView): boolean {
   const head = loneCaret(view);
   if (head === null) return false;
   const start = skipHiddenColorTags(state, head, -1);
-  if (start === head) return false; // 光标没贴着隐藏标签，与本文件无关
-  // 文首：左边没有东西可删。吞掉按键——放给默认行为的话它会把标签删穿
+  if (start === head) return false; // Cursor isn't next to a hidden tag; not our concern
+  // Start of doc: nothing to delete on the left. Swallow the key, since default behavior would delete through the tag
   if (start === 0) return true;
   const line = state.doc.lineAt(start);
-  // 标签左边是行首：删掉的就是那个换行（并到上一行），与没有标签时的手感一致
+  // Line start left of the tag: delete that newline (join with the previous line), same feel as without a tag
   const from =
     start === line.from
       ? start - 1
       : line.from + findClusterBreak(line.text, start - line.from, false, false);
   view.dispatch({
     changes: { from, to: start },
-    // 光标落在被删掉那个字符的位置上（标签外侧），接着打字就是普通颜色
+    // Cursor lands where the deleted char was (outside the tag), so further typing has normal color
     selection: { anchor: from },
     userEvent: "delete.backward",
     scrollIntoView: true,
@@ -67,24 +67,24 @@ function deleteOverTag(view: EditorView): boolean {
   if (head === null) return false;
   const end = skipHiddenColorTags(state, head, 1);
   if (end === head) return false;
-  if (end === state.doc.length) return true; // 文末，同上吞掉
+  if (end === state.doc.length) return true; // End of doc; swallow as above
   const line = state.doc.lineAt(end);
-  // 标签右边是行尾：删掉换行，把下一行并上来
+  // Line end right of the tag: delete the newline, joining the next line up
   const to =
     end === line.to
       ? end + 1
       : line.from + findClusterBreak(line.text, end - line.from, true, true);
   view.dispatch({
     changes: { from: end, to },
-    // 不动光标：删除点在它右边，它原地就贴着删除处，还留在 span 里，接着打字仍是这个颜色
+    // Don't move the cursor: the deletion point is to its right, so it stays put next to it, still inside the span, and typing keeps this color
     userEvent: "delete.forward",
     scrollIntoView: true,
   });
   return true;
 }
 
-/** 变更之后这个标签是否原样还在（位置可以平移，文字得一字不差）；在就返回新坐标。
-    assoc 取「朝标签内侧」：正好贴着标签插入的文字不算标签的一部分 */
+/** Whether this tag survives the change intact (position may shift, text must be identical); returns new coordinates if so.
+    assoc points "toward the tag's inside": text inserted right against the tag isn't part of it */
 function mappedTag(tr: Transaction, tag: ColorSpanTag, text: string): ColorSpanTag | null {
   const from = tr.changes.mapPos(tag.from, 1);
   const to = tr.changes.mapPos(tag.to, -1);
@@ -92,8 +92,8 @@ function mappedTag(tr: Transaction, tag: ColorSpanTag, text: string): ColorSpanT
   return tr.newDoc.sliceString(from, to) === text ? { from, to } : null;
 }
 
-/** 标签被某一次变更整段吃掉了。只坏了几个字符不算：atomic 之下基本不会发生，
-    真发生了也说明用户在源码层面动手，别替他乱删另一头 */
+/** The tag was swallowed whole by a change. A few broken chars don't count: that basically can't happen under atomic,
+    and if it does the user is editing at the source level, so don't delete the other end on their behalf */
 function tagRemoved(changes: ChangeDesc, tag: ColorSpanTag): boolean {
   let removed = false;
   changes.iterChangedRanges((fromA, toA) => {
@@ -103,18 +103,18 @@ function tagRemoved(changes: ChangeDesc, tag: ColorSpanTag): boolean {
 }
 
 /**
- * 孤儿标签清理：用户的删除动作把一对标签删剩一半时，追加一次变更把另一半也带走。
- * 中间文字被删空的一对（开闭标签贴到了一起）同样收走。
+ * Orphan tag cleanup: when a user deletion leaves half of a pair, append a change that removes the other half.
+ * Pairs whose inner text was emptied (opening and closing tags now adjacent) are removed too.
  *
- * 只认用户事件，且跳过 undo/redo —— 历史自带完整的前后状态，再补一刀等于撤销撤不回原样。
+ * Only user events, skipping undo/redo: history carries complete before/after states, and an extra change would stop undo from restoring the original.
  */
 const colorSpanCleanup = EditorState.transactionFilter.of((tr) => {
   if (!tr.docChanged) return tr;
   const event = tr.annotation(Transaction.userEvent);
   if (!event || event === "undo" || event === "redo") return tr;
 
-  // 只有「删掉了东西」的变更才可能弄出孤儿。纯插入（打字、输入法上屏）直接放行，
-  // 省掉每敲一个字都去扫一遍语法树
+  // Only changes that deleted something can create orphans. Pure inserts (typing, IME commit) pass straight through,
+  // avoiding a syntax-tree scan on every keystroke
   let delFrom = -1;
   let delTo = -1;
   tr.changes.iterChangedRanges((fromA, toA) => {
@@ -132,7 +132,7 @@ const colorSpanCleanup = EditorState.transactionFilter.of((tr) => {
     const open = mappedTag(tr, pair.open, openText);
     const close = mappedTag(tr, pair.close, closeText);
     if (open && close) {
-      // 两个标签都还在，但中间的字被删光了：这对空标签既看不见又删不掉，一起收走
+      // Both tags remain but everything between was deleted: this empty pair is invisible and undeletable, remove it
       if (!pair.empty && open.to === close.from) drop.push({ from: open.from, to: close.to });
     } else if (open && tagRemoved(tr.changes, pair.close)) {
       drop.push(open);
@@ -142,17 +142,17 @@ const colorSpanCleanup = EditorState.transactionFilter.of((tr) => {
   }
   if (drop.length === 0) return tr;
 
-  // 坐标已经是变更后的新文档坐标，所以要 sequential；嵌套 span 可能让外层的清理排在
-  // 内层后面，ChangeSet 只认升序
+  // Coordinates are already in the post-change doc, so use sequential; nested spans may order outer cleanups
+  // after inner ones, and ChangeSet only accepts ascending order
   drop.sort((a, b) => a.from - b.from);
-  // 外层空 span 的清理区间会把内层的整个包进去，重叠的变更 ChangeSet 直接抛错：只留不相交的
+  // An outer empty span's cleanup range encloses the inner one entirely, and ChangeSet throws on overlapping changes: keep only disjoint ones
   const merged = drop.filter((d, i) => i === 0 || d.from >= drop[i - 1].to);
   return [tr, { changes: merged, sequential: true }];
 });
 
 /**
- * Prec.highest 而不是 high：要抢在 markdownKeymap 的 deleteMarkupBackward（Prec.high）前面——
- * 与 pairs.ts 同一个理由。不贴着隐藏标签时立刻返回 false，其余删除行为原样不动。
+ * Prec.highest rather than high: must run before markdownKeymap's deleteMarkupBackward (Prec.high),
+ * for the same reason as pairs.ts. Returns false immediately when not next to a hidden tag, leaving other deletions untouched.
  */
 export const colorSpanKeys: Extension = [
   Prec.highest(

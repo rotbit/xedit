@@ -1,6 +1,6 @@
-// 分享页样式常量（从 SharedArticle 搬出）
+// Share page style constants (moved out of SharedArticle)
 
-/** 高亮与批注 UI 自身的样式（正文主题之外） */
+/** Styles for highlights and the annotation UI itself (outside the body theme) */
 export const ANNO_CSS = `
 #nice .xe-anno { background-color: rgba(250, 173, 20, 0.24); border-bottom: 2px solid rgba(224, 152, 8, 0.8); cursor: pointer; }
 #nice .xe-anno-active { background-color: rgba(250, 173, 20, 0.45); }

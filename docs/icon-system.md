@@ -1,35 +1,35 @@
-# 功能图标规范
+# Feature icon guidelines
 
-xEdit 的功能图标继续使用 Lucide，统一为圆角端点、圆角连接的单色线性图标。
-`src/components/Providers.tsx` 的 `LucideProvider` 统一设置默认尺寸 `16`、笔画 `1.8`；
-图标颜色继承所在控件的文字颜色，跟随现有深浅主题和交互状态。
+xEdit's feature icons use Lucide: single-color line icons with round caps and round joins.
+`LucideProvider` in `src/components/Providers.tsx` sets the defaults: size `16`, stroke `1.8`.
+Icons inherit the text color of their control, so they follow the existing light/dark themes and interaction states.
 
-## 尺寸
+## Sizes
 
-| 尺寸 | 使用位置 |
+| Size | Used for |
 | --- | --- |
-| 12 px | 辅助箭头、紧凑状态、次要操作 |
-| 14 px | 菜单、说明文字、面板标题 |
-| 16 px | 顶部工具栏、侧栏与主要操作 |
-| 18 px | 展示区功能图标、图片浏览箭头 |
-| 20 / 24 px | 加载状态、空状态等独立图形 |
+| 12 px | Helper arrows, compact states, secondary actions |
+| 14 px | Menus, captions, panel headers |
+| 16 px | Top toolbar, sidebar and primary actions |
+| 18 px | Showcase feature icons, image viewer arrows |
+| 20 / 24 px | Standalone graphics such as loading and empty states |
 
-尺寸按使用位置选择，避免在相似控件中混用 13、15、17 px。
-调整图标时保留按钮原有点击区域；普通图标不再单独覆盖笔画宽度。
-需要突出选中状态的小勾选标记可以保留较粗笔画。
+Pick the size by placement; don't mix 13, 15 or 17 px across similar controls.
+Keep a button's existing hit area when changing its icon; regular icons shouldn't override the stroke width.
+Small check marks that need to emphasize a selected state may keep a heavier stroke.
 
-## AI 功能
+## AI features
 
-统一从 `@/components/AiIcon` 引入 `AiIcon`，使用单枚柔角星：
+Import `AiIcon` from `@/components/AiIcon`; it's a single soft-cornered star:
 
-- 顶栏 AI 审核入口使用 16 px。
-- 审核面板、总评、审核进度、封面生成、后台 AI 设置使用 14 px。
-- 落地页 AI 功能介绍与同组功能使用相同尺寸。
+- The AI review entry in the top bar uses 16 px.
+- The review panel, overall verdict, review progress, cover generation and admin AI settings use 14 px.
+- AI features on the landing page use the same size as other features in their group.
 
-AI 图标仅表示功能身份，完成状态仍用勾选，加载状态仍用现有动画。
-纯图标按钮需要提供可读名称；当前状态继续由背景、提示文字和 ARIA 属性表达。
+The AI icon only marks a feature's identity: completion is still shown with a check mark, and loading with the existing animation.
+Icon-only buttons need an accessible name; current state is still conveyed by background, hint text and ARIA attributes.
 
-## 品牌与内容
+## Brand and content
 
-网站 Logo、第三方登录品牌图形、文章内容和数据图表不属于功能图标系统。
-这些图形保留原有路径、配色和尺寸。
+The site logo, third-party login brand marks, document content and data charts are outside the feature icon system.
+They keep their original paths, colors and sizes.

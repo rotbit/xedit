@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 按命中区间给一段文本套高亮（快速切换器用）。
- * 区间由 docSearch.matchRanges 保证有序且不重叠。
+ * Highlights a piece of text by match ranges (used by the quick switcher).
+ * docSearch.matchRanges guarantees the ranges are sorted and non-overlapping.
  *
- * 选中行本身就是 accent-wash 底，高亮块压上去没了色差，
- * 所以另加一档字重把命中词托起来。
+ * The selected row already has an accent-wash background, so a highlight block on top loses contrast;
+ * an extra font weight lifts the matched words instead.
  */
 export function MatchHighlight({
   text,

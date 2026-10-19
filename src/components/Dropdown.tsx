@@ -12,18 +12,18 @@ export function Dropdown({
   closeOnBlur = true,
 }: {
   trigger: React.ReactNode;
-  /** 传函数就能拿到「关面板」：要等异步做完（上传、生成）才收起面板的内容用得上 */
+  /** Pass a function to receive "close panel": for content that should only close after async work (upload, generation) finishes */
   children: React.ReactNode | ((close: () => void) => React.ReactNode);
   width?: number;
-  /** 菜单与触发器的对齐边：靠视口左缘的触发器用 left，避免菜单伸出屏幕 */
+  /** Edge the menu aligns to with its trigger: triggers near the viewport's left edge use left so the menu doesn't overflow the screen */
   align?: "left" | "right";
-  /** 窗口失焦是否关闭：面板里要唤起系统文件选择框的传 false，否则一选文件面板就没了 */
+  /** Whether window blur closes it: pass false for panels that open the system file picker, or the panel vanishes as soon as a file is chosen */
   closeOnBlur?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // 触发器也在 ref 里：按在它上面不由这里关，交给下面的 toggle（否则「先关再开」点了像没反应）
+  // The trigger is also in the ref: presses on it aren't closed here but left to the toggle below (otherwise "close then reopen" makes the click look dead)
   const close = () => setOpen(false);
   useDismissMenu(ref, close, open, closeOnBlur);
   useEscape(close, open);

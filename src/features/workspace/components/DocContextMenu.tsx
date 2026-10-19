@@ -13,24 +13,24 @@ import { allCategories } from "../lib/catTree";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /**
- * 文档操作菜单（卡片、列表行与侧栏文章行共用）。portal 到 body：卡片的
- * rise/hover transform 会劫持 fixed 定位的 containing block，导致菜单被裁剪。
+ * Document action menu (shared by cards, list rows and sidebar document rows). Portaled to body: cards'
+ * rise/hover transforms hijack the containing block for fixed positioning, which would clip the menu.
  *
- * 整个工作台只挂一个（同 CategoryContextMenu），目标由 `menus.docMenu` 的锚点决定。
- * 原先每行各挂一个：N 行就有 N 份 Esc/外部点击监听随每次渲染装卸，而且同一篇文章
- * 若既在侧栏树里又在内容列表里，右键会同时渲染两个一模一样的菜单面板。
- * 回收站行不开这个菜单（没有右键与「⋯」），所以从 library.docs 里找就够。
+ * Only one is mounted for the whole workspace (like CategoryContextMenu); the target comes from the `menus.docMenu` anchor.
+ * Previously each row mounted its own: N rows meant N sets of Esc/outside-click listeners mounted and unmounted every render, and a document
+ * that was in both the sidebar tree and the content list would render two identical menu panels on right-click.
+ * Trash rows don't open this menu (no right-click or 「⋯」), so looking it up in library.docs is enough.
  */
 export function DocContextMenu({ ws }: { ws: Workspace }) {
   const { menus, nav, library, docActions, auth } = ws;
   const anchor = menus.docMenu;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const t = useT();
-  // Esc 关菜单：和弹窗、斜杠菜单一致，别让用户去找空白处点
+  // Esc closes the menu: consistent with dialogs and the slash menu, so users don't need to find blank space to click
   useEscape(menus.closeDocMenu, anchor !== null);
   useDismissMenu(panelRef, menus.closeDocMenu, anchor !== null);
   const doc = anchor ? library.docs?.find((d) => d.id === anchor.id) : undefined;
-  // 锚点在、文章却没了（另一个标签页删掉 / 列表刚刷新）：什么都不渲染
+  // Anchor present but the document is gone (deleted in another tab / list just refreshed): render nothing
   if (!anchor || !doc) return null;
   const cat = doc.category || UNCATEGORIZED;
 
@@ -39,7 +39,7 @@ export function DocContextMenu({ ws }: { ws: Workspace }) {
     fn();
   };
 
-  /** 分类可能有几百个且层级很深，弹带搜索的选择器而不是在菜单里平铺 */
+  /** There may be hundreds of deeply nested categories, so open a searchable picker instead of listing them flat in the menu */
   const moveViaPicker = async () => {
     const target = await askCategoryPick({
       title: t("移动「{name}」到文件夹", { name: doc.title || t(UNTITLED_DOC) }),

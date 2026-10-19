@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * 变更日期菜单：表头注明当前日期，下面是今天 / 明天 / 下周一三个常用落点，其它日期走原生日期框，
- * 「持续到…」设时间段的结束日，再加删除。左右两栏共用，绝对定位在触发行的右下方（触发行要带 relative）。
- * 改开始日时结束日照留（早于新开始日就丢掉，变回单日）。
- * 发布排期不给删除也不给时间段：没有正文行可删，发布是某一天的事。
- * 每日任务的 due 是现算的「今天」，并非用户定的日期：任何落点（含今天）都算一次改动，
- * 选了就变回普通的单日待办；取消重复单独一项，落到今天。
+ * Change-date menu: the header shows the current date, then three common targets (today / tomorrow / next Monday), a native date input for other dates,
+ * "Until…" to set the end of a range, plus delete. Shared by both columns, absolutely positioned at the bottom right of the trigger row (which needs `relative`).
+ * Changing the start date keeps the end date (dropped if earlier than the new start, reverting to a single day).
+ * Publish schedules get neither delete nor ranges: there's no body line to delete, and publishing happens on one day.
+ * A daily task's due is a computed "today", not a user-chosen date: any target (including today) counts as a change
+ * and turns it back into a regular single-day todo; "Stop repeating" is a separate item that lands on today.
  */
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
@@ -24,17 +24,17 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const dateInputCls = "min-w-0 cursor-pointer bg-transparent text-[12px] text-[var(--ink-soft)] outline-none";
 
 /**
- * 原生日期框的提交时机：失焦或回车才算数。逐段敲数字时每敲一位 onChange 都会给出一个合法日期
- * （年份敲到一半的 0002-10-09 也合法），那时就提交会把半成品写进正文。不受控：受控的日期框
- * 在用户逐段敲数字时会被 React 拨回原值，所以只把最新值记在 ref 里。
- * 从原生日历弹层点选后焦点还留在框里，用户接着点菜单外面关菜单时 blur 不一定赶在卸载前，
- * 所以卸载时也 flush 一次，点选的值不会丢。
+ * When the native date input commits: only on blur or Enter. While typing segment by segment, every keystroke's onChange yields a valid date
+ * (a half-typed year like 0002-10-09 is valid too), so committing then would write a half-finished value into the body. Uncontrolled: a controlled
+ * date input gets reset by React while the user types segments, so only the latest value is kept in a ref.
+ * After picking from the native calendar popup focus stays in the input, and when the user then clicks outside to close the menu, blur may not fire before unmount,
+ * so we also flush on unmount and the picked value isn't lost.
  */
 function useDateDraft(initial: string, commit: (value: string) => void) {
   const draft = useRef(initial);
   const done = useRef(false);
   const flush = () => {
-    // 回车提交后菜单关闭、输入框卸载时还会再失焦一次，只认第一次
+    // After an Enter commit the menu closes and the input blurs again on unmount; only honor the first
     if (done.current || draft.current === initial) return;
     done.current = true;
     commit(draft.current);
@@ -75,21 +75,21 @@ export function MoveMenu({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  // 不随窗口失焦关闭：原生日期框弹出的选择器在有些浏览器里会让窗口失焦
+  // Don't close on window blur: in some browsers the native date picker popup blurs the window
   useDismissMenu(ref, onClose, true, false);
   useEscape(onClose);
   const t = useT();
   const locale = useLocale();
   const isPublish = item.source === "publish";
   const repeat = item.repeat !== null;
-  /** 菜单眼里的「当前日期」：每日任务没有定下的日期 */
+  /** The menu's "current date": daily tasks have no fixed date */
   const due = repeat ? null : item.due;
 
   const pick = (range: DueRange) => {
     onClose();
     if (range.due !== due || range.end !== item.end) onMove(range);
   };
-  /** 改开始日：结束日照留，早于新开始日（或就是同一天）就丢掉，变回单日 */
+  /** Change start: keep the end date, but drop it if earlier than (or equal to) the new start, reverting to a single day */
   const moveStart = (due: string) => pick({ due, end: item.end && item.end > due ? item.end : null });
 
   const start = item.due ?? today;
@@ -97,7 +97,7 @@ export function MoveMenu({
     if (DATE_RE.test(v) && v !== due) moveStart(v);
   });
   const endDraft = useDateDraft(item.end ?? "", (v) => {
-    // 清空 = 不再持续，变回单日；早于开始日的不认（min 拦不住手敲）
+    // Cleared = no longer a range, back to a single day; ignore ends before the start (min doesn't stop typed input)
     if (!v) pick({ due: start, end: null });
     else if (DATE_RE.test(v) && v >= start) pick({ due: start, end: v > start ? v : null });
   });

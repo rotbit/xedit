@@ -1,6 +1,6 @@
-/** 通用组件：主题编辑/选择、版本历史、飞书、登录、导入、素材库、阅读视图、各类面板与菜单 */
+/** Shared components: theme editor/picker, version history, Feishu, login, import, asset library, reading view, assorted panels and menus */
 export const components: Record<string, string> = {
-  // 自定义主题编辑器（ThemeStudio）
+  // Custom theme editor (ThemeStudio)
   "我的主题": "My Theme",
   "主题已保存并应用": "Theme saved and applied",
   "删除这套主题": "Delete This Theme",
@@ -39,7 +39,7 @@ export const components: Record<string, string> = {
   "颜色只填一个主色，深浅底色与边框自动派生": "Pick one accent color. Backgrounds and borders are derived from it",
   "保存并应用": "Save & Apply",
 
-  // 版本历史抽屉（VersionsPanel）
+  // Version history drawer (VersionsPanel)
   "自动": "Auto",
   "手动": "Manual",
   "回滚备份": "Pre-restore Backup",
@@ -73,7 +73,7 @@ export const components: Record<string, string> = {
   "最新": "Latest",
   "删除该版本": "Delete this version",
 
-  // 飞书使用说明（feishu/FeishuGuide）
+  // Feishu guide (feishu/FeishuGuide)
   "复制失败": "Couldn't copy",
   "使用说明": "How It Works",
   "首次配置：创建自己的飞书应用（一次即可）": "First-time setup: create your own Feishu app (once)",
@@ -116,7 +116,7 @@ export const components: Record<string, string> = {
     "Credentials and authorization belong to your account only. The App Secret and tokens are stored encrypted on the server",
   "按飞书安全策略，授权满 365 天需重新连接一次": "Per Feishu's security policy, you'll need to reconnect every 365 days",
 
-  // 飞书导入弹窗（FeishuDialog / feishu/useFeishuConnection）
+  // Feishu import dialog (FeishuDialog / feishu/useFeishuConnection)
   "加载飞书连接状态失败": "Couldn't load Feishu connection status",
   "加载失败": "Couldn't load",
   "请填写 App ID": "Enter an App ID",
@@ -154,7 +154,7 @@ export const components: Record<string, string> = {
   "继续同步": "Resume Sync",
   "开始同步": "Start Sync",
 
-  // 飞书同步状态（feishu/FeishuSyncPanel）
+  // Feishu sync status (feishu/FeishuSyncPanel)
   "正在扫描知识库目录、同步第一批文档…": "Scanning the wiki and syncing the first batch…",
   "新增 {created} · 更新 {updated} · 跳过 {skipped}": "{created} new · {updated} updated · {skipped} skipped",
   "待处理 {n}": "{n} pending",
@@ -171,7 +171,7 @@ export const components: Record<string, string> = {
     "Closing this window won't stop the sync. Network hiccups are retried automatically and you'll be notified when it's done.",
   "关闭或刷新页面会中断，下次同步自动续传": "Closing or refreshing the page interrupts it; the next sync resumes automatically",
 
-  // 登录 / 注册弹窗（AuthDialog）
+  // Login / sign-up dialog (AuthDialog)
   "或使用第三方账号": "or continue with",
   "使用 GitHub 登录": "Continue with GitHub",
   "使用 Google 登录": "Continue with Google",
@@ -193,7 +193,7 @@ export const components: Record<string, string> = {
   "注册新账号": "Create one",
   "暂不登录，继续本地写作": "Not now, keep writing locally",
 
-  // 导入本地 Markdown（ImportDialog）
+  // Import local Markdown (ImportDialog)
   "选一个文件夹，整个目录会放进「{cat}」，子文件夹会原样保留为文件夹，文件名就是标题，正文里引用的本地图片会一并上传。":
     "Pick a folder. Everything goes into “{cat}”; subfolders stay as folders, file names become titles, and local images referenced in the text are uploaded too",
   "选一个文件夹，子文件夹会原样保留为文件夹，文件名就是标题，正文里引用的本地图片会一并上传。":
@@ -215,7 +215,7 @@ export const components: Record<string, string> = {
     "{n} {n, image, images} failed to upload; the original links were kept in the text",
   "还有 {n} 篇失败未列出": "{n} more failures not shown",
 
-  // 图片库详情栏与大图预览（assets/AssetInspector、AssetsLightbox）
+  // Image library detail pane and lightbox (assets/AssetInspector, AssetsLightbox)
   "飞书": "Feishu",
   "正在查询引用…": "Checking usage…",
   "未被任何文章引用": "Not used in any article",
@@ -235,7 +235,7 @@ export const components: Record<string, string> = {
   "来源": "Source",
   "上传时间": "Uploaded",
 
-  // 图片库主视图与顶栏（assets/AssetsGallery、AssetsToolbar、AssetsGrid）
+  // Image library main view and toolbar (assets/AssetsGallery, AssetsToolbar, AssetsGrid)
   "已同步 {n} 张历史图片": "Synced {n} older {n, image, images}",
   "没有新的历史图片": "No new past images",
   "「{name}」上传失败": "Couldn't upload “{name}”",
@@ -259,7 +259,7 @@ export const components: Record<string, string> = {
   "同步 OSS 历史": "Sync OSS History",
   "加载更多…": "Loading more…",
 
-  // 文章视图（ArticleReader）：保存状态与元信息行
+  // Article view (ArticleReader): save status and meta row
   "已存本地": "Saved locally",
   "已保存": "Saved",
   "已存本地，联网后同步": "Saved locally, will sync when online",

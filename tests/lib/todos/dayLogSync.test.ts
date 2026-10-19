@@ -25,7 +25,7 @@ describe("applyServerEvents", () => {
     expect(changed).toEqual(["2026-10-08"]);
     expect(days["2026-10-08"].map((e) => e.id)).toEqual(["a", "b", "c"]);
     expect(days["2026-10-08"][1]).toEqual({ id: "b", ts: 20, end: 25, kind: "task", text: "t" });
-    // 不改入参
+    // Inputs not mutated
     expect(local["2026-10-08"].map((e) => e.id)).toEqual(["a", "c"]);
   });
 

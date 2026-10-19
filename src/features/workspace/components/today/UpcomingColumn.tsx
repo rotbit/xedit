@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 今天页右栏「接下来」：明天起六天，一天一行（连续的空日子合成一行，点开再分日，末尾一行可收回）；再往后的折在底部「还有 N 件」里，最下面是「最近打开」。
- * 这里只排期不打勾——要做的那天它自然会到左栏；每天末尾可以直接往那天记一件事，
- * 和左栏快速输入一样可选关联一篇文章（交互共用 AddTarget.tsx）：提前排的事常常就是某篇稿子的活。
+ * Today page right column "Up next": six days from tomorrow, one row per day (consecutive empty days merge into one row that expands into days on click, with a collapse row at the end); later items fold into "N more" at the bottom, and "Recently opened" is at the very bottom.
+ * This only schedules, no checking off — on the day it's due an item naturally moves to the left column. Each day ends with an input to add something to that day,
+ * which, like the left-column quick add, can optionally link a doc (shared via AddTarget.tsx): things planned ahead are often work on a particular draft.
  */
 import { useCallback, useRef, useState } from "react";
 import { ChevronUp, X } from "lucide-react";
@@ -36,7 +36,7 @@ function UpcomingItem({
   item: TodoItem;
   today: string;
   actions: RowActions;
-  /** 底部折叠列表里每条右侧带日期；按天排的六行里日期已经在左边了 */
+  /** Each item in the folded list at the bottom shows its date on the right; in the six per-day rows the date is already on the left */
   showDate: boolean;
   t: TFn;
 }) {
@@ -45,7 +45,7 @@ function UpcomingItem({
   const menuOpen = actions.menuId === id;
   const label = itemLabel(item, t);
   const textCls = "min-w-0 flex-1 truncate text-left";
-  // 清单里的事那篇对用户隐形，关联了文章才可点、去关联的那篇
+  // List items' doc is invisible to the user; clickable only when linked, and goes to the linked doc
   const openId = item.source === "notes" ? (linkedDoc(item, actions.docTitleOf)?.id ?? null) : item.docId;
   const drag = useTodoDrag();
   return (
@@ -79,7 +79,7 @@ function UpcomingItem({
           {formatDue(item.due, today, locale)}
         </span>
       ) : null}
-      {/* 时间段注结束日；折叠列表里紧跟在开始日后面，读作「10/9 → 10/12」 */}
+      {/* Ranges show the end date; in the folded list it follows the start date, reading as 「10/9 → 10/12」 */}
       {item.end ? (
         <span className="shrink-0 text-[11px] tabular-nums text-[var(--ink-faint)]">
           → {formatMonthDay(item.end, today, locale)}
@@ -122,9 +122,9 @@ function UpcomingItem({
 }
 
 /**
- * 每天末尾的「＋ 添加到明天」：悬停那一天才露出来，回车提交后清空、焦点留着方便连记。
- * 「关联文章」只在这一行有焦点时露出，免得六行都挂着它显得吵；选好了文章标签就常驻，
- * 整行也跟着常显——不然鼠标一移开，选好的目标连同输入一起隐形了。
+ * The "+ Add to tomorrow" row at the end of each day: revealed on hovering that day; Enter submits and clears, keeping focus for adding more.
+ * "Link doc" only shows while this row has focus, so six rows don't all carry it and look noisy; once a doc is picked its tag stays,
+ * and so does the whole row — otherwise moving the mouse away would hide the chosen target along with the input.
  */
 function DayAdd({
   label,
@@ -148,10 +148,10 @@ function DayAdd({
     categories
   );
   const attached = !isDefaultTarget(target);
-  // 文件夹弹窗开着时焦点在弹窗里、鼠标也不在这一天上，不常显的话输入行会隐形
+  // While the folder dialog is open, focus is in the dialog and the mouse isn't on this day; without forcing visible, the input row would vanish
   const shown = attached || picking || choosingFolder;
-  // 选择器在面板外点击 / Esc 时关掉，焦点回到输入框。
-  // 只在 picking 时挂：选了「新建」后 picking 先落下再弹文件夹窗，点弹窗、按 Esc 都碰不到这一行
+  // Close the picker on outside click / Esc and return focus to the input.
+  // Only attached while picking: after choosing "New", picking drops before the folder dialog opens, so clicks and Esc on the dialog don't reach this row
 
   const closePicker = useCallback(() => {
     setPicking(false);
@@ -169,7 +169,7 @@ function DayAdd({
         onSubmit={async (e) => {
           e.preventDefault();
           if (pending || !text.trim()) return;
-          // 提交中锁住，防连敲回车记两遍
+          // Lock while submitting so repeated Enter doesn't record twice
           setPending(true);
           const ok = await onSubmit(text.trim(), target);
           setPending(false);
@@ -177,7 +177,7 @@ function DayAdd({
             setText("");
             reset();
           }
-          // 失败保留文字和目标，方便重试
+          // On failure keep the text and target for an easy retry
           inputRef.current?.focus();
         }}
       >
@@ -206,7 +206,7 @@ function DayAdd({
   );
 }
 
-/** 底部的折叠入口：六天之后的事收成一行「还有 N 件 ›」，没有就整行不出 */
+/** Fold entry at the bottom: items after the six days collapse into one "N more ›" row; hidden entirely if there are none */
 function Fold({
   items,
   today,
@@ -253,11 +253,11 @@ export function UpcomingColumn({
   nav,
 }: {
   today: string;
-  /** later 桶：已按日期升序 */
+  /** The `later` bucket: already sorted by date ascending */
   later: TodoItem[];
   ready: boolean;
   actions: RowActions;
-  /** 关联文章的候选池：用户看得见的文章 */
+  /** Candidate pool for linking: user-visible docs */
   docs: DocMeta[];
   onAddOnDay: (text: string, day: string, target: AddTarget) => Promise<boolean>;
   nav: Workspace["nav"];
@@ -269,17 +269,17 @@ export function UpcomingColumn({
   const byDay = new Map<string, TodoItem[]>(days.map((d) => [d, []]));
   const beyond: TodoItem[] = [];
   for (const item of later) {
-    if (!item.due) continue; // later 里没日期的是文章正文里没排期的，今天页不展示
-    // 时间段按开始日归到那一天，只出现一次（后面注「→ 结束日」）
+    if (!item.due) continue; // Undated items in `later` are unscheduled todos in doc bodies; the Today page doesn't show them
+    // Ranges are grouped under their start day and appear only once (followed by "→ end date")
     if (item.due > last) beyond.push(item);
     else byDay.get(item.due)?.push(item);
   }
   const weekCount = days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
-  // 连续两天以上都没安排时合成一行「13–16 · 周二 – 周五」：空日子和有事的日子一样高会把右栏撑得很长，
-  // 把下面的「最近打开」压出首屏。点任何一段就把所有合并的段一起展开成单日（用户不想一段一段点），才能往其中某一天记事；展开状态只在本次会话里
+  // Two or more consecutive days with nothing scheduled merge into one row 「13–16 · 周二 – 周五」: empty days as tall as busy ones would stretch the right column,
+  // pushing "Recently opened" below the fold. Clicking any segment expands all merged segments into single days at once (users don't want to click them one by one), so they can add to a specific day; expansion state lasts only for this session
   const [expanded, setExpanded] = useState(false);
   const groups: { from: number; to: number }[] = [];
-  // 有没有可合并的段：展开后才需要在列表末尾给一行「收起」
+  // Whether there are any mergeable segments: only then does the expanded list need a "Collapse" row at the end
   let foldable = false;
   for (let i = 0; i < days.length; i++) {
     const empty = (byDay.get(days[i])?.length ?? 0) === 0;
@@ -292,7 +292,7 @@ export function UpcomingColumn({
     } else groups.push({ from: i, to: i });
   }
   const dayName = (day: string, i: number) => (i === 0 ? t("明天") : formatWeekday(day, locale));
-  // 拖着待办悬停的那天整行铺底色；负边距 + 同等内边距让底色盖到两侧，只在悬停时加，平时分隔线不变长
+  // The day hovered while dragging a todo gets a full-row background; negative margin + equal padding extend it to both edges, applied only on hover so divider lines don't grow normally
   const drag = useTodoDrag();
   const overCls = (day: string) => (drag.isOver(day) ? "-mx-2 rounded-md bg-[var(--accent-wash)] px-2" : "");
 
@@ -313,7 +313,7 @@ export function UpcomingColumn({
               key={a}
               type="button"
               title={t("展开这几天")}
-              // 也是落点：直接松手落到第一天；拖着停一会儿自动展开，好继续拖到具体某一天
+              // Also a drop target: dropping lands on the first day; lingering while dragging auto-expands so you can keep dragging to a specific day
               {...drag.dropProps(a, { onLinger: () => setExpanded(true) })}
               className={`group/run grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)] gap-2.5 border-b border-[var(--hairline-soft)] py-2.5 text-left text-[var(--hairline-strong)] hover:text-[var(--ink-faint)] ${overCls(a)}`}
               onClick={() => setExpanded(true)}
@@ -364,7 +364,7 @@ export function UpcomingColumn({
         );
       })}
       {expanded && foldable ? (
-        // 和合并行同一副面孔：空日子展开后这里多出一行，点一下收回去，让「最近打开」回到首屏
+        // Same look as the merged row: expanding empty days adds this row, click to collapse so "Recently opened" returns to the first screen
         <button
           type="button"
           className="grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)] gap-2.5 border-b border-[var(--hairline-soft)] py-2.5 text-left text-[var(--hairline-strong)] hover:text-[var(--ink-faint)]"

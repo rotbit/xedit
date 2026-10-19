@@ -2,8 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * 审核历史的存取：存得进、按文章翻得出、只留最近 N 条、别人的记录碰不到。
- * 库用一个内存数组顶替。
+ * Review history storage: saves, lists per article, keeps only the latest N, and can't reach other users' records.
+ * The database is replaced by an in-memory array.
  */
 type Row = {
   id: string;

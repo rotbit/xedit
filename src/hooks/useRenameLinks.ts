@@ -16,37 +16,37 @@ import type { DocMeta } from "@/features/workspace/types";
 
 interface Params {
   docId: string;
-  /** 全部文章（不含回收站）；未装载时为 undefined */
+  /** All articles (excluding trash); undefined until loaded */
   docs?: DocMeta[];
-  /** 当前标题（store 里的实时值） */
+  /** Current title (live value from the store) */
   title: string;
-  /** 变化即表示换了文档 / 重新装载，旧标题的记忆必须作废 */
+  /** A change means a different doc / a reload, so the remembered old title must be discarded */
   docVersion: number;
   /**
-   * 改完别人的正文后刷新文库。默认广播 DOCS_CHANGED —— 本地库与云端镜像的写入
-   * 本来就会广播，useDocLibrary 听着这条事件重读列表，新的 updatedAt 一到，
-   * docIndex 的缓存键随之失效，侧栏与检索自然跟上。
+   * Refreshes the library after editing other docs' bodies. Defaults to broadcasting DOCS_CHANGED -- writes to the local library and cloud mirror
+   * already broadcast it; useDocLibrary listens and rereads the list, and once the new updatedAt arrives
+   * the docIndex cache key is invalidated, so the sidebar and search catch up on their own.
    */
   refresh?: () => void;
 }
 
 /**
- * 改标题后，把别的文章里指向它的 `[[双向链接]]` 一并改掉（Obsidian 的 rename 更新引用）。
+ * After a title change, updates `[[wiki links]]` in other articles that point to it (like Obsidian's rename link updates).
  *
- * 时机选在标题输入框的 focus / blur 而不是每次击键：改标题是逐字敲出来的，
- * 中途每一个中间态都去扫全库、弹确认框，只会把人烦死。聚焦记下原样，
- * 失焦拿到定稿，中间敲了什么都不算数。
+ * Triggered on the title input's focus / blur rather than every keystroke: titles are typed character by character,
+ * and scanning the whole library and prompting for every intermediate state would drive people mad. Remember the original on focus,
+ * take the final title on blur; whatever was typed in between doesn't count.
  *
- * 当前这一篇的标题怎么落盘不归这里管（自动保存管线已经在做），
- * 这里只负责「别人怎么称呼它」。
+ * How this doc's own title gets saved isn't handled here (the autosave pipeline already does that);
+ * this only handles "what other docs call it".
  */
 export function useRenameLinks({ docId, docs, title, docVersion, refresh }: Params) {
-  /** 聚焦那一刻的标题原样（含「未命名文章」占位），null 表示没在编辑标题 */
+  /** The title exactly as it was on focus (including the 「未命名文章」 (Untitled) placeholder); null means the title isn't being edited */
   const beforeEditRef = useRef<string | null>(null);
-  /** 确认框一次只该有一个：askConfirm 的第二次调用会顶掉第一次，前一个 Promise 就永远悬着了 */
+  /** Only one confirm dialog at a time: a second askConfirm call replaces the first, leaving the earlier Promise hanging forever */
   const busyRef = useRef(false);
 
-  // 换了文档（或本篇被云端新版本替换）就作废记忆，免得把 A 的旧标题算到 B 头上
+  // Discard the memory when the doc changes (or this doc is replaced by a newer cloud version), so A's old title isn't attributed to B
   useEffect(() => {
     beforeEditRef.current = null;
   }, [docId, docVersion]);
@@ -78,13 +78,13 @@ export function useRenameLinks({ docId, docs, title, docVersion, refresh }: Para
     [docs, docId, refresh]
   );
 
-  /** 标题输入框获得焦点：记下原样。必须在调用方把「未命名文章」清空之前调用 */
+  /** Title input focused: remember the original. Must be called before the caller clears the 「未命名文章」 (Untitled) placeholder */
   const onTitleFocus = useCallback(() => {
     if (busyRef.current) return;
     beforeEditRef.current = title;
   }, [title]);
 
-  /** 标题输入框失焦：这一轮编辑的定稿出来了，该改的引用在这里改 */
+  /** Title input blurred: this edit's final title is in, so update the references here */
   const onTitleBlur = useCallback(() => {
     const before = beforeEditRef.current;
     beforeEditRef.current = null;
@@ -92,11 +92,11 @@ export function useRenameLinks({ docId, docs, title, docVersion, refresh }: Para
 
     const oldTitle = before.trim();
     const newTitle = title.trim();
-    // 原来没有标题（新稿、占位）就没人链得上；新标题为空调用方会填回占位，同样不算改名
+    // No previous title (new draft, placeholder) means nothing can link to it; an empty new title gets the placeholder back from the caller, so that's not a rename either
     if (!oldTitle || oldTitle === UNTITLED_DOC) return;
     if (!newTitle || newTitle === UNTITLED_DOC) return;
     if (normalizeTitle(oldTitle) === normalizeTitle(newTitle)) return;
-    // 带方括号 / 竖线的标题写进 `[[…]]` 会把链接结构本身弄坏，宁可不动
+    // A title with brackets / pipes written into `[[…]]` would break the link syntax itself, so leave it alone
     if (!isLinkableTitle(newTitle)) return;
     void run(oldTitle, newTitle);
   }, [title, run]);

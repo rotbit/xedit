@@ -1,6 +1,6 @@
 /**
- * Vault 专用的极简 IndexedDB 键值表：只为存 FileSystemDirectoryHandle
- * （它能结构化克隆，localStorage 存不下）。任何失败都 reject，调用方自己兜。
+ * Minimal IndexedDB key-value store just for the Vault: only stores FileSystemDirectoryHandle
+ * (it's structured-cloneable; localStorage can't hold it). Any failure rejects; callers handle it.
  */
 import { t } from "@/i18n/t";
 
@@ -22,7 +22,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-/** 一次事务只跑一个操作，完事就把连接关掉 */
+/** One operation per transaction; close the connection when done */
 async function run<T>(
   mode: IDBTransactionMode,
   fn: (store: IDBObjectStore) => IDBRequest

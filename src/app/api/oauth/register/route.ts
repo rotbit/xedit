@@ -5,8 +5,8 @@ import { corsJson, corsPreflight, oauthError } from "@/lib/oauth/http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// RFC 7591 动态客户端注册：MCP 客户端（Claude Desktop / Cursor）无需人工干预即可拿到 client_id。
-// 一律注册为公有客户端（token_endpoint_auth_method=none，走 PKCE，无 secret）。
+// RFC 7591 dynamic client registration: MCP clients (Claude Desktop / Cursor) get a client_id without manual steps.
+// Always registered as public clients (token_endpoint_auth_method=none, PKCE, no secret).
 export async function POST(req: Request): Promise<Response> {
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -27,7 +27,7 @@ export async function POST(req: Request): Promise<Response> {
     } catch {
       return oauthError("invalid_redirect_uri", `非法回调地址: ${u}`); // i18n-ignore
     }
-    // http 回调仅允许本机回环；https 与自定义 scheme（cursor:// 等）放行
+    // http redirects only allowed for local loopback; https and custom schemes (cursor:// etc.) are allowed
     if (
       parsed.protocol === "http:" &&
       parsed.hostname !== "localhost" &&

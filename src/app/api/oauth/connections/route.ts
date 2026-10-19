@@ -5,7 +5,7 @@ import { tk } from "@/i18n/t";
 
 export const runtime = "nodejs";
 
-// 当前用户已授权、且仍有效（未撤销未过期刷新令牌）的 MCP 客户端列表。
+// MCP clients the current user has authorized that are still valid (refresh token not revoked or expired).
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -16,7 +16,7 @@ export async function GET() {
     select: { clientId: true, createdAt: true, client: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
-  // 同一客户端多次授权只展示最近一次
+  // Multiple authorizations of the same client show only the latest
   const seen = new Map<string, { clientId: string; name: string; since: Date }>();
   for (const r of rows) {
     if (!seen.has(r.clientId)) {
@@ -30,8 +30,8 @@ export async function GET() {
   return NextResponse.json([...seen.values()]);
 }
 
-// 撤销对某客户端的授权：作废其全部刷新令牌。
-// 已签发的 access token 因是无状态 JWT 无法即时失效，但最长 1 小时内自动过期。
+// Revoke a client's authorization: invalidate all its refresh tokens.
+// Already-issued access tokens are stateless JWTs and can't be revoked instantly, but expire within an hour.
 export async function DELETE(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {

@@ -13,7 +13,7 @@ describe("frontmatter 之后的空行", () => {
   it("第二个起的空行照旧保留为留白，行号带上 frontmatter 的偏移", () => {
     const html = renderMarkdown("---\ncover: a\n---\n\n\n正文");
     expect(blanks(html)).toBe(1);
-    // frontmatter 占 3 行（0-2），第 3 行是分隔，第 4 行才是留白
+    // frontmatter takes 3 lines (0-2), line 3 is the separator, and line 4 is the blank space
     expect(html).toContain('<p data-line="4"><br></p>');
   });
 

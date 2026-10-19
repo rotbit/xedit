@@ -1,6 +1,6 @@
 /**
- * 派生数据缓存的失效口径：只认元信息（updatedAt + chars），不再为了比长度去读正文。
- * 正文读取换成可计数的内存桩，「读了几次」就是这里唯一要量的东西。
+ * Invalidation rule for the derived-data cache: only metadata (updatedAt + chars), no longer reading bodies to compare lengths.
+ * Body reads are replaced with a counting in-memory stub; "how many reads" is the only thing measured here.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -38,7 +38,7 @@ describe("docIndex 失效", () => {
   it("元信息没变：连查 100 次只读一次正文", () => {
     const doc = meta();
     let last = indexOf(doc);
-    for (let i = 0; i < 99; i++) last = indexOf(meta()); // 每次都是新对象，只有值相同
+    for (let i = 0; i < 99; i++) last = indexOf(meta()); // A new object every time, only the values are the same
     expect(reads.n).toBe(1);
     expect(last.text).toContain("显示");
     expect(last.links).toHaveLength(1);
@@ -73,7 +73,7 @@ describe("docIndex 失效", () => {
     expect(indexOf(meta()).text).toBe("");
     expect(indexOf(meta()).text).toBe("");
     expect(reads.n).toBe(2);
-    // 镜像到了（updatedAt/chars 都没变）也能立刻反映出来
+    // When the mirror arrives (updatedAt/chars unchanged) it's reflected immediately too
     contents.set("a", "镜像终于到了");
     expect(indexOf(meta()).text).toBe("镜像终于到了");
   });

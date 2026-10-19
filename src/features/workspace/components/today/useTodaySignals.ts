@@ -6,8 +6,8 @@ import { todayKey } from "@/lib/todos/dates";
 import { DAY_LOG_CHANGED_EVENT } from "@/lib/todos/events";
 
 /**
- * 日志事件只刷新界面，文库事件还更新派生待办的缓存信号；日期或文库没变时返回稳定引用。
- * 顺带把「今天」重取一次——页面开过零点后，下一次任何动静都会把日期纠正过来。
+ * Log events only refresh the UI; library events also bump the cache signal for derived todos. Returns a stable reference when neither the date nor the library changed.
+ * Also re-reads "today" — if the page stays open past midnight, the next activity of any kind corrects the date.
  */
 export function useTodaySignals() {
   const [today, setToday] = useState(() => todayKey());
@@ -22,15 +22,15 @@ export function useTodaySignals() {
       setDocsVersion((v) => v + 1);
       bump();
     };
-    // 别的标签页勾掉的事写进同一份 localStorage，本页收不到自定义事件，只能靠 storage 事件；
-    // key 为 null 是 clear()，日志键也在其中，一并刷新
+    // Items checked in another tab write to the same localStorage; this page doesn't get the custom event, so rely on the storage event;
+    // a null key means clear(), which includes the log key, so refresh too
     const onStorage = (e: StorageEvent) => {
       if (e.key === null || e.key.startsWith("xedit-day-log")) bump();
     };
     window.addEventListener(DOCS_CHANGED_EVENT, onDocs);
     window.addEventListener(DAY_LOG_CHANGED_EVENT, bump);
     window.addEventListener("storage", onStorage);
-    // 切回标签页时也对一次：隔夜挂着的页面回来就该是新的一天
+    // Also check when the tab becomes visible again: a page left open overnight should come back to a new day
     document.addEventListener("visibilitychange", onDocs);
     return () => {
       window.removeEventListener(DOCS_CHANGED_EVENT, onDocs);

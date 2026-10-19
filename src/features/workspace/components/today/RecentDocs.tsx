@@ -1,16 +1,16 @@
 "use client";
 
 /**
- * 今天页右栏底部的「最近打开」：按最后打开 / 最后编辑取较晚者倒序，列最近几篇文章。
+ * "Recently opened" at the bottom of the Today right column: the latest few docs, sorted by the later of last opened / last edited.
  *
- * 为什么并进今天页：打开应用默认落在这里，「今天要做的事 + 手头在写的稿子」一屏看完，
- * 不必再去侧栏点一下「最近打开」；它也是跨文件夹时间流（ALL 视图）唯一的一键入口。
- * 为什么放右栏「接下来」下面：待办一多左栏会很长，横跨底部的话会被推出首屏；
- * 放在右栏，待办再多它也停在首屏右侧那一带，不随左栏被推走。
- * 为什么只列 6 篇：右栏上面已有六天排期，再长就把右栏也拖过首屏；这里是落脚点不是列表页，
- * 更多的走标题右侧「全部」进 ALL 视图。
- * 为什么不显示目录：右栏只有 300px，标题和时间已占满一行，再塞目录只会把标题截短，标题优先。
- * 标题行与「接下来」同样带一条线；窄栏里面板底色太重，不用。
+ * Why it's on the Today page: the app opens here by default, so "what to do today + drafts in progress" fit on one screen
+ * without clicking "Recently opened" in the sidebar; it's also the only one-click entry to the cross-folder timeline (ALL view).
+ * Why under "Up next" in the right column: with many todos the left column gets long, and a full-width bottom section would be pushed below the fold;
+ * in the right column it stays in that area of the first screen however many todos there are.
+ * Why only 6: the right column already has six days of schedule above, and more would push it below the fold too; this is a jumping-off point, not a list page —
+ * the "All" link beside the title goes to the ALL view for more.
+ * Why no folder: the right column is only 300px, title and time fill a line, and a folder would only truncate the title; title wins.
+ * The heading row has a rule like "Up next"; a panel background is too heavy in a narrow column, so none.
  */
 import { useMemo } from "react";
 import { ChevronRight, FileText } from "lucide-react";
@@ -27,7 +27,7 @@ const LIMIT = 6;
 export function RecentDocsSection({ docs, nav }: { docs: DocMeta[]; nav: Workspace["nav"] }) {
   const t = useT();
   const opens = useRecentOpens();
-  // 与 ALL 视图同一排序口径；recencyOf 遇脏数据会原样返回 updatedAt，解析失败按 0 沉底
+  // Same ordering as the ALL view; recencyOf returns updatedAt as-is on bad data, and parse failures sink to 0
   const recent = useMemo(
     () =>
       docs

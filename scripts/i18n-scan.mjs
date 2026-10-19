@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * 扫出 src 里还没交给 t() 的中文界面文案。
+ * Find Chinese UI copy in src that hasn't been handed to t() yet.
  *
- *   npm run i18n:scan            列出 path:line  文本，末尾按目录汇总
- *   npm run i18n:scan -- --json  同样的结果输出成 JSON
- *   npm run i18n:scan -- --unused 列出英文字典里在 src 中已找不到的 key（中文改了、字典没跟上）
+ *   npm run i18n:scan            list path:line  text, with a per-directory summary at the end
+ *   npm run i18n:scan -- --json  same results as JSON
+ *   npm run i18n:scan -- --unused list keys in the English dictionary no longer found in src (Chinese changed, dictionary didn't follow)
  *
- * 用 TypeScript 编译器解析而不是正则：注释天然跳过，模板字符串、JSX 文本也能分清。
- * 跳过：t()/tk()/translate() 的第一个参数（已接管）、类型位置的字面量、console.* 的参数、
- * 所在行或上一行带 `i18n-ignore` 注释的（数据而非文案，比如日期标签、保留分类名）。
- * 模块顶层常量里用 t() 会让语言切换失效，这个脚本查不出来，靠人看。
- * 退出码恒为 0：现在只是清单，还不是 CI 门槛。
+ * Parses with the TypeScript compiler rather than regex: comments are naturally skipped, and template strings and JSX text are told apart.
+ * Skips: the first argument of t()/tk()/translate() (already handled), literals in type positions, console.* arguments,
+ * and anything with an `i18n-ignore` comment on the same or previous line (data, not copy, e.g. date labels, reserved category names).
+ * Using t() in module-level constants breaks language switching; this script can't detect that, so it needs human review.
+ * Exit code is always 0: it's just a list for now, not a CI gate.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -21,28 +21,28 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "src");
 const DICT_DIR = path.join(SRC, "i18n", "en");
 
-/** 不在本轮范围内的目录 / 文件（相对仓库根，前缀匹配） */
+/** Directories / files out of scope for this round (relative to repo root, prefix match) */
 const SKIP = [
-  "src/i18n/", // 字典本身
-  "src/features/landing/", // 落地页保持中文
-  "src/features/changelog/", // 更新日志数据
+  "src/i18n/", // the dictionary itself
+  "src/features/landing/", // landing page stays in Chinese
+  "src/features/changelog/", // changelog data
   "src/app/about/",
   "src/app/changelog/",
-  "src/app/themes/", // 主题样张落地页
-  "src/app/s/", // 公开分享页
-  // 分享页给读者看（读者未必登录、也没有语言偏好），和 /s 路由一样保持中文；产品内的 ShareDialog 照常翻译
+  "src/app/themes/", // theme sample landing page
+  "src/app/s/", // public share page
+  // The share page is for readers (who may not be logged in or have a language preference), so like the /s route it stays Chinese; the in-product ShareDialog is translated as usual
   "src/features/share/components/",
   "src/features/share/lib/",
-  "src/features/share/hooks/", // 分享页读者批注用的 hook，同属公开页
+  "src/features/share/hooks/", // hooks for share page reader annotations, also part of the public page
   "src/features/share/SharedArticle.tsx",
-  "src/app/gold/", // 内部小工具，与产品无关
-  "src/app/layout.tsx", // 只有 metadata（SEO 保持中文）
+  "src/app/gold/", // internal utility, unrelated to the product
+  "src/app/layout.tsx", // metadata only (SEO stays in Chinese)
   "src/app/robots.ts",
   "src/app/sitemap.ts",
-  "src/lib/site.ts", // 站点 SEO 文案
-  "src/lib/welcomeDoc.ts", // 欢迎稿正文，属于内容，后置
-  "src/lib/ai/reviewPrompt.ts", // AI 提示词，后置
-  "src/app/api/mcp/route.ts", // MCP 工具名/说明/报错是给 AI 客户端读的协议文案，不回网页界面
+  "src/lib/site.ts", // site SEO copy
+  "src/lib/welcomeDoc.ts", // welcome doc body: content, deferred
+  "src/lib/ai/reviewPrompt.ts", // AI prompts, deferred
+  "src/app/api/mcp/route.ts", // MCP tool names/descriptions/errors are protocol text for AI clients, never shown in the web UI
 ];
 
 const CJK = /[一-鿿　-〿＀-￯]/;
@@ -72,13 +72,13 @@ function calleeName(call) {
   const e = call.expression;
   if (ts.isIdentifier(e)) return e.text;
   if (ts.isPropertyAccessExpression(e)) {
-    // console.warn(...) 之类：拿到 "console.warn"
+    // e.g. console.warn(...): yields "console.warn"
     return ts.isIdentifier(e.expression) ? `${e.expression.text}.${e.name.text}` : e.name.text;
   }
   return "";
 }
 
-/** 这个字面量是否已经被接管或不需要翻译 */
+/** Whether this literal is already handled or needs no translation */
 function exempt(node, sf, lines) {
   const parent = node.parent;
   if (parent && ts.isCallExpression(parent) && parent.arguments[0] === node && T_CALLEES.has(calleeName(parent))) {
@@ -93,7 +93,7 @@ function exempt(node, sf, lines) {
   return /i18n-ignore/.test(lines[line] ?? "") || /i18n-ignore/.test(lines[line - 1] ?? "");
 }
 
-/** 遍历一个文件里所有字符串片段：字面量、模板字符串（拼成一段，插值写成 ${…}）、JSX 文本 */
+/** Walk every string fragment in a file: literals, template strings (joined into one, interpolations written as ${…}), JSX text */
 function collect(sf, onHit) {
   const lines = sf.text.split("\n");
   const visit = (node) => {
@@ -104,7 +104,7 @@ function collect(sf, onHit) {
     } else if (ts.isJsxText(node)) text = node.text.replace(/\s+/g, " ").trim();
     if (text !== null) {
       onHit(node, text, () => exempt(node, sf, lines));
-      // 模板字符串里嵌着的表达式可能还有字面量，继续往下走；其余字面量没有子节点
+      // Expressions embedded in template strings may contain more literals, so keep descending; other literals have no children
       if (!ts.isTemplateExpression(node)) return;
     }
     ts.forEachChild(node, visit);
@@ -127,7 +127,7 @@ function scan() {
   return hits;
 }
 
-/** 汇总口径：取所在目录的前三段（src/features/editor、src/lib/todos），src/components 这类就两段 */
+/** Summary bucket: the first three segments of the directory (src/features/editor, src/lib/todos), or two for things like src/components */
 function bucketOf(file) {
   return path.posix.dirname(file).split("/").slice(0, 3).join("/");
 }
@@ -151,7 +151,7 @@ function dictKeys() {
 }
 
 function unused() {
-  // src 里出现过的所有字符串片段（含已被 t() 包住的）；字典 key 必须原样出现过才算在用
+  // Every string fragment appearing in src (including ones already wrapped in t()); a dictionary key counts as used only if it appears verbatim
   const seen = new Set();
   for (const file of walkFiles(SRC)) {
     if (rel(file).startsWith("src/i18n/")) continue;

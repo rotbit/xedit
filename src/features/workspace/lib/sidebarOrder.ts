@@ -1,29 +1,29 @@
 "use client";
 
 /**
- * 侧栏手动排序的数据形状与读写。
- * items：父路径（顶级为空串）→ 该父级下「子分类 + 直属文章」的混排键序列，
- *        子分类记 `c:<名称>`、文章记 `d:<文档id>`。分类用名称而非全路径，
- *        父级改名/迁移时子级顺序自动跟随，不需要重写。这是当前唯一写入的字段。
- * cats/docs：老版本的两份独立序列（分类名列表 / 文档 id 列表），只读不再写。
- *        某个父级有 items 记录就按 items 混排；没有则退回老规则——先分类后文章，
- *        分类按 cats 排、文章按 docs 排。
- * 未出现在序列里的项排在已排序项之后，维持原有次序（分类按拼音、文章按更新时间）。
- * 本地永远落 localStorage（秒开 + 离线可用），登录态再异步推给服务端跨设备同步。
+ * Data shape and read/write for manual sidebar ordering.
+ * items: parent path (empty for top level) → the interleaved key sequence of "subcategories + direct docs" under that parent,
+ *        with subcategories as `c:<name>` and docs as `d:<docId>`. Categories use the name rather than the full path,
+ *        so child order follows automatically when a parent is renamed/moved, without rewriting. This is the only field written now.
+ * cats/docs: the two separate sequences from older versions (category name list / doc id list), read-only, no longer written.
+ *        A parent with an items record is interleaved by items; otherwise fall back to the old rule — categories first, then docs,
+ *        categories ordered by cats and docs by docs.
+ * Items not in the sequence come after the ordered ones, keeping their original order (categories by pinyin, docs by update time).
+ * Always stored locally in localStorage (instant load + offline), and when logged in pushed asynchronously to the server for cross-device sync.
  */
 
 export interface SidebarOrder {
   items: Record<string, string[]>;
-  /** @deprecated 老数据回退，只读 */
+  /** @deprecated Fallback for old data, read-only */
   cats: Record<string, string[]>;
-  /** @deprecated 老数据回退，只读 */
+  /** @deprecated Fallback for old data, read-only */
   docs: Record<string, string[]>;
 }
 
-/** 混排序列里的子分类键（用名称，跟随父级改名） */
+/** Subcategory key in the interleaved sequence (by name, follows parent renames) */
 export const catKey = (name: string) => `c:${name}`;
 
-/** 混排序列里的文章键 */
+/** Doc key in the interleaved sequence */
 export const docKey = (id: string) => `d:${id}`;
 
 export const EMPTY_ORDER: SidebarOrder = { items: {}, cats: {}, docs: {} };
@@ -60,11 +60,11 @@ export function writeLocalOrder(order: SidebarOrder): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(order));
   } catch {
-    // 存储满时放弃本地缓存，服务端仍然有份
+    // When storage is full, give up the local cache; the server still has a copy
   }
 }
 
-/** 按显示序列生成新的排序列表：把 moved 挪到 target 的前/后 */
+/** Build a new ordered list from the display sequence: move `moved` before/after `target` */
 export function reorderList(
   displayed: string[],
   moved: string,

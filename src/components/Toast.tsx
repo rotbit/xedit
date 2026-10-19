@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 全局轻提示。刻意不做成 Context：toast() 是模块级函数，任何位置（包括非组件代码、工具函数）都能直接调，
- * 消息通过 listeners 推给挂在根布局里的 <Toaster />。
- * 代价是全应用只能有一个 Toaster，多挂一份就会看到每条提示出现两次。
+ * Global toast. Deliberately not a Context: toast() is a module-level function callable from anywhere (including non-component code and utilities),
+ * and messages are pushed via listeners to the <Toaster /> mounted in the root layout.
+ * The cost is one Toaster per app; mounting a second would show every toast twice.
  */
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
@@ -22,7 +22,7 @@ type Listener = (item: ToastItem) => void;
 let nextId = 1;
 const listeners = new Set<Listener>();
 
-/** 发一条提示。Toaster 尚未挂载时这条消息直接丢弃（没有监听者），不会排队补发。 */
+/** Show a toast. If the Toaster isn't mounted yet the message is simply dropped (no listeners), not queued for later. */
 export function toast(message: string, type: ToastType = "info"): void {
   const item = { id: nextId++, message, type };
   listeners.forEach((fn) => fn(item));
@@ -34,21 +34,21 @@ const ICONS: Record<ToastType, React.ReactNode> = {
   info: <Info size={16} className="shrink-0 text-[#d8b98a]" />,
 };
 
-/** 错误多停留一会儿，成功/提示快进快出 */
+/** Errors linger a bit longer; success/info toasts come and go quickly */
 const DURATION: Record<ToastType, number> = {
   success: 2600,
   info: 3000,
   error: 5000,
 };
 
-// 必须和全局样式里 toast-out 动画的时长对齐：这里短了会看到提示闪回，长了会留一块空白占位
+// Must match the toast-out animation duration in global styles: shorter and the toast flashes back, longer and an empty gap lingers
 const LEAVE_MS = 200;
 
-/** 提示容器，挂在根布局。同屏最多 3 条，更早的会被新消息挤掉。 */
+/** Toast container, mounted in the root layout. At most 3 on screen; older ones are pushed out by new messages. */
 export function Toaster() {
   const [items, setItems] = useState<ToastItem[]>([]);
 
-  /** 收起一条：先标记 leaving 放退场动画，动画结束再真正移除。超时自动收与点击手动收共用 */
+  /** Dismiss one: mark it leaving to play the exit animation, then actually remove it when done. Shared by auto-timeout and manual click */
   const dismiss = useCallback((id: number) => {
     setItems((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
     setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), LEAVE_MS);
@@ -56,7 +56,7 @@ export function Toaster() {
 
   useEffect(() => {
     const onToast: Listener = (item) => {
-      // 只保留最近两条再接上新的这条：提示叠太高会挡住正文，也没人会去读第四条
+      // Keep only the latest two before adding the new one: stacked toasts would cover the body, and nobody reads a fourth
       setItems((prev) => [...prev.slice(-2), item]);
       setTimeout(() => dismiss(item.id), DURATION[item.type]);
     };
@@ -67,7 +67,7 @@ export function Toaster() {
   }, [dismiss]);
 
   return (
-    // z-[130] 压在所有浮层之上（后台抽屉 105、确认框 110、命令面板 120）：提示是即时反馈，不该被哪层遮罩糊住
+    // z-[130] sits above every overlay (admin drawer 105, confirm dialog 110, command palette 120): toasts are immediate feedback and shouldn't be blurred by any backdrop
     <div className="pointer-events-none fixed left-1/2 top-16 z-[130] flex -translate-x-1/2 flex-col items-center gap-2">
       {items.map((t) => (
         <div

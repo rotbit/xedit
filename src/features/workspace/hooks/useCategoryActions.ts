@@ -18,7 +18,7 @@ interface Params {
   nav: WorkspaceNav;
 }
 
-/** 分类的增删改。分类迁移会连带子孙分类与其中文章整体随迁 */
+/** Category create/rename/delete. Moving a category carries its descendant categories and their docs along */
 export function useCategoryActions({ auth, library, nav }: Params) {
   const { localMode, online } = auth;
   const { customCats, setCustomCats, setDocs } = library;
@@ -36,7 +36,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     });
   };
 
-  /** 云端分类操作需要联网；本地模式不受限 */
+  /** Cloud category operations need a connection; local mode is unaffected */
   const requireOnline = (): boolean => {
     if (!localMode && !online) {
       toast(t("离线时文件夹操作暂不可用，联网后再试"), "error");
@@ -46,9 +46,9 @@ export function useCategoryActions({ auth, library, nav }: Params) {
   };
 
   /**
-   * 校验分类名并拼出完整路径：空名、层级上限、同级重名一次查完。
-   * 新建与重命名原先各查一半（重命名连重名都没查，能把两个同级文件夹改成一个名字，
-   * 之后哪个都点不准），所以合到这里共用。返回 null 表示已弹过提示、调用方直接返回。
+   * Validate a category name and build the full path: empty name, depth limit and sibling duplicates checked in one go.
+   * Create and rename used to each check half of this (rename didn't even check duplicates, so two sibling folders could get the same name
+   * and then neither could be clicked reliably), so it's shared here. Returning null means a toast was shown and the caller should just return.
    */
   const assertCatName = (parent: string, name: string): string | null => {
     const path = parent ? `${parent}/${name}` : name;
@@ -78,14 +78,14 @@ export function useCategoryActions({ auth, library, nav }: Params) {
       })
     )?.trim();
     if (!name) return;
-    // 有父级时名字里的 / 要去掉（不然一次跨两级）；顶级新建保留 /，让用户能直接写 a/b
+    // With a parent, strip / from the name (otherwise it spans two levels at once); top-level create keeps / so users can type a/b directly
     const path = assertCatName(parentPath ?? "", parentPath ? name.replace(/\//g, "") : name);
     if (!path) return;
     persistCustomCats([...customCats, path]);
     nav.openCategory(path);
   };
 
-  /** 把分类 path（含子孙分类与其中文章）整体迁移为 to：重命名与拖拽移动共用 */
+  /** Move category path (including descendant categories and their docs) to `to` as a whole: shared by rename and drag-move */
   const relocateCategory = async (path: string, to: string): Promise<boolean> => {
     const remap = (c: string) =>
       c === path ? to : c.startsWith(`${path}/`) ? to + c.slice(path.length) : c;
@@ -107,8 +107,8 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     if (nav.activeCat === path || nav.activeCat.startsWith(`${path}/`)) {
       nav.setActiveCat(remap(nav.activeCat));
     }
-    // 正打开的文章在被迁移的子树里：编辑器 store 的分类同步改掉，
-    // 否则下次自动保存会带旧路径回写，把已改名/移动的文件夹又「复活」
+    // The open doc is inside the moved subtree: update the editor store's category too,
+    // otherwise the next autosave writes back the old path and "resurrects" the renamed/moved folder
     const store = useStore.getState();
     if (store.docId) {
       const cur = store.category || UNCATEGORIZED;
@@ -136,7 +136,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     else toast(t("重命名失败"), "error");
   };
 
-  /** 拖拽把分类挂到新父级下（parent 空串 = 提升为顶级分类） */
+  /** Drag a category under a new parent (empty parent = promote to top level) */
   const moveCategory = async (path: string, parent: string) => {
     const to = parent ? `${parent}/${nameOf(path)}` : nameOf(path);
     if (to === path) return;
@@ -173,7 +173,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
       getLocalBackend().removeCategory(path);
       notifyDocsChanged();
     } else {
-      // 走到 else 说明不是本地模式，与 requireOnline 的判断等价，别再抄一遍文案
+      // Reaching else means we're not in local mode, equivalent to requireOnline's check; don't duplicate the copy
       if (!requireOnline()) return;
       const res = await fetch("/api/categories", {
         method: "POST",
@@ -193,7 +193,7 @@ export function useCategoryActions({ auth, library, nav }: Params) {
     );
     setCustomCats((prev) => prev.filter((c) => !inSub(c)));
     if (inSub(nav.activeCat)) nav.setActiveCat(ALL);
-    // 同 relocateCategory：别让编辑器的旧分类把删掉的文件夹写回来
+    // Same as relocateCategory: don't let the editor's stale category write the deleted folder back
     const store = useStore.getState();
     if (store.docId && inSub(store.category || UNCATEGORIZED)) {
       store.setCategory(UNCATEGORIZED);

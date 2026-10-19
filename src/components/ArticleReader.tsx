@@ -49,10 +49,10 @@ const SAVE_LABEL: Record<string, string> = {
 };
 
 /**
- * 首页右侧的文章视图，三种形态：
- * - 默认：Markdown 即时渲染编辑器；
- * - 双屏（⌘E）：同一窗口内切出右侧公众号真实主题预览（左源码 / 右效果）；
- * - 阅读模式（⌘⇧E）：整块编辑区换成渲染后的成品，宽栏通读，退出即回编辑。
+ * The article view on the right of the home page, in three forms:
+ * - Default: the Markdown live-rendering editor;
+ * - Split (⌘E): a right-hand pane in the same window with the real WeChat theme preview (source left / result right);
+ * - Reading mode (⌘⇧E): the whole editing area is replaced by the rendered result for wide-column reading; exiting returns to editing.
  */
 export function ArticleReader({
   docId,
@@ -65,20 +65,20 @@ export function ArticleReader({
   onCreateDoc,
 }: {
   docId: string;
-  /** 面包屑顶栏右侧的挂载点：操作按钮 portal 到这里，与面包屑共用一行 */
+  /** Mount point on the right of the breadcrumb top bar: action buttons portal here and share the row with the breadcrumb */
   actionSlot?: HTMLElement | null;
-  /** 「移动到分类」候选列表（已排序），由首页汇总自建分类 + 各文章分类 */
+  /** Candidate list for 「移动到分类」 (Move to category), sorted; aggregated by the home page from custom categories + each article's category */
   categories?: string[];
-  /** 分类变更后通知首页同步列表状态（持久化由自动保存管线完成） */
+  /** Notifies the home page to sync list state after a category change (persistence is handled by the autosave pipeline) */
   onCategoryChange?: (category: string) => void;
   onDelete?: () => void;
-  /** 全部文章（不含回收站）：`[[双向链接]]` 按标题在这里找目标 */
+  /** All articles (excluding trash): `[[wiki links]]` look up their targets here by title */
   docs?: DocMeta[];
   onOpenDoc?: (id: string) => void;
-  /** 双向链接指向的文章还不存在时，按目标标题建一篇并打开 */
+  /** When a wiki link's target article doesn't exist yet, create one with the target title and open it */
   onCreateDoc?: (category: string, init: { title: string }) => void | Promise<void>;
 }) {
-  // 装载 + 自动保存复用编辑页管线（本地/云端文档皆可）
+  // Loading + autosave reuse the edit page's pipeline (works for both local and cloud docs)
   const { docVersion, loading, loggedIn, reload, refreshedHint } = useEditorDoc(docId);
   const t = useT();
 
@@ -100,12 +100,12 @@ export function ArticleReader({
   const editorRef = useRef<EditorHandle>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const splitAreaRef = useRef<HTMLDivElement>(null);
-  // 标题 + 正文的共同滚动容器：用 state 而非 ref，挂载后要重新渲染把它传给编辑器
+  // Shared scroll container for title + body: state rather than ref, since it must re-render after mount to pass it to the editor
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
-  /** AI 审核模式：意见直接标在编辑器的正文上，所以只在普通编辑视图里成立，
-      进双屏 / 进阅读就跟着退出 */
+  /** AI review mode: suggestions are marked directly on the editor body, so it only works in the normal edit view;
+      entering split / reading mode exits it */
   const [reviewOn, setReviewOn] = useState(false);
-  /** 审核设置面板开着没有：审核条上的胶囊和意见栏里的「去设置模型」都能把它掀开 */
+  /** Whether the review settings panel is open: both the pill on the review bar and 「去设置模型」 (Set up model) in the suggestion column can open it */
   const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
   const [reviewSummaryOpen, setReviewSummaryOpen] = useState(false);
   const exitReview = useCallback(() => {
@@ -120,8 +120,8 @@ export function ArticleReader({
   );
   const split = mode === "split";
   const reading = mode === "read";
-  // 选区上报走订阅而不是 state：光标每动一下都 setState 会白白重渲染整个文章视图，
-  // 而浮动工具条只是挂在 body 上的旁路组件，让它自己订阅这条流就够了
+  // Selection reporting uses a subscription rather than state: setState on every cursor move would needlessly re-render the whole article view,
+  // and the floating toolbar is just a side component mounted on body, so letting it subscribe to this stream is enough
   const selectionSubRef = useRef<((info: SelectionInfo | null) => void) | null>(null);
   const emitSelection = useCallback((info: SelectionInfo | null) => {
     selectionSubRef.current?.(info);
@@ -133,7 +133,7 @@ export function ArticleReader({
     };
   }, []);
 
-  // [[双向链接]]：编辑器与预览只派事件，按标题找文章 / 追问是否新建都落在这个 hook 里
+  // [[Wiki links]]: the editor and preview only dispatch events; finding articles by title / asking whether to create one lives in this hook
   useWikiLinkOpen({
     docs: docs ?? [],
     category: category || UNCATEGORIZED,
@@ -141,8 +141,8 @@ export function ArticleReader({
     createDoc: onCreateDoc ?? (() => {}),
   });
 
-  // 改标题后把别处指向本文的 `[[双向链接]]` 一并改掉（Obsidian 的 rename 更新引用）。
-  // 刷新走 DOCS_CHANGED 广播（写库时自动发出，useDocLibrary 听着），不必额外传回调
+  // After renaming the title, also update `[[wiki links]]` elsewhere that point to this article (like Obsidian's rename updating references).
+  // Refresh goes through the DOCS_CHANGED broadcast (sent automatically on DB writes, which useDocLibrary listens to), so no extra callback is needed
   const { onTitleFocus, onTitleBlur } = useRenameLinks({ docId, docs, title, docVersion });
 
   const applyFormat = useCallback((cmd: FormatCommand, arg?: string) => {
@@ -153,10 +153,10 @@ export function ArticleReader({
     previewRef
   );
 
-  // 编辑器重建的标识：docId 或装载批次一变就换了一篇内容（滚动记忆以它判断「切文档」）
+  // Editor rebuild key: a change in docId or load batch means different content (scroll memory uses it to detect "switched docs")
   const docKey = `${docId}:${docVersion}`;
 
-  // AI 审核：状态、对位、采纳都在这个 hook 里，换文档会自己作废重来
+  // AI review: state, position mapping and acceptance all live in this hook, which invalidates and restarts itself on doc change
   const reviewApi = useReview({
     active: reviewOn,
     content,
@@ -165,18 +165,18 @@ export function ArticleReader({
     editorRef,
     scrollEl,
   });
-  /** 正文列宽一步不让：摆得下就在右边加一栏意见，摆不下就改成浮层 */
+  /** Never give up body column width: add a suggestion column on the right if it fits, otherwise switch to popovers */
   const { showColumn } = useReviewLayout({ active: reviewOn, scrollEl });
 
-  /** 开审核先退回普通编辑视图（标注长在编辑器上）。审哪一类、用谁审，
-      在顶栏那颗按钮弹出的启动面板里已经选好了，这里只管开跑 */
+  /** Starting review first returns to the normal edit view (annotations live on the editor). Which kind to review and with which model
+      have already been chosen in the launch panel from the top bar button; this just starts the run */
   const { rerun: runNewReview, openRecord: loadReviewRecord } = reviewApi;
   const startReview = useCallback(() => {
     openEdit();
-    runNewReview(); // 上一回要是在翻历史，这里得拨回「真跑一趟」
+    runNewReview(); // if we were browsing history last time, switch back to "actually run one"
     setReviewOn(true);
   }, [openEdit, runNewReview]);
-  /** 翻一条审核历史出来看：不调模型。已经在审核模式里也是它 */
+  /** Bring up a review history entry for viewing: doesn't call the model. Also used when already in review mode */
   const openReviewRecord = useCallback(
     (id: string) => {
       openEdit();
@@ -188,8 +188,8 @@ export function ArticleReader({
   const openReviewSettings = useCallback(() => setReviewSettingsOpen(true), []);
   const openReviewSummary = useCallback(() => setReviewSummaryOpen(true), []);
 
-  // 封面写进 frontmatter。编辑器不受控，得走它自己的事务改（顺带能撤销），
-  // 只替换首尾公共部分之外的那一小段，光标和滚动位置不动
+  // Write the cover into frontmatter. The editor is uncontrolled, so it must change via its own transaction (which also makes it undoable),
+  // replacing only the small segment outside the common prefix/suffix so the cursor and scroll position stay put
   const pickCover = (src: string | null) => {
     const view = editorRef.current?.view();
     const cur = view ? view.state.doc.toString() : useStore.getState().content;
@@ -202,39 +202,39 @@ export function ArticleReader({
     while (tail < cur.length - from && tail < next.length - from && cur[cur.length - 1 - tail] === next[next.length - 1 - tail]) tail++;
     view.dispatch({ changes: { from, to: cur.length - tail, insert: next.slice(from, next.length - tail) } });
   };
-  // 记住每篇读到哪：切走再回来、刷新页面都回到原处
+  // Remember where each article was read to: switching away and back, or refreshing, returns to the same spot
   const recordScroll = useScrollMemory(docId, docKey, editorRef, scrollEl);
-  // 目录高亮走订阅：顶端行号每帧都在变，抬成 state 会连累整篇文章视图重渲染
+  // TOC highlighting uses a subscription: the top line number changes every frame, and lifting it to state would re-render the whole article view
   const { publish: publishTopLine, subscribe: subscribeTopLine } = useTopLineChannel();
   const onScrollLine = useCallback(
     (line: number, ratio: number) => {
-      onEditorScrollLine(line, ratio); // 双屏同步滚动
-      recordScroll(line, ratio); // 滚动记忆
-      publishTopLine(line); // 目录当前章节
+      onEditorScrollLine(line, ratio); // split-view scroll sync
+      recordScroll(line, ratio); // scroll memory
+      publishTopLine(line); // current TOC section
     },
     [onEditorScrollLine, recordScroll, publishTopLine]
   );
-  // 换文档先把顶端行归零：短到不产生滚动事件的文章不会推来新行号，
-  // 不归零目录就还亮着上一篇读到的那一章
+  // On doc change, reset the top line to zero first: articles too short to scroll emit no scroll events and won't push a new line number,
+  // and without the reset the TOC would still highlight the section reached in the previous article
   useEffect(() => {
     publishTopLine(0);
   }, [docKey, publishTopLine]);
 
-  // 源码/预览分隔条：拖动中只走本地值，松手才写 store——
-  // splitRatio 是 persist 持久化字段，每帧写它等于一次拖动往 localStorage 刷上百次
+  // Source/preview divider: while dragging only the local value updates, and the store is written on release;
+  // splitRatio is a persisted field, so writing it every frame would flush localStorage hundreds of times per drag
   const splitDrag = useDragDivider<DOMRect | null>({
     start: () => splitAreaRef.current?.getBoundingClientRect() ?? null,
     move: (ev, rect) => {
       if (!rect || rect.width === 0) return undefined;
-      // 夹的区间与 store 里的 setSplitRatio 一致：拖动中显示的就是最终会落库的值
+      // Clamp range matches setSplitRatio in the store: what's shown while dragging is exactly what will be saved
       return Math.min(0.75, Math.max(0.25, (ev.clientX - rect.left) / rect.width));
     },
     commit: setSplitRatio,
   });
-  // 拖动中用实时值，松手后回到 store 那份
+  // Use the live value while dragging, and the store's value after release
   const shownRatio = splitDrag.value ?? splitRatio;
 
-  /** 正文与意见栏并排的那一版（摆不下时只剩浮层，版式跟平时一模一样） */
+  /** The layout with body and suggestion column side by side (when it doesn't fit, only popovers remain and the layout is exactly as usual) */
   const pairColumn = reviewOn && showColumn;
   const titleCls = split
     ? "px-7"
@@ -242,7 +242,7 @@ export function ArticleReader({
       ? "max-w-[760px] px-7"
       : "mx-auto max-w-[760px] px-7";
 
-  /** 移动分类：改 store 即可，持久化走自动保存管线（本地/云端/离线一致） */
+  /** Move category: just update the store; persistence goes through the autosave pipeline (consistent for local/cloud/offline) */
   const moveToCategory = (c: string) => {
     if (c === (category || UNCATEGORIZED)) return;
     setCategory(c);
@@ -258,7 +258,7 @@ export function ArticleReader({
     moveToCategory(name.slice(0, 100));
   };
 
-  /** 分类几百个且层级深，弹带搜索的选择器（与文章列表右键菜单同款） */
+  /** Categories can number in the hundreds with deep nesting, so open a searchable picker (same as the article list's context menu) */
   const pickCategory = async () => {
     const target = await askCategoryPick({
       title: t("移动到文件夹"),
@@ -270,8 +270,8 @@ export function ArticleReader({
     if (target) moveToCategory(target);
   };
 
-  /** 分享要求登录 + 云端文档，本地草稿先提示。
-      下面这几个回调都裹 useCallback：ReaderActions 已 memo，回调引用一变 memo 就白做了 */
+  /** Sharing requires login + a cloud doc; local drafts get a prompt first.
+      The callbacks below are all wrapped in useCallback: ReaderActions is memoized, and a changed callback reference would defeat the memo */
   const openShare = useCallback(() => {
     if (!loggedIn || isLocalId(docId)) {
       toast(t("登录后才能分享文章"), "error");
@@ -283,8 +283,8 @@ export function ArticleReader({
   const closeOutline = useCallback(() => setOutlineOpen(false), []);
   const openVersions = useCallback(() => setVersionsOpen(true), []);
 
-  // 命令面板（⌘⇧P）里的文章相关命令：格式 / 视图 / 文章 / 复制导出。
-  // 只在文章打开时注册，随本组件一起卸载
+  // Article-related commands in the command palette (⌘⇧P): format / view / article / copy & export.
+  // Registered only while an article is open, and unmounted along with this component
   useReaderCommands({
     applyFormat,
     toggleSplit,
@@ -295,9 +295,9 @@ export function ArticleReader({
     onDelete,
   });
 
-  // 字数只在正文变化时重扫（wordCount 内部要过 4 遍正则，别跟着每次渲染跑）。
-  // 再套一层 useDeferredValue：字数是「顺带看一眼」的信息，让它落在低优先级渲染里，
-  // 连打时先把光标与正文画出来，全文扫描往后排
+  // Word count is rescanned only when the body changes (wordCount runs 4 regex passes internally, don't run it on every render).
+  // Wrapped in useDeferredValue too: word count is "glance at it" info, so it renders at low priority,
+  // letting the cursor and body paint first while typing, with the full-text scan deferred
   const deferredContent = useDeferredValue(content);
   const chars = useMemo(() => wordCount(deferredContent), [deferredContent]);
 
@@ -311,8 +311,8 @@ export function ArticleReader({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 顶部操作栏：插入 / 主题 / 版本 / 复制 / 双屏 / 阅读 / 更多
-          —— portal 到面包屑顶栏右侧，与之共用一行，省掉一整条横栏 */}
+      {/* Top action bar: insert / theme / versions / copy / split / read / more
+          (portaled to the right of the breadcrumb top bar, sharing its row and saving a whole extra bar) */}
       {actionSlot
         ? createPortal(
             <ReaderActions
@@ -335,22 +335,22 @@ export function ArticleReader({
           )
         : null}
 
-      {/* 阅读视图独立挂载，编辑器始终保留，避免丢失选区和撤销历史。 */}
+      {/* The reading view mounts separately and the editor always stays, so selection and undo history aren't lost. */}
       {reading ? <Preview variant="reading" onExit={toggleReading} /> : null}
-      {/* 编辑区（默认单屏）/ 双屏（左源码 + 右预览） */}
+      {/* Editing area (single pane by default) / split (source left + preview right) */}
       <div ref={splitAreaRef} className={`${reading ? "hidden" : "flex"} min-h-0 min-w-0 flex-1`}>
-        {/* 源码编辑列 */}
+        {/* Source editing column */}
         <div
           className={`flex min-w-0 flex-col bg-[var(--panel)] ${
             splitDrag.dragging
-              ? "" // 拖动期间关掉宽度过渡，否则宽度动画滞后于指针
+              ? "" // disable the width transition while dragging, or the width animation lags behind the pointer
               : "transition-[width] duration-300 ease-[cubic-bezier(0.22,0.9,0.26,1)]"
           }`}
           style={{ width: split ? `${shownRatio * 100}%` : "100%" }}
           onPointerEnter={() => setActive("editor")}
         >
           <div className="flex min-h-0 flex-1">
-            {/* 大纲面板：宽度过渡开合，面板本体定宽避免文字随宽度挤压 */}
+            {/* Outline panel: opens/closes with a width transition; the panel itself is fixed-width so text doesn't squeeze as the width changes */}
             <div
               inert={!outlineOpen}
               aria-hidden={!outlineOpen}
@@ -366,7 +366,7 @@ export function ArticleReader({
               />
             </div>
             <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-              {/* AI 审核的横杠：摆在滚动区外面，正文只被它顶下去一条的高度，不会跟着卡片乱跳 */}
+              {/* The AI review bar: placed outside the scroll area, so the body is pushed down by just its height and doesn't jump around with cards */}
               {reviewOn ? (
                 <ReviewToolbar
                   phase={reviewApi.phase}
@@ -394,8 +394,8 @@ export function ArticleReader({
                   onOpenRecord={reviewApi.openRecord}
                 />
               ) : null}
-              {/* 飞书式目录入口，贴在正文列左上角的留白里，展开后由面板顶部的收起按钮接管。
-                  审核时上面多了条横杠，它得跟着往下让 */}
+              {/* Feishu-style TOC entry, tucked into the blank space at the body column's top-left; once expanded, the collapse button at the panel top takes over.
+                  During review there's an extra bar above, so it has to move down accordingly */}
               {!outlineOpen ? (
                 <button
                   type="button"
@@ -409,18 +409,18 @@ export function ArticleReader({
                   <AlignLeft size={16} />
                 </button>
               ) : null}
-              {/* 标题区与正文共用一个滚动容器：标题随正文一起滚出视野，
-                  正文不再从固定标题下方被硬切。编辑器自身改为高度自适应（.reader-live），
-                  滚动读写由 MarkdownEditor 的 scrollParent 接管 */}
+              {/* Title area and body share one scroll container: the title scrolls out of view with the body,
+                  so the body is no longer hard-cut below a fixed title. The editor itself is auto-height (.reader-live),
+                  and scroll reading/writing is taken over by MarkdownEditor's scrollParent */}
               <div ref={setScrollEl} className="min-h-0 flex-1 overflow-y-auto">
-                {/* 审核时把「标题 + 正文 + 意见栏」当成一对居中：正文列还是 760，
-                    只是整体往左挪了半个意见栏。不审核时这层是 display:contents，等于不存在 */}
+                {/* During review, "title + body + suggestion column" is centered as a unit: the body column is still 760,
+                    just shifted left by half a suggestion column. When not reviewing, this layer is display:contents, as if it weren't there */}
                 <div
                   className={reviewOn ? "relative mx-auto w-full" : "contents"}
                   style={pairColumn ? { maxWidth: REVIEW_MIN_WIDTH } : undefined}
                 >
-                  {/* 标题 + 元信息：左缘与正文文字对齐（28px = .cm-doc/.cm-split 的行内缩） */}
-                  {/* pt 比原来多 12px：常驻工具栏撤掉后，标题不能直接顶在面包屑下沿 */}
+                  {/* Title + metadata: left edge aligned with body text (28px = .cm-doc/.cm-split line padding) */}
+                  {/* pt is 12px more than before: with the persistent toolbar removed, the title can't sit right against the breadcrumb's bottom edge */}
                   <div className={`w-full pt-8 ${titleCls}`}>
                     <input
                       className="w-full bg-transparent text-[27px] font-bold leading-[1.3] tracking-tight text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
@@ -428,7 +428,7 @@ export function ArticleReader({
                       placeholder={t(UNTITLED_DOC)}
                       onChange={(e) => setTitle(e.target.value)}
                       onFocus={() => {
-                        // 先记原样再清占位：清空后的 "" 不该被当成「改名前叫这个」
+                        // Record the original before clearing the placeholder: the cleared "" shouldn't be taken as "what it was called before renaming"
                         onTitleFocus();
                         if (title === UNTITLED_DOC) setTitle("");
                       }}
@@ -438,9 +438,9 @@ export function ArticleReader({
                       }}
                     />
                     <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
-                      {/* 深层级路径太长压垮元信息行：只显末级名，全路径挂在悬停提示里；
-                          点击弹带搜索的分类选择器（与文章列表右键菜单同款）。
-                          平时不带底色，和同行的保存状态、字数一种质感，悬停才浮出浅底提示可点 */}
+                      {/* Deep category paths are long enough to crush the metadata row: show only the last segment, with the full path in the hover tooltip;
+                          clicking opens the searchable category picker (same as the article list's context menu).
+                          No background normally, same texture as the save status and word count on the same row; a light background appears on hover to hint it's clickable */}
                       <button
                         className="-ml-1 flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
                         title={`${t(category || UNCATEGORIZED)}\n${t("点击移动到文件夹")}`}
@@ -455,7 +455,7 @@ export function ArticleReader({
                         <ChevronDown size={12} className="shrink-0 opacity-60" />
                       </button>
                       <span>·</span>
-                      {/* MCP / 其他设备改过、页面自动校新后，在这一格轻提示几秒再回落，不弹 toast */}
+                      {/* After MCP / another device changes it and the page auto-refreshes, show a light hint in this cell for a few seconds then revert, no toast */}
                       {refreshedHint ? (
                         <span className="sync-hint flex items-center gap-1 text-[var(--accent)]">
                           <RefreshCw size={12} />
@@ -472,9 +472,9 @@ export function ArticleReader({
                     </div>
                     <div className="mt-3 h-px w-10 bg-[var(--hairline-strong)]" />
                   </div>
-                  {/* Markdown 编辑器：默认即时渲染（设置里可切回源码模式）。
-                      单屏时加 .cm-doc → 正文居中在可读宽度；双屏时加 .cm-split → 填满左栏但加大行内缩。
-                      .reader-live 让编辑器高度自适应，滚动交给上面的外层容器 */}
+                  {/* Markdown editor: live rendering by default (switchable to source mode in settings).
+                      Single pane adds .cm-doc → body centered at a readable width; split adds .cm-split → fills the left column with larger line padding.
+                      .reader-live makes the editor auto-height, with scrolling handled by the outer container above */}
                   <div
                     className={`w-full cm-reader reader-live ${split ? "cm-split" : "cm-doc"} ${
                       pairColumn ? "max-w-[760px]" : ""
@@ -493,8 +493,8 @@ export function ArticleReader({
                       scrollParent={scrollEl}
                     />
                   </div>
-                  {/* 意见：摆得下就在右边站一栏，摆不下就只给选中的那条浮一张；
-                      不论哪种，鼠标停在标注上都就地浮出那条 */}
+                  {/* Suggestions: a column on the right if it fits, otherwise only a popover for the selected one;
+                      either way, hovering over an annotation pops up that suggestion in place */}
                   {reviewOn ? (
                     <>
                       {showColumn ? (
@@ -513,7 +513,7 @@ export function ArticleReader({
           </div>
         </div>
 
-        {/* 可拖拽分隔条 + 右侧预览：收起时先走完宽度动画再卸载 */}
+        {/* Draggable divider + right-hand preview: on collapse, finish the width animation before unmounting */}
         {previewMounted ? (
           <>
             <div
@@ -535,7 +535,7 @@ export function ArticleReader({
         ) : null}
       </div>
 
-      {/* Notion 式浮动工具条：选中正文才浮出，portal 到 body、fixed 跟随选区 */}
+      {/* Notion-style floating toolbar: appears only when body text is selected, portaled to body and fixed to follow the selection */}
       {!reading ? (
         <FloatingToolbar
           subscribe={subscribeSelection}
@@ -545,7 +545,7 @@ export function ArticleReader({
         />
       ) : null}
 
-      {/* 版本历史抽屉：由功能簇里的「版本」按钮唤起 */}
+      {/* Version history drawer: opened by the 「版本」 (Versions) button in the feature cluster */}
       <VersionsPanel
         open={versionsOpen}
         onClose={() => setVersionsOpen(false)}
@@ -553,7 +553,7 @@ export function ArticleReader({
         onRestored={reload}
       />
 
-      {/* 分享设置：公开链接 + 访客批注 */}
+      {/* Share settings: public link + guest annotations */}
       {shareOpen ? <ShareDialog docId={docId} onClose={() => setShareOpen(false)} /> : null}
     </div>
   );

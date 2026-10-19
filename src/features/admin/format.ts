@@ -1,6 +1,6 @@
-/** 后台展示用的格式化小工具（客户端安全） */
+/** Formatting helpers for admin display (client-safe) */
 
-// 字节格式化与服务端的配额提示共用一份实现；这里转出去，后台各处照旧从 "./format" 取
+// Byte formatting shares one implementation with the server's quota messages; re-exported here so admin code keeps importing from "./format"
 import { formatBytes } from "@/lib/format";
 
 export { formatBytes };
@@ -13,14 +13,14 @@ export function formatDate(iso: string): string {
   });
 }
 
-/** 配额展示：null=默认值托底，0=不限制 */
+/** Quota display: null = falls back to the default, 0 = unlimited */
 export function quotaLabel(quota: number | null, defaultQuota: number): string {
   if (quota === null) return `${formatBytes(defaultQuota)}（默认）`;
   if (quota === 0) return "不限制";
   return formatBytes(quota);
 }
 
-/** 用量占比（%），配额不限时恒为 0 */
+/** Usage percentage (%); always 0 when the quota is unlimited */
 export function usagePercent(used: number, quota: number | null, defaultQuota: number): number {
   const limit = quota === null ? defaultQuota : quota;
   if (limit <= 0) return 0;

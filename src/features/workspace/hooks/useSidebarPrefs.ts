@@ -15,9 +15,9 @@ const SIDEBAR_MIN_W = 200;
 const SIDEBAR_MAX_W = 420;
 
 /**
- * 侧栏与列表的展示偏好，全部本地记忆：
- * 折叠状态、分类展开集合、卡片/列表视图。
- * 窄屏侧栏为抽屉模式，默认收起且不写回记忆。
+ * Display preferences for the sidebar and list, all remembered locally:
+ * collapsed state, expanded category set, card/list view.
+ * On narrow screens the sidebar is a drawer, collapsed by default and not written back to memory.
  */
 export function useSidebarPrefs() {
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -47,8 +47,8 @@ export function useSidebarPrefs() {
     return Number.isFinite(n) ? clampSidebarWidth(n) : SIDEBAR_DEFAULT_W;
   });
 
-  /** 设定侧栏宽度并落盘。拖动过程中不走这里：实时宽度由 useDragDivider 的本地状态出，
-   *  松手才调一次（同一个夹取区间靠 clampSidebarWidth 共用） */
+  /** Set the sidebar width and persist it. Not used while dragging: the live width comes from useDragDivider's local state,
+   *  and this is called once on release (both share the same clamp range via clampSidebarWidth) */
   const setSidebarWidth = (px: number) => {
     const w = clampSidebarWidth(px);
     setSidebarWidthState(w);
@@ -62,7 +62,7 @@ export function useSidebarPrefs() {
     writeLocal(K_EXPANDED, JSON.stringify(Array.from(next)));
   };
 
-  /** 展开只铺开这一层；收起连里面展开过的子目录一起收，下次再点开看到的只是当前层级 */
+  /** Expanding only opens this level; collapsing also collapses any expanded subfolders inside, so reopening shows only the current level */
   const toggleExpand = (path: string) => {
     const next = new Set(expanded);
     if (next.has(path)) {
@@ -72,8 +72,8 @@ export function useSidebarPrefs() {
   };
 
   /**
-   * 展开到这个节点：祖先连同它自己一起铺开。进入一个文件夹就该看见里面有什么——
-   * 侧栏没有常驻的折叠箭头，点名字是展开子目录最自然的入口；收起走图标或「···」菜单
+   * Expand to this node: open its ancestors along with itself. Entering a folder should reveal what's inside —
+   * the sidebar has no persistent disclosure arrows, so clicking the name is the most natural way to expand; collapsing uses the icon or the "···" menu
    */
   const expandPath = (path: string) => {
     const parts = path.split("/");
@@ -82,7 +82,7 @@ export function useSidebarPrefs() {
     persistExpanded(next);
   };
 
-  /** 只展开单个节点，基于最新状态合并（拖拽悬停自动展开时使用） */
+  /** Expand a single node only, merging into the latest state (used for auto-expand while hovering a drag) */
   const expandOne = (path: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -104,7 +104,7 @@ export function useSidebarPrefs() {
     writeLocal(K_VIEW, v);
   };
 
-  /** 窄屏抽屉：选定分类/文章后自动收起（桌面侧栏常驻，不受影响） */
+  /** Narrow-screen drawer: auto-collapse after picking a category/doc (the desktop sidebar stays put and is unaffected) */
   const closeDrawerOnMobile = () => {
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
@@ -126,7 +126,7 @@ export function useSidebarPrefs() {
   };
 }
 
-/** 侧栏宽度的合法区间。导出给拖动手柄用：拖动中显示的值必须和最终落盘的值同一套夹取 */
+/** Valid sidebar width range. Exported for the drag handle: the value shown while dragging must use the same clamp as the persisted one */
 export function clampSidebarWidth(px: number): number {
   return Math.round(Math.min(Math.max(px, SIDEBAR_MIN_W), SIDEBAR_MAX_W));
 }

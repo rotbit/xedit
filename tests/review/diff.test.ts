@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { diffQuote } from "@/features/review/diff";
 
 /**
- * 卡片上的「建议改为」靠这个小 diff 标红标绿。
- * 它只掐公共前后缀，所以要守住两件事：拼回去必须还是原文 / 建议，
- * 以及别把一对代理项（emoji）从中间劈开——劈开了就是一串乱码方块。
+ * The 「建议改为」 (Suggested change) on the card relies on this small diff for red/green highlighting.
+ * It only trims the common prefix and suffix, so two things must hold: reassembling must yield the original / suggestion,
+ * and a surrogate pair (emoji) must never be split down the middle — split, it becomes a row of garbled boxes.
  */
 
-/** 拼回去的自检：prefix+removed+suffix = 原文，prefix+added+suffix = 建议 */
+/** Reassembly self-check: prefix+removed+suffix = original, prefix+added+suffix = suggestion */
 function roundTrip(before: string, after: string) {
   const d = diffQuote(before, after);
   expect(d.prefix + d.removed + d.suffix).toBe(before);
@@ -51,7 +51,7 @@ describe("diffQuote", () => {
 
   it("不把一对代理项从中间劈开（emoji 不会变成乱码）", () => {
     const d = roundTrip("🙂今天不错", "🙁今天不错");
-    expect(d.prefix).toBe(""); // 高位代理项相同，但不能算作公共前缀
+    expect(d.prefix).toBe(""); // The high surrogates are the same, but that can't count as a common prefix
     expect(d.removed).toBe("🙂");
     expect(d.added).toBe("🙁");
   });

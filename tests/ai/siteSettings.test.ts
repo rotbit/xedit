@@ -2,8 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * 全站 AI 设置：模型由后台定，token 加密入库、后台填的压过环境变量，
- * 回显只给来源和末四位。库用一张内存表顶替。
+ * Site-wide AI settings: the model is set by the admin backend, the token is stored encrypted and the admin value overrides env vars,
+ * and readback only shows the source and last four characters. The database is replaced by an in-memory table.
  */
 const table = vi.hoisted(() => new Map<string, string>());
 
@@ -43,7 +43,7 @@ const deepseek = aiProvider("deepseek")!;
 beforeEach(async () => {
   process.env.AUTH_SECRET = "unit-test-secret";
   for (const slot of AI_KEY_SLOTS) delete process.env[slot];
-  // 走 setAiKey 清表，顺带把模块里的缓存作废
+  // Clear the table via setAiKey, which also invalidates the module's cache
   table.clear();
   await setAiKey(deepseek.envKey, "");
 });
@@ -109,7 +109,7 @@ describe("各家的 token", () => {
     expect(await aiReviewReady()).toBe(false);
     await setAiKey(deepseek.envKey, FAKE);
     expect(await aiReviewReady()).toBe(true);
-    // 换到一家没 token 的，又不行了
+    // Switch to a provider without a token and it fails again
     await setReviewModel(aiProvider("kimi")!, "");
     expect(await aiReviewReady()).toBe(false);
   });
@@ -148,7 +148,7 @@ describe("审核提示词", () => {
     expect(prompt.startsWith("随便写点什么")).toBe(true);
     expect(prompt).toContain('"quote"');
     expect(prompt).toContain("grammar（语病）");
-    // 空的当没给，回到默认
+    // Empty counts as not provided; back to default
     expect(reviewSystemPrompt("expression", "  ")).toBe(reviewSystemPrompt("expression"));
   });
 });

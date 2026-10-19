@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { adminSessionUserId } from "@/lib/admin";
 import { tk } from "@/i18n/t";
 
-/** 后台首页的全站概览：用户/文档/存储的汇总数字 */
+/** Site-wide overview for the admin home: totals for users/documents/storage */
 export async function GET() {
   const session = await auth();
   if (!adminSessionUserId(session)) {

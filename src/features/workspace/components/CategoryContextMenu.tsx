@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 分类（文件夹）操作菜单，右键和「···」按钮共用这一个实例。
- * 位置与开关都存在 ws.menus.catMenu 里，全局只挂一份，anchor 为 null 时整个组件不渲染。
- * 用 portal 挂到 body，否则会被侧栏的 overflow 裁掉。
+ * Category (folder) action menu; one instance shared by right-click and the 「···」 button.
+ * Position and open state live in ws.menus.catMenu, only one is mounted globally, and nothing renders when anchor is null.
+ * Portaled to body, otherwise the sidebar's overflow would clip it.
  */
 import { useRef } from "react";
 import { createPortal } from "react-dom";
@@ -37,7 +37,7 @@ import { nameOf } from "../lib/catPath";
 import { allCategories, canNestCategory } from "../lib/catTree";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 分类操作菜单（右键 / 「···」共用）：根节点、未分类、普通分类各按能力渲染条目 */
+/** Category action menu (shared by right-click / 「···」): root, uncategorized and regular categories each render items according to their capabilities */
 export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   const { menus, dialogs, docActions, catActions, library, auth, prefs, nav } = ws;
   const anchor = menus.catMenu;
@@ -50,29 +50,29 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
   const { path } = anchor;
   const isRoot = path === ALL;
   const canManage = !isRoot && path !== UNCATEGORIZED;
-  // 分类路径用 / 拼接，段数就是层级深度；到 MAX_DEPTH 就不再给「新建子文件夹」这一条
+  // Category paths are joined with /, so the segment count is the depth; at MAX_DEPTH, drop 「新建子文件夹」 (New subfolder)
   const canAddChild = canManage && path.split("/").length < MAX_DEPTH;
-  // 「收起 / 展开」只给里面有东西的文件夹：空文件夹展开了也没变化，是个点了什么都不会发生的选项
+  // 「收起 / 展开」 (Collapse / Expand) only for folders with contents: expanding an empty folder changes nothing, an option that does nothing when clicked
   const hasChildren =
     !isRoot &&
     (library.customCats.some((c) => c.startsWith(`${path}/`)) ||
       (library.docs ?? []).some((d) => d.category === path || d.category?.startsWith(`${path}/`)));
   const isOpen = prefs.expanded.has(path);
 
-  // 每个条目都先关菜单再执行动作：动作里可能弹输入框或选择器，菜单留着会压在上面
+  // Every item closes the menu before running its action: actions may open inputs or pickers, and a lingering menu would sit on top
   const run = (fn: () => void) => () => {
     menus.closeCatMenu();
     fn();
   };
 
-  /** 文件夹归属到另一个文件夹：选择器只列合法落点（防自嵌套/超长），支持移出到顶级 */
+  /** Move a folder into another folder: the picker only lists valid targets (no self-nesting/over-depth) and supports moving out to the top level */
   const moveViaPicker = async () => {
     const all = allCategories(library.customCats, library.docs);
     const name = nameOf(path);
     const target = await askCategoryPick({
       title: t("移动「{name}」到文件夹", { name }),
       categories: all.filter((c) => canNestCategory(path, c, all)),
-      // 本来就在顶级的文件夹不给「移出」，否则是个点了什么都不会发生的选项
+      // Folders already at the top level don't get 「移出」 (Move out), otherwise it's an option that does nothing
       topOption: path.includes("/") ? t("顶级（移出所有文件夹）") : undefined,
     });
     if (target === null) return;
@@ -110,7 +110,7 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
         </button>
       ) : null}
 
-      {/* 点文件夹名只展开侧栏；想在右侧看这个文件夹的时间流 / 列表，从这里进 */}
+      {/* Clicking a folder name only expands it in the sidebar; to see this folder's timeline / list on the right, go through here */}
       {!isRoot ? (
         <button className={menuItemCls} onClick={run(() => nav.openCategory(path))}>
           <PanelRight size={14} className="text-[var(--ink-faint)]" />
@@ -129,7 +129,7 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
       ) : null}
 
       <div className="my-1 border-t border-[var(--hairline)]" />
-      {/* 导入落到右键的这个文件夹；根级不指定，沿用「当前分类」的默认算法 */}
+      {/* Imports land in this right-clicked folder; at root level none is specified, so the default "current category" logic applies */}
       <button
         className={menuItemCls}
         onClick={run(() => dialogs.openImport("file", isRoot ? undefined : path))}
@@ -144,7 +144,7 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
         <FolderInput size={14} className="text-[var(--ink-faint)]" />
         {t("导入文件夹")}
       </button>
-      {/* 飞书导入整库拉取、落点由镜像前缀决定，所以只挂在根级；它走服务端，未登录时给不出来 */}
+      {/* Feishu import pulls a whole library and its destination is set by the mirror prefix, so it's only on the root; it runs server-side, so it's unavailable when logged out */}
       {isRoot && auth.loggedIn ? (
         <button className={menuItemCls} onClick={run(dialogs.openFeishu)}>
           <BookDown size={14} className="text-[var(--ink-faint)]" />
@@ -155,7 +155,7 @@ export function CategoryContextMenu({ ws }: { ws: Workspace }) {
       {canManage ? (
         <>
           <div className="my-1 border-t border-[var(--hairline)]" />
-          {/* 图标用「移出」而非 FolderInput：同一个菜单里 FolderInput 已经是「导入文件夹」了 */}
+          {/* Icon uses "move out" rather than FolderInput: in this same menu FolderInput already means 「导入文件夹」 (Import folder) */}
           <button className={menuItemCls} onClick={run(() => void moveViaPicker())}>
             <FolderOutput size={14} className="text-[var(--ink-faint)]" />
             {t("移动到文件夹")}

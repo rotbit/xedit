@@ -1,14 +1,14 @@
 /**
- * 同步引擎：镜像库 ↔ 云端 的后台推拉。
- * 推：dirty 镜像 PUT 上云、未登录期建的 local- 文档 POST 上云后移除本地副本；
- * 拉：首次 ?full=1 全量建镜像，此后按 updatedAt 游标 ?since= 增量拉取
- * （dirty 的本地优先跳过），删除靠响应附带的存活 id 列表对账。
- * 触发：startSync()（进入工作台）、网络恢复、页面回到前台、保存后。
+ * Sync engine: background push/pull between the mirror and the cloud.
+ * Push: PUT dirty mirror docs to the cloud; POST local- docs created while logged out, then remove the local copies;
+ * Pull: first a full ?full=1 to build the mirror, then incremental ?since= by updatedAt cursor
+ * (dirty docs skipped, local wins); deletions are reconciled via the live id list attached to the response.
+ * Triggers: startSync() (entering the workspace), network recovery, page returning to foreground, after save.
  *
- * 三条「别把内容弄丢」的规矩贯穿全文件：
- * 1. 同一篇同一时刻只有一个 PUT 在飞，期间的新编辑合并成下一轮，不会互相盖；
- * 2. 响应回来先对代际（换账号）和 rev（在途又改了），对不上就不写本地状态；
- * 3. 推失败一律保留 dirty，宁可多推一次也不让本地改动悄悄消失。
+ * Three "don't lose content" rules run through the whole file:
+ * 1. Only one PUT per document is in flight at a time; edits made meanwhile merge into the next round, never overwriting each other;
+ * 2. On response, check the epoch (account switch) and rev (edited while in flight) first; on mismatch don't write local state;
+ * 3. A failed push always keeps dirty; better to push once more than let local changes silently vanish.
  */
 
 import {
@@ -36,10 +36,10 @@ import { t } from "@/i18n/t";
 
 export const SYNC_DONE_EVENT = "xedit:sync-done";
 
-/** 一轮同步里同时推几篇：再多也只是抢同一条上行带宽，还容易撞上服务端限流 */
+/** How many documents to push concurrently per sync round: more just competes for the same upstream bandwidth and risks server rate limits */
 const PUSH_CONCURRENCY = 3;
 
-/** 网络抖动 / 服务端 5xx 的重试间隔，用完还不成就留着 dirty 等下一次触发 */
+/** Retry delays for network blips / server 5xx; if still failing afterwards, keep dirty and wait for the next trigger */
 const RETRY_DELAYS = [1000, 3000];
 
 let syncing = false;
@@ -49,22 +49,22 @@ const online = () => typeof navigator === "undefined" || navigator.onLine;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** 单飞队列：每篇文章最多一个在途 PUT，飞行期间来的推送请求合并成「再跑一轮」 */
+/** Single-flight queue: at most one in-flight PUT per article; push requests arriving meanwhile merge into "run one more round" */
 interface PushEntry {
   running: Promise<boolean>;
   again: boolean;
 }
 const inFlight = new Map<string, PushEntry>();
 
-/** 这篇是否正有推送在飞（页面隐藏时的 keepalive 据此让路，避免同一篇两个请求打架） */
+/** Whether this document has a push in flight (the keepalive on page hide yields to it, so two requests for one doc don't clash) */
 export function isPushInFlight(id: string): boolean {
   return inFlight.has(id);
 }
 
 /**
- * 带有界重试的 PUT。网络异常与 5xx 才重试（延迟 1s、3s），
- * 4xx 包括 409 冲突重试多少次结果都一样，直接把响应交给上层处理。
- * 返回 null = 这次没拿到可用响应（网络异常、重试用尽或代际已变）。
+ * PUT with bounded retries. Only network errors and 5xx retry (delays 1s, 3s);
+ * 4xx, including 409 conflicts, give the same result however often retried, so the response goes straight up.
+ * Returns null = no usable response this time (network error, retries exhausted, or epoch changed).
  */
 async function putMirror(id: string, body: unknown, epoch: number): Promise<Response | null> {
   for (let attempt = 0; ; attempt++) {
@@ -76,7 +76,7 @@ async function putMirror(id: string, body: unknown, epoch: number): Promise<Resp
         body: JSON.stringify(body),
       });
     } catch {
-      res = null; // 断网 / DNS 失败等
+      res = null; // Offline / DNS failure etc.
     }
     if (!isCurrentEpoch(epoch)) return null;
     if (res && res.status < 500) return res;
@@ -87,15 +87,15 @@ async function putMirror(id: string, body: unknown, epoch: number): Promise<Resp
 }
 
 /**
- * 给云端当前内容留一个历史版本。版本接口存的就是「服务端此刻那份」，
- * 所以冲突时先调它一次，被本地覆盖掉的那份改动用户还能从版本列表里找回来。
+ * Keep a history version of the current cloud content. The versions endpoint stores "what the server has right now",
+ * so on conflict call it first, and the user can still recover the overwritten changes from the version list.
  */
 async function archiveServerVersion(id: string): Promise<boolean> {
   try {
     const res = await fetch(`/api/documents/${id}/versions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // 不带 kind：按手动存档处理，只去重不节流，免得这份「即将被覆盖的内容」被节流丢掉
+      // No kind: treated as a manual snapshot, de-duplicated but not throttled, so this "about to be overwritten" content isn't dropped by throttling
       body: JSON.stringify({}),
     });
     return res.ok;
@@ -105,16 +105,16 @@ async function archiveServerVersion(id: string): Promise<boolean> {
 }
 
 /**
- * 推送一篇 dirty 镜像（不含队列逻辑，队列见 pushMirrorDoc）。
- * true = 这一趟云端确认了；失败一律保留 dirty。
+ * Push one dirty mirror doc (no queue logic; see pushMirrorDoc for the queue).
+ * true = the cloud confirmed this round; any failure keeps dirty.
  */
 async function uploadMirrorDoc(id: string): Promise<boolean> {
   if (!online() || isLocalId(id)) return false;
   const meta = getMirrorMeta(id);
   if (!meta?.dirty) return true;
-  // 镜像正文尚未拉到（如刚登录只改了分类）时只推元数据，接口支持部分更新
+  // When the mirror body hasn't been fetched yet (e.g. just logged in and only changed the category) push only metadata; the API supports partial updates
   const content = getMirrorContent(id);
-  // 出发时的快照：响应回来时拿它判断这次确认还算不算数
+  // Snapshot at departure: used on response to decide whether this confirmation still counts
   const epoch = getSessionEpoch();
   const rev = meta.rev ?? 0;
   let base = meta.baseUpdatedAt;
@@ -123,23 +123,23 @@ async function uploadMirrorDoc(id: string): Promise<boolean> {
     category: meta.category ?? UNCATEGORIZED,
     ...(content === null ? {} : { content }),
   };
-  /** 上一轮是冲突回来的：这一轮成功后要告诉用户云端那份去哪了 */
+  /** The previous round came back with a conflict: after this round succeeds, tell the user where the cloud copy went */
   let conflict: { archived: boolean } | null = null;
 
-  // 冲突最多再绕一圈（归档云端那份 → 用新基线重推）；还冲突就留着 dirty 下次再来
+  // A conflict gets at most one more loop (archive the cloud copy → re-push with the new baseline); if it still conflicts keep dirty for next time
   for (let round = 0; round <= 1; round++) {
     const res = await putMirror(
       id,
       { ...payload, ...(base ? { baseUpdatedAt: base } : {}) },
       epoch
     );
-    // 代际变了（换账号 / 登出清库）：这份结果不属于当前会话，一个字节都不写
+    // Epoch changed (account switch / logout cleared the library): this result doesn't belong to the current session; write nothing
     if (!res || !isCurrentEpoch(epoch)) return false;
 
     if (res.ok) {
       const doc = await res.json().catch(() => null);
       if (!isCurrentEpoch(epoch)) return false;
-      // rev 对得上才清 dirty；对不上说明在途期间又改了，那轮编辑还等着推（队列会再跑一轮）
+      // Clear dirty only if rev matches; a mismatch means it was edited in flight and that edit still awaits pushing (the queue runs another round)
       markMirrorSynced(id, rev, typeof doc?.updatedAt === "string" ? doc.updatedAt : undefined);
       if (conflict) {
         toast(
@@ -152,12 +152,12 @@ async function uploadMirrorDoc(id: string): Promise<boolean> {
       return true;
     }
 
-    // 旧服务端不认 baseUpdatedAt，只会直接 200；走到这里的 409 一定是新服务端判出的冲突
+    // Old servers ignore baseUpdatedAt and just return 200; a 409 here must be a conflict detected by a new server
     if (res.status !== 409 || round > 0) return false;
     const body = await res.json().catch(() => null);
     const serverUpdatedAt = (body as { doc?: { updatedAt?: unknown } } | null)?.doc?.updatedAt;
     if (!isCurrentEpoch(epoch) || typeof serverUpdatedAt !== "string") return false;
-    // 归档失败也继续推：不能让本地这份改动被一个存档请求卡死在本地
+    // Keep pushing even if archiving fails: a snapshot request must not strand this local change
     conflict = { archived: await archiveServerVersion(id) };
     if (!isCurrentEpoch(epoch)) return false;
     base = serverUpdatedAt;
@@ -167,14 +167,14 @@ async function uploadMirrorDoc(id: string): Promise<boolean> {
 }
 
 /**
- * 推送单篇 dirty 镜像；true = 云端已确认。
+ * Push a single dirty mirror doc; true = confirmed by the cloud.
  *
- * 自动保存、手动保存、后台同步、联网恢复全走这里。同一篇已有请求在飞时不再开第二个，
- * 只标记「回来再跑一轮」——那一轮读的是最新镜像，合并后的内容一次推上去；
- * 调用方拿到的是同一个 promise，等到的是最后一轮的结果。
+ * Autosave, manual save, background sync and reconnect all go through here. If a request for the same doc is in flight, no second one opens;
+ * it just marks "run another round on return", which reads the latest mirror and pushes the merged content at once;
+ * callers get the same promise and await the final round's result.
  */
 export function pushMirrorDoc(id: string): Promise<boolean> {
-  // 归属未落定（见 mirrorOwner.SYNC_HOLD_KEY）：镜像里可能是上一个账号的稿子，一个字都不推
+  // Ownership not settled (see mirrorOwner.SYNC_HOLD_KEY): the mirror may hold the previous account's drafts; push nothing
   if (isSyncHeld()) return Promise.resolve(false);
   const flying = inFlight.get(id);
   if (flying) {
@@ -183,8 +183,8 @@ export function pushMirrorDoc(id: string): Promise<boolean> {
   }
   const entry: PushEntry = { again: false, running: Promise.resolve(false) };
   inFlight.set(id, entry);
-  // 一轮推送：意外（镜像写失败等）一律吞成 false，绝不让 reject 冒到调用方——
-  // 自动保存那条链路没人接，抛出去就是一条未处理的 rejection
+  // One push round: anything unexpected (mirror write failure etc.) is swallowed as false, never letting a reject bubble to callers;
+  // nobody handles the autosave chain, so a throw becomes an unhandled rejection
   const round = async () => {
     try {
       return await uploadMirrorDoc(id);
@@ -207,8 +207,8 @@ export function pushMirrorDoc(id: string): Promise<boolean> {
   return entry.running;
 }
 
-/** 未登录期间建的本地文档批量上云，成功一篇删一篇（失败的留待下次）。
- *  只碰浏览器后端：Vault 模式下这些「本地文档」是用户磁盘上的文件，登录不能把它们删掉 */
+/** Upload local documents created while logged out, deleting each one that succeeds (failures wait for next time).
+ *  Touches only the browser backend: in Vault mode these "local documents" are files on the user's disk, and logging in must not delete them */
 async function drainLocalDocs(): Promise<number> {
   if (isSyncHeld()) return 0;
   const browser = getBrowserBackend();
@@ -224,8 +224,8 @@ async function drainLocalDocs(): Promise<number> {
       const res = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // clientKey 用本地 id（local-<uuid>，本来就唯一且稳定）：
-        // 响应丢了、下一轮再 POST 一次，服务端按同一个 key 返回同一篇，不会上传出两份
+        // clientKey is the local id (local-<uuid>, already unique and stable):
+        // if the response is lost and the next round POSTs again, the server returns the same doc for the same key, never uploading twice
         body: JSON.stringify({
           title: meta.title,
           content,
@@ -237,12 +237,12 @@ async function drainLocalDocs(): Promise<number> {
       if (!res.ok) break;
       const doc = (await res.json()) as ServerDoc;
       if (!isCurrentEpoch(epoch)) return uploaded;
-      // 以服务端回的整行为准落镜像：丢过响应再重发时，同一 clientKey 拿回的是
-      // 第一次落库那份（可能已经比本地旧），不能拿本地发出去的内容冒充云端版本
+      // Persist the server's full row to the mirror: on a resend after a lost response, the same clientKey returns
+      // the first stored copy (possibly older than local), so the locally sent content can't masquerade as the cloud version
       const serverContent = typeof doc.content === "string" ? doc.content : content;
       applyServerDoc({ ...doc, content: serverContent });
-      // 与云端那份逐字段比：往返期间用户又改了、或云端存的是更早一次上传，
-      // 都把本地最新内容写成 dirty 镜像交给推送队列，再删本地副本，一个字都不丢
+      // Compare field by field with the cloud copy: if the user edited during the round trip, or the cloud has an earlier upload,
+      // write the latest local content as a dirty mirror doc for the push queue, then delete the local copy, losing nothing
       const latestMeta = browser.listDocs().find((d) => d.id === meta.id);
       const latest = browser.getContent(meta.id);
       const changed =
@@ -259,7 +259,7 @@ async function drainLocalDocs(): Promise<number> {
             category: latestMeta.category ?? UNCATEGORIZED,
           });
         } catch {
-          continue; // 镜像写不进去（配额满）就先别删本地副本，下一轮重来
+          continue; // If the mirror can't be written (quota full) don't delete the local copy yet; retry next round
         }
       }
       browser.deleteDoc(meta.id);
@@ -271,7 +271,7 @@ async function drainLocalDocs(): Promise<number> {
   return uploaded;
 }
 
-/** 推完所有 dirty 镜像；并发有上限，单篇失败不连累其它篇 */
+/** Push all dirty mirror docs; concurrency is capped and one doc failing doesn't affect the others */
 async function pushDirtyMirrors(): Promise<void> {
   const ids = listDirtyMirrorDocs().map((d) => d.id);
   for (let i = 0; i < ids.length; i += PUSH_CONCURRENCY) {
@@ -281,7 +281,7 @@ async function pushDirtyMirrors(): Promise<void> {
   }
 }
 
-/** 一轮完整同步：先推后拉。并发调用会合并成「跑完再补一轮」 */
+/** One full sync round: push then pull. Concurrent calls merge into "finish, then run one more round" */
 export async function syncNow(): Promise<void> {
   if (!online()) return;
   if (syncing) {
@@ -291,13 +291,13 @@ export async function syncNow(): Promise<void> {
   syncing = true;
   const epoch = getSessionEpoch();
   try {
-    // 推：dirty 镜像 + 待上云的本地文档
+    // Push: dirty mirror docs + local documents waiting to upload
     await pushDirtyMirrors();
     if (!isCurrentEpoch(epoch)) return;
     await drainLocalDocs();
     if (!isCurrentEpoch(epoch)) return;
-    // 拉：有游标且镜像在（防 localStorage 被部分清掉）走增量，只下发有变化的正文；
-    // 否则全量建镜像。增量响应附带全量存活 id，彻底删除靠 reconcile 对账。
+    // Pull: with a cursor and the mirror present (guarding against partially cleared localStorage) go incremental, sending only changed bodies;
+    // otherwise rebuild the mirror in full. Incremental responses include all live ids, and hard deletes are reconciled from them.
     const cursor = localStorage.getItem(SYNC_CURSOR_KEY);
     const delta = cursor !== null && listMirrorDocs().length > 0;
     const res = await fetch(
@@ -307,9 +307,9 @@ export async function syncNow(): Promise<void> {
       const body = (await res.json()) as
         | ServerDoc[]
         | { docs: (ServerDoc & { deletedAt: string | null })[]; ids: string[] };
-      // 换账号/登出发生在这一趟往返里：整批放弃，别把上一个账号的文章写进新镜像
+      // An account switch/logout happened during this round trip: drop the whole batch, don't write the previous account's articles into the new mirror
       if (!isCurrentEpoch(epoch)) return;
-      // 游标取服务端 updatedAt 的最大值，不碰本地时钟；同格式 ISO 串可直接字典序比较
+      // The cursor is the max server updatedAt, never the local clock; same-format ISO strings compare lexicographically
       let latest = cursor ?? "";
       let liveIds: Set<string>;
       const incoming: ServerDoc[] = [];
@@ -323,33 +323,33 @@ export async function syncNow(): Promise<void> {
       } else {
         liveIds = new Set(body.ids);
         for (const doc of body.docs) {
-          // 软删的只用来推进游标；从镜像移除交给下面的 reconcile（dirty 的会被保住）
+          // Soft-deleted ones only advance the cursor; removal from the mirror is left to reconcile below (dirty ones are kept)
           if (!doc.deletedAt) incoming.push(doc);
           if (doc.updatedAt > latest) latest = doc.updatedAt;
         }
       }
-      // 整批一次落库：几百篇也只动一次索引、只广播一次
+      // Persist the whole batch at once: even hundreds of docs touch the index and broadcast only once
       applyServerDocs(incoming);
       reconcileMirror(liveIds);
       if (latest) localStorage.setItem(SYNC_CURSOR_KEY, latest);
       window.dispatchEvent(new CustomEvent(SYNC_DONE_EVENT));
     }
     if (!isCurrentEpoch(epoch)) return;
-    // 当日记录搭文档同步的车：同样的触发时机（进工作台、联网、回前台）。
-    // 各自吞错，日志同步失败不影响文档同步的结果，也不阻断后面的补跑
+    // Daily records ride along with document sync: same triggers (entering the workspace, reconnect, foreground).
+    // Each swallows its own errors; a log sync failure doesn't affect the document sync result or block the follow-up run
     try {
       await pushDayLog();
     } catch {
-      // 下次触发再推
+      // Push again on the next trigger
     }
     if (!isCurrentEpoch(epoch)) return;
     try {
       await pullDayLog(epoch);
     } catch {
-      // 下次触发再拉
+      // Pull again on the next trigger
     }
   } catch {
-    // 离线或服务端异常：镜像保持现状，下次触发再试
+    // Offline or server error: the mirror stays as is; retry on the next trigger
   } finally {
     syncing = false;
     if (pendingRerun) {
@@ -359,7 +359,7 @@ export async function syncNow(): Promise<void> {
   }
 }
 
-/** 常驻触发器：进入工作台时调用一次，返回清理函数 */
+/** Persistent triggers: call once when entering the workspace; returns a cleanup function */
 export function startSync(): () => void {
   const onOnline = () => void syncNow();
   const onVisible = () => {

@@ -9,20 +9,20 @@ export interface WechatBuildOptions {
   themeCss: string;
   codeCss: string;
   customCss?: string;
-  /** 代码块 Mac 窗口风格 */
+  /** Mac window style for code blocks */
   macCode?: boolean;
-  /** 外部链接转为文末引用 */
+  /** Turn external links into end-of-article references */
   linkFootnote?: boolean;
   /**
-   * 视频处理：公众号粘贴会剥掉 <video>，默认降级为封面占位图 + 替换提示；
-   * "keep" 保留真视频（HTML 导出等能播放的场景用）
+   * Video handling: WeChat strips <video> on paste, so by default it degrades to a cover placeholder image + replacement notice;
+   * "keep" keeps the real video (for cases that can play it, like HTML export)
    */
   videoMode?: "placeholder" | "keep";
 }
 
 const WECHAT_HOST = /^https?:\/\/mp\.weixin\.qq\.com\//i;
 
-/** 外链转脚注：正文里换成「文字[n]」上标，文末追加引用列表 */
+/** External links to footnotes: replaced in the body with a 「文字[n]」-style superscript, with a reference list appended at the end */
 function transformLinks(root: HTMLElement): void {
   const links = Array.from(root.querySelectorAll("a[href]")).filter((a) => {
     const href = a.getAttribute("href") ?? "";
@@ -34,7 +34,7 @@ function transformLinks(root: HTMLElement): void {
   for (const a of links) {
     const href = a.getAttribute("href") ?? "";
     const text = a.textContent ?? href;
-    // 同一链接只记一次
+    // Record each link only once
     let index = refs.findIndex((r) => r.href === href && r.text === text);
     if (index === -1) {
       refs.push({ text, href });
@@ -57,7 +57,7 @@ function transformLinks(root: HTMLElement): void {
   section.className = "footnote-refs";
   const title = document.createElement("p");
   title.className = "refs-title";
-  title.textContent = "参考链接"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+  title.textContent = "参考链接"; // i18n-ignore content format written into export/copy output, stays in Chinese for now
   section.appendChild(title);
   refs.forEach((r, i) => {
     const p = document.createElement("p");
@@ -69,8 +69,8 @@ function transformLinks(root: HTMLElement): void {
 }
 
 /**
- * 代码块内的换行与空格转为 <br> 与 &nbsp;。
- * 微信编辑器粘贴时会合并 pre 内的空白，必须显式转换才能保住缩进与换行。
+ * Convert newlines and spaces inside code blocks to <br> and &nbsp;.
+ * The WeChat editor collapses whitespace inside pre on paste, so explicit conversion is needed to keep indentation and line breaks.
  */
 function transformCodeBlocks(root: HTMLElement): void {
   const NBSP = " ";
@@ -97,26 +97,26 @@ function transformCodeBlocks(root: HTMLElement): void {
 }
 
 /**
- * 视频占位块提示语的第一行。
- * 「发送到公众号草稿」那边靠数它在成品 HTML 里出现几次，来统计有几个视频没带过去，
- * 两处共用这一份字面量，改文案不会走偏。
- * 注意：里面不能出现「封面」二字——那边把含「封面」的提示当成封面没设好的问题。
+ * First line of the video placeholder notice.
+ * 「发送到公众号草稿」 (Send to WeChat drafts) counts how many times it appears in the final HTML to tell how many videos didn't make it over,
+ * so both places share this one literal and copy changes can't drift apart.
+ * Note: it must not contain 「封面」 (cover) -- that side treats notices containing 「封面」 as a cover-not-set problem.
  */
-export const VIDEO_PLACEHOLDER_MARK = "⚠️ 此处有视频，还没有插入"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+export const VIDEO_PLACEHOLDER_MARK = "⚠️ 此处有视频，还没有插入"; // i18n-ignore content format written into export/copy output, stays in Chinese for now
 
-/** 提示语第二行：告诉人这一整块该怎么换掉 */
-const VIDEO_PLACEHOLDER_HINT = "发表前请在公众号后台点「插入视频」，替换掉这一整块"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+/** Second line of the notice: tells people how to replace this whole block */
+const VIDEO_PLACEHOLDER_HINT = "发表前请在公众号后台点「插入视频」，替换掉这一整块"; // i18n-ignore content format written into export/copy output, stays in Chinese for now
 
-/** 排好版的 HTML 里有几个视频占位块 */
+/** How many video placeholder blocks are in the laid-out HTML */
 export function countVideoPlaceholders(html: string): number {
   return html.split(VIDEO_PLACEHOLDER_MARK).length - 1;
 }
 
 /**
- * 视频降级：公众号编辑器粘贴时会整个剥掉 <video>（视频只能在后台用「插入视频」添加），
- * 换成封面占位图 + 醒目的黄色警告块，粘贴后版面不塌、作者一眼看见哪里还欠一个视频。
- * 两行文案拆成「文本 + <br> + span」而不是两个 <p>：span 只需要内联 font-size/font-weight，
- * 公众号那边不会动它；<p> 还得跟基础样式的 margin/text-align 打架。
+ * Video fallback: the WeChat editor strips <video> entirely on paste (videos can only be added via 「插入视频」 (Insert video) in the backend),
+ * so replace it with a cover placeholder + a prominent yellow warning block, keeping the layout intact and showing the author exactly where a video is missing.
+ * The two lines are "text + <br> + span" rather than two <p>s: the span only needs inline font-size/font-weight,
+ * which WeChat leaves alone; a <p> would fight the base styles' margin/text-align.
  */
 function transformVideos(root: HTMLElement): void {
   for (const video of Array.from(root.querySelectorAll("video"))) {
@@ -126,7 +126,7 @@ function transformVideos(root: HTMLElement): void {
     if (poster) {
       const img = document.createElement("img");
       img.src = poster;
-      img.alt = "视频封面"; // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+      img.alt = "视频封面"; // i18n-ignore content format written into export/copy output, stays in Chinese for now
       section.appendChild(img);
     }
     const note = document.createElement("p");
@@ -143,8 +143,8 @@ function transformVideos(root: HTMLElement): void {
 }
 
 /**
- * Chrome 用选区复制时会丢掉最外层 section 及其内联样式，顶层块会失去主题的字号/行高/颜色
- * （行高退回 normal），所以把根上这几项显式抄到每个顶层块上；块自己已有的值不覆盖。
+ * Chrome drops the outermost section and its inline styles when copying a selection, so top-level blocks lose the theme's font size/line height/color
+ * (line height falls back to normal); copy those properties from the root onto each top-level block explicitly, without overriding values the block already has.
  */
 const ROOT_INHERITED_PROPS = ["font-size", "line-height", "color", "letter-spacing", "font-family"];
 
@@ -160,14 +160,14 @@ function propagateRootStyles(root: HTMLElement): void {
 }
 
 /**
- * 公众号「内容结构检测」用 Range.getClientRects() 数行：行内元素（strong/em/span/br…）
- * 会把一行拆成多个矩形，算出来的行高偏小，误报「行高小于字体大小」。
- * 它只检查带直接文本子节点的块（且不查 span），所以把混排块里的裸文本包进无属性的 span，
- * 块本身就没有直接文本了，检测直接跳过；纯文本段落保持原样。
+ * WeChat's 「内容结构检测」 (content structure check) counts lines via Range.getClientRects(): inline elements (strong/em/span/br...)
+ * split a line into multiple rects, so the computed line height comes out too small and it falsely reports "line height smaller than font size".
+ * It only checks blocks with direct text children (and skips spans), so wrapping bare text in mixed blocks in attribute-less spans
+ * leaves the block with no direct text and the check skips it; plain-text paragraphs stay as they are.
  *
- * 代码块也得包：高亮后的 code 是「裸文本 + 着色 span + <br>」混排，一样会被误报；
- * 而弹窗里点「继续插入」时公众号会把被标记元素的内联样式剥掉，code 的字号、等宽字体、
- * 底色一起没了，整块退化成正文字体的普通文字。pre 里空白有意义，所以连纯空白的文本节点也包。
+ * Code blocks need wrapping too: highlighted code mixes "bare text + colored spans + <br>" and gets falsely flagged as well;
+ * and when 「继续插入」 (Continue inserting) is clicked in the dialog, WeChat strips the flagged elements' inline styles, so code's font size, monospace font
+ * and background all vanish and the block degrades into body-font plain text. Whitespace in pre matters, so even whitespace-only text nodes get wrapped.
  */
 const MIXED_TEXT_BLOCKS =
   "p, h1, h2, h3, h4, h5, h6, li, td, th, div, section, blockquote, figcaption, pre > code";
@@ -190,7 +190,7 @@ function wrapMixedText(root: HTMLElement): void {
   }
 }
 
-/** 微信会丢弃 class/id/data-*，复制前统一移除，减小体积 */
+/** WeChat drops class/id/data-*, so remove them all before copying to reduce size */
 function cleanAttributes(root: HTMLElement): void {
   const all = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
   for (const el of all) {
@@ -209,23 +209,23 @@ function cleanAttributes(root: HTMLElement): void {
 }
 
 /**
- * 构建可直接粘贴进微信公众号编辑器的 HTML：
- * 渲染 → 消毒 → 外链转脚注 → 代码块空白转义 → 样式内联 → 清理属性
- * 公式已是内联 SVG，无需额外处理。
+ * Builds HTML that can be pasted straight into the WeChat Official Account editor:
+ * render → sanitize → links to footnotes → escape code block whitespace → inline styles → strip attributes
+ * Formulas are already inline SVG, so they need no extra handling.
  */
 export async function buildWechatHtml(
   markdown: string,
   opts: WechatBuildOptions
 ): Promise<string> {
   await ensureMathJax();
-  // 磁盘文库里的本地图片内联成 base64：公众号那边拿不到本机文件，裂图会让粘贴出问题
+  // Inline local images from a disk library as base64: WeChat can't access local files, and broken images cause paste problems
   const source = await inlineAttachments(markdown);
   const html = sanitizeHtml(renderMarkdown(source, { macCode: opts.macCode }));
   const root = document.createElement("section");
   root.id = "nice";
-  // 挂进一个游离的 DocumentFragment 再填内容：主题选择器一律以 #nice 开头，
-  // 而完全孤立的节点在有些 DOM 实现里按 id 查不到（单测用的 jsdom 就是这样），
-  // querySelectorAll 会整体落空、一条样式都内联不上。放进 fragment 即可，浏览器里行为不变。
+  // Attach to a detached DocumentFragment before filling in content: theme selectors all start with #nice,
+  // and fully detached nodes can't be found by id in some DOM implementations (jsdom in unit tests, for one),
+  // so querySelectorAll would come up empty and no styles would be inlined. A fragment fixes it, with no change in browser behavior.
   document.createDocumentFragment().appendChild(root);
   root.innerHTML = html;
 
@@ -238,8 +238,8 @@ export async function buildWechatHtml(
   inlineStyles(root, cssLayers);
   propagateRootStyles(root);
 
-  // 公众号正文自带页边距、且有深色模式：白底主题去掉根部横向内边距与底色，
-  // 避免正文被双重内缩，也让公众号深色模式能正常接管底色（深色主题保留自己的底与边距）
+  // WeChat article bodies have their own page margins and a dark mode: light themes drop the root's horizontal padding and background
+  // to avoid double indentation and let WeChat's dark mode take over the background (dark themes keep their own background and padding)
   const bg = root.style.backgroundColor.replace(/\s+/g, "").toLowerCase();
   if (!bg || bg === "#ffffff" || bg === "rgb(255,255,255)" || bg === "white") {
     root.style.backgroundColor = "";

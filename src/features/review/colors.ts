@@ -1,12 +1,12 @@
 /**
- * 审核用到的一点颜色换算。
+ * A bit of color math for review.
  *
- * 分类色是「服务端」随结果给的十六进制值（见 types.ts），前端不写死有哪几类，
- * 于是深浅两套主题下的底色、下划线色都得现算：日间直接配淡底，夜里先把色提亮一档，
- * 否则 #d93025 这种深色压在 #1b1b1c 的面板上几乎看不见。
+ * Category colors are hex values sent by the server with the result (see types.ts); the frontend doesn't hardcode the categories,
+ * so background and underline colors for light and dark themes must be computed: by day just use a pale background, by night brighten the color a step first,
+ * otherwise a dark color like #d93025 is nearly invisible on a #1b1b1c panel.
  */
 
-/** #rrggbb → [r, g, b]；认不出来就返回 null */
+/** #rrggbb → [r, g, b]; returns null if unrecognized */
 function parse(hex: string): [number, number, number] | null {
   const m = hex.match(/^#?([0-9a-f]{6})$/i);
   if (!m) return null;
@@ -14,15 +14,15 @@ function parse(hex: string): [number, number, number] | null {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-/** #rrggbb → rgba()，给下划线配一层淡底 */
+/** #rrggbb → rgba(), for a pale background under the underline */
 export function tint(hex: string, alpha: number): string {
   const rgb = parse(hex);
   if (!rgb) return hex;
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
 }
 
-/** 往白里兑：amount = 0 原色，1 纯白。夜间用来把分类色提亮。
-    仍返回 #rrggbb，好让 tint 接着往下算 */
+/** Mix toward white: amount = 0 is the original color, 1 is pure white. Used at night to brighten category colors.
+    Still returns #rrggbb so tint can keep computing from it */
 export function lighten(hex: string, amount: number): string {
   const rgb = parse(hex);
   if (!rgb) return hex;

@@ -1,20 +1,20 @@
 /**
- * 「AI 文章审核」的提示词与回答解析。纯函数，服务端和单测共用。
+ * Prompts and response parsing for "AI article review". Pure functions, shared by the server and unit tests.
  *
- * 界面那套（正文里画标注、右栏出卡片）全靠 quote 逐字对位（见 features/review/locate.ts），
- * 所以这里最要紧的一件事是：模型说的引文必须在正文里一字不差地存在，
- * 对不上的宁可整条丢掉，也不能让界面去标一段并不存在的文字——那会标歪到隔壁句子上。
+ * The UI (annotations in the body, cards in the right column) relies entirely on quotes matching verbatim (see features/review/locate.ts),
+ * so the most important thing here is: every quote from the model must exist in the body exactly,
+ * and anything that doesn't match is dropped entirely rather than letting the UI mark text that doesn't exist -- it would land on the neighboring sentence.
  *
- * 模型还爱干三件事，这里一并挡掉：把 frontmatter 和代码块当正文挑毛病、
- * 把同一句翻来覆去说好几遍、一口气给你四十条。
+ * Models also love three other things, all blocked here: nitpicking frontmatter and code blocks as if they were body text,
+ * repeating the same point over and over, and dumping forty comments at once.
  *
- * 审核分两类（见 reviewKinds.ts）：看表述的和看公众号规则的。两类共用上面这套规矩，
- * 各自有自己的「审核要求」（后台可改）与分类清单——「啰嗦」和「诱导关注」不该混在同一排筛选筹码里。
+ * There are two review kinds (see reviewKinds.ts): writing and WeChat Official Account rules. Both share the rules above,
+ * each with its own "review guide" (editable in admin) and category list -- "wordy" and "baiting follows" shouldn't share one row of filter chips.
  */
 import type { ReviewCategory, ReviewItem, ReviewResult } from "@/features/review/types";
 import { DEFAULT_REVIEW_KIND, reviewKindLabel, type ReviewKind } from "./reviewKinds";
 
-/** 表述审核认这几类。模型只许在这几个 id 里选，颜色由前端按 id 取 */
+/** Categories for writing review. The model may only choose from these ids; the frontend picks colors by id */
 const EXPRESSION_CATEGORIES: ReviewCategory[] = [
   { id: "grammar", label: "语病", color: "#d93025" },
   { id: "verbose", label: "啰嗦", color: "#c2820a" },
@@ -24,7 +24,7 @@ const EXPRESSION_CATEGORIES: ReviewCategory[] = [
   { id: "fact", label: "事实存疑", color: "#0f766e" },
 ];
 
-/** 公众号合规审核认这几类：踩的是平台规则，不是文笔 */
+/** Categories for WeChat compliance review: platform rule violations, not writing style */
 const WECHAT_RULES_CATEGORIES: ReviewCategory[] = [
   { id: "clickbait", label: "标题党/夸大", color: "#c2410c" },
   { id: "inducement", label: "诱导行为", color: "#8e44ad" },
@@ -33,23 +33,23 @@ const WECHAT_RULES_CATEGORIES: ReviewCategory[] = [
   { id: "copyright", label: "版权与引用", color: "#0f766e" },
 ];
 
-/** 一篇最多给几条：再多作者也看不过来 */
+/** Max comments per article: more than this is more than an author can get through */
 export const MAX_AI_ITEMS = 12;
-/** 引文太短会在正文里到处撞上（「的」能匹配几十处），太长又几乎必然对不上 */
+/** Quotes that are too short collide all over the body (「的」 matches dozens of places); too long and they almost never match */
 const MIN_QUOTE = 4;
 const MAX_QUOTE = 120;
-/** 超过这个长度的正文先截断再送模型：够审一篇公众号长文，也不至于一次烧掉太多 token */
+/** Bodies longer than this are truncated before sending: enough for a long WeChat article without burning too many tokens at once */
 export const MAX_REVIEW_CHARS = 24000;
 
-/** 后台能改的那段提示词最长多少字：够写一份很细的规则清单，也不至于每次审核白烧一大截 token */
+/** Max length of the admin-editable prompt section: enough for a very detailed rule list without wasting tokens on every review */
 export const MAX_GUIDE_CHARS = 6000;
 
 /**
- * 提示词分两段：
- * - 「审核要求」（guide）：你是谁、重点看什么、话怎么说。管理员可以在后台随便改（见 lib/ai/siteSettings），
- *   下面两份 DEFAULT 就是后台里的默认文案，点「恢复默认」回到的也是它们。
- * - 「输出格式」（formatRules）：JSON 形状、分类 id、引文逐字……这些是解析与界面定位的命根子，
- *   改坏一个字整趟审核就解析不出来，所以不开放编辑，由服务端永远接在后面。
+ * The prompt has two parts:
+ * - "Review guide" (guide): who you are, what to focus on, how to phrase things. Admins can edit it freely (see lib/ai/siteSettings);
+ *   the two DEFAULTs below are the admin defaults, and 「恢复默认」 (Restore default) returns to them.
+ * - "Output format" (formatRules): JSON shape, category ids, verbatim quotes... these are the lifeline of parsing and UI positioning;
+ *   one wrong character and the whole run can't be parsed, so it isn't editable and the server always appends it.
  */
 function formatRules(cats: ReviewCategory[]): string {
   return [
@@ -65,7 +65,7 @@ function formatRules(cats: ReviewCategory[]): string {
   ].join("\n");
 }
 
-/** 表述审核的默认「审核要求」 */
+/** Default "review guide" for writing review */
 const EXPRESSION_GUIDE = [
   "你是一位严格但克制的中文编辑，正在帮作者审一篇要发到微信公众号的文章。",
   "你的任务是挑出文章里真正值得改的地方，并给出可直接替换的改法。",
@@ -76,7 +76,7 @@ const EXPRESSION_GUIDE = [
   "- summary 用两三句话说全文的整体问题和优点，不要罗列上面每一条。",
 ].join("\n");
 
-/** 公众号合规审核的默认「审核要求」：照着公众号后台常见的驳回理由与《广告法》忌讳写的 */
+/** Default "review guide" for WeChat compliance review: based on common WeChat backend rejection reasons and Advertising Law taboos */
 const WECHAT_RULES_GUIDE = [
   "你是微信公众号的内容合规审核员，正在帮作者检查一篇马上要群发的文章。",
   "你的任务是找出可能违反公众号平台规则、会被限流、删文或驳回的地方，只说风险，不评文笔。",
@@ -98,9 +98,9 @@ const WECHAT_RULES_GUIDE = [
 
 interface KindPrompt {
   categories: ReviewCategory[];
-  /** 默认的「审核要求」；后台改过就用后台那份 */
+  /** Default "review guide"; if admin changed it, use theirs */
   guide: string;
-  /** 分类认不出来时归到哪一类：整条丢掉太可惜，落进一个说得过去的筐里 */
+  /** Category to fall back to when unrecognized: dropping the whole item is a waste, so put it in a reasonable bucket */
   fallbackCategory: string;
 }
 
@@ -113,36 +113,36 @@ const PROMPTS: Record<ReviewKind, KindPrompt> = {
   wechat_rules: {
     categories: WECHAT_RULES_CATEGORIES,
     guide: WECHAT_RULES_GUIDE,
-    // 合规这边说不清归哪类的，多半是「这么写有风险」，放进敏感风险里最不容易误导
+    // Compliance items with an unclear category are usually "this wording is risky", so sensitive risk is the least misleading home
     fallbackCategory: "sensitive",
   },
 };
 
-/** 这一类审核有哪些问题分类（结果里的 categories 从这里挑） */
+/** Problem categories for this review kind (categories in the result are chosen from here) */
 export function reviewCategories(kind: ReviewKind): ReviewCategory[] {
   return PROMPTS[kind].categories;
 }
 
-/** 这一类审核默认的「审核要求」（后台的默认文案） */
+/** Default "review guide" for this kind (the admin default text) */
 export function defaultReviewGuide(kind: ReviewKind): string {
   return PROMPTS[kind].guide;
 }
 
-/** 这一类审核固定接在后面的「输出格式」（后台只读展示，让管理员知道不用自己写这些） */
+/** The fixed "output format" appended for this kind (shown read-only in admin so admins know they needn't write it) */
 export function reviewFormatRules(kind: ReviewKind): string {
   return formatRules(PROMPTS[kind].categories);
 }
 
 /**
- * 这一类审核的系统提示 = 审核要求 + 输出格式。
- * guide 不给（或是空的）就用默认的；格式那段永远在最后，模型更听最后说的。
+ * System prompt for this kind = review guide + output format.
+ * If guide is missing (or empty), use the default; the format section always goes last because models heed what's said last.
  */
 export function reviewSystemPrompt(kind: ReviewKind, guide?: string): string {
   const body = guide?.trim() || PROMPTS[kind].guide;
   return `${body}\n\n${formatRules(PROMPTS[kind].categories)}`;
 }
 
-/** 正文太长就掐掉尾巴：截断点落在换行处，别把一句话劈成两半 */
+/** Trim the tail of overly long bodies: cut at a line break so a sentence isn't split in half */
 export function clipForReview(content: string, max = MAX_REVIEW_CHARS): string {
   if (content.length <= max) return content;
   const head = content.slice(0, max);
@@ -150,7 +150,7 @@ export function clipForReview(content: string, max = MAX_REVIEW_CHARS): string {
   return at > max * 0.6 ? head.slice(0, at) : head;
 }
 
-/** 给模型看的那一段：带上行号，模型更容易挑出完整的一句而不是半句 */
+/** The part shown to the model: with line numbers, so it picks out whole sentences rather than half ones */
 export function buildReviewUserPrompt(content: string): string {
   return [
     "下面是文章全文（每行前面的数字是行号，只是给你定位用，不要出现在 quote 里）：",
@@ -165,9 +165,9 @@ export function buildReviewUserPrompt(content: string): string {
 }
 
 /**
- * 从模型的回答里把 JSON 抠出来。
- * 开了 JSON 模式的那几家直接就是一个对象，没开的会裹一层 ```json，
- * 还有的会在前面客气两句，所以按「第一个 { 到最后一个 }」兜底。
+ * Extracts the JSON from the model's reply.
+ * Providers with JSON mode on return a bare object; others wrap it in ```json,
+ * and some add pleasantries first, so fall back to "first { to last }".
  */
 export function extractJson(text: string): unknown {
   const trimmed = text.trim();
@@ -182,17 +182,17 @@ export function extractJson(text: string): unknown {
     try {
       return JSON.parse(body.slice(from, to + 1));
     } catch {
-      // 换下一个候选；都不行的话由调用方报「解析不出来」
+      // Try the next candidate; if none work, the caller reports "couldn't parse"
     }
   }
   return null;
 }
 
-/** 正文里不该被标注的行：frontmatter 与围栏代码块 */
+/** Body lines that shouldn't be annotated: frontmatter and fenced code blocks */
 function skipLines(lines: string[]): Set<number> {
   const skip = new Set<number>();
   let i = 0;
-  // frontmatter 只认开头第一行就是 --- 的那种
+  // Frontmatter only counts when the very first line is ---
   if (lines[0]?.trim() === "---") {
     skip.add(0);
     for (i = 1; i < lines.length; i++) {
@@ -219,7 +219,7 @@ function skipLines(lines: string[]): Set<number> {
   return skip;
 }
 
-/** 引文落在哪一行：优先信模型给的行号，对不上就全篇找第一处 */
+/** Which line a quote is on: trust the model's line number first, otherwise find the first match in the whole doc */
 function findLine(lines: string[], quote: string, hint: unknown): number {
   const at = typeof hint === "number" && Number.isFinite(hint) ? Math.floor(hint) : -1;
   if (at >= 0 && at < lines.length && lines[at].includes(quote)) return at;
@@ -229,11 +229,11 @@ function findLine(lines: string[], quote: string, hint: unknown): number {
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
 /**
- * 模型的回答 → 界面认的 ReviewResult。
+ * Model reply → the ReviewResult the UI understands.
  *
- * 解析不出 JSON 会抛错（调用方据此提示「模型没按格式回答」）；
- * 单条不合格只丢这一条——十条里有一条跑偏，不该让另外九条一起白跑。
- * 分类按这一类审核自己的清单认，串类的（拿表述那套 id 回答合规审核）一律落到兜底分类。
+ * Throws if no JSON can be parsed (the caller shows "the model didn't follow the format");
+ * a single invalid item only drops that item -- one bad comment out of ten shouldn't waste the other nine.
+ * Categories are matched against this kind's own list; cross-kind ones (answering compliance review with writing ids) fall into the fallback category.
  */
 export function parseReviewResult(
   text: string,
@@ -246,7 +246,7 @@ export function parseReviewResult(
   }
   const spec = PROMPTS[kind] ?? PROMPTS[DEFAULT_REVIEW_KIND];
   const byId = new Map(spec.categories.map((c) => [c.id, c]));
-  /** 模型偶尔会拿中文标签当 id 回来，认一下省得整条丢掉 */
+  /** The model occasionally returns the Chinese label as the id; accept it rather than dropping the item */
   const byLabel = new Map(spec.categories.map((c) => [c.label, c]));
   const raw = parsed as { summary?: unknown; items?: unknown };
   const lines = content.split("\n");
@@ -259,14 +259,14 @@ export function parseReviewResult(
     if (!one || typeof one !== "object") continue;
     const it = one as Record<string, unknown>;
     const quote = str(it.quote);
-    // 引文得像句话，且必须逐字在正文里——对不上的标不出来，只会标歪
+    // The quote must read like a sentence and appear verbatim in the body -- unmatched quotes can't be marked, only mismarked
     if (quote.length < MIN_QUOTE || quote.length > MAX_QUOTE) continue;
     if (quote.includes("\n")) continue;
     const line = findLine(lines, quote, it.line);
     if (line === -1 || skip.has(line)) continue;
     const problem = str(it.problem);
     if (!problem) continue;
-    // 同一段引文说两遍就只留第一遍
+    // Keep only the first occurrence of a repeated quote
     if (seen.has(quote)) continue;
     seen.add(quote);
 
@@ -279,7 +279,7 @@ export function parseReviewResult(
       quote,
       line,
       problem,
-      // 建议和原文一模一样等于没建议，卡片上就不该出现「采纳」
+      // A suggestion identical to the original is no suggestion, so the card shouldn't offer 「采纳」 (Accept)
       ...(suggestion && suggestion !== quote ? { suggestion } : {}),
     });
   }
@@ -290,26 +290,26 @@ export function parseReviewResult(
     (items.length > 0 ? `挑出 ${items.length} 处值得看一眼的地方。` : "这篇没扫到明显要改的地方。");
   return {
     summary,
-    // 只留真正用上的分类：工具条上的筛选筹码不该出现「0 条」的那种
+    // Keep only categories actually used: the toolbar's filter chips shouldn't show "0 items"
     categories: spec.categories.filter((c) => used.has(c.id)),
     items,
   };
 }
 
-/** 几类一起审时，其中一类的下场：要么有结果，要么有一句为什么没跑成 */
+/** Outcome of one kind when several are reviewed together: either a result or a reason it didn't run */
 export type ReviewPart =
   | { kind: ReviewKind; result: ReviewResult }
   | { kind: ReviewKind; error: string };
 
 /**
- * 几类审核各跑各的（各有各的提示词与分类），最后合成一份给界面。
+ * Each review kind runs on its own (own prompt and categories), then they're merged into one for the UI.
  *
- * - 只审一类时原样返回，跟单选时代一模一样；
- * - 意见按在正文里出现的先后排：作者是顺着文章往下改的，不该先看完一类再回头看另一类；
- * - id 前面带上类型，两类各自的 ai1 不会撞；
- * - 总评按类型分段，各说各的；
- * - 有一类没跑成不连累另一类：成了的照样给，总评里明说哪一类没跑成、为什么。
- *   全都没跑成由调用方处理（这里不会收到那种情况）。
+ * - With a single kind, return it unchanged, exactly like the single-select days;
+ * - comments are ordered by position in the body: authors edit top to bottom, not one kind and then back for the other;
+ * - ids are prefixed with the kind, so each kind's ai1 doesn't collide;
+ * - the summary is split by kind, each saying its own piece;
+ * - one kind failing doesn't sink the other: successful ones are still returned, and the summary says which failed and why.
+ *   The caller handles the case where all of them fail (it never reaches here).
  */
 export function mergeReviewResults(parts: ReviewPart[]): ReviewResult {
   const done = parts.filter((p): p is { kind: ReviewKind; result: ReviewResult } => "result" in p);

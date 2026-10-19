@@ -6,9 +6,9 @@ import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ token: string; cid: string }> };
 
-/** 取出批注并校验操作者：文档作者，或凭 key 认领的批注作者本人。
- *  访客 key 一律从 x-guest-key 头取（PATCH 早先从 body 里取，两处对不上），
- *  解析也收在这里一处——请求体的形状不该决定身份从哪儿读。 */
+/** Load the annotation and verify the actor: the doc author, or the annotation's own author via a claimed key.
+ *  The guest key always comes from the x-guest-key header (PATCH used to read it from the body, so the two disagreed),
+ *  and parsing lives in this one place: the request body's shape shouldn't decide where identity is read from. */
 async function authorizedComment(req: Request, token: string, cid: string) {
   const key = req.headers.get("x-guest-key")?.slice(0, 64) ?? "";
   const share = await findEnabledShare(token);
@@ -25,7 +25,7 @@ async function authorizedComment(req: Request, token: string, cid: string) {
   return comment;
 }
 
-/** 销记/恢复（仅顶级批注）：{ resolved: boolean } */
+/** Resolve/reopen (top-level annotations only): { resolved: boolean } */
 export async function PATCH(req: Request, { params }: Params) {
   const { token, cid } = await params;
   const body = await req.json().catch(() => ({}));
@@ -44,7 +44,7 @@ export async function PATCH(req: Request, { params }: Params) {
   return NextResponse.json({ ok: true });
 }
 
-/** 删除批注；顶级批注连带其回复 */
+/** Delete an annotation; a top-level one takes its replies with it */
 export async function DELETE(req: Request, { params }: Params) {
   const { token, cid } = await params;
   const comment = await authorizedComment(req, token, cid);

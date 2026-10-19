@@ -1,6 +1,6 @@
 /**
- * 英文字典：各命名空间合并成一张表。按目录分文件只是为了好维护（单文件不超 500 行），
- * 运行时 key 全局唯一——同一句中文到处都该是同一个译法，重复了说明有一处是多余的。
+ * English dictionary: all namespaces merged into one table. Splitting by file is only for maintainability (each file under 500 lines);
+ * keys are globally unique at runtime -- the same Chinese sentence should translate the same everywhere, so a duplicate means one is redundant.
  */
 import { common } from "./common";
 import { editor } from "./editor";

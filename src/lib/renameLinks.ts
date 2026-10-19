@@ -1,12 +1,12 @@
 /**
- * 改标题时同步改写别处指向它的 `[[双向链接]]`（Obsidian 的 rename 更新引用）。
+ * When a title changes, rewrite `[[wikilinks]]` elsewhere that point to it (like Obsidian's rename-updates-references).
  *
- * 纯函数、无 React。链接按标题解析（见 lib/wikiLink），标题一改，别人写的
- * `[[旧标题]]` 就成了断链 —— 除非同一刻把它们一起改掉，这就是这里做的事。
+ * Pure functions, no React. Links resolve by title (see lib/wikiLink), so once a title changes, other people's
+ * `[[old title]]` become broken links, unless they're all updated at the same moment, which is what this does.
  *
- * 落盘走的是和自动保存同一条本地优先路径（本地库 / 云端镜像 + 推送），
- * 唯独不碰 editorPersistence 的 rememberSavedDocument：那是「当前打开的那一篇」
- * 的会话基准，被别的文章的内容写脏，编辑器会误判自己已落盘而丢掉未保存的编辑。
+ * Persistence goes through the same local-first path as autosave (local library / cloud mirror + push),
+ * except it never touches editorPersistence's rememberSavedDocument: that's the session baseline for "the currently open document",
+ * and dirtying it with another article's content would make the editor think it's saved and drop unsaved edits.
  */
 
 import { getDocContent } from "@/lib/docContent";
@@ -18,17 +18,17 @@ import { normalizeTitle, parseWikiLinks } from "@/lib/wikiLink";
 import type { DocMeta } from "@/features/workspace/types";
 
 /**
- * 能安全写进 `[[…]]` 的标题：方括号、竖线、换行都会改变链接本身的结构
- * （`|` 会凭空变出一个别名，`]]` 会把链接提前收口），这种标题宁可不改引用，
- * 也好过把别人的正文写坏。判定口径与 parseWikiLinks 的正则一致。
+ * Titles that can safely go inside `[[…]]`: brackets, pipes and newlines change the link's own structure
+ * (`|` conjures an alias, `]]` closes the link early); for such titles we'd rather not update references
+ * than corrupt someone's body text. The rule matches parseWikiLinks' regex.
  */
 export function isLinkableTitle(title: string): boolean {
   return /^[^[\]|\r\n]+$/.test(title.trim());
 }
 
 /**
- * 文库里正文写了 `[[oldTitle]]` 的文章（排除 excludeId 自身）。
- * 走 docIndex 的缓存，与检索共用同一次解析。
+ * Library articles whose body contains `[[oldTitle]]` (excluding excludeId itself).
+ * Uses docIndex's cache, sharing a single parse with search.
  */
 export function findLinkingDocs(
   docs: DocMeta[],
@@ -46,16 +46,16 @@ export function findLinkingDocs(
 
 export interface RewriteResult {
   content: string;
-  /** 实际改写的链接数，0 表示正文原样返回 */
+  /** Number of links actually rewritten; 0 means the body is returned unchanged */
   count: number;
 }
 
 /**
- * 把正文里所有 `[[旧标题]]` / `[[旧标题|别名]]` 换成新标题，别名原样保留。
+ * Replace every `[[old title]]` / `[[old title|alias]]` in the body with the new title, keeping aliases as-is.
  *
- * 只动 parseWikiLinks 给出的区间，围栏块与行内代码因此天然不受影响；
- * 匹配用 normalizeTitle（大小写、首尾空格不敏感），与链接跳转同一套口径。
- * 从后往前替换：先改后面的，前面那些还没用到的偏移就不会被挪动。
+ * Only the ranges from parseWikiLinks are touched, so fenced blocks and inline code are naturally unaffected;
+ * matching uses normalizeTitle (case- and surrounding-whitespace-insensitive), the same rule as link navigation.
+ * Replace back to front: editing later ones first keeps the offsets of earlier, not-yet-used ones from shifting.
  */
 export function rewriteLinks(
   content: string,
@@ -76,7 +76,7 @@ export function rewriteLinks(
   return { content: out, count: hits.length };
 }
 
-/** 落盘结果；只有 local-error / write-error 是真的没写进去 */
+/** Persistence result; only local-error / write-error mean it really wasn't written */
 export type PersistDocResult =
   | "local"
   | "local-error"
@@ -85,15 +85,15 @@ export type PersistDocResult =
   | "push-failed"
   | "synced";
 
-/** 内容已经在本机存住了吗（离线 / 推送失败都还算存住，dirty 标记会让同步引擎接着推） */
+/** Is the content saved on this machine? (offline / push failures still count; the dirty flag makes the sync engine keep pushing) */
 export function isPersisted(result: PersistDocResult): boolean {
   return result !== "local-error" && result !== "write-error";
 }
 
 /**
- * 把改写后的正文写回某一篇「不是当前打开的」文章。
- * 本地文档进本地库，云端文档先落镜像再尝试推送；离线或推送失败都不抛，
- * 镜像的 dirty 标记会让同步引擎下一轮接着推。
+ * Write rewritten body text back to an article that is "not the currently open one".
+ * Local documents go to the local library; cloud documents land in the mirror first then try to push; offline or push failure doesn't throw,
+ * since the mirror's dirty flag makes the sync engine push again next round.
  */
 export async function persistDocContent(
   doc: DocMeta,
@@ -104,7 +104,7 @@ export async function persistDocContent(
       updateLocalDoc(doc.id, { content });
       return "local";
     } catch {
-      return "local-error"; // localStorage 写满
+      return "local-error"; // localStorage is full
     }
   }
   try {
@@ -117,15 +117,15 @@ export async function persistDocContent(
 }
 
 export interface RenameLinksReport {
-  /** 成功改写并落盘的文章数 */
+  /** Number of articles rewritten and persisted */
   updated: number;
-  /** 改写了但没写进去的文章数 */
+  /** Number of articles rewritten but not written */
   failed: number;
 }
 
 /**
- * 逐篇改写并落盘。串行而不是并发：每篇都要读写 localStorage，
- * 并发只会把主线程卡得更死，而云端推送本来就有同步引擎兜底。
+ * Rewrite and persist one by one. Serial rather than concurrent: each reads and writes localStorage,
+ * so concurrency would only block the main thread harder, and cloud pushes are backstopped by the sync engine anyway.
  */
 export async function applyRenameLinks(
   targets: DocMeta[],
@@ -136,7 +136,7 @@ export async function applyRenameLinks(
   let failed = 0;
   for (const doc of targets) {
     const { content, count } = rewriteLinks(getDocContent(doc.id), oldTitle, newTitle);
-    // 没命中就别写：正文可能压根没拉到本地（云端镜像尚未同步），写回去等于清空
+    // No hit, so don't write: the body may never have been fetched locally (cloud mirror not synced yet), and writing back would wipe it
     if (count === 0) continue;
     if (isPersisted(await persistDocContent(doc, content))) updated++;
     else failed++;

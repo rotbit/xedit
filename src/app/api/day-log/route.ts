@@ -1,9 +1,9 @@
 /**
- * 「今天」页当日记录的云端读写（客户端见 src/lib/todos/dayLogSync.ts）。
+ * Cloud read/write for the 「今天」 (Today) page's daily log (client side: src/lib/todos/dayLogSync.ts).
  *
- * 事件 id 由客户端生成，(userId, id) 复合主键让重复推送天然幂等：
- * 响应丢了客户端再推一次，只会覆盖同一行。删除打 deletedAt 墓碑而不是真删，
- * 其它设备按 updatedAt 增量拉取时才能看到「这条没了」。
+ * Event ids are client-generated, and the (userId, id) composite key makes repeated pushes naturally idempotent:
+ * if the response is lost and the client pushes again, it just overwrites the same row. Deletes set a deletedAt tombstone instead of hard-deleting,
+ * so other devices pulling incrementally by updatedAt can see "this one is gone".
  */
 import { NextResponse } from "next/server";
 import type { DayLogEvent } from "@prisma/client";
@@ -12,9 +12,9 @@ import { readOnlyGuard } from "@/lib/guards";
 import { isResponse, requireUserId, serverError } from "@/lib/routeAuth";
 import { tk } from "@/i18n/t";
 
-/** 单次拉取上限：60 天的记录正常远到不了，满了客户端按 hasMore 接着翻 */
+/** Per-pull cap: 60 days of records normally come nowhere near it; if full, the client keeps paging via hasMore */
 const PAGE = 2000;
-/** 单次推送 upsert / delete 各自的上限，与客户端分批大小一致 */
+/** Separate caps for upsert / delete per push, matching the client's batch size */
 const BATCH = 200;
 const KINDS = new Set(["write", "create", "version", "task"]);
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -43,9 +43,9 @@ function toClient(e: DayLogEvent) {
 }
 
 /**
- * 拉取。`?since=<ISO>`：updatedAt 之后的全部变动（含墓碑），供增量同步；
- * 没有游标时必须带 `?from=YYYY-MM-DD`：该日起未删除的记录，供首次全量。
- * 一律按 updatedAt 升序，cursor 取本批最大 updatedAt。
+ * Pull. `?since=<ISO>`: every change after updatedAt (including tombstones), for incremental sync;
+ * without a cursor, `?from=YYYY-MM-DD` is required: undeleted records from that day on, for the initial full load.
+ * Always ordered by updatedAt ascending; cursor is the batch's max updatedAt.
  */
 export async function GET(req: Request) {
   const userId = await requireUserId();
@@ -64,7 +64,7 @@ export async function GET(req: Request) {
     return badRequest();
   }
   try {
-    // 多取一条用来判断还有没有下一页
+    // Fetch one extra to tell whether there's a next page
     let rows = await prisma.dayLogEvent.findMany({
       where,
       orderBy: { updatedAt: "asc" },
@@ -73,9 +73,9 @@ export async function GET(req: Request) {
     const hasMore = rows.length > PAGE;
     if (hasMore) {
       rows = rows.slice(0, PAGE);
-      // 同一批写入的行 updatedAt 可能相同：游标是「严格大于」，若页尾截在一串同值中间，
-      // 剩下那几条下一页就永远拉不到了。所以把页尾那串同值整体留给下一页
-      // （整页都同值时没法这样退，只能照发——单次推送最多 400 行，正常到不了）
+      // Rows written in the same batch may share an updatedAt: the cursor is "strictly greater than", so if a page ends mid-run of equal values,
+      // the rest of that run could never be fetched on the next page. So the trailing run of equal values is left whole for the next page
+      // (if the entire page has the same value we can't back off, so it's sent as-is; a single push is at most 400 rows, normally unreachable)
       const boundary = rows[rows.length - 1].updatedAt.getTime();
       const trimmed = rows.filter((r) => r.updatedAt.getTime() !== boundary);
       if (trimmed.length > 0) rows = trimmed;
@@ -102,11 +102,11 @@ interface CleanEvent {
 const isId = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= MAX_ID;
 
 /**
- * 校验一条事件；不合法返回 null（整条丢弃）。取舍：
- * - id / day / kind / ts 是定位与排序的根基，任一不对整条丢；
- * - text、title 是用户写的内容，超长截断保留——丢一整条记录比少几个字更糟；
- * - docId 超长只丢这个字段：截断后的 id 会指向错的文章，不如不关联；
- * - end / chars 不是有限数字就当没有。
+ * Validate one event; returns null if invalid (the whole event is dropped). Trade-offs:
+ * - id / day / kind / ts are the basis for locating and ordering; if any is wrong, drop the whole event;
+ * - text and title are user content, so overlong values are truncated and kept: losing a whole record is worse than losing a few characters;
+ * - an overlong docId drops just that field: a truncated id would point to the wrong article, better to not link at all;
+ * - end / chars that aren't finite numbers are treated as absent.
  */
 function cleanEvent(raw: unknown): CleanEvent | null {
   if (!raw || typeof raw !== "object") return null;
@@ -125,7 +125,7 @@ function cleanEvent(raw: unknown): CleanEvent | null {
     kind: e.kind,
     docId: isId(e.docId) ? e.docId : null,
     title: typeof e.title === "string" ? e.title.slice(0, MAX_TITLE) : null,
-    // 列是 INT4：四舍五入成整数并夹在范围内，防一个离谱的数把整批事务打挂
+    // The column is INT4: round to an integer and clamp to range so one absurd number can't crash the whole transaction
     chars:
       typeof e.chars === "number" && Number.isFinite(e.chars)
         ? Math.max(-2_000_000_000, Math.min(2_000_000_000, Math.round(e.chars)))
@@ -135,12 +135,12 @@ function cleanEvent(raw: unknown): CleanEvent | null {
 }
 
 /**
- * 推送：`{ upsert?: Event[], delete?: string[] }`，各最多 200 条，超出的截掉不报错
- * （客户端本来就按 200 分批，超出只可能是异常请求）。
- * upsert 覆盖全部字段并清掉墓碑；delete 只给已存在且未删的行打墓碑，不存在的 id 忽略——
- * 那多半是还没推上来就被删掉的记录，服务端不必知道它存在过。
- * 返回的 cursor 是本次写入行的最大 updatedAt，仅供参考：客户端不能拿它推进拉取游标，
- * 否则会跳过别的设备在这之前写入的记录。
+ * Push: `{ upsert?: Event[], delete?: string[] }`, at most 200 each; excess is truncated without error
+ * (the client already batches by 200, so excess can only be an abnormal request).
+ * upsert overwrites all fields and clears the tombstone; delete tombstones only existing undeleted rows and ignores unknown ids:
+ * those are most likely records deleted before they were pushed, and the server needn't know they ever existed.
+ * The returned cursor is the max updatedAt of rows written this time, for reference only: the client must not advance its pull cursor with it,
+ * or it would skip records other devices wrote before this.
  */
 export async function PUT(req: Request) {
   const userId = await requireUserId();
@@ -159,7 +159,7 @@ export async function PUT(req: Request) {
 
   try {
     const now = new Date();
-    // 同一个事务：一批里 upsert 与墓碑要么全落、要么全不落，客户端据此整批清脏
+    // One transaction: a batch's upserts and tombstones all land or none do, and the client clears dirty state for the whole batch accordingly
     const latest = await prisma.$transaction(async (tx) => {
       let max: Date | null = null;
       for (const { id, ...fields } of upserts) {
@@ -172,8 +172,8 @@ export async function PUT(req: Request) {
         if (!max || row.updatedAt > max) max = row.updatedAt;
       }
       if (deletes.length > 0) {
-        // deletedAt 为空才打：重复删除不刷新 updatedAt，免得其它设备反复拉到同一块墓碑。
-        // updatedAt 显式写成 now，返回的 cursor 才和库里一致
+        // Only set when deletedAt is null: repeated deletes don't bump updatedAt, so other devices don't keep pulling the same tombstone.
+        // updatedAt is explicitly set to now so the returned cursor matches the DB
         const { count } = await tx.dayLogEvent.updateMany({
           where: { userId, id: { in: deletes }, deletedAt: null },
           data: { deletedAt: now, updatedAt: now },
@@ -181,7 +181,7 @@ export async function PUT(req: Request) {
         if (count > 0 && (!max || now > max)) max = now;
       }
       return max;
-      // 默认 5 秒超时对 200 条逐行 upsert 偏紧（远端数据库每条一个往返），放宽到 15 秒
+      // The default 5s timeout is tight for 200 row-by-row upserts (one round trip each to a remote DB), so relax it to 15s
     }, { timeout: 15_000 });
     return NextResponse.json({ ok: true, cursor: latest ? latest.toISOString() : null });
   } catch (e) {

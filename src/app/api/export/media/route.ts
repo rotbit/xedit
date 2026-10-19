@@ -4,21 +4,21 @@ import { MAX_IMAGE_SIZE } from "@/lib/media";
 import { tk, translate } from "@/i18n/t";
 import { localeOfRequest } from "@/i18n/server";
 
-/** 只允许代理本服务图床的域名（CDN 域名或 Bucket 直连域名），避免沦为开放代理 */
+/** Only proxy this service's image-hosting domains (CDN or direct bucket domain) so it can't become an open proxy */
 function allowedHost(host: string): boolean {
   const cdn = process.env.OSS_CDN_DOMAIN;
   if (cdn) {
     try {
       if (new URL(cdn).host === host) return true;
     } catch {
-      /* CDN 域名配置非法则忽略 */
+      /* Ignore an invalid CDN domain config */
     }
   }
   const { OSS_BUCKET, OSS_REGION } = process.env;
   return Boolean(OSS_BUCKET && OSS_REGION && host === `${OSS_BUCKET}.${OSS_REGION}.aliyuncs.com`);
 }
 
-/** 导出 Word 时拉取图片字节的同源兜底：图床未配 CORS 的话浏览器直连会被拦 */
+/** Same-origin fallback for fetching image bytes on Word export: if image hosting lacks CORS, the browser's direct fetch is blocked */
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {

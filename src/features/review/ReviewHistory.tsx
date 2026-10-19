@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 审核历史：这篇文章审过哪几趟，点一趟就把当时的意见翻出来（不调模型、不花额度）。
+ * Review history: which runs this document has had; clicking one brings back its comments (no model call, no quota spent).
  *
- * 列表只有一份：顶栏「审核」按钮弹出的启动面板里嵌它，审核条上那颗「历史」按钮点开的面板也嵌它。
- * 记录存在服务端（见 lib/ai/reviewHistory），关掉审核、换台设备都还在。
+ * There's only one list: embedded both in the launch panel from the top bar's 「审核」 (Review) button and in the panel from the review bar's 「历史」 (History) button.
+ * Records are stored on the server (see lib/ai/reviewHistory), so they survive closing review or switching devices.
  */
 import { useEffect, useRef, useState } from "react";
 import { History, Trash2 } from "lucide-react";
@@ -24,10 +24,10 @@ export function ReviewHistoryList({
   emptyHint = true,
 }: {
   docId: string;
-  /** 眼下正看着的那一趟：标出来，也不必再点 */
+  /** The run currently being viewed: highlighted, and no need to click it again */
   currentId?: string | null;
   onOpen: (id: string) => void;
-  /** 一条都没有时要不要说一声（启动面板里不说：第一次用的人不需要知道「还没有历史」） */
+  /** Whether to say something when there are none (not in the launch panel: first-time users don't need to know there's "no history yet") */
   emptyHint?: boolean;
 }) {
   const t = useT();
@@ -46,7 +46,7 @@ export function ReviewHistoryList({
   }, [docId]);
 
   const remove = (id: string) => {
-    // 先从列表里拿掉：删一条历史不值得让人等，真没删掉再放回来
+    // Remove it from the list first: deleting history isn't worth making people wait; put it back if the delete actually fails
     const before = records;
     setRecords((rs) => rs?.filter((r) => r.id !== id) ?? null);
     deleteReviewRecord(id).catch(() => setRecords(before));
@@ -109,7 +109,7 @@ export function ReviewHistoryList({
   );
 }
 
-/** 审核条上「历史」按钮点开的面板 */
+/** Panel opened by the 「历史」 (History) button on the review bar */
 export function ReviewHistoryPanel({
   docId,
   currentId,

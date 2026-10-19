@@ -1,13 +1,13 @@
 /**
- * 孤儿草稿：换账号、登出时从镜像里抢救出来的「还没推上云」的稿子。
+ * Orphan drafts: "not yet pushed to the cloud" documents rescued from the mirror on account switch or logout.
  *
- * 以前换账号直接 clearMirror()，上一个账号 dirty 的文章连同正文一起没了——
- * 那些内容云端从来没见过，删掉就是真的没了。现在先把它们连同归属挪进
- * localStorage 的 `xedit-orphan-drafts`，镜像再清：
- * - 原主人下次登录（reclaimOrphanDrafts）自动写回镜像并标 dirty，由同步引擎推上去；
- * - 归属不明的（老版本升级、快照被探测清过）记成 `{ unknown: true }` 一直躺着，
- *   不认领、不上传、也不删，等以后做找回入口；
- * - 孤儿列表在自己的 key 里，sync 只认镜像索引，永远不会把别人的草稿推到当前账号名下。
+ * We used to just clearMirror() on account switch, and the previous account's dirty articles vanished along with their bodies;
+ * the cloud had never seen that content, so deleting it meant it was truly gone. Now we first move them, with ownership, into
+ * localStorage's `xedit-orphan-drafts`, then clear the mirror:
+ * - when the original owner next logs in (reclaimOrphanDrafts) they're written back to the mirror as dirty and pushed by the sync engine;
+ * - those with unknown ownership (older-version upgrades, snapshot cleared by the probe) are stored as `{ unknown: true }` and stay put,
+ *   not claimed, not uploaded, not deleted, awaiting a future recovery UI;
+ * - the orphan list has its own key and sync only reads the mirror index, so it never pushes someone else's drafts under the current account.
  */
 
 import {
@@ -33,28 +33,28 @@ import { bumpSessionEpoch } from "./sessionEpoch";
 
 export const ORPHAN_DRAFTS_KEY = "xedit-orphan-drafts";
 
-/** 攒太多会把配额吃光，超出就丢最早的那批（它们多半早就没人要了） */
+/** Accumulating too many would eat the quota; beyond the cap drop the oldest (most likely nobody wants them anymore) */
 const MAX_ORPHANS = 200;
 
-/** 这篇草稿是谁的；认不出来就是 { unknown: true }，任何账号都别想认领 */
+/** Whose draft this is; if unidentifiable it's { unknown: true } and no account may claim it */
 export type OrphanOwner = MirrorOwner | { unknown: true };
 
 export interface OrphanDraft {
   id: string;
   title: string;
   category?: string;
-  /** 正文。镜像只拉到元数据（只改过标题/分类）时会缺，写回时就只补元数据 */
+  /** Body. Missing when the mirror only pulled metadata (only title/category changed); then only metadata is written back */
   content?: string;
   updatedAt: string;
-  /** 挪走那一刻镜像的 rev，只作存档留痕；写回镜像时由 saveMirrorLocal 自己重新起版本 */
+  /** The mirror rev at the moment of the move, kept only as a record; saveMirrorLocal assigns a fresh version on write-back */
   rev?: number;
   owner: OrphanOwner;
-  /** 挪进来的时刻（ms），只用于排序和以后的找回界面 */
+  /** When it was moved in (ms), used only for sorting and the future recovery UI */
   stashedAt: number;
 }
 
 export interface StashResult {
-  /** 草稿是不是都安全落袋。false 时调用方必须跳过清镜像 */
+  /** Whether all drafts were stashed safely. If false the caller must skip clearing the mirror */
   ok: boolean;
   count: number;
 }
@@ -77,13 +77,13 @@ function readList(): OrphanDraft[] {
   }
 }
 
-/** 写回整份列表。配额满会抛，交给调用方决定要不要继续往下清 */
+/** Write back the whole list. Throws when the quota is full, leaving the caller to decide whether to keep clearing */
 function writeList(list: OrphanDraft[]) {
   const kept = list.length > MAX_ORPHANS ? list.slice(list.length - MAX_ORPHANS) : list;
   localStorage.setItem(ORPHAN_DRAFTS_KEY, JSON.stringify(kept));
 }
 
-/** 全部孤儿草稿，按挪进来的先后。留给以后的找回界面用 */
+/** All orphan drafts in the order they were moved in. Reserved for the future recovery UI */
 export function listOrphanDrafts(): OrphanDraft[] {
   return readList().sort((a, b) => a.stashedAt - b.stashedAt);
 }
@@ -103,17 +103,17 @@ function toDraft(meta: MirrorMeta, owner: OrphanOwner): OrphanDraft {
 }
 
 /**
- * 把镜像里所有 dirty（未同步）的文章连同归属挪进孤儿列表。**清镜像之前必须先调它**。
- * owner 传 null 表示归属不明，记成 unknown。
- * 返回 ok=false 只有一种情况：写不进去（配额满/隐私模式）——那就别清镜像了，
- * 稿子留在原地总好过凭空消失。
+ * Move every dirty (unsynced) article in the mirror, with ownership, into the orphan list. **Must be called before clearing the mirror**.
+ * Passing null for owner means unknown ownership, recorded as unknown.
+ * ok=false happens in only one case: it couldn't be written (quota full / private mode). Then don't clear the mirror;
+ * drafts staying put beats vanishing into thin air.
  */
 export function stashOrphanDrafts(owner: MirrorOwner | null): StashResult {
   const dirty = listDirtyMirrorDocs();
   if (dirty.length === 0) return { ok: true, count: 0 };
   const group: OrphanOwner = owner ?? { unknown: true };
   const ids = new Set(dirty.map((d) => d.id));
-  // 同一个人的同一篇再次挪进来：以新的为准，别攒出两份
+  // The same person's same document moved in again: the newer wins, don't keep two copies
   const kept = readList().filter((d) => !(ids.has(d.id) && sameGroup(d.owner, group)));
   try {
     writeList([...kept, ...dirty.map((meta) => toDraft(meta, group))]);
@@ -123,15 +123,15 @@ export function stashOrphanDrafts(owner: MirrorOwner | null): StashResult {
   }
 }
 
-/** 两条记录算不算同一组归属。unknown 只和 unknown 同组，且永远匹配不上任何真实账号 */
+/** Whether two records belong to the same ownership group. unknown only groups with unknown, and never matches a real account */
 function sameGroup(a: OrphanOwner, b: OrphanOwner): boolean {
   if (isUnknownOwner(a) || isUnknownOwner(b)) return isUnknownOwner(a) && isUnknownOwner(b);
   return sameOwner(a, b);
 }
 
 /**
- * 当前账号把自己那批草稿领回镜像（标 dirty，同步引擎随后推上云），返回领回的篇数。
- * 认不出归属的那些一篇都不动。
+ * The current account reclaims its drafts into the mirror (marked dirty, then pushed by the sync engine); returns the count reclaimed.
+ * Drafts with unidentifiable ownership are left alone.
  */
 export function reclaimOrphanDrafts(user: AuthSnapshotUser | MirrorOwner): number {
   const me = toMirrorOwner(user);
@@ -150,29 +150,29 @@ export function reclaimOrphanDrafts(user: AuthSnapshotUser | MirrorOwner): numbe
   try {
     writeList(list.filter((d) => !reclaimed.has(d)));
   } catch {
-    // 列表清不掉无所谓：写回镜像是幂等的，下次登录顶多再覆盖一遍同样的内容
+    // It's fine if the list can't be cleared: write-back to the mirror is idempotent, next login at worst overwrites with the same content
   }
   return mine.length;
 }
 
 export interface AccountSwitchResult {
   ownership: MirrorOwnership;
-  /** 挪进孤儿列表的篇数 */
+  /** Number of documents moved into the orphan list */
   stashed: number;
-  /** 从孤儿列表领回镜像的篇数 */
+  /** Number of documents reclaimed from the orphan list into the mirror */
   reclaimed: number;
-  /** 镜像是否被清空 */
+  /** Whether the mirror was cleared */
   cleared: boolean;
-  /** 有未同步草稿但存不下：这次保留镜像不清，调用方该提示用户 */
+  /** Unsynced drafts exist but couldn't be stored: the mirror is kept this time and the caller should notify the user */
   stashFailed: boolean;
 }
 
 /**
- * 登录确认后落定「这份镜像归谁」，是 useAuthMode 那个 effect 的全部逻辑。
- * 抽成普通函数是为了能直接测：它只碰 localStorage，不需要 React。
+ * After login is confirmed, settle "who owns this mirror": this is the entire logic of that useAuthMode effect.
+ * Pulled out as a plain function so it can be tested directly: it only touches localStorage, no React needed.
  *
- * 三条路：同一个人照用并领回自己的草稿；换了人先挪走旧草稿再清；
- * 认不出来就把 dirty 的挪成 unknown 组，剩下的（都是云端副本）清掉重拉。
+ * Three paths: same person keeps using it and reclaims their drafts; a different person first moves old drafts out then clears;
+ * unidentifiable moves dirty ones into the unknown group and clears the rest (all cloud copies) for a re-pull.
  */
 export function resolveAccountSwitch(user: AuthSnapshotUser): AccountSwitchResult {
   const ownership = mirrorOwnedBy(user);
@@ -184,23 +184,23 @@ export function resolveAccountSwitch(user: AuthSnapshotUser): AccountSwitchResul
     return { ...base, reclaimed: reclaimOrphanDrafts(user) };
   }
 
-  // different：换人了，旧主人的草稿先落袋；unknown：谁的都说不准，一律记成 unknown 组
+  // different: a new person, stash the old owner's drafts first; unknown: can't tell whose, record all as the unknown group
   const prevOwner = ownership === "different" ? readMirrorOwner() : null;
   const stash = stashOrphanDrafts(prevOwner);
   if (!stash.ok) {
-    // 存不下就什么都别动：镜像原样留着，归属还是上一个人，下次登录再试。
-    // 但同步引擎要停：cookie 已是新账号，旧主人的 dirty 篇推上去就串号了
+    // If they can't be stored touch nothing: the mirror stays, ownership stays with the previous person, retry next login.
+    // But the sync engine must stop: the cookie is the new account's, and pushing the old owner's dirty docs would cross accounts
     setSyncHold(true);
     return { ...base, stashFailed: true };
   }
   setSyncHold(false);
 
-  // unknown 且镜像里没有未同步内容时，剩下的全是云端副本：留着也不会丢东西，
-  // 随后的同步会按服务端列表对账（reconcileMirror）把不属于这个账号的清掉。
-  // 但归属得当场认下来，否则每次登录都要重走一遍这条保守路径
+  // unknown with no unsynced content in the mirror: what's left is all cloud copies, so keeping them loses nothing,
+  // and the following sync reconciles against the server list (reconcileMirror), clearing what doesn't belong to this account.
+  // But ownership must be claimed right away, or every login would rerun this conservative path
   if (ownership === "different" || stash.count > 0) {
-    clearMirror(); // 会连账号快照一起清，所以 saveAuthSnapshot 必须排在它后面
-    bumpSessionEpoch(); // 上一个账号的在途请求回来时就作废了
+    clearMirror(); // Also clears the account snapshot, so saveAuthSnapshot must come after it
+    bumpSessionEpoch(); // In-flight requests from the previous account are void when they return
   }
   setMirrorOwner(user);
   saveAuthSnapshot(user);
@@ -213,8 +213,8 @@ export function resolveAccountSwitch(user: AuthSnapshotUser): AccountSwitchResul
 }
 
 /**
- * 登出前的交接：未同步草稿挪进孤儿列表，再清镜像和归属。
- * 返回 false = 草稿没存下，镜像保持原样（调用方提示一句，别默默把稿子带走）。
+ * Handoff before logout: move unsynced drafts into the orphan list, then clear the mirror and ownership.
+ * Returns false = drafts couldn't be stored and the mirror is left as is (the caller should say so, not silently lose the drafts).
  */
 export function stashAndDetachMirror(): boolean {
   const stash = stashOrphanDrafts(readMirrorOwner());

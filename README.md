@@ -2,163 +2,163 @@
 
 # xEdit
 
-**Markdown 公众号排版工具 —— 左边写 Markdown，右边就是公众号里的样子，一键复制，样式不丢。**
+**A Markdown editor for WeChat Official Accounts — write Markdown on the left, see exactly how it will look on the right, and copy it over in one click with every style intact.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-000.svg)](./LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000.svg)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-000.svg)](https://react.dev)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-000.svg)](https://www.postgresql.org)
 
-[在线体验](https://xedit.me) · [部署教程](./docs/deployment.md) · [MCP 接入](./docs/mcp.md) · [飞书导入](./docs/feishu-import.md)
+[Live demo](https://xedit.me) · [Deployment guide](./docs/deployment.md) · [MCP setup](./docs/mcp.md) · [Feishu import](./docs/feishu-import.md)
 
 </div>
 
 ---
 
-微信公众号后台的编辑器会丢掉 `<style>`、`class` 和伪元素，导致大多数「排版工具」粘贴过去就散架。xEdit 在复制的那一刻把主题样式**逐条内联**到每个标签上，公众号后台、知乎编辑器直接 `⌘V`，标题、引用、代码块、表格、公式全都保持原样。
+The WeChat Official Account editor strips `<style>`, `class` and pseudo-elements, which is why most formatting tools fall apart the moment you paste. xEdit **inlines every theme rule** onto each tag at copy time, so you can `⌘V` straight into the WeChat editor or Zhihu and keep your headings, blockquotes, code blocks, tables and math exactly as they look.
 
-不登录也能用：全部排版、预览、复制、导出功能都在浏览器里跑，文稿存本地。登录之后才有云端同步、版本历史和图床。
+No account required: formatting, preview, copy and export all run in the browser, and documents are stored locally. Sign in to get cloud sync, version history and image hosting.
 
-## 功能
+## Features
 
-**排版与复制**
+**Formatting and copy**
 
-- **一键复制**：公众号模式（主题 CSS 全部内联，代码块空白转 `&nbsp;`/`<br>` 保住缩进）与知乎模式（公式转 eeimg、代码块交给知乎重新高亮）
-- **13 套排版主题**：经典黑、微信绿、科技蓝、水墨、杂志风……选择器带真实样式缩略图和适用内容类型标签
-- **6 套代码配色** + Mac 风格窗口装饰（三个圆点）
-- **自定义 CSS**：叠加在主题之上，复制时一并内联
-- **外链转脚注**：公众号正文不允许外链，自动转成「文字[n]」+ 文末参考链接，可开关
-- **数学公式**：`$行内$` 与 `$$块级$$`，MathJax 渲染成 SVG 再复制，公众号不支持 MathML 也不变形
-- **导出**：Markdown / 独立 HTML / 打印版 PDF / 整篇长图 PNG
+- **One-click copy**: WeChat mode (all theme CSS inlined; whitespace in code blocks converted to `&nbsp;`/`<br>` to preserve indentation) and Zhihu mode (math converted to eeimg, code blocks left to Zhihu to re-highlight)
+- **13 themes**: Classic Black, WeChat Green, Tech Blue, Ink Wash, Magazine and more, with live-styled thumbnails and content-type tags in the picker
+- **6 code color schemes** plus a Mac-style window frame (the three dots)
+- **Custom CSS**: layered on top of the theme and inlined on copy
+- **Links to footnotes**: WeChat articles don't allow external links, so they're turned into "text[n]" with a reference list at the end (optional)
+- **Math**: `$inline$` and `$$block$$`, rendered by MathJax to SVG before copying, so it survives WeChat's lack of MathML support
+- **Export**: Markdown / standalone HTML / print-ready PDF / full-length PNG image
 
-**编辑体验**
+**Editing**
 
-- **双模编辑**：类 Obsidian 的 Live Preview（标题、加粗、代码、图片在编辑区里直接呈现排版），或左右分栏对照，随时切换
-- CodeMirror 6 编辑器、双向同步滚动、格式化工具栏、大纲面板、手机预览模式、可拖拽分栏、字数与阅读时长统计
+- **Two editing modes**: Obsidian-style Live Preview (headings, bold, code and images render right in the editor) or a side-by-side split view — switch any time
+- CodeMirror 6 editor, two-way scroll sync, formatting toolbar, outline panel, mobile preview, resizable panes, word count and reading time
 
-**文章管理**
+**Document management**
 
-- **多级分类树**：文章和分类都能拖着移动，全局搜索、右键菜单、回收站软删除可恢复
-- **飞书知识库导入**：连接飞书账号后整库导入为文章，目录层级映射为分类、图片自动转存，重复同步只处理有改动的文档 → [使用指南](./docs/feishu-import.md)
-- **版本历史**：自动快照 + 手动存档，点开任一版本即可看到与当前稿的逐行差异，一键回滚，回滚前自动备份现稿
-- **图床**：截图粘贴、文件拖入自动上传到你自己的阿里云 OSS 并就地插入，素材库统一管理
-- **写作统计**：热力图、趋势曲线、每日目标，累计字数喂养一只会进化的墨灵
-- **本地优先**：断网照写，改动落本地镜像，联网自动补同步
+- **Nested categories**: drag documents and categories around, global search, context menus, and a recoverable trash
+- **Feishu Wiki import**: connect your Feishu account to import a whole wiki as documents, with its tree mapped to categories, images re-hosted automatically, and re-syncs that only touch changed pages → [Guide](./docs/feishu-import.md)
+- **Version history**: automatic snapshots plus manual saves; open any version to see a line-by-line diff against the current draft and roll back in one click (the current draft is backed up first)
+- **Image hosting**: paste screenshots or drop files to upload them to your own Alibaba Cloud OSS and insert them in place, all managed in a media library
+- **Writing stats**: heatmap, trend chart and daily goals; your total word count feeds an evolving ink sprite
+- **Local-first**: keep writing offline — changes land in a local mirror and sync automatically once you're back online
 
 **AI**
 
-- **公众号内容审查**：按《微信公众平台运营规范》、推荐加热机制与广告法逐项体检——标题党、绝对化违禁词、合规风险，发之前先过一遍。自带 Key，支持 Replicate / Kimi / GLM / DeepSeek
-- **MCP Server**：内置 MCP 服务端与自建 OAuth 2.1 授权，Claude Desktop、Cursor 等客户端授权后可直接列出、检索、新建、改写你的文章与图床 → [接入文档](./docs/mcp.md)
+- **WeChat content review**: checks your article against the WeChat Official Account platform rules, the recommendation algorithm and China's Advertising Law — clickbait titles, banned absolute claims, compliance risks — before you publish. Bring your own key; supports Replicate / Kimi / GLM / DeepSeek
+- **MCP server**: a built-in MCP server with self-hosted OAuth 2.1, so clients like Claude Desktop and Cursor can list, search, create and edit your documents and images once authorized → [Setup guide](./docs/mcp.md)
 
-## 快速开始
+## Quick start
 
-前置依赖：**Node.js 20+**、**PostgreSQL 14+**。
+Prerequisites: **Node.js 20+** and **PostgreSQL 14+**.
 
 ```bash
-# 1. 克隆并安装
+# 1. Clone and install
 git clone https://github.com/rotbit/xedit.git
 cd xedit
 npm install
 
-# 2. 准备数据库（macOS 示例，其他平台装好 PostgreSQL 即可）
+# 2. Set up the database (macOS example; on other platforms just install PostgreSQL)
 brew install postgresql@17 && brew services start postgresql@17
 createdb xedit
 
-# 3. 配置环境变量
+# 3. Configure environment variables
 cp .env.example .env
-#    至少填 DATABASE_URL；AUTH_SECRET 用下面这行生成后填入
+#    At minimum set DATABASE_URL; generate AUTH_SECRET with the line below
 openssl rand -base64 32
 
-# 4. 建表
+# 4. Create tables
 npx prisma migrate dev
 
-# 5. 启动
+# 5. Start
 npm run dev
 ```
 
-打开 <http://localhost:3000> 即可。不配置 GitHub/Google OAuth 与 OSS 也能跑——登录用邮箱密码注册即可，图片粘贴功能会静默跳过上传。
+Open <http://localhost:3000>. It runs without GitHub/Google OAuth or OSS configured — sign up with email and password, and image pasting will silently skip the upload.
 
-## 环境变量
+## Environment variables
 
-完整清单见 [`.env.example`](./.env.example)，这里是速查：
+See [`.env.example`](./.env.example) for the full list. Quick reference:
 
-| 变量 | 必填 | 说明 |
+| Variable | Required | Description |
 | --- | :---: | --- |
-| `DATABASE_URL` | ✅ | PostgreSQL 连接串，如 `postgresql://user:pass@localhost:5432/xedit` |
-| `AUTH_SECRET` | ✅ | 会话与 MCP 令牌的签名密钥，`openssl rand -base64 32` 生成 |
-| `AUTH_URL` | | 反代后建议显式指定，如 `https://example.com` |
-| `NEXT_PUBLIC_SITE_URL` | | 公网地址，供 canonical / OG / sitemap 使用，不带结尾斜杠 |
-| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | | 填了才出现 GitHub 登录 |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | | 填了才出现 Google 登录 |
-| `AUTH_WECHAT_ENABLED` | | 微信登录的显式开关，填 `1` 或 `true` 才启用 |
-| `AUTH_WECHAT_ID` / `AUTH_WECHAT_SECRET` | | 微信开放平台「网站应用」的 AppID / AppSecret，**需企业主体开放平台账号** |
-| `OSS_REGION` / `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` / `OSS_BUCKET` | | 阿里云 OSS 图床，建议用仅授权该 Bucket 的 RAM 子账号 |
-| `OSS_CDN_DOMAIN` | | 绑定的 CDN/自定义域名 |
-| `AI_ENCRYPTION_KEY` | | AI 平台 Key 的加密主密钥，留空则从 `AUTH_SECRET` 派生 |
-| `REPLICATE_API_TOKEN` | | AI 生成封面的 Replicate Token，填了才有「AI 生成」页签；费用由站点账户承担，仅 `ADMIN_EMAILS` 里的账号可用 |
-| `REPLICATE_MODEL` | | 生图模型，默认 `black-forest-labs/flux-schnell`；锁版本写成 `owner/name:版本号`。换模型不用自己核对入参：模型不认的比例和可选字段会按上游报错自动改掉重试。**提示词是一份固定模板，要求把中文标题画进图里，所以这里应当填一个能写好中文字的模型**——默认的 `flux-schnell` 不会，出来的字是乱码 |
-| `REPLICATE_ASPECT_RATIO` | | 封面比例，留空=自动：先试 `21:9`，模型不支持就自动改用它支持的最宽的横向比例 |
-| `COVER_GENERATE_TIMEOUT_SEC` / `COVER_GENERATE_DAILY_LIMIT` | | 单次生成超时（默认 90 秒）、每账号每日生成次数（默认 20） |
-| `ADMIN_EMAILS` | | 超级管理员邮箱白名单（逗号分隔），填了才开放 `/admin` 管理后台 |
-| `DEFAULT_STORAGE_QUOTA_MB` | | 每账号素材存储配额（MB），默认 10240（10GB）；后台可按账号单独调整 |
+| `DATABASE_URL` | ✅ | PostgreSQL connection string, e.g. `postgresql://user:pass@localhost:5432/xedit` |
+| `AUTH_SECRET` | ✅ | Signing key for sessions and MCP tokens; generate with `openssl rand -base64 32` |
+| `AUTH_URL` | | Recommended behind a reverse proxy, e.g. `https://example.com` |
+| `NEXT_PUBLIC_SITE_URL` | | Public URL used for canonical / OG / sitemap, without a trailing slash |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | | Enables GitHub login when set |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | | Enables Google login when set |
+| `AUTH_WECHAT_ENABLED` | | Explicit switch for WeChat login; set to `1` or `true` to enable |
+| `AUTH_WECHAT_ID` / `AUTH_WECHAT_SECRET` | | AppID / AppSecret of a "Website App" on WeChat Open Platform; **requires a business-verified Open Platform account** |
+| `OSS_REGION` / `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` / `OSS_BUCKET` | | Alibaba Cloud OSS image hosting; use a RAM sub-account scoped to that bucket only |
+| `OSS_CDN_DOMAIN` | | Bound CDN / custom domain |
+| `AI_ENCRYPTION_KEY` | | Master key for encrypting AI provider keys; derived from `AUTH_SECRET` if empty |
+| `REPLICATE_API_TOKEN` | | Replicate token for AI-generated covers; enables the "AI Generate" tab. Billed to the site's account and limited to accounts in `ADMIN_EMAILS` |
+| `REPLICATE_MODEL` | | Image model, defaults to `black-forest-labs/flux-schnell`; pin a version as `owner/name:version`. No need to check the model's inputs yourself: unsupported aspect ratios and optional fields are corrected from the upstream error and retried. **The prompt is a fixed template that asks for the Chinese title to be drawn into the image, so pick a model that renders Chinese text well** — the default `flux-schnell` doesn't and produces garbled characters |
+| `REPLICATE_ASPECT_RATIO` | | Cover aspect ratio; empty = auto: tries `21:9` first, and falls back to the widest landscape ratio the model supports |
+| `COVER_GENERATE_TIMEOUT_SEC` / `COVER_GENERATE_DAILY_LIMIT` | | Per-generation timeout (default 90 s) and generations per account per day (default 20) |
+| `ADMIN_EMAILS` | | Comma-separated super-admin email allowlist; enables the `/admin` dashboard when set |
+| `DEFAULT_STORAGE_QUOTA_MB` | | Per-account media storage quota in MB, default 10240 (10 GB); adjustable per account in the admin dashboard |
 
-> **密钥安全**：所有密钥只存在服务端。图片上传经 `/api/upload` 中转，OSS AccessKey 不会下发到浏览器；用户填的 AI 平台 Key 经 AES-256-GCM 加密后入库，明文绝不落库。
+> **Key security**: all secrets stay on the server. Image uploads are proxied through `/api/upload`, so the OSS AccessKey never reaches the browser; user-supplied AI provider keys are encrypted with AES-256-GCM before being stored, and plaintext never hits the database.
 
-## 部署
+## Deployment
 
-仓库自带 `Dockerfile`（Next.js standalone 产物，容器启动时自动执行 `prisma migrate deploy`）。
+The repo ships a `Dockerfile` (Next.js standalone output; `prisma migrate deploy` runs automatically when the container starts).
 
-完整步骤见 **[部署教程](./docs/deployment.md)**，涵盖 Docker / Docker Compose、Dokploy 一键部署、域名与 HTTPS、生产环境 OAuth 配置和升级回滚。
+See the **[deployment guide](./docs/deployment.md)** for the full walkthrough: Docker / Docker Compose, one-click Dokploy, domains and HTTPS, production OAuth setup, and upgrades and rollbacks.
 
-## 技术栈
+## Tech stack
 
-Next.js 16（App Router）· React 19 · TypeScript · Tailwind CSS v4 · CodeMirror 6 · markdown-it · highlight.js · MathJax（SVG）· DOMPurify · Auth.js v5 · Prisma + PostgreSQL · ali-oss · Zustand · MCP SDK
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · CodeMirror 6 · markdown-it · highlight.js · MathJax (SVG) · DOMPurify · Auth.js v5 · Prisma + PostgreSQL · ali-oss · Zustand · MCP SDK
 
-### 复制到公众号的原理
+### How copying to WeChat works
 
 ```
-Markdown → markdown-it 渲染 → DOMPurify 消毒
-        → 外链转脚注 → 代码块换行/空格转 <br>/&nbsp;
-        → CSS 内联（浏览器 CSSOM 解析 + querySelectorAll 匹配，按特异性层叠）
-        → 清理 class/id/data-* → 选区复制（text/html）
+Markdown → markdown-it render → DOMPurify sanitize
+        → links to footnotes → code block newlines/spaces to <br>/&nbsp;
+        → CSS inlining (browser CSSOM parsing + querySelectorAll matching, cascaded by specificity)
+        → strip class/id/data-* → selection copy (text/html)
 ```
 
-主题装饰全部使用真实元素（如标题里的 `span.prefix/.content/.suffix`）和 data URI 背景图，而非伪元素，保证粘贴到公众号后不丢样式。
+All theme decorations use real elements (such as `span.prefix/.content/.suffix` inside headings) and data URI background images rather than pseudo-elements, so nothing is lost when pasting into WeChat.
 
-## 目录结构
+## Project structure
 
 ```
 src/
-├── app/                # 页面与 API 路由
+├── app/                # Pages and API routes
 │   ├── api/            # documents / categories / assets / settings / stats
 │   │                   # upload / ai / auth / oauth / mcp
-│   ├── edit/           # 编辑器页（/edit 本地稿，/edit/[id] 云端文章）
-│   ├── oauth/          # MCP 客户端的授权同意页
-│   └── page.tsx        # 落地页 + 工作台
-├── components/         # 跨功能域的通用组件与弹窗
+│   ├── edit/           # Editor page (/edit local draft, /edit/[id] cloud document)
+│   ├── oauth/          # Consent page for MCP clients
+│   └── page.tsx        # Landing page + workspace
+├── components/         # Shared cross-feature components and dialogs
 ├── features/
-│   ├── editor/         # 编辑器工具栏、导出、复制菜单
-│   ├── landing/        # 落地页（服务端直出、可交互样机、SEO）
-│   ├── stats/          # 写作统计与墨灵
-│   └── workspace/      # 文章列表、分类树、拖拽、回收站
+│   ├── editor/         # Editor toolbar, export, copy menu
+│   ├── landing/        # Landing page (server-rendered, interactive mockup, SEO)
+│   ├── stats/          # Writing stats and the ink sprite
+│   └── workspace/      # Document list, category tree, drag and drop, trash
 ├── lib/
-│   ├── markdown/       # markdown-it 配置与插件（公式、标题结构化等）
-│   ├── themes/         # 排版主题（base + 13 套预设）与代码主题注册表
-│   ├── copy/           # 样式内联器、公众号/知乎复制管线、剪贴板
-│   ├── oauth/          # 自建 OAuth 2.1 授权服务器（AS + RS）
-│   ├── ai/             # 平台目录、密钥加解密、服务端调用
-│   └── export.ts       # MD / HTML / PDF / PNG 导出
-├── store/              # Zustand 全局状态（含本地持久化）
-└── auth.ts             # Auth.js 配置
-prisma/                 # 数据模型与迁移
-public/code-themes/     # highlight.js 代码主题 CSS
+│   ├── markdown/       # markdown-it config and plugins (math, structured headings, etc.)
+│   ├── themes/         # Themes (base + 13 presets) and code theme registry
+│   ├── copy/           # Style inliner, WeChat/Zhihu copy pipelines, clipboard
+│   ├── oauth/          # Self-hosted OAuth 2.1 server (AS + RS)
+│   ├── ai/             # Provider catalog, key encryption, server-side calls
+│   └── export.ts       # MD / HTML / PDF / PNG export
+├── store/              # Zustand global state (with local persistence)
+└── auth.ts             # Auth.js config
+prisma/                 # Data model and migrations
+public/code-themes/     # highlight.js code theme CSS
 ```
 
-## 贡献
+## Contributing
 
-欢迎 Issue 与 PR。提 PR 前请确认 `npm run lint` 与 `npm run build` 通过。
+Issues and PRs are welcome. Please make sure `npm run lint` and `npm run build` pass before opening a PR.
 
-新增排版主题：在 `src/lib/themes/presets.ts` 里照现有格式加一项即可，注意装饰元素不要用伪元素（公众号会丢弃）。
+To add a theme, add an entry to `src/lib/themes/presets.ts` following the existing format. Don't use pseudo-elements for decorations — WeChat drops them.
 
 ## License
 

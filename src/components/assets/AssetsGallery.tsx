@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 图片库整页的编排层：工具栏 / 网格 / 详情栏 / 大图各在自己的文件里，列表分页与搜索在 useAssetsFeed，
- * 这里只管跨组件的那几件事——选中的是哪张、大图停在第几张、素材被哪些文章引用。
- * 素材本身都在云端（OSS + /api/assets），本地只存一个列数偏好，换设备只会丢列数。
+ * Orchestration layer for the image library page: toolbar / grid / detail panel / lightbox live in their own files, paging and search live in useAssetsFeed;
+ * this only handles the cross-component bits — which asset is selected, which one the lightbox is on, which documents reference an asset.
+ * Assets all live in the cloud (OSS + /api/assets); only a column-count preference is stored locally, so switching devices just loses that.
  */
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useSession } from "next-auth/react";
@@ -21,10 +21,10 @@ import { useAssetsFeed } from "./useAssetsFeed";
 import { tk } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 
-/** 图片库：左网格 + 右详情栏的通栏两栏视图，双击开大图 */
+/** Image library: full-width two-pane view with grid on the left and detail panel on the right; double-click opens the lightbox */
 
 const COLS_KEY = "xedit-assets-cols";
-// 3～8 与 AssetsToolbar 里滑杆的 min / max 是两份各自写死的数，改范围要同时改两处
+// 3–8 and the slider min / max in AssetsToolbar are two separately hard-coded values; change both when changing the range
 const COLS_MIN = 3;
 const COLS_MAX = 8;
 const COLS_DEFAULT = 5;
@@ -33,8 +33,8 @@ const clampCols = (n: number) =>
   Number.isFinite(n) ? Math.min(COLS_MAX, Math.max(COLS_MIN, Math.round(n))) : COLS_DEFAULT;
 
 /**
- * 窄屏固定两列：滑杆在这个宽度下是藏着的，存的 5～8 列到手机上密得没法看。
- * 用 useSyncExternalStore 订阅 matchMedia，省掉「effect 里同步 setState」。
+ * Narrow screens are fixed at two columns: the slider is hidden at this width, and a stored 5–8 columns is unreadably dense on a phone.
+ * Subscribing to matchMedia via useSyncExternalStore avoids a "sync setState inside an effect".
  */
 const NARROW = "(max-width: 639px)";
 const subscribeNarrow = (cb: () => void) => {
@@ -49,22 +49,22 @@ const useNarrow = () =>
     () => false
   );
 
-/** 图片库主视图：ossConfigured 为 false 时服务端存不了新文件，页面退化成只浏览已有记录 */
+/** Image library main view: when ossConfigured is false the server can't store new files, so the page degrades to browsing existing records */
 export function AssetsGallery({
   ossConfigured,
   onOpenDoc,
 }: {
   ossConfigured: boolean;
-  /** 打开引用文章：工作台传 nav.openDoc 就地切换视图；缺省退回 /?doc=<id> */
+  /** Open a referencing document: the workspace passes nav.openDoc to switch views in place; defaults to /?doc=<id> */
   onOpenDoc?: (id: string) => void;
 }) {
-  // 「同步 OSS 历史」会认领整个 bucket 的无主文件，接口只对管理员开放，按钮也只给管理员看
+  // 「同步 OSS 历史」 (Sync OSS history) claims every orphaned file in the bucket, so the API is admin-only and so is the button
   const isAdmin = useSession().data?.user?.isAdmin === true;
   const feed = useAssetsFeed();
   const t = useT();
   const { assets, measure, loadMore, refresh, dropLocal, hasMore } = feed;
 
-  // 没存过时 readLocal 给 null、Number(null) 是 0，clampCols 会把它夹成 COLS_MIN；COLS_DEFAULT 只在服务端渲染和存了非数字时用得上
+  // When nothing is stored readLocal returns null and Number(null) is 0, which clampCols clamps to COLS_MIN; COLS_DEFAULT only applies during SSR or when a non-number was stored
   const [colCount, setColCount] = useState(() =>
     typeof window === "undefined" ? COLS_DEFAULT : clampCols(Number(readLocal(COLS_KEY)))
   );
@@ -73,10 +73,10 @@ export function AssetsGallery({
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  // 每个素材的引用文章缓存；undefined = 尚未查过
+  // Per-asset cache of referencing documents; undefined = not checked yet
   const [usage, setUsage] = useState<Record<string, UsageDoc[]>>({});
 
-  // 过滤/搜索换掉后选中的那张可能已不在列表里，详情栏跟着收起（不必额外清状态）
+  // After the filter/search changes, the selected asset may no longer be in the list, so the detail panel collapses (no extra state reset needed)
   const selected = assets?.find((a) => a.id === selectedId) ?? null;
 
   const changeCols = (n: number) => {
@@ -85,14 +85,14 @@ export function AssetsGallery({
     writeLocal(COLS_KEY, String(cols));
   };
 
-  // 大图里按 → 快翻到已加载的末尾时，提前把下一页补上
+  // When → in the lightbox reaches the end of what's loaded, prefetch the next page
   useEffect(() => {
     if (lightbox !== null && assets && lightbox >= assets.length - 2 && hasMore) {
       void loadMore();
     }
   }, [lightbox, assets, hasMore, loadMore]);
 
-  // 选中（或开大图）时反查这个素材被哪些文章引用，查过的走缓存
+  // On select (or opening the lightbox) look up which documents reference this asset; cached lookups are reused
   const targetId = lightbox !== null ? (assets?.[lightbox]?.id ?? null) : selectedId;
   useEffect(() => {
     if (!targetId || usage[targetId]) return;
@@ -108,15 +108,15 @@ export function AssetsGallery({
     return () => {
       cancelled = true;
     };
-  // 依赖里带着 usage 会让 setUsage 重新触发本 effect，靠开头那句缓存命中挡住，不会变成死循环
+  // Having usage in the deps makes setUsage re-trigger this effect, but the cache-hit check at the top stops it, so it won't loop
   }, [targetId, usage]);
 
-  // 详情栏打开时：←/→ 换选中，Esc 收起。大图自己有一套键盘，开着就让位
+  // While the detail panel is open: ←/→ change selection, Esc collapses it. The lightbox has its own keyboard handling, so yield while it's open
   useEffect(() => {
     if (!selectedId || lightbox !== null) return;
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      // 正在搜索框里敲字就不抢键
+      // Don't steal keys while typing in the search box
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
         return;
       }
@@ -151,7 +151,7 @@ export function AssetsGallery({
     }
   };
 
-  // 串行传而不是 Promise.all：某个文件失败只弹它自己的错，剩下的照传，最后按成功条数汇总一句
+  // Upload sequentially instead of Promise.all: a failed file only reports its own error, the rest keep going, then one summary by success count
   const uploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
@@ -185,9 +185,9 @@ export function AssetsGallery({
         toast(t("删除失败"), "error");
         return;
       }
-      // 删完只把这一条从本地列表摘掉：refresh 会退回第一页整体替换，已经往下翻出来的页和滚动位置全丢
+      // After deleting, just drop this item from the local list: refresh would go back to page one and replace everything, losing loaded pages and scroll position
       dropLocal(asset.id);
-      // 删的不一定是详情栏里那张（大图里也能删），所以只有正好是它时才收起详情栏
+      // The deleted asset isn't necessarily the one in the detail panel (you can delete from the lightbox too), so only collapse when it is
       setSelectedId((prev) => (prev === asset.id ? null : prev));
       setLightbox(null);
       toast(t("已删除"), "success");
@@ -264,7 +264,7 @@ export function AssetsGallery({
         ) : null}
       </div>
 
-      {/* 大图预览 */}
+      {/* Lightbox */}
       {lightbox !== null && assets && assets[lightbox] ? (
         <AssetsLightbox
           assets={assets}
@@ -274,7 +274,7 @@ export function AssetsGallery({
           onClose={() => setLightbox(null)}
           onNavigate={(i) => {
             setLightbox(i);
-            // 大图翻页时详情栏跟着走，关掉大图后右边还是同一张
+            // The detail panel follows lightbox paging, so after closing it the right side shows the same asset
             setSelectedId(assets[i]?.id ?? null);
           }}
           onDelete={(a) => void removeAsset(a)}

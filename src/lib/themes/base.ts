@@ -1,15 +1,15 @@
-// 所有主题共享的结构性基础样式。
-// 注意：装饰必须用真实元素（prefix/suffix span）或内联可继承属性，
-// 伪元素/伪类在复制到公众号后会丢失，主题中不要依赖它们
-// （:nth-child 这类结构性伪类除外——内联器用 el.matches 匹配，能落到具体元素上）。
+// Structural base styles shared by all themes.
+// Note: decoration must use real elements (prefix/suffix spans) or inline inheritable properties;
+// pseudo-elements/pseudo-classes are lost when copied to WeChat, so themes must not rely on them
+// (structural pseudo-classes like :nth-child excepted: the inliner matches with el.matches, so they resolve to concrete elements).
 
 import { CALLOUT_TYPES } from "@/lib/callout";
 
 /**
- * Obsidian 式提示块的配色逐类展开成静态 CSS。
- * 从共享类型表生成而不是手抄一遍：编辑器、预览、复制三处共用一张表，
- * 以后加类型或调色只改 lib/callout.ts 一处，三处不会走偏。
- * 主题 CSS 只覆盖 blockquote，提示块是 section.callout，不会被主题改掉。
+ * Expand Obsidian-style callout colors per type into static CSS.
+ * Generated from the shared type table rather than copied by hand: editor, preview and copy share one table,
+ * so adding a type or tweaking colors later touches only lib/callout.ts and the three can't drift apart.
+ * Theme CSS only overrides blockquote; callouts are section.callout and won't be altered by themes.
  */
 const CALLOUT_CSS = Object.entries(CALLOUT_TYPES)
   .map(
@@ -19,11 +19,11 @@ const CALLOUT_CSS = Object.entries(CALLOUT_TYPES)
   )
   .join("\n");
 
-// Mac 窗口三个圆点，data URI 形式的 SVG，公众号支持 background-image data URI
+// The three Mac window dots as a data URI SVG; WeChat supports background-image data URIs
 export const MAC_DOTS =
   `url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='45' height='13' viewBox='0 0 45 13'%3E%3Ccircle cx='6.5' cy='6.5' r='5' fill='%23fc625d'/%3E%3Ccircle cx='22.5' cy='6.5' r='5' fill='%23fdbc40'/%3E%3Ccircle cx='38.5' cy='6.5' r='5' fill='%2335cd4b'/%3E%3C/svg%3E")`;
 
-// i18n-ignore 排版 CSS（含中文字体名等），是数据不是文案
+// i18n-ignore typesetting CSS (including Chinese font names etc.) is data, not UI copy
 export const BASE_CSS = `
 #nice {
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
@@ -65,10 +65,10 @@ export const BASE_CSS = `
 #nice figure {
   margin: 22px 0;
 }
-/* 复制到公众号时视频降级出的占位块（公众号粘贴不支持 video，需后台手动插入）。
-   刻意做成刺眼的琥珀色警告：漏补一个视频就发出去了没法补救，宁可丑也不能让人看漏。
-   只用能内联的属性（背景/边框/字色字号/内外边距/对齐/圆角），粘进公众号后一样保得住。
-   占位图与提示块同一套虚线边，连起来读是一整块「这里缺个视频」。 */
+/* Placeholder a video degrades to when copying to WeChat (pasting there drops <video>; it must be inserted manually in the backend).
+   Deliberately a loud amber warning: publishing with a missing video can't be undone, so ugly beats easy to miss.
+   Only inlinable properties (background/border/color/font size/padding/margin/align/radius), so it survives the paste.
+   The poster and the notice share one dashed border, reading as a single "a video goes here" block. */
 #nice .video-placeholder {
   margin: 20px 0;
 }
@@ -133,8 +133,8 @@ export const BASE_CSS = `
 #nice blockquote p {
   margin: 10px 0;
 }
-/* 提示块：整块是 section.callout（不是 blockquote），复制到公众号时这些规则被内联成
-   style 属性，section 与内联样式都是公众号留得住的东西 */
+/* Callout: the whole block is section.callout (not blockquote); copying to WeChat inlines these rules into
+   style attributes, and both section and inline styles survive WeChat's editor */
 #nice .callout {
   margin: 20px 0;
   padding: 12px 16px;
@@ -240,8 +240,8 @@ ${CALLOUT_CSS}
 }
 #nice sup.footnote-num {
   font-size: 12px;
-  /* 公众号会检查 line-height < font-size 并报「文字重叠」风险，所以不能用 line-height: 0 压行框；
-     改为贴行框顶部对齐，小字号盒子本来就矮于正文行框，同样不会撑高整行 */
+  /* WeChat flags line-height < font-size as an "overlapping text" risk, so line-height: 0 can't be used to collapse the line box;
+     align to the top of the line box instead: the small-font box is already shorter than the body line, so it won't stretch the line */
   line-height: 1.2;
   vertical-align: top;
 }

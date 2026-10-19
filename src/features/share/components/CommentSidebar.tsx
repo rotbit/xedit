@@ -1,6 +1,6 @@
 "use client";
 
-// 批注侧栏（桌面）：进行中/已解决线程列表（从 SharedArticle 搬出）
+// Annotation sidebar (desktop): open/resolved thread lists (moved out of SharedArticle)
 
 import { Check, RotateCcw } from "lucide-react";
 import { fmtTime } from "../lib/format";
@@ -8,9 +8,9 @@ import type { Thread } from "../SharedArticle";
 import { AnchorQuote } from "./AnchorQuote";
 
 /**
- * 桌面端批注侧栏：进行中与已解决两段线程列表。
- * 自身不存任何状态，线程数据和开关全部由 SharedArticle 传入，点击只回调上去。
- * 整块在 lg 以下隐藏（窄屏走 SharedArticle 里的浮层），所以这里不必考虑移动端布局。
+ * Desktop annotation sidebar: two thread lists, open and resolved.
+ * Holds no state itself; thread data and toggles all come from SharedArticle, and clicks just call back up.
+ * The whole block is hidden below lg (narrow screens use the popover in SharedArticle), so no mobile layout is needed here.
  */
 export function CommentSidebar({
   openCount,
@@ -54,7 +54,7 @@ export function CommentSidebar({
                   <span className="text-[11px] text-[var(--ink-faint)]">
                     {fmtTime(t.root.createdAt)}
                   </span>
-                  {/* range 为 null 表示锚点文字在当前正文里已经定位不到（作者改过原文），只在卡片上标一下 */}
+                  {/* range === null means the anchor text can't be found in the current body (the author edited it); just flag it on the card */}
                   {!t.range ? (
                     <span className="rounded bg-[var(--paper)] px-1 text-[10px] text-[var(--ink-faint)]">
                       原文已修改
@@ -95,7 +95,7 @@ export function CommentSidebar({
                     <Check size={12} className="text-emerald-600" />
                     <span className="text-[12px] text-[var(--ink-soft)]">{t.root.author}</span>
                     <span className="flex-1" />
-                    {/* 只有自己发的批注（作者视角下是全部）才给「恢复」，别人的已解决线程是只读的 */}
+                    {/* Only your own annotations (all of them from the author's view) get 「恢复」 (Restore); others' resolved threads are read-only */}
                     {t.root.mine ? (
                       <button
                         className="flex cursor-pointer items-center gap-1 text-[11px] text-[var(--ink-faint)] hover:text-[var(--ink)]"

@@ -16,7 +16,7 @@ function first(v: string | string[] | undefined): string {
   return Array.isArray(v) ? v[0] ?? "" : v ?? "";
 }
 
-/** 复原当前 authorize 完整 URL，登录后原样跳回继续授权 */
+/** Rebuild the full current authorize URL so we return to it unchanged after login to continue */
 function selfUrl(sp: SP): string {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) {
@@ -37,7 +37,7 @@ function ErrorView({ title, detail, locale }: { title: string; detail: string; l
   );
 }
 
-// OAuth 2.1 授权端点（浏览器访问）。校验 client/回调后，复用 next-auth 登录态弹同意页。
+// OAuth 2.1 authorization endpoint (browser). After validating client/redirect, reuses the next-auth session to show the consent page.
 export default async function AuthorizePage({
   searchParams,
 }: {
@@ -54,7 +54,7 @@ export default async function AuthorizePage({
   const resource = first(sp.resource);
   const locale = await requestLocale();
 
-  // 客户端与回调地址：回调不合法时绝不回跳（防开放重定向），直接报错页
+  // Client and redirect URI: if the redirect is invalid, never redirect back (prevents open redirects); show an error page
   const client = clientId ? await getClient(clientId) : null;
   if (!client) {
     return <ErrorView title={tk("无效的客户端")} detail={tk("client_id 未注册或不存在。")} locale={locale} />;
@@ -63,7 +63,7 @@ export default async function AuthorizePage({
     return <ErrorView title={tk("回调地址不被允许")} detail={tk("redirect_uri 与注册值不匹配。")} locale={locale} />;
   }
 
-  // 回调地址合法后，其余参数错误可按 OAuth 规范安全回跳报错
+  // Once the redirect URI is valid, other parameter errors can safely redirect back per the OAuth spec
   const backError = (err: string, desc: string): never => {
     const u = new URL(redirectUri);
     u.searchParams.set("error", err);
@@ -71,12 +71,12 @@ export default async function AuthorizePage({
     if (state) u.searchParams.set("state", state);
     redirect(u.toString());
   };
-  // error_description 是回给 OAuth 客户端的协议字段，不是界面文案
+  // error_description is a protocol field returned to the OAuth client, not UI copy
   if (responseType !== "code") backError("unsupported_response_type", "仅支持 response_type=code"); // i18n-ignore
   if (!codeChallenge) backError("invalid_request", "缺少 code_challenge"); // i18n-ignore
   if (codeMethod !== "S256") backError("invalid_request", "code_challenge_method 必须为 S256"); // i18n-ignore
 
-  // 未登录先跳 next-auth 登录页，登录后原样回到本授权页
+  // Not logged in: go to the next-auth login page first, then return here unchanged
   const session = await auth();
   if (!session?.user?.id) {
     redirect(`/api/auth/signin?callbackUrl=${encodeURIComponent(selfUrl(sp))}`);

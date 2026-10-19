@@ -1,5 +1,5 @@
 /**
- * 退出登录并清掉本地账号痕迹：头像菜单与设置页共用这一份，免得两处的清理步骤走样。
+ * Sign out and clear local account traces: shared by the avatar menu and the settings page so the two cleanups don't drift apart.
  */
 import { signOut } from "next-auth/react";
 import { toast } from "@/components/Toast";
@@ -8,11 +8,11 @@ import type { TFn } from "@/i18n/t";
 import { stashAndDetachMirror } from "@/lib/orphanDrafts";
 
 export function signOutAndClear(t: TFn): void {
-  // 登出即清空本地镜像，避免下一个账号看到上一个账号的文章；
-  // 但没推上云的草稿要先挪进孤儿列表，原主人下次登录能自动领回去。
-  // 存不下（配额满）就整份镜像留着不清——稿子比干净更重要。
-  // 设置那份是模块级缓存（GET 只发一次），不一起清的话换账号后
-  // 沿用的还是上一个账号的主题/自定义 CSS
+  // Signing out clears the local mirror so the next account doesn't see the previous account's docs;
+  // but drafts not yet pushed to the cloud move to the orphan list first, so the original owner reclaims them automatically on next login.
+  // If they can't be saved (quota full), keep the whole mirror uncleared — drafts matter more than cleanliness.
+  // Settings are a module-level cache (GET sent only once); if not cleared too, after switching accounts
+  // the previous account's theme/custom CSS would still be in use
   if (!stashAndDetachMirror()) toast(t("有未同步草稿，本次未清理本地缓存"), "info");
   resetSettings();
   void signOut();

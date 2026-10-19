@@ -1,7 +1,7 @@
 /**
- * 界面语言：只是用户偏好，不进路由（没有 /en/...）。
- * 存在 cookie 里而不是 localStorage：根布局在服务端就要知道语言，
- * 才能直接渲染出对的 <html lang> 和首屏文案，不用客户端再翻一遍造成闪烁。
+ * UI language: purely a user preference, not part of the route (no /en/...).
+ * Stored in a cookie rather than localStorage: the root layout needs the language on the server
+ * to render the right <html lang> and first-screen text directly, without a client-side re-translation that flickers.
  */
 
 export type Locale = "zh" | "en";
@@ -18,9 +18,9 @@ export function isLocale(v: unknown): v is Locale {
 }
 
 /**
- * cookie 优先（用户手动选过）；没有就看 Accept-Language 的第一个语言：
- * 中文（zh、zh-CN、zh-TW…）给中文，其余一律英文——非中文用户看英文总比看中文强。
- * 两样都没有（爬虫、curl）落回中文，和产品的主要受众一致。
+ * Cookie first (the user picked one explicitly); otherwise use the first Accept-Language entry:
+ * Chinese (zh, zh-CN, zh-TW...) gets Chinese, everything else English -- English beats Chinese for non-Chinese users.
+ * With neither (crawlers, curl) fall back to Chinese, matching the product's main audience.
  */
 export function detectLocale(
   cookieValue: string | undefined,
@@ -37,8 +37,8 @@ export function htmlLang(locale: Locale): string {
 }
 
 /**
- * 模块级当前语言。初值按 <html lang> 推：服务端已经按 cookie 写好了 lang，
- * 这样在 Provider 挂上之前就执行的 t()（模块顶层常量等）也能拿到对的语言。
+ * Module-level current language. Initialized from <html lang>: the server already set lang from the cookie,
+ * so t() calls that run before the Provider mounts (module-level constants etc.) still get the right language.
  */
 function initialLocale(): Locale {
   if (typeof document === "undefined") return DEFAULT_LOCALE;
@@ -55,10 +55,10 @@ export function getLocale(): Locale {
 }
 
 /**
- * Provider 首帧把服务端判定的语言灌进来。
- * 浏览器里只认第一次：之后用户切换过语言，Provider 重渲染时再调用不能把它改回去。
- * 服务端每次都覆盖：模块变量在服务端是所有请求共享的，只能尽量贴近当前这次请求；
- * 所以组件里要用 useT()（读 context，SSR 下也准），模块级 t() 留给事件回调和 lib。
+ * The Provider pushes in the server-determined language on its first frame.
+ * In the browser only the first call counts: if the user has switched languages since, a Provider re-render must not change it back.
+ * On the server it's overwritten every time: module variables are shared across all requests there, so this is only a best effort for the current one;
+ * that's why components should use useT() (reads context, accurate under SSR), leaving module-level t() for event callbacks and lib.
  */
 export function initLocale(locale: Locale): void {
   if (typeof window === "undefined") {
@@ -70,7 +70,7 @@ export function initLocale(locale: Locale): void {
   current = locale;
 }
 
-/** 用户切换语言：写 cookie（下次请求服务端就按它渲染）、改 lang、通知 Provider 重渲染 */
+/** User switches language: write the cookie (the server renders with it next request), update lang, and notify the Provider to re-render */
 export function setLocale(next: Locale): void {
   current = next;
   initialized = true;

@@ -1,8 +1,8 @@
-/* 即时渲染里的文首 frontmatter 卡片。
-   与 live-preview.css 分开只为控制单文件长度（那份已经顶到上限），入口仍在 globals.css。 */
+/* Frontmatter card at the top of the doc in live rendering.
+   Split from live-preview.css only to keep file length in check (that one is at the limit); still imported from globals.css. */
 
-/* frontmatter：排成「键 值」两列的只读卡片。
-   元数据是给机器看的，卡片把它和正文划清界限；光标进入区间就还原成源码可编辑 */
+/* frontmatter: a read-only card laid out as "key value" columns.
+   Metadata is for machines; the card separates it from the body, and reverts to editable source once the cursor enters the range */
 .cm-live-preview .cm-lp-fm {
   margin: 0 0 10px;
   padding: 8px 12px;
@@ -18,7 +18,7 @@
   display: flex;
   gap: 10px;
 }
-/* 键列定宽，多行元信息的值左缘对齐成一条线 */
+/* Fixed-width key column so the values of multi-line metadata align on one edge */
 .cm-live-preview .cm-lp-fm-key {
   flex: none;
   min-width: 68px;
@@ -29,19 +29,19 @@
   color: var(--ink-soft);
   word-break: break-word;
 }
-/* cover: 不进卡片，渲染成与正文同宽的题图。左右各让出 28px 与正文文字对齐（= .cm-line 的行内缩），
-   2.35:1 = 公众号头条封面比例 */
+/* cover: not part of the card; rendered as a body-width hero image. 28px inset each side aligns with body text (= .cm-line's inline padding),
+   2.35:1 = WeChat Official Account headline cover ratio */
 .cm-live-preview .cm-lp-fm-wrap {
   cursor: text;
 }
-/* 只有封面：点了也不会展开源码，别用文字光标骗人 */
+/* Cover only: clicking won't expand the source, so don't fake it with a text cursor */
 .cm-live-preview .cm-lp-fm-wrap.cm-lp-fm-locked {
   cursor: default;
 }
 .cm-live-preview .cm-lp-fm-cover {
   padding: 14px 28px 0;
 }
-/* 封面和正文之间一条细线隔开：封面是"给公众号的"，线以下才是文章 */
+/* A thin rule between cover and body: the cover is "for WeChat", the article starts below the line */
 .cm-live-preview .cm-lp-fm-cover::after {
   content: "";
   display: block;

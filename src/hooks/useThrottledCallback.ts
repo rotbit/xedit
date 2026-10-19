@@ -3,18 +3,18 @@
 import { useEffect, useMemo, useRef } from "react";
 
 /**
- * trailing 节流：wait 窗口内的多次调用合并成一次，参数取最后一次。
+ * Trailing throttle: multiple calls within the wait window merge into one, using the last call's arguments.
  *
- * 为编辑器的 onChange 而生 —— 每敲一个键就把整篇正文推进 store，会连带把整个文章视图
- * 重渲染一遍；合并到 ~120ms 一次，减少连续输入时的渲染。
- * 代价是最后一次内容可能还压在窗口里，所以必须有 flush()：失焦、切文档、卸载、⌘S
- * 这些「内容要被读走」的时刻都得先把它吐出来，绝不能丢。
+ * Built for the editor's onChange -- pushing the whole body into the store on every keystroke re-renders the entire article view;
+ * coalescing to once every ~120ms cuts renders during continuous typing.
+ * The catch is that the latest content may still be held in the window, so flush() is required: blur, doc switch, unmount, ⌘S --
+ * any moment the content is about to be read must flush it first; it must never be lost.
  */
 export interface ThrottledCallback<T> {
   (value: T): void;
-  /** 立刻发出压着的那一次调用（没有则什么都不做） */
+  /** Fire the pending call immediately (no-op if there is none) */
   flush(): void;
-  /** 丢弃压着的那一次调用 */
+  /** Discard the pending call */
   cancel(): void;
 }
 
@@ -22,15 +22,15 @@ export function useThrottledCallback<T>(
   fn: (value: T) => void,
   wait: number
 ): ThrottledCallback<T> {
-  // 回调每次渲染都可能换引用，但节流器本身必须稳定（定时器与待发值都挂在它的闭包里），
-  // 于是让节流器只认这个 ref，渲染提交后再把最新回调塞进去
+  // The callback may change identity every render, but the throttler itself must be stable (timer and pending value live in its closure),
+  // so the throttler only reads this ref, and the latest callback is stored into it after commit
   const fnRef = useRef(fn);
   useEffect(() => {
     fnRef.current = fn;
   });
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 用 { value } 包一层：值本身可能是空串，不能拿它当「有没有待发」的判据
+  // Wrapped in { value }: the value itself may be an empty string, so it can't be used to tell whether something is pending
   const pendingRef = useRef<{ value: T } | null>(null);
 
   const throttled = useMemo<ThrottledCallback<T>>(() => {
@@ -48,7 +48,7 @@ export function useThrottledCallback<T>(
 
     const call = ((value: T) => {
       pendingRef.current = { value };
-      // 只在窗口空闲时起表：窗口内的后续调用只更新待发值，到点一起发
+      // Only start the timer when the window is idle: later calls in the window just update the pending value, sent together when it fires
       if (timerRef.current === null) timerRef.current = setTimeout(emit, wait);
     }) as ThrottledCallback<T>;
 
@@ -63,7 +63,7 @@ export function useThrottledCallback<T>(
     return call;
   }, [wait]);
 
-  // 卸载（以及节流器被换掉）时兜底：组件没了但待发值还在，最后一次编辑就凭空消失了
+  // Safety net on unmount (and when the throttler is replaced): the component is gone but the pending value remains, otherwise the last edit would vanish
   useEffect(() => () => throttled.flush(), [throttled]);
 
   return throttled;

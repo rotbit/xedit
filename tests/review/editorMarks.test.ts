@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-// 同 livePreview 那几个用例：@codemirror/view 加载时要读 document.documentElement.style
+// Same as the livePreview cases: @codemirror/view reads document.documentElement.style on load
 vi.hoisted(() => {
   const doc = (globalThis as { document?: { documentElement?: unknown } }).document;
   if (doc && !doc.documentElement) doc.documentElement = { style: {} };
@@ -18,8 +18,8 @@ import {
 } from "@/features/review/editorMarks";
 
 /**
- * 正文里的标注。这里不要 DOM：StateField 是纯状态，拿一个 EditorState 就能驱动，
- * 要验的三件事也都发生在状态层——喂得进去、跟着文档变化挪位置、撤得干净。
+ * Annotations in the body. No DOM here: the StateField is pure state and can be driven by an EditorState,
+ * and the three things to verify all happen at the state layer — they can be fed in, move with document changes, and clear cleanly.
  */
 
 const DOC = "第一行写了一句话\n第二行也写了一句话";
@@ -28,7 +28,7 @@ function state(doc = DOC) {
   return EditorState.create({ doc, extensions: [reviewMarksField] });
 }
 
-/** 把装饰摊平成好断言的数组 */
+/** Flatten decorations into an easy-to-assert array */
 function marks(set: DecorationSet) {
   const out: { from: number; to: number; cls: string; id: string | undefined }[] = [];
   set.between(0, Number.MAX_SAFE_INTEGER, (from, to, value) => {
@@ -65,7 +65,7 @@ describe("reviewMarksField", () => {
     expect(got[0].cls).toContain("cm-review-mark");
     expect(got[0].cls).toContain(markClass("verbose"));
     expect(got[0].cls).not.toContain("cm-review-active");
-    // 分类 id 未必是合法的 CSS 标识符，拼类名前要洗一遍
+    // Category ids aren't necessarily valid CSS identifiers, so sanitize before building class names
     expect(got[1].cls).toContain("cm-review-cat-__");
   });
 

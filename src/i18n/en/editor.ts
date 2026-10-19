@@ -1,6 +1,6 @@
-/** 编辑器：文章顶栏操作、封面、命令面板里的文章命令、查找面板、编辑区内的提示与占位字 */
+/** Editor: article toolbar actions, cover, article commands in the command palette, find panel, hints and placeholders in the editing area */
 export const editor: Record<string, string> = {
-  // 顶栏操作簇（插入 / 复制 / 审核 / 阅读 / 更多）
+  // Toolbar action cluster (insert / copy / review / read / more)
   插入: "Insert",
   图片: "Image",
   "视频（上传）": "Video (Upload)",
@@ -33,10 +33,10 @@ export const editor: Record<string, string> = {
   "源码模式（⌘/）": "Source Mode (⌘/)",
   "双屏预览（⌘E）": "Split Preview (⌘E)",
 
-  // 阅读模式外围
+  // Around reading mode
   切换排版主题: "Change theme",
 
-  // 命令面板：格式 / 视图 / 文章 / 复制导出
+  // Command palette: format / view / article / copy & export
   格式: "Format",
   加粗: "Bold",
   斜体: "Italic",
@@ -54,7 +54,7 @@ export const editor: Record<string, string> = {
   "移动到文件夹…": "Move to Folder…",
   复制导出: "Copy & Export",
 
-  // 复制与导出
+  // Copy and export
   "已复制！打开公众号后台编辑器直接粘贴": "Copied! Paste it into the WeChat editor",
   "已复制！打开知乎编辑器直接粘贴": "Copied! Paste it into the Zhihu editor",
   "复制失败：{error}": "Couldn't copy: {error}",
@@ -67,7 +67,7 @@ export const editor: Record<string, string> = {
   "PDF 生成失败（外链图片可能跨域受限）": "Couldn't generate PDF (external images may be blocked by CORS)",
   "PDF 已导出": "PDF exported",
 
-  // 发送到公众号草稿（本机草稿服务回报的状态与警告是中文原文，原样显示，不在这里）
+  // Send to WeChat Official Account drafts (status and warnings from the local draft service are Chinese originals shown as-is, not listed here)
   "没连上本机草稿服务，请重启 xEdit 再试": "Couldn't reach the local draft service. Restart xEdit and try again",
   请先给文章起个标题: "Give the article a title first",
   "正在生成公众号排版…": "Formatting for WeChat…",
@@ -96,7 +96,7 @@ export const editor: Record<string, string> = {
   "没有保存草稿：{message}": "Draft not saved: {message}",
   "发送失败：{error}": "Couldn't send: {error}",
 
-  // 封面
+  // Cover
   封面: "Cover",
   设置封面: "Set Cover",
   封面已失效: "Cover Missing",
@@ -140,7 +140,7 @@ export const editor: Record<string, string> = {
   "服务没有返回图片，请再试一次": "No image came back. Try again",
   生成结果不是图片数据: "The result isn't image data",
 
-  // 打开与保存文章
+  // Opening and saving articles
   本地文章不存在: "Local article not found",
   "离线中，这篇文章还没有缓存到本地，联网后打开一次即可离线使用":
     "You're offline and this article isn't cached. Open it once while online to use it offline",
@@ -152,7 +152,7 @@ export const editor: Record<string, string> = {
   "已同步云端，版本存档失败": "Synced to the cloud, but couldn't save a version",
   "云端暂不可达，已存本地稍后自动同步": "Cloud unavailable. Saved locally and will sync later",
 
-  // 飞书同步
+  // Feishu sync
   已手动停止: "Stopped manually",
   同步失败: "Sync failed",
   "服务端暂时不可用（HTTP {status}）": "Server temporarily unavailable (HTTP {status})",
@@ -161,7 +161,7 @@ export const editor: Record<string, string> = {
   "同步完成：内容没有变化": "Sync complete: no changes",
   "同步已停止，随时可以继续": "Sync stopped. Resume anytime",
 
-  // 双向链接
+  // Wiki links
   更新双向链接: "Update Links",
   "有 {n} 篇文章链接到「{old}」，一并改成「{new}」？":
     "{n} {n, article links, articles link} to “{old}”. Update them to “{new}”?",
@@ -171,7 +171,7 @@ export const editor: Record<string, string> = {
   文章不存在: "Article Not Found",
   "文章「{title}」还不存在，是否新建并打开？": "“{title}” doesn't exist yet. Create and open it?",
 
-  // 编辑区：上传、插入占位字、折叠
+  // Editing area: uploads, insert placeholders, folding
   "「{name}」{error}": "“{name}”: {error}",
   上传失败: "Upload failed",
   存入文库失败: "Couldn't save to library",
@@ -193,7 +193,7 @@ export const editor: Record<string, string> = {
   点击展开: "Click to expand",
   "已折叠，点击展开": "Folded. Click to expand",
 
-  // 查找替换面板（@codemirror/search 的 phrase）
+  // Find & replace panel (@codemirror/search phrases)
   查找: "Find",
   替换: "Replace",
   下一个: "Next",

@@ -7,12 +7,12 @@ import { tk } from "@/i18n/t";
 
 type Params = { params: Promise<{ id: string; versionId: string }> };
 
-/** 读取单个版本（含正文，用于回滚前预览） */
+/** Read a single version (with body, for preview before rollback) */
 export async function GET(_req: Request, { params }: Params) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
   const { id, versionId } = await params;
-  // 版本正文从 documentVersion 取，这里只确认这篇归你
+  // The version body comes from documentVersion; here we only confirm you own this doc
   const doc = await requireOwnedDoc(id, userId);
   if (isResponse(doc)) return doc;
 
@@ -24,8 +24,8 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 /**
- * 回滚到该版本：先把当前内容自动备份为一个版本（kind=restore），
- * 再用版本内容覆盖文档，返回更新后的文档。
+ * Roll back to this version: first auto-back up the current content as a version (kind=restore),
+ * then overwrite the doc with the version content and return the updated doc.
  */
 export async function POST(_req: Request, { params }: Params) {
   const userId = await requireUserId();
@@ -33,7 +33,7 @@ export async function POST(_req: Request, { params }: Params) {
   const denied = await readOnlyGuard(userId);
   if (denied) return denied;
   const { id, versionId } = await params;
-  // 回滚前要把当前标题与正文备份成一版，这两个字段得取
+  // Rollback backs up the current title and body as a version first, so those two fields are needed
   const doc = await requireOwnedDoc(id, userId, {
     select: { id: true, title: true, content: true },
   });
@@ -57,7 +57,7 @@ export async function POST(_req: Request, { params }: Params) {
   return NextResponse.json(updated);
 }
 
-/** 删除单个版本 */
+/** Delete a single version */
 export async function DELETE(_req: Request, { params }: Params) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;

@@ -1,6 +1,6 @@
-// 自定义主题引擎：十来个结构化参数 → 生成与内置主题同构的 CSS。
-// 颜色只填一个主色，深浅底色/边框/斑马纹全部从主色派生，
-// 保证怎么调都不会出「满屏荧光色」的翻车配色。
+// Custom theme engine: a dozen or so structured parameters → CSS isomorphic to the built-in themes.
+// Only one primary color is entered; light/dark backgrounds, borders and zebra stripes all derive from it,
+// so no amount of tweaking can produce a garish "neon everywhere" palette.
 
 import { t, tk } from "@/i18n/t";
 import { THEME_PRESETS, type ThemePreset } from "./presets";
@@ -8,25 +8,25 @@ import { THEME_PRESETS, type ThemePreset } from "./presets";
 export interface CustomThemeSpec {
   id: string;
   name: string;
-  /** 主色（#rrggbb） */
+  /** Primary color (#rrggbb) */
   accent: string;
-  /** h2 造型 */
+  /** h2 style */
   headingStyle: "plain" | "bar" | "underline" | "chip" | "wings";
-  /** h2 对齐（wings 造型固定居中） */
+  /** h2 alignment (the wings style is always centered) */
   headingAlign: "left" | "center";
-  /** 引用块造型 */
+  /** Blockquote style */
   quoteStyle: "bar" | "card" | "plain";
-  /** 链接下划线样式 */
+  /** Link underline style */
   linkStyle: "underline" | "dashed" | "plain";
-  /** 加粗是否着主色 */
+  /** Whether bold text uses the primary color */
   strongAccent: boolean;
-  /** 引用/色块圆角（px，0-16） */
+  /** Blockquote/color block corner radius (px, 0-16) */
   radius: number;
-  /** 正文用衬线字体 */
+  /** Serif font for body text */
   serif: boolean;
 }
 
-/** 自定义主题在 themeId 里的前缀，与内置 id 区分 */
+/** Prefix for custom themes in themeId, distinguishing them from built-in ids */
 export const CUSTOM_THEME_PREFIX = "custom:";
 
 export const HEADING_STYLE_OPTIONS: { value: CustomThemeSpec["headingStyle"]; label: string }[] = [
@@ -51,7 +51,7 @@ export const LINK_STYLE_OPTIONS: { value: CustomThemeSpec["linkStyle"]; label: s
 
 export function defaultCustomSpec(): Omit<CustomThemeSpec, "id"> {
   return {
-    // 新建那一刻按当前语言起默认名：存下来的是用户自己的主题名，之后不再跟着语言变
+    // Default name in the current language at creation: what's stored is the user's own theme name and won't follow language changes afterwards
     name: t("我的主题"),
     accent: "#1e6bb8",
     headingStyle: "underline",
@@ -64,7 +64,7 @@ export function defaultCustomSpec(): Omit<CustomThemeSpec, "id"> {
   };
 }
 
-// ---- 颜色派生 ----
+// ---- Color derivation ----
 
 function hexToRgb(hex: string): [number, number, number] {
   const m = hex.trim().match(/^#?([0-9a-f]{6})$/i);
@@ -79,11 +79,11 @@ function mix(hex: string, target: [number, number, number], ratio: number): stri
   return `#${out.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
-/** 与白色混合出浅底 */
+/** Mix with white for a light background */
 const tint = (hex: string, r: number) => mix(hex, [255, 255, 255], r);
-/** 与黑色混合出深一档 */
+/** Mix with black for one shade darker */
 const shade = (hex: string, r: number) => mix(hex, [0, 0, 0], r);
-/** 与中灰混合出降饱和的辅助色（图注等） */
+/** Mix with mid-gray for a desaturated accent (captions etc.) */
 const grayMix = (hex: string, r: number) => mix(hex, [150, 150, 150], r);
 
 function rgba(hex: string, alpha: number): string {
@@ -91,7 +91,7 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// ---- CSS 生成 ----
+// ---- CSS generation ----
 
 export function buildCustomThemeCss(spec: CustomThemeSpec): string {
   const accent = /^#[0-9a-f]{6}$/i.test(spec.accent) ? spec.accent : "#1e6bb8";
@@ -197,7 +197,7 @@ export function buildCustomThemeCss(spec: CustomThemeSpec): string {
   return rules.join("\n");
 }
 
-/** 转成与内置主题同构的 ThemePreset，供预览/复制/缩略图复用同一条链路 */
+/** Convert to a ThemePreset isomorphic to built-in themes, so preview/copy/thumbnails reuse the same pipeline */
 export function customThemeToPreset(spec: CustomThemeSpec): ThemePreset {
   return {
     id: CUSTOM_THEME_PREFIX + spec.id,
@@ -208,7 +208,7 @@ export function customThemeToPreset(spec: CustomThemeSpec): ThemePreset {
   };
 }
 
-/** 统一的主题解析口：内置 id 或 custom:xxx 都能拿到 ThemePreset */
+/** Unified theme resolver: built-in ids and custom:xxx both yield a ThemePreset */
 export function resolveTheme(themeId: string, customThemes: CustomThemeSpec[]): ThemePreset {
   if (themeId.startsWith(CUSTOM_THEME_PREFIX)) {
     const raw = themeId.slice(CUSTOM_THEME_PREFIX.length);
@@ -218,7 +218,7 @@ export function resolveTheme(themeId: string, customThemes: CustomThemeSpec[]): 
   return THEME_PRESETS.find((t) => t.id === themeId) ?? THEME_PRESETS[0];
 }
 
-/** 校验并规整从远端/本地读回的自定义主题列表（历史数据可能残缺） */
+/** Validate and normalize custom theme lists read back from remote/local (legacy data may be incomplete) */
 export function sanitizeCustomThemes(value: unknown): CustomThemeSpec[] {
   if (!Array.isArray(value)) return [];
   const defaults = defaultCustomSpec();

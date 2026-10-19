@@ -1,21 +1,21 @@
 /**
- * 与磁盘对账：Obsidian 等外部编辑器在库里新增/改动/删掉的文件，扫一遍反映进内存缓存。
- * 自己写的不算外部改动 —— 每次写完都会把 file.lastModified 记回 entry.mtime，
- * 对账时 mtime 一致的连正文都不用读。
+ * Disk rescan: scan for files added/changed/deleted in the library by external editors like Obsidian, and reflect them in the in-memory cache.
+ * Our own writes aren't external changes: every write stores file.lastModified back into entry.mtime,
+ * so files with matching mtime don't even need their body read.
  */
 
 import { summarize } from "./types";
 import { makeEntry, uniqueDocId, type Entry, type VaultCtx } from "./vaultEntry";
 import { readVaultFiles, walkVault } from "./vaultFs";
 
-/** 变动文档的 id */
+/** Ids of changed documents */
 export interface RescanResult {
   added: string[];
   changed: string[];
   removed: string[];
 }
 
-/** 返回的 rescan 是可重入安全的：一轮还没跑完时再调，跟着同一个 Promise 走 */
+/** The returned rescan is reentrancy-safe: calling again mid-run joins the same Promise */
 export function createRescanner(
   ctx: VaultCtx,
   onScanned: () => void
@@ -30,7 +30,7 @@ export function createRescanner(
 }
 
 async function run(ctx: VaultCtx, onScanned: () => void): Promise<RescanResult> {
-  // 先把队列里的写落盘：否则自己还没写出去的文件会被当成「磁盘上没有」而被清掉
+  // Flush queued writes first, or files we haven't written yet would look "missing on disk" and get purged
   await ctx.flush();
   const { files, dirs } = await walkVault(ctx.root);
   const byRel = new Map<string, Entry>();
@@ -44,7 +44,7 @@ async function run(ctx: VaultCtx, onScanned: () => void): Promise<RescanResult> 
     files,
     (path, mtime, text) => {
       seen.add(path);
-      if (text === null) return; // mtime 没变，不是外部改动
+      if (text === null) return; // mtime unchanged, not an external change
       const hit = byRel.get(path);
       if (!hit) {
         const entry = makeEntry(path, text, mtime, uniqueDocId(ctx.docs, path));
@@ -52,7 +52,7 @@ async function run(ctx: VaultCtx, onScanned: () => void): Promise<RescanResult> 
         added.push(entry.meta.id);
         return;
       }
-      // 路径没变，标题与分类也就没变，只刷正文、摘要和时间
+      // Path unchanged means title and category are too; refresh only body, excerpt and time
       hit.content = text;
       hit.mtime = mtime;
       hit.meta.updatedAt = new Date(mtime).toISOString();
@@ -67,7 +67,7 @@ async function run(ctx: VaultCtx, onScanned: () => void): Promise<RescanResult> 
     ctx.docs.delete(id);
     removed.push(id);
   }
-  // 分类以磁盘为准：队列已排空，缓存里不会再有「还没建出来」的目录
+  // Categories follow the disk: the queue is drained, so the cache has no "not yet created" folders
   ctx.cats.clear();
   for (const d of dirs) ctx.cats.add(d);
   onScanned();

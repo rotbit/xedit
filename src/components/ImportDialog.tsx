@@ -11,12 +11,12 @@ import { UNCATEGORIZED } from "@/lib/docDefaults";
 import { Modal, btnPrimary } from "./Modal";
 import { useT } from "@/i18n/useT";
 
-/** 失败清单最多列这么多条，再多只报总数——弹窗不该被一个坏文件夹撑成长卷 */
+/** Cap on listed failures; beyond this only the total is reported — one bad folder shouldn't turn the dialog into a scroll */
 const MAX_FAILED_SHOWN = 20;
 
 /**
- * 导入本地 Markdown：选文件或选整个文件夹，一次性导入成文章。
- * 单向、手动触发，不是同步——重复导入按「同分类 + 同标题」幂等。
+ * Import local Markdown: pick files or a whole folder and import them as articles in one go.
+ * One-way and manual, not a sync — re-importing is idempotent on "same category + same title".
  */
 export function ImportDialog({
   mode: initialMode,
@@ -25,7 +25,7 @@ export function ImportDialog({
   importer,
 }: {
   mode: ImportMode;
-  /** 指定落点（从文件树里某个文件夹发起导入时带上）；不给就落在当前分类 */
+  /** Target location (passed when import starts from a folder in the file tree); without it, imports go to the current category */
   targetCat?: string;
   onClose: () => void;
   importer: DocImporter;
@@ -33,22 +33,22 @@ export function ImportDialog({
   const t = useT();
   const [mode, setMode] = useState<ImportMode>(initialMode);
   const [result, setResult] = useState<ImportResult | null>(null);
-  // 自己也记一份「跑着呢」：importer.importing 落回 false 与结果到手之间隔着一次渲染，
-  // 只看它会闪回选择界面一帧
+  // Track "running" ourselves too: there's a render between importer.importing going false and the result arriving,
+  // so relying on it alone flashes the picker screen for a frame
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { progress } = importer;
-  // 关掉这个弹窗不会中断导入，但结果摘要就再也看不到了，所以跑着时先不给关
+  // Closing this dialog doesn't stop the import, but the result summary would be lost, so it can't be closed while running
   const running = busy || importer.importing;
 
-  /** 同一个隐藏 input 两用：点之前按当前模式改属性（webkitdirectory 是 DOM 属性，JSX 上没有类型） */
+  /** One hidden input, two uses: set attributes per mode before clicking (webkitdirectory is a DOM attribute with no JSX typing) */
   const pick = () => {
     const el = inputRef.current;
     if (!el) return;
     el.webkitdirectory = mode === "folder";
     el.multiple = true;
     el.accept = mode === "folder" ? "" : ".md,.markdown";
-    el.value = ""; // 清掉上次的选择，重选同一个文件夹也照样触发 change
+    el.value = ""; // Clear the previous selection so re-picking the same folder still fires change
     el.click();
   };
 
@@ -58,12 +58,12 @@ export function ImportDialog({
     setBusy(true);
     const done = await importer.importFiles(files, mode, targetCat);
     setBusy(false);
-    setResult(done); // 与上一行同批提交，中间不会露出别的阶段
+    setResult(done); // Committed in the same batch as the line above, so no other phase shows in between
   };
 
   return (
     <Modal
-      // 标题跟菜单条目同名，点哪条进来就看到哪条
+      // The title matches the menu item, so you see the one you came in through
       title={mode === "folder" ? t("导入文件夹") : t("导入文件")}
       icon={<FileInput size={16} className="text-[var(--accent)]" />}
       width={520}
@@ -80,7 +80,7 @@ export function ImportDialog({
         <Pick
           mode={mode}
           targetCat={targetCat ?? importer.targetCat}
-          // 指定了落点就直说是哪个文件夹，没指定才是「当前分类」——两者常常不是同一个
+          // With a target set, name the folder explicitly; only without one is it 「当前分类」 (Current category) — the two are often different
           picked={targetCat !== undefined}
           onSwitch={setMode}
           onPick={pick}
@@ -90,7 +90,7 @@ export function ImportDialog({
   );
 }
 
-/** 第一阶段：说明 + 选择入口，另给一个「改为导入文件夹 / 文件」的小切换 */
+/** Phase one: explanation + pickers, plus a small 「改为导入文件夹 / 文件」 (Import folder / files instead) toggle */
 function Pick({
   mode,
   targetCat,
@@ -100,14 +100,14 @@ function Pick({
 }: {
   mode: ImportMode;
   targetCat: string;
-  /** 落点是调用方指定的（右键某个文件夹），而不是「当前分类」推出来的 */
+  /** The target was specified by the caller (right-clicked a folder), not inferred from the "current category" */
   picked: boolean;
   onSwitch: (mode: ImportMode) => void;
   onPick: () => void;
 }) {
   const t = useT();
   const folder = mode === "folder";
-  // 「未分类」是存储名，显示时才翻；其余分类名是用户自己起的，原样显示
+  // 「未分类」 (Uncategorized) is a storage name translated only for display; other category names are user-chosen and shown as-is
   const cat = targetCat === UNCATEGORIZED ? t(UNCATEGORIZED) : targetCat;
   return (
     <div className="flex flex-col gap-4 px-5 py-6">
@@ -141,7 +141,7 @@ function Pick({
   );
 }
 
-/** 第二阶段：进度 */
+/** Phase two: progress */
 function Running({ done, total }: { done: number; total: number }) {
   const t = useT();
   return (
@@ -154,7 +154,7 @@ function Running({ done, total }: { done: number; total: number }) {
   );
 }
 
-/** 第三阶段：结果摘要 */
+/** Phase three: result summary */
 function Done({ result, onClose }: { result: ImportResult; onClose: () => void }) {
   const { created, updated, skipped, failed, imageFailed } = result;
   const nothing = created + updated + skipped + failed.length === 0;

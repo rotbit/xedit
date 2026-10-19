@@ -1,6 +1,6 @@
 /**
- * 未登录期建的本地文档上云：POST 带 clientKey（服务端据此幂等，断网重发不会传出两份），
- * 上传往返期间用户又改了这篇时，最新内容要活下来。走的是真实的 syncNow 整轮流程。
+ * Uploading local docs created while signed out: POST carries clientKey (the server uses it for idempotency, so resends after a dropped connection don't create duplicates),
+ * and if the user edits the doc during the upload round trip, the latest content must survive. Runs the real full syncNow round.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -59,7 +59,7 @@ describe("本地文档上云", () => {
     const posted = JSON.parse(
       fetchMock.mock.calls.find((c) => c[1]?.method === "POST")![1]!.body!
     ) as { clientKey: string; title: string; content: string };
-    expect(posted.clientKey).toBe(local.id); // 本地 id 天然唯一稳定，拿来当幂等键
+    expect(posted.clientKey).toBe(local.id); // Local ids are inherently unique and stable, so they serve as idempotency keys
     expect(posted.content).toBe("离线写的");
 
     expect(mods.listLocalDocs()).toHaveLength(0);
@@ -73,7 +73,7 @@ describe("本地文档上云", () => {
 
     const fetchMock = vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
       if (init?.method === "POST") {
-        // 请求在飞的时候用户接着写
+        // The user keeps writing while the request is in flight
         mods.updateLocalDoc(local.id, { content: "第一版 + 又写了两段" });
         return jsonRes({
           id: "srv-1",
@@ -94,7 +94,7 @@ describe("本地文档上云", () => {
 
     expect(mods.listLocalDocs()).toHaveLength(0);
     const meta = mods.getMirrorMeta("srv-1")!;
-    expect(meta.dirty).toBe(true); // 等着推送队列把新内容送上去
+    expect(meta.dirty).toBe(true); // Wait for the push queue to send the new content up
     expect(mods.getMirrorContent("srv-1")).toBe("第一版 + 又写了两段");
   });
 });

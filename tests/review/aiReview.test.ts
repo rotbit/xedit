@@ -9,11 +9,11 @@ import { AiReviewError, requestAiReview, runReview } from "@/features/review/aiR
 import { formatRecordTime } from "@/features/review/history";
 
 /**
- * 网页这头发出去的那一次请求：发对了什么、没发什么、服务端回的错怎么传到界面上。
+ * The one request the web client sends: what it sends correctly, what it doesn't send, and how server errors reach the UI.
  *
- * 全程假 fetch——真打一趟要钱要等，而要验的东西（body 里有没有 kind、
- * 请求体里有没有混进 key、401 的说法有没有原样带上来）都在报文里。
- * 还有一条是这一版新钉的：没 key 也不许偷偷退回本地假数据，该报错就报错。
+ * Fake fetch throughout — a real call costs money and time, and what we want to verify (whether body has kind,
+ * whether a key slipped into the request body, whether the 401 message comes through verbatim) is all in the request/response.
+ * One more is newly pinned in this version: without a key it must not quietly fall back to local fake data; it should error.
  */
 
 const CONTENT = "# 标题\n\n正文里有一句想让人挑挑毛病的话。";
@@ -27,7 +27,7 @@ const ok = (over: Record<string, unknown> = {}) =>
 const fail = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-/** 记下每次调用的假 fetch；按顺序返回预备好的响应 */
+/** Fake fetch that records every call and returns the prepared responses in order */
 function fakeFetch(...responses: (Response | Error)[]) {
   const calls: { url: string; body: Record<string, unknown> }[] = [];
   const impl = vi.fn(async (url: string | URL | Request, init: RequestInit = {}) => {
@@ -58,7 +58,7 @@ describe("审核历史：回包里的 record、回看时的时间", () => {
     expect(calls[0].body.docId).toBe("doc-1");
     expect(run.record).toEqual(record);
     expect(run.result.summary).toBe("还行");
-    // 没存成（或老服务端）：意见照给，record 是 null
+    // Not saved (or an old server): suggestions still returned, record is null
     expect((await requestAiReview(CONTENT, readAiConfig())).record).toBeNull();
   });
 

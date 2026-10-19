@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 今天页左栏：日期标题 + 快速输入 + 逾期与今天的待办。
- * 明天以后的都在右栏「接下来」，这里只放今天该处理的事（清单里没定日期的也算今天）。
- * 列表下面是「本周已完成」：今天勾掉的事（当日日志，刷新后从列表消失的也还留在这里）与本周往前几天按天列出的；
- * 段末一行「历史已完成」进历史页。「最近打开」在右栏 UpcomingColumn 里，不在这个组件内。
+ * Today page left column: date heading + quick add + overdue and today's todos.
+ * Anything after tomorrow is in the right column's "Up next"; this only holds what's due today (undated list items count as today).
+ * Below the list is "Done this week": things checked today (from the daily log, still here even after a refresh drops them from the list) plus earlier days this week by day;
+ * the section ends with a "Completed history" row leading to the history page. "Recently opened" is in the right column's UpcomingColumn, not here.
  */
 import { CalendarDays, ChevronRight, FileText, Repeat } from "lucide-react";
 import type { TFn } from "@/i18n/t";
@@ -39,7 +39,7 @@ import { doneCountAll, writingToday } from "./doneToday";
 import { QuickAdd } from "./QuickAdd";
 import { dragRowCls, useTodoDrag } from "./useTodoDrag";
 
-/** 行尾 hover 才露出来的小按钮（关联文章 / 变更日期）：标成菜单触发器，开关由按钮自己 toggle */
+/** Small buttons revealed on row hover (link doc / change date): marked as menu triggers and toggled by the button itself */
 function MenuTrigger({ open, onClick, children }: { open: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -79,10 +79,10 @@ function TodoRow({
   const linkId = `${id}|link`;
   const linkOpen = actions.menuId === linkId;
   const repeat = item.repeat !== null;
-  // 时间段过了结束日才算逾期；逾期标签上的日期也是结束日。每日任务的 due 是现算的今天，不会逾期也不成段
+  // A range is only overdue once past its end date; the overdue label shows the end date too. A daily task's due is computed as today, so it's never overdue or a range
   const last = item.end ?? item.due;
   const late = !repeat && !done && last !== null && last < today;
-  // 进行中的时间段：注明起止和今天是第几天（逾期的照样显示逾期标签）
+  // Ongoing range: show start–end and which day of it today is (overdue ones still show the overdue label)
   const span =
     !repeat && !done && !late && item.due && item.end
       ? {
@@ -96,12 +96,12 @@ function TodoRow({
   const textCls = `text-left text-[14.5px] leading-[1.45] ${
     done ? "text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]" : ""
   }`;
-  // 点文字去哪：正文里的待办回那篇；清单里的事那篇对用户隐形，关联了文章才可点、去关联的那篇
+  // Where clicking the text goes: body todos go to their doc; list items' doc is invisible to the user, so they're clickable only when linked, and go to the linked doc
   const openId = item.source === "notes" ? (linked?.id ?? null) : item.docId;
   const canLink = !done && item.source === "notes";
-  // 发布排期不是正文里的一行，没东西可删
+  // Publish schedules aren't a body line, so there's nothing to delete
   const canRemove = !done && item.source !== "publish";
-  // 做完的不可拖：它已不在任何一天的安排里
+  // Done items can't be dragged: they're no longer scheduled on any day
   const drag = useTodoDrag();
   return (
     <div
@@ -110,7 +110,7 @@ function TodoRow({
     >
       <TodoBox done={done} onClick={onToggle} label={done ? t("取消完成") : t("标记完成")} />
       <div className="min-w-0 flex-1">
-        {/* 点文字去看出处：待办常常要回到文章里才知道具体怎么做 */}
+        {/* Click the text to see the source: todos often need the doc for the details */}
         {openId ? (
           <button
             type="button"
@@ -129,7 +129,7 @@ function TodoRow({
           </div>
         ) : null}
       </div>
-      {/* 悬停操作在前、状态标签在后：操作平时透明但占位，标签放最右才能每行对齐，不被它们顶到行中间 */}
+      {/* Hover actions first, status labels after: actions are transparent but take space, and labels at the far right line up across rows instead of being pushed mid-row */}
       {canLink ? (
         <MenuTrigger open={linkOpen} onClick={() => actions.setMenuId(linkOpen ? null : linkId)}>
           {t("关联文章")} ▾
@@ -186,8 +186,8 @@ function clock(ts: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** 「做完了」里的一行：只读，不跳转；误记的可以删掉这条记录（只删日志，不动正文） */
-/** 做完的一行；给了 onUndo（今天的）才能点勾取消，过去几天的只读 */
+/** A row in "Done": read-only, no navigation; a mistaken entry can be deleted (only the log record, not the body) */
+/** A done row; only with onUndo (today's) can the check be clicked to undo; earlier days are read-only */
 function DoneRow({ day, e, t, onUndo }: { day: string; e: DayEvent; t: TFn; onUndo?: () => void }) {
   return (
     <div className="group flex items-start gap-2.5 px-0.5 py-1.5">
@@ -202,8 +202,8 @@ function DoneRow({ day, e, t, onUndo }: { day: string; e: DayEvent; t: TFn; onUn
 }
 
 /**
- * 「本周已完成」：先是今天勾掉的事（点勾可以改回没做），再按天列本周往前几天做完的（只读）。
- * 有多少列多少，不折叠：用户要一眼看全本周做了什么。段末一行是「历史已完成」入口，去历史页看全部。
+ * "Done this week": first what was checked today (click the check to mark it undone), then earlier days this week by day (read-only).
+ * Show everything, no collapsing: the user wants to see the whole week at a glance. The last row is the "Completed history" entry to the history page.
  */
 function DoneSection({
   today,
@@ -217,7 +217,7 @@ function DoneSection({
   today: string;
   done: DayEvent[];
   week: { day: string; events: DayEvent[] }[];
-  /** 本地日志里全部做完过的事（doneCountAll） */
+  /** Everything ever done in the local log (doneCountAll) */
   total: number;
   t: TFn;
   onUndo: (e: DayEvent) => void;
@@ -226,7 +226,7 @@ function DoneSection({
   const locale = useLocale();
   if (done.length === 0 && week.length === 0 && total === 0) return null;
   const count = done.length + week.reduce((sum, g) => sum + g.events.length, 0);
-  // 昨天说「昨天」更顺口；更早的用「周三 · 10/7」，星期帮人回想、日期防歧义
+  // "Yesterday" reads better for yesterday; earlier days use 「周三 · 10/7」 — weekday helps recall, date avoids ambiguity
   const dayName = (day: string) =>
     day === shiftDay(today, -1)
       ? t("昨天")
@@ -294,35 +294,35 @@ export function TodayMain({
   onOpenHistory,
 }: {
   today: string;
-  /** 逾期 + 今天 + 这次刚勾掉的 */
+  /** Overdue + today + just checked */
   rows: TodoItem[];
-  /** 今天勾掉、且已不在 rows 里的事（doneToday 算好传进来） */
+  /** Checked today and no longer in rows (computed by doneToday and passed in) */
   done: DayEvent[];
-  /** 本周（周一起）往前几天做完的事，不含今天，按天倒序（doneThisWeek 算好传进来） */
+  /** Done on earlier days this week (from Monday), excluding today, newest day first (computed by doneThisWeek and passed in) */
   week: { day: string; events: DayEvent[] }[];
   isDone: (item: TodoItem) => boolean;
-  /** 「关联文章」的候选池：用户看得见的文章（不含待办清单那篇） */
+  /** Candidate pool for "Link doc": user-visible docs (excluding the todo-list doc) */
   docs: DocMeta[];
-  /** 右栏也一件没有、今天和本周也没做完过事：整页全空，左栏换成带插画的引导空态 */
+  /** Nothing in the right column either, and nothing done today or this week: the whole page is empty, so the left column shows the illustrated onboarding */
   allEmpty: boolean;
-  /** 全库是否载完：没载完时找不到清单那篇，提交会误建一篇新的，先锁住输入 */
+  /** Whether the whole library has loaded: until then the todo-list doc can't be found and a submit would create a new one, so input is locked */
   ready: boolean;
   actions: RowActions;
   onToggle: (item: TodoItem, checked: boolean) => void;
-  /** 「做完了」里点勾：改回没做，回到列表 */
+  /** Clicking the check in "Done": mark undone, back to the list */
   onUndo: (e: DayEvent) => void;
   onAdd: (text: string, target: AddTarget) => Promise<boolean>;
-  /** 「历史已完成」入口：去历史页 */
+  /** "Completed history" entry: go to the history page */
   onOpenHistory: () => void;
 }) {
   const t = useT();
-  // 日期格式化显式传 context 里的语言：服务端渲染时模块变量是各请求共享的，不可靠
+  // Pass the context locale explicitly when formatting dates: during SSR module variables are shared across requests and unreliable
   const locale = useLocale();
   const title = formatDayTitle(today, locale);
-  // 今天写了多少放在日期下面：首页该一眼看出「今天做了什么」，比在列表底下填东西有用；
-  // 日志变化由 TodayView 的信号触发重渲染，这里每次渲染现读即可
+  // Today's writing total goes under the date: the home page should show "what I did today" at a glance, more useful than filler at the bottom of the list;
+  // log changes trigger re-renders via TodayView's signals, so reading fresh on every render is fine
   const wrote = writingToday(today);
-  // 列表区是「今天」的落点；只接右栏拖来的（开始日在今天之后），逾期 / 今天的本就在这里
+  // The list area is the drop target for "today"; it only accepts drags from the right column (starting after today) — overdue / today items are already here
   const drag = useTodoDrag();
   const listDrop = drag.dropProps(today, { accept: (i) => i.due !== null && i.due > today });
   return (
@@ -348,7 +348,7 @@ export function TodayMain({
           <div className="divide-y divide-[var(--hairline-soft)]">
             {rows.map((item) => {
               const done = isDone(item);
-              // 发布排期勾上就写进了 published: true，没有「取消发布」这回事
+              // Checking a publish schedule writes published: true; there's no "unpublish"
               const locked = done && item.source === "publish";
               return (
                 <TodoRow

@@ -1,6 +1,6 @@
 /**
- * 整批落镜像：一次全量同步几百篇，索引只能读写一次、列表只能刷新一次，
- * 重复的一批不该白写正文；单篇写失败（配额满）也不能连累其余篇。
+ * Batch mirror writes: a full sync of hundreds of docs must read/write the index once and refresh the list once,
+ * a duplicate batch shouldn't rewrite bodies for nothing, and one doc failing to write (quota full) mustn't drag down the rest.
  */
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -13,7 +13,7 @@ import {
 import { DOCS_CHANGED_EVENT } from "@/lib/localDocs";
 import { storage } from "../setup";
 
-/** 与 docStore 内部保持一致：索引一个 key，正文按 id 分 key */
+/** Matches docStore internals: one key for the index, bodies keyed by id */
 const INDEX_KEY = "xedit-mirror-index";
 const DOC_PREFIX = "xedit-mirror-doc:";
 
@@ -26,7 +26,7 @@ const makeDocs = (n: number) =>
     updatedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
   }));
 
-/** 统计这一段代码里索引 key 的读写次数与列表刷新广播次数 */
+/** Count index key reads/writes and list-refresh broadcasts during this span */
 function measure(run: () => void) {
   const getSpy = vi.spyOn(storage, "getItem");
   const setSpy = vi.spyOn(storage, "setItem");
@@ -133,7 +133,7 @@ describe("applyServerDocs", () => {
     expect(after.updatedAt).toBe(before.updatedAt);
     expect(after.rev).toBe(before.rev);
     expect(after.dirty).toBe(before.dirty);
-    // 已有的不覆盖
+    // Existing ones aren't overwritten
     setMirrorCreatedAt(doc.id, "2020-01-01T00:00:00.000Z");
     expect(getMirrorMeta(doc.id)?.createdAt).toBe("2025-12-31T08:00:00.000Z");
   });

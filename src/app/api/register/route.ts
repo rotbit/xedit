@@ -6,7 +6,7 @@ import { tk } from "@/i18n/t";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** 邮箱 + 密码自助注册；成功后前端再用 credentials 登录换取会话 */
+/** Email + password self-signup; on success the frontend signs in with credentials to get a session */
 export async function POST(req: Request) {
   let body: { email?: unknown; password?: unknown; name?: unknown };
   try {
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await hashPassword(password);
-  // 邮箱注册不经过 auth 的 createUser 事件，欢迎稿在这里随账号一起建（只此一次）
+  // Email signup skips auth's createUser event, so the welcome doc is created here with the account (once only)
   await prisma.user.create({
     data: {
       email,

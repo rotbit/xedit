@@ -1,6 +1,6 @@
 /**
- * Vault 的文档条目与共用上下文：id、磁盘路径、分类之间的换算规则都收在这里，
- * 正库（vaultBackend）、回收站（vaultTrash）、磁盘对账（vaultRescan）三边共用同一套。
+ * Vault document entries and shared context: conversion rules between ids, disk paths and categories live here,
+ * shared by the main library (vaultBackend), trash (vaultTrash) and disk rescan (vaultRescan).
  */
 
 import { UNCATEGORIZED } from "@/features/workspace/constants";
@@ -9,9 +9,9 @@ import { baseName, parentPath } from "./vaultFs";
 
 export const ID_PREFIX = "local-v:";
 
-/** 内存缓存里的一篇：meta 给界面，content 给编辑器，relPath 指磁盘位置；
- *  mtime 是最后一次「我们自己写」或「从磁盘读」时的 file.lastModified ——
- *  对账时靠它把自己的写入排除掉，只认外部编辑器的改动 */
+/** One document in the in-memory cache: meta for the UI, content for the editor, relPath for its disk location;
+ *  mtime is file.lastModified from the last time we wrote it ourselves or read it from disk;
+ *  rescans use it to exclude our own writes and only pick up changes from external editors */
 export type Entry = {
   meta: LocalDocMeta;
   content: string;
@@ -19,29 +19,29 @@ export type Entry = {
   mtime: number;
 };
 
-/** 各子模块共用的会话上下文：根句柄 + 内存缓存 + 写队列 */
+/** Session context shared by submodules: root handle + in-memory cache + write queue */
 export interface VaultCtx {
   readonly root: FileSystemDirectoryHandle;
-  /** 正库：id → 条目，relPath 相对库根 */
+  /** Main library: id → entry, relPath relative to the library root */
   readonly docs: Map<string, Entry>;
-  /** 回收站：id → 条目，relPath 相对 .trash 目录 */
+  /** Trash: id → entry, relPath relative to the .trash folder */
   readonly trash: Map<string, Entry>;
   readonly cats: Set<string>;
-  /** 写操作串行队列：界面不等磁盘 */
+  /** Serial write queue: the UI never waits on disk */
   enqueue: (op: () => Promise<void>) => void;
-  /** 等当前写队列排空 */
+  /** Wait for the write queue to drain */
   flush: () => Promise<void>;
 }
 
-/** 分类 → 目录相对路径：未分类就是库根 */
+/** Category → relative folder path: uncategorized is the library root */
 export const catDir = (cat: string): string => (cat === UNCATEGORIZED ? "" : cat);
-/** 目录相对路径 → 分类：库根就是未分类 */
+/** Relative folder path → category: the library root is uncategorized */
 export const dirCat = (dir: string): string => dir || UNCATEGORIZED;
 export const join = (dir: string, name: string): string => (dir ? `${dir}/${name}` : name);
 export const stripMd = (name: string): string => name.replace(/\.md$/i, "");
 
-/** 从磁盘读到的一篇：文件名即标题、目录即分类，updatedAt 只认文件 mtime
- *  （外部编辑器改过的也能正确排到前面）。id 默认按路径推，撞了由调用方给 */
+/** A document read from disk: filename is the title, folder is the category, updatedAt is the file mtime only
+ *  (so files edited by external editors sort correctly). Id defaults to the path; on clash the caller supplies one */
 export function makeEntry(relPath: string, content: string, mtime: number, id?: string): Entry {
   return {
     relPath,
@@ -57,13 +57,13 @@ export function makeEntry(relPath: string, content: string, mtime: number, id?: 
   };
 }
 
-/** 分类连同各级祖先一起登记，侧栏树中间层不会缺节点 */
+/** Register a category along with all its ancestors so the sidebar tree has no missing intermediate nodes */
 export function addCat(cats: Set<string>, cat: string): void {
   const segs = cat.split("/").filter(Boolean);
   for (let i = 1; i <= segs.length; i++) cats.add(segs.slice(0, i).join("/"));
 }
 
-/** 同目录下撞名就追加 " 1"、" 2"…；skipId 是自己（改名时不该和自己撞） */
+/** On a name clash in the same folder, append " 1", " 2"...; skipId is self (a rename shouldn't clash with itself) */
 export function uniqueName(
   entries: Iterable<Entry>,
   dirPath: string,
@@ -81,8 +81,8 @@ export function uniqueName(
   return name;
 }
 
-/** id 按路径推（local-v:<relPath>），但会话内改名只改 relPath 不动 id，
- *  老 id 可能还占着这个路径；撞了就加 #2、#3…，保证会话内 id 唯一 */
+/** Ids derive from the path (local-v:<relPath>), but in-session renames change only relPath, not the id,
+ *  so an old id may still claim this path; on clash append #2, #3... to keep ids unique within the session */
 export function uniqueDocId(docs: Map<string, Entry>, relPath: string): string {
   const base = ID_PREFIX + relPath;
   if (!docs.has(base)) return base;

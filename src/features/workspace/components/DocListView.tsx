@@ -8,7 +8,7 @@ import { UNCATEGORIZED } from "../constants";
 import { displayCatPath } from "../lib/catPath";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 紧凑列表视图：一行一篇，右侧依次为分类、字数、时间（「最近打开」视图里是 max(打开, 编辑)） */
+/** Compact list view: one document per row, with category, word count and time on the right (in the 「最近打开」 (Recent) view, time is max(opened, edited)) */
 export function DocListView({ ws }: { ws: Workspace }) {
   const { nav, menus, drag, filtered, timeOf } = ws;
   const t = useT();
@@ -44,7 +44,7 @@ export function DocListView({ ws }: { ws: Workspace }) {
             </span>
             <button
               className="invisible cursor-pointer rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-[var(--ink)] group-hover:visible [@media(hover:none)]:visible"
-              // 菜单触发器：外部关闭逻辑放它一马，再点一次由这里 toggle 关掉
+              // Menu trigger: the outside-click logic spares it, so clicking again toggles it closed here
               data-menu-trigger
               onClick={(e) => menus.toggleDocMenuAt(e, doc.id)}
             >

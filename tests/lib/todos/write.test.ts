@@ -1,6 +1,6 @@
 /**
- * 待办写回：走真实的本地文档存储（未登录 / 本地模式那条路），
- * 编辑器没挂着任何一篇，所以读写都直接落存储。
+ * Todo write-back: goes through the real local document storage (the signed-out / local mode path),
+ * with no doc mounted in the editor, so reads and writes hit storage directly.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDocContent } from "@/lib/docContent";
@@ -110,7 +110,7 @@ describe("每日任务写回", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 9, 10, 9));
     const doc = createLocalDoc({ title: "A", content: "新插的一行\n# A\n- [x] 跑步 @每天:2026-10-09\n" });
-    // 行号对不上、原始框又是 [x]：照样认出这是今天还没做的那条
+    // Line number doesn't match and the raw box is [x]: it's still recognized as the one not yet done today
     await setTaskChecked(item(doc.id, 1, "跑步"), true);
     expect(getDocContent(doc.id)).toBe("新插的一行\n# A\n- [x] 跑步 @每天:2026-10-10\n");
     await setTaskChecked({ ...item(doc.id, 2, "跑步"), checked: true, repeat: "daily" }, false);

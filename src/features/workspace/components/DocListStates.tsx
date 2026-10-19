@@ -5,7 +5,7 @@ import { useT } from "@/i18n/useT";
 import { ALL } from "../constants";
 import { displayCatPath } from "../lib/catPath";
 
-/** 首次装载时的时间流骨架：一个日期组 + 四行标题/摘要占位，形状对齐真实列表 */
+/** Timeline skeleton on first load: one date group + four title/excerpt placeholder rows, shaped like the real list */
 export function DocListSkeleton() {
   return (
     <div className="mt-4 grid gap-1.5 pb-[22px] sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-6">
@@ -22,7 +22,7 @@ export function DocListSkeleton() {
   );
 }
 
-/** 空态：按搜索 / 回收站 / 全部 / 某分类分别给出不同措辞 */
+/** Empty state: different wording for search / trash / all / a specific category */
 export function DocListEmpty({
   search,
   isTrash,

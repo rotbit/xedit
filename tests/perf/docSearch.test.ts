@@ -1,7 +1,7 @@
 /**
- * 侧栏搜索的性能与语义回归。
- * 正文读取整条换成内存桩：这里要量的是「命中判定 + 摘要」这段算力，
- * 而不是 localStorage 的快慢；顺带让 getDocContent 的调用次数可数。
+ * Performance and semantic regression tests for sidebar search.
+ * Body reads are replaced wholesale by an in-memory stub: what we measure is the "match check + excerpt" compute,
+ * not localStorage speed; it also makes getDocContent calls countable.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,11 +21,11 @@ import { pruneIndex } from "@/lib/docIndex";
 import { searchDocIds, searchDocs } from "@/lib/docSearch";
 import type { DocMeta } from "@/features/workspace/types";
 
-/** 被搜的词：只出现在正文里，逼着两条路径都把正文摊开比一遍 */
+/** The search term: only appears in bodies, forcing both paths to unpack and compare the body */
 const KEYWORD = "光合作用";
 const DOC_COUNT = 1000;
 
-/** 固定生成的文库：内容长度、命中分布每次跑都一样，数字才可比 */
+/** Deterministically generated library: content lengths and hit distribution are the same every run, so numbers are comparable */
 function makeDocs(n: number): DocMeta[] {
   const docs: DocMeta[] = [];
   for (let i = 0; i < n; i++) {
@@ -49,7 +49,7 @@ function makeDocs(n: number): DocMeta[] {
 
 const docs = makeDocs(DOC_COUNT);
 
-/** 跑 rounds 轮取最快的一轮：单测机上别的进程会抖，最小值最接近真实开销 */
+/** Run `rounds` rounds and take the fastest: other processes on the test machine add jitter, and the minimum is closest to real cost */
 function fastest(rounds: number, fn: () => unknown): number {
   let best = Infinity;
   for (let i = 0; i < rounds; i++) {
@@ -61,7 +61,7 @@ function fastest(rounds: number, fn: () => unknown): number {
 }
 
 beforeEach(() => {
-  pruneIndex([]); // 每个用例都从冷索引开始
+  pruneIndex([]); // Every case starts from a cold index
   reads.n = 0;
 });
 
@@ -94,7 +94,7 @@ describe("searchDocIds", () => {
   });
 
   it(`${DOC_COUNT} 篇：不建摘要、不排序，比 searchDocs 快`, () => {
-    searchDocIds(docs, KEYWORD); // 先热索引，两边量的都是命中判定本身
+    searchDocIds(docs, KEYWORD); // Warm the index first, so both sides measure only the match check itself
     const hitsMs = fastest(5, () => searchDocs(docs, KEYWORD, { limit: docs.length }));
     const idsMs = fastest(5, () => searchDocIds(docs, KEYWORD));
     console.log(
@@ -108,7 +108,7 @@ describe("searchDocIds", () => {
     expect(hit.where).toBe("content");
     expect(hit.snippet).toContain(KEYWORD);
     expect(hit.ranges.length).toBeGreaterThan(0);
-    // searchDocIds 的出口里根本没有摘要这回事
+    // searchDocIds' output has no excerpt at all
     expect([...searchDocIds(docs.slice(0, 1), KEYWORD)]).toEqual(["doc-0"]);
   });
 });
@@ -132,7 +132,7 @@ describe("检索语义（两个出口同一套判定）", () => {
     const hits = searchDocs(sample, "张三", { limit: 10 });
     expect(hits[0].doc.id).toBe("t1");
     expect(hits[0].where).toBe("title");
-    expect(hits[1].where).toBe("content"); // t2 的正文里也有张三
+    expect(hits[1].where).toBe("content"); // t2's body also contains 张三
   });
 
   it("正文命中：Markdown 记号不挡路", () => {

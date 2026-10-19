@@ -2,8 +2,8 @@ import { FEISHU } from "./config";
 import { tk } from "@/i18n/t";
 
 /**
- * 飞书 OpenAPI 客户端（用户身份）。
- * docx 块列表与素材下载都是单应用 5 QPS 的特殊频控，所有请求过同一个全局节流闸。
+ * Feishu OpenAPI client (user identity).
+ * Listing docx blocks and downloading media share a special 5 QPS per-app rate limit, so all requests go through one global throttle.
  */
 
 const MIN_GAP_MS = 250;
@@ -38,12 +38,12 @@ async function apiGet<T>(
   });
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!body || body.code !== 0) {
-    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore server error message with variables; client-side t() can't match it, keep Chinese for now
   }
   return body.data as T;
 }
 
-/** 写方向的调用：docx 编辑接口频控更紧（单文档 3 QPS），间隔放大一档 */
+/** Write calls: docx edit APIs have a tighter limit (3 QPS per document), so the interval goes up a notch */
 async function apiSend<T>(
   token: string,
   method: "POST" | "PATCH" | "DELETE",
@@ -51,7 +51,7 @@ async function apiSend<T>(
   payload: unknown
 ): Promise<T> {
   await throttle();
-  await throttle(); // 两个节流槽 = 500ms 间隔
+  await throttle(); // two throttle slots = 500ms interval
   const res = await fetch(`${FEISHU.apiBase}${path}`, {
     method,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -60,12 +60,12 @@ async function apiSend<T>(
   });
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!body || body.code !== 0) {
-    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    throw new Error(`飞书接口错误（${path.split("/")[1]}）：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore server error message with variables; client-side t() can't match it, keep Chinese for now
   }
   return body.data as T;
 }
 
-// ---- 知识空间 ----
+// ---- Wiki spaces ----
 
 export interface FeishuSpace {
   id: string;
@@ -75,7 +75,7 @@ export interface FeishuSpace {
 export async function listFeishuSpaces(token: string): Promise<FeishuSpace[]> {
   const spaces: FeishuSpace[] = [];
   let pageToken = "";
-  // 权限过滤可能返回空页但 has_more=true，必须翻到底，不能见空即止
+  // Permission filtering may return an empty page with has_more=true, so page through to the end instead of stopping at the first empty one
   do {
     const data = await apiGet<{
       items?: { space_id: string; name: string }[];
@@ -88,7 +88,7 @@ export async function listFeishuSpaces(token: string): Promise<FeishuSpace[]> {
   return spaces;
 }
 
-// ---- 知识空间节点树 ----
+// ---- Wiki space node tree ----
 
 export interface WikiNode {
   nodeToken: string;
@@ -97,11 +97,11 @@ export interface WikiNode {
   nodeType: string;
   title: string;
   objEditTime: string;
-  /** 祖先节点标题链（不含自身），用于映射成 xedit 分类路径 */
+  /** Ancestor title chain (excluding self), mapped to an xedit category path */
   path: string[];
 }
 
-/** 单次同步最多处理的节点数：防个别巨型知识库把一轮同步拖死 */
+/** Max nodes handled per sync: keeps a single huge wiki from stalling a sync round */
 export const MAX_WIKI_NODES = 1000;
 
 interface RawNode {
@@ -114,7 +114,7 @@ interface RawNode {
   has_child: boolean;
 }
 
-/** 广度优先抓全空间节点。超过 MAX_WIKI_NODES 截断并置 truncated */
+/** Breadth-first fetch of all nodes in a space. Truncates beyond MAX_WIKI_NODES and sets truncated */
 export async function listAllWikiNodes(
   token: string,
   spaceId: string
@@ -155,7 +155,7 @@ export async function listAllWikiNodes(
   return { nodes, truncated: false };
 }
 
-// ---- docx 文档块 ----
+// ---- docx document blocks ----
 
 export interface FeishuBlock {
   block_id: string;
@@ -183,7 +183,7 @@ export async function listDocBlocks(token: string, documentId: string): Promise<
   return blocks;
 }
 
-// ---- 素材下载（文档内图片）----
+// ---- Media download (images in documents) ----
 
 export async function downloadFeishuMedia(
   token: string,
@@ -194,12 +194,12 @@ export async function downloadFeishuMedia(
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(30000),
   });
-  if (!res.ok) throw new Error(`图片下载失败: HTTP ${res.status}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+  if (!res.ok) throw new Error(`图片下载失败: HTTP ${res.status}`); // i18n-ignore server error message with variables; client-side t() can't match it, keep Chinese for now
   const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim();
   return { buffer: Buffer.from(await res.arrayBuffer()), mime };
 }
 
-// ---- 写方向：推送 / 写回 ----
+// ---- Write direction: push / write back ----
 
 export interface WikiNodeInfo {
   nodeToken: string;
@@ -217,7 +217,7 @@ interface RawNodeInfo {
   title?: string;
 }
 
-/** 按节点 token 取单个节点（冲突检查与推送后回读编辑时间用） */
+/** Fetch a single node by token (used for conflict checks and reading back the edit time after a push) */
 export async function getWikiNode(token: string, nodeToken: string): Promise<WikiNodeInfo> {
   const data = await apiGet<{ node?: RawNodeInfo }>(token, "/wiki/v2/spaces/get_node", {
     token: nodeToken,
@@ -234,7 +234,7 @@ export async function getWikiNode(token: string, nodeToken: string): Promise<Wik
   };
 }
 
-/** 在知识空间根下新建一个 docx 节点（推送新文章用） */
+/** Create a docx node at the root of a wiki space (for pushing new articles) */
 export async function createWikiDocNode(
   token: string,
   spaceId: string,
@@ -250,7 +250,7 @@ export async function createWikiDocNode(
   return { nodeToken: data.node.node_token, objToken: data.node.obj_token };
 }
 
-/** 写回时同步节点标题；失败不致命，调用方自行吞错 */
+/** Sync the node title on write-back; failure isn't fatal, callers swallow the error */
 export async function renameWikiNode(
   token: string,
   spaceId: string,
@@ -262,7 +262,7 @@ export async function renameWikiNode(
   });
 }
 
-/** 清空某块的子块（整篇覆盖前先清空正文）；分片删避免单次范围过大 */
+/** Clear a block's children (empty the body before a full overwrite); deletes in chunks to avoid overly large ranges */
 export async function deleteDocChildren(
   token: string,
   documentId: string,
@@ -282,7 +282,7 @@ export async function deleteDocChildren(
   }
 }
 
-/** 创建嵌套块：一次调用写入一批顶层块及其子树（列表嵌套、表格单元格都靠它） */
+/** Create nested blocks: one call writes a batch of top-level blocks and their subtrees (needed for nested lists and table cells) */
 export async function createDocDescendants(
   token: string,
   documentId: string,
@@ -299,7 +299,7 @@ export async function createDocDescendants(
   );
 }
 
-/** 上传图片素材，挂到指定 image 块名下；返回 file_token */
+/** Upload an image asset attached to the given image block; returns file_token */
 export async function uploadFeishuMedia(
   token: string,
   buffer: Buffer,
@@ -325,12 +325,12 @@ export async function uploadFeishuMedia(
     file_token?: string;
   }> | null;
   if (!body || body.code !== 0 || !body.data?.file_token) {
-    throw new Error(`图片上传失败：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    throw new Error(`图片上传失败：${body?.msg ?? `HTTP ${res.status}`}`); // i18n-ignore server error message with variables; client-side t() can't match it, keep Chinese for now
   }
   return body.data.file_token;
 }
 
-/** 把上传好的素材 token 填进空 image 块 */
+/** Fill an uploaded asset token into an empty image block */
 export async function fillImageBlock(
   token: string,
   documentId: string,

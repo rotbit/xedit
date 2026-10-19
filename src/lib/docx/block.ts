@@ -1,4 +1,4 @@
-// 导出 Word · 块级转换：段落/标题/列表/表格/代码块/引用/图片视频等块级 DOM 节点 → Paragraph / Table。
+// Word export · block conversion: block-level DOM nodes (paragraphs/headings/lists/tables/code blocks/quotes/images/videos, etc.) → Paragraph / Table.
 
 import {
   AlignmentType,
@@ -16,22 +16,22 @@ import { imageRun, inlineOf, mathImage, pushInline, videoLink } from "./inline";
 import { BLOCK_TAGS, GRAY, HEADINGS, MONO_FONT, OL_REF, CONTENT_W } from "./types";
 import type { Build, BlockChild, InlineChild, PreparedImage } from "./types";
 
-// —— 版式尺寸 ——
-// docx 里长度单位是 DXA（1/20 磅，1440 DXA = 1 英寸），字号是半磅，边框粗细是 1/8 磅。
-// 三套单位数值区间又撞在一起（都在两三位数），所以一律提成有名常量并标注单位。
+// -- Layout dimensions --
+// In docx, lengths are in DXA (1/20 pt, 1440 DXA = 1 inch), font sizes in half-points, and border widths in 1/8 pt.
+// The three units' value ranges overlap (all two or three digits), so they're all named constants annotated with units.
 
-/** 列表首层左缩进：720 DXA = 0.5 英寸，与 Word 默认列表缩进一致 */
+/** First-level list left indent: 720 DXA = 0.5 inch, matching Word's default list indent */
 const LIST_INDENT_DXA = 720;
-/** 列表每往下嵌一层追加的缩进：480 DXA = 1/3 英寸 */
+/** Extra indent per nested list level: 480 DXA = 1/3 inch */
 const LIST_INDENT_STEP_DXA = 480;
-/** 引用每层的左缩进：240 DXA = 1/6 英寸，嵌套引用按层数累加 */
+/** Left indent per quote level: 240 DXA = 1/6 inch, accumulated for nested quotes */
 const QUOTE_INDENT_STEP_DXA = 240;
-/** 引用左侧竖线粗细：18/8 = 2.25 磅（边框单位是 1/8 磅，不是 DXA） */
+/** Quote left-bar width: 18/8 = 2.25 pt (border units are 1/8 pt, not DXA) */
 const QUOTE_BORDER_EIGHTH_PT = 18;
-/** 图注与代码块的小字号：18/2 = 9 磅（字号单位是半磅，不是 DXA） */
+/** Small font size for captions and code blocks: 18/2 = 9 pt (font size units are half-points, not DXA) */
 const SMALL_FONT_HALF_PT = 18;
 
-// —— 块级节点 → Paragraph / Table ——
+// -- Block nodes → Paragraph / Table --
 
 interface Ctx {
   quote: number;
@@ -70,7 +70,7 @@ function placeholderPara(text: string): Paragraph {
   });
 }
 
-/** 视频块：封面图（如有）+ 播放链接 + 裸链接（超链接丢失时仍可复制打开） */
+/** Video block: poster image (if any) + play link + bare URL (still copyable if the hyperlink is lost) */
 function videoBlocks(video: Element, caption: string, b: Build): Paragraph[] {
   const src = video.getAttribute("src") ?? video.querySelector("source")?.getAttribute("src") ?? "";
   if (!src) return [];
@@ -107,7 +107,7 @@ function figureBlocks(el: Element, ctx: Ctx, b: Build): BlockChild[] {
     const out: Paragraph[] = [];
     if (pi) out.push(imagePara(pi, alt ?? caption));
     else {
-      out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`)); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+      out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`)); // i18n-ignore part of the exported/copied content format; stays Chinese for now
     }
     if (caption) out.push(captionPara(caption));
     return out;
@@ -161,7 +161,7 @@ function tableBlock(tableEl: Element, b: Build): Table {
   });
 }
 
-/** 去掉一段行内节点首尾的换行/空白（源码里 `项目二\n<ul>` 的那个换行会变成 Word 里的尾随空格） */
+/** Trim leading/trailing newlines/whitespace from a run of inline nodes (the newline in source like `Item 2\n<ul>` would become trailing whitespace in Word) */
 function trimEdgeWhitespace(nodes: Node[]): void {
   const first = nodes[0];
   if (first?.nodeType === Node.TEXT_NODE) first.textContent = (first.textContent ?? "").replace(/^\s+/, "");
@@ -184,9 +184,9 @@ function listBlocks(listEl: Element, level: number, b: Build): BlockChild[] {
 
   for (const li of Array.from(listEl.children)) {
     if (li.tagName !== "LI") continue;
-    // li 内容切块：行内内容聚为段落，嵌套列表与块级元素单独处理。
-    // markdown-it 在 <li> 里的 <p>/<ul> 前后会输出换行（宽松列表每项都包 <p>），
-    // 这些纯空白文本节点不是内容：当成一段会让编号落在空行上、正文掉到下一行且丢编号
+    // Split li content into blocks: inline content groups into paragraphs, nested lists and block elements are handled separately.
+    // markdown-it emits newlines around <p>/<ul> inside <li> (loose lists wrap every item in <p>);
+    // these whitespace-only text nodes aren't content: treating them as a paragraph puts the number on an empty line and pushes the text to the next line without a number
     const chunks: (Node[] | Element)[] = [];
     let acc: Node[] = [];
     const flush = () => {
@@ -223,7 +223,7 @@ function listBlocks(listEl: Element, level: number, b: Build): BlockChild[] {
   return out;
 }
 
-/** 把含图片/视频的段落按媒体位置切分：文字聚段、媒体独立成块，媒体紧邻的换行不产生空段 */
+/** Split paragraphs containing images/videos at media positions: text groups into paragraphs, media become standalone blocks, and newlines next to media don't produce empty paragraphs */
 function splitMediaParagraph(el: Element, ctx: Ctx, b: Build): BlockChild[] {
   const isBr = (n: Node) => n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName === "BR";
   const out: BlockChild[] = [];
@@ -250,7 +250,7 @@ function splitMediaParagraph(el: Element, ctx: Ctx, b: Build): BlockChild[] {
       const alt = child.getAttribute("alt");
       if (pi) out.push(imagePara(pi, alt ?? ""));
       else {
-        out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`)); // i18n-ignore 写进导出/复制结果的内容格式，本阶段保持中文
+        out.push(placeholderPara(`[图片${alt ? `：${alt}` : ""}]`)); // i18n-ignore part of the exported/copied content format; stays Chinese for now
       }
     } else {
       acc.push(node);
@@ -271,10 +271,10 @@ function blockOf(el: Element, ctx: Ctx, b: Build): BlockChild[] {
 
   switch (tag) {
     case "P": {
-      // 空段落（保留的空行）导出为空行
+      // Empty paragraphs (preserved blank lines) export as blank lines
       if (!el.textContent?.trim() && !el.querySelector("img, video")) return [new Paragraph({})];
-      // 预览里图片/视频均为块级独占一行（含单回车换行挤进段落的情况），导出保持一致：
-      // 按媒体节点把段落切开，视频恢复完整卡片，图片恢复居中整图
+      // In the preview, images/videos are block-level on their own line (even when a single newline squeezes them into a paragraph); export matches that:
+      // split the paragraph at media nodes, restoring full cards for videos and centered full images for images
       if (el.querySelector(":scope > img, :scope > video")) return splitMediaParagraph(el, ctx, b);
       return [new Paragraph({ children: inlineOf(el, b), ...quoteOpts(ctx) })];
     }
@@ -317,14 +317,14 @@ function blockOf(el: Element, ctx: Ctx, b: Build): BlockChild[] {
       return childBlocks(el, ctx, b);
     }
     default: {
-      // 顶层出现的行内元素（Markdown 内嵌原始 HTML）按段落兜底
+      // Inline elements at the top level (raw HTML embedded in Markdown) fall back to a paragraph
       const runs = inlineOf(el, b);
       return runs.length ? [new Paragraph({ children: runs, ...quoteOpts(ctx) })] : [];
     }
   }
 }
 
-/** 遍历容器子节点：块级元素递归映射，散落的行内节点聚合成段落 */
+/** Walk container children: block elements map recursively, stray inline nodes are grouped into paragraphs */
 export function childBlocks(container: Element, ctx: Ctx, b: Build): BlockChild[] {
   const out: BlockChild[] = [];
   let acc: Node[] = [];

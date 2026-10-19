@@ -21,7 +21,7 @@ import type { AuthMode } from "./useAuthMode";
 import type { DocLibrary } from "./useDocLibrary";
 import type { WorkspaceNav } from "./useWorkspaceNav";
 
-/** 导入方式：挑若干 .md 文件，或挑一整个文件夹（子目录成为分类） */
+/** Import mode: pick some .md files, or a whole folder (subdirectories become categories) */
 export type ImportMode = "file" | "folder";
 
 export interface ImportFailure {
@@ -29,23 +29,23 @@ export interface ImportFailure {
   reason: string;
 }
 
-/** 一轮导入的结果摘要，交给弹窗展示 */
+/** Summary of one import run, shown in the dialog */
 export interface ImportResult {
   created: number;
   updated: number;
   skipped: number;
   failed: ImportFailure[];
-  /** 正文里的本地图片上传失败的张数（链接原样保留） */
+  /** Number of local images in bodies that failed to upload (links kept as-is) */
   imageFailed: number;
 }
 
-/** 云端落库的并发度：再高也只是把服务端排队前移，4 条足够跑满带宽 */
+/** Concurrency for cloud writes: going higher just moves server-side queueing earlier; 4 is enough to saturate bandwidth */
 const CONCURRENCY = 4;
-/** 分类字段的长度上限，与 /api/documents 的 slice(0, 100) 对齐 */
+/** Max length of the category field, matching slice(0, 100) in /api/documents */
 const MAX_CAT_LEN = 100;
-/** 只有这两个扩展名算文章 */
+/** Only these two extensions count as documents */
 const MD_RE = /\.(md|markdown)$/i;
-/** 图片语法的地址位：捕获 `![alt](` 前缀与紧随的地址（`<...>` 形式一并认） */
+/** URL slot of image syntax: captures the `![alt](` prefix and the URL right after (the `<...>` form is recognized too) */
 const IMG_TARGET_RE = /(!\[[^\]]*\]\(\s*)(<[^>\n]+>|[^()\s]+)/g;
 
 interface Params {
@@ -54,7 +54,7 @@ interface Params {
   nav: WorkspaceNav;
 }
 
-/** 待导入的一篇：标题、落哪个分类、源文件、以及它在所选集合里的所在目录（解析图片相对路径用） */
+/** One doc to import: title, target category, source file, and its directory within the selected set (for resolving relative image paths) */
 interface Entry {
   title: string;
   category: string;
@@ -62,31 +62,31 @@ interface Entry {
   baseDir: string;
 }
 
-/** 幂等键：同分类 + 同标题视作同一篇 */
+/** Idempotency key: same category + same title counts as the same doc */
 const idxKey = (category: string | undefined, title: string) =>
   `${category || UNCATEGORIZED}\n${title}`;
 
-/** 选中集合里的路径：文件夹模式有相对路径，文件模式只有文件名 */
+/** Path within the selected set: folder mode has relative paths, file mode only file names */
 const pathOf = (file: File) => file.webkitRelativePath || file.name;
 
-/** 任一层目录（或文件名）以 . 开头就整条跳过：.obsidian、.trash、.DS_Store 等 */
+/** Skip the whole entry if any directory (or the file name) starts with a dot: .obsidian, .trash, .DS_Store, etc. */
 const isHidden = (path: string) => path.split("/").some((seg) => seg.startsWith("."));
 
-/** 文件名去扩展名当标题 */
+/** File name without extension as the title */
 function titleOf(file: File): string {
   const name = pathOf(file).split("/").pop() ?? file.name;
   return name.replace(MD_RE, "").trim().slice(0, 200) || UNTITLED_DOC;
 }
 
 /**
- * 相对路径的目录部分 → 分类路径，**含用户选中的那层根目录**：
- * 选了「工作笔记」，里面 `2024/a.md` 落到分类「工作笔记/2024」。
- * 层级超过 MAX_DEPTH 截断；总长再超字段上限就从尾部丢层级（切一半的段名没有意义）。
+ * Directory part of a relative path → category path, **including the root folder the user selected**:
+ * selecting 「工作笔记」 puts its `2024/a.md` into the category 「工作笔记/2024」.
+ * Depth beyond MAX_DEPTH is truncated; if the total still exceeds the field limit, drop levels from the end (a half-cut segment name is meaningless).
  */
 function categoryOf(path: string, fallback: string, prefix = ""): string {
   const segs = path.split("/").filter(Boolean);
-  segs.pop(); // 最后一段是文件名
-  // 指定了落点文件夹：整棵目录树嵌到它下面，深度与长度上限照旧一起截
+  segs.pop(); // The last segment is the file name
+  // A target folder was given: nest the whole directory tree under it, still truncating by depth and length limits
   if (prefix) segs.unshift(...prefix.split("/"));
   const kept = segs.slice(0, MAX_DEPTH);
   if (kept.length === 0) return fallback;
@@ -94,7 +94,7 @@ function categoryOf(path: string, fallback: string, prefix = ""): string {
   return kept.join("/").slice(0, MAX_CAT_LEN);
 }
 
-/** 把 `./a/../b.png` 这类相对地址按所在目录解析成选中集合内的路径 */
+/** Resolve relative URLs like `./a/../b.png` against their directory into a path within the selected set */
 function resolveRel(baseDir: string, ref: string): string {
   const segs = baseDir ? baseDir.split("/") : [];
   for (const seg of ref.split("/")) {
@@ -106,9 +106,9 @@ function resolveRel(baseDir: string, ref: string): string {
 }
 
 /**
- * 图片地址 → 选中集合里的那个文件。只认库内相对路径：
- * `http(s):`、`data:`、协议相对、以 `/` 开头的绝对路径全部原样放过。
- * 文件名被 URL 编码（Obsidian 导出常见）时按解码后的名字再找一次。
+ * Image URL → the file in the selected set. Only relative in-library paths count:
+ * `http(s):`, `data:`, protocol-relative, and absolute paths starting with `/` are all left as-is.
+ * When the file name is URL-encoded (common in Obsidian exports), try again with the decoded name.
  */
 function mediaFor(baseDir: string, raw: string, media: Map<string, File>): File | null {
   const bare = raw.startsWith("<") && raw.endsWith(">") ? raw.slice(1, -1) : raw;
@@ -119,7 +119,7 @@ function mediaFor(baseDir: string, raw: string, media: Map<string, File>): File 
     const decoded = decodeURIComponent(ref);
     if (decoded !== ref) candidates.push(decoded);
   } catch {
-    // 半截的百分号转义（如文件名里就带 %），按原样找
+    // Broken percent escapes (e.g. a file name that contains %): look it up as-is
   }
   for (const c of candidates) {
     const hit = media.get(resolveRel(baseDir, c));
@@ -128,12 +128,12 @@ function mediaFor(baseDir: string, raw: string, media: Map<string, File>): File 
   return null;
 }
 
-/** 从 File 列表整理出「要导入的文章」与「可供引用的其它文件」 */
+/** Sort a File list into "docs to import" and "other files that can be referenced" */
 function buildPlan(
   files: File[],
   mode: ImportMode,
   fallbackCat: string,
-  /** 文件夹模式下目录树要嵌进去的文件夹；空串 = 照旧落在顶级 */
+  /** In folder mode, the folder to nest the directory tree under; empty = top level as before */
   prefix = ""
 ): { entries: Entry[]; media: Map<string, File> } {
   const entries: Entry[] = [];
@@ -156,7 +156,7 @@ function buildPlan(
   return { entries, media };
 }
 
-/** 同分类同标题的几篇排进同一条队列：并发跑会互相看不见对方刚建出来的那篇 */
+/** Docs with the same category and title go into the same queue: run concurrently, they can't see the one the other just created */
 function groupByKey(entries: Entry[]): Entry[][] {
   const groups = new Map<string, Entry[]>();
   for (const e of entries) {
@@ -168,7 +168,7 @@ function groupByKey(entries: Entry[]): Entry[][] {
   return [...groups.values()];
 }
 
-/** 定量并发地跑完一批任务（任务自己吞掉异常） */
+/** Run a batch of tasks with fixed concurrency (tasks swallow their own errors) */
 async function runPool(tasks: (() => Promise<void>)[], limit: number): Promise<void> {
   let next = 0;
   const worker = async () => {
@@ -177,7 +177,7 @@ async function runPool(tasks: (() => Promise<void>)[], limit: number): Promise<v
   await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
 }
 
-/** 接口失败的人话原因 */
+/** Human-readable reason for an API failure */
 async function failReason(res: Response): Promise<string> {
   const data: unknown = await res.json().catch(() => null);
   const error = (data as { error?: unknown } | null)?.error;
@@ -188,14 +188,14 @@ async function failReason(res: Response): Promise<string> {
 
 function reasonOf(err: unknown): string {
   if (err instanceof DOMException) return t("浏览器存储空间不足");
-  // 服务端原因（failReason 透传的 data.error）是中文字典 key：命中就翻
+  // The server reason (data.error passed through by failReason) is a Chinese dictionary key: translate it if it matches
   if (err instanceof Error && err.message) return t(err.message);
   return t("导入失败");
 }
 
 /**
- * 导入本地 Markdown：单向、一次性、手动触发——不监听磁盘也不回写，
- * 重复导入按「同分类 + 同标题」幂等（正文不同则更新，相同则跳过，没有则新建）。
+ * Import local Markdown: one-way, one-off, manually triggered — no disk watching and no write-back.
+ * Re-imports are idempotent on "same category + same title" (update if the body differs, skip if identical, create if missing).
  */
 export function useImportDocs({ auth, library, nav }: Params) {
   const { localMode, online } = auth;
@@ -203,12 +203,12 @@ export function useImportDocs({ auth, library, nav }: Params) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
 
-  /** 文件模式落在当前分类（停在虚拟视图上时归「未分类」），与 createDoc 同一套算法 */
+  /** File mode lands in the current category (「未分类」 when on a virtual view), using the same logic as createDoc */
   const targetCat = isVirtualCat(nav.activeCat) ? UNCATEGORIZED : nav.activeCat;
 
   /**
-   * @param cat 指定落点（文件树里右键某个文件夹发起导入时带上），不传就跟着当前分类走。
-   *            传进来的同样过一遍虚拟视图归一，调用方不必自己判断。
+   * @param cat Explicit target (set when importing from a folder's context menu in the file tree); if omitted, follow the current category.
+   *            Values passed in are normalized for virtual views too, so callers don't need to check.
    */
   const importFiles = async (
     files: File[],
@@ -218,40 +218,40 @@ export function useImportDocs({ auth, library, nav }: Params) {
     const result: ImportResult = { created: 0, updated: 0, skipped: 0, failed: [], imageFailed: 0 };
     if (importing) return result;
     const fallbackCat = cat === undefined ? targetCat : isVirtualCat(cat) ? UNCATEGORIZED : cat;
-    // 只有显式指定的真实文件夹才当前缀：默认的「当前分类」不嵌套，保住旧行为和重复导入的幂等
+    // Only an explicitly specified real folder becomes a prefix: the default "current category" doesn't nest, preserving old behavior and re-import idempotency
     const prefix = cat !== undefined && !isVirtualCat(cat) && cat !== UNCATEGORIZED ? cat : "";
     const { entries, media } = buildPlan(files, mode, fallbackCat, prefix);
     setProgress({ done: 0, total: entries.length });
     if (entries.length === 0) return result;
 
-    // 未登录（本地模式）与登录但离线，都先落本地：后者的改动由同步引擎联网后自动上云
+    // Logged out (local mode) and logged in but offline both save locally first: the latter's changes are uploaded by the sync engine once online
     const offline = localMode || !online;
     const relist = localMode ? listLocalDocs : mergedCloudList;
-    // 去重看全库（含隐藏的待办清单那篇），不用侧栏可见列表
+    // Dedupe against the whole library (including the hidden todo-list doc), not the sidebar-visible list
     const base: DocMeta[] = offline ? relist() : (library.allDocs ?? mergedCloudList());
     const index = new Map<string, string>();
     for (const doc of base) {
       const k = idxKey(doc.category, doc.title);
-      if (!index.has(k)) index.set(k, doc.id); // 库里本就重名时只认第一篇
+      if (!index.has(k)) index.set(k, doc.id); // If the library already has duplicate titles, only the first counts
     }
 
-    /** 本轮的图片上传缓存：同一张图只传一次，失败也记住不再重试 */
+    /** Image upload cache for this run: each image is uploaded once, and failures are remembered and not retried */
     const uploads = new Map<string, Promise<string | null>>();
     const uploadMedia = (path: string, file: File) => {
       let pending = uploads.get(path);
       if (!pending) {
         pending = uploadMediaFile(file).catch(() => {
           result.imageFailed += 1;
-          return null; // 失败就保留原链接
+          return null; // On failure keep the original link
         });
         uploads.set(path, pending);
       }
       return pending;
     };
 
-    /** 正文里指向选中集合的本地图片换成上传后的 URL；本地模式/离线不处理，原样保留 */
+    /** Replace local images in the body that point into the selected set with uploaded URLs; skipped in local mode / offline, left as-is */
     const rewriteImages = async (content: string, baseDir: string): Promise<string> => {
-      const found = new Map<string, File>(); // 原始地址 → 源文件
+      const found = new Map<string, File>(); // Original URL → source file
       for (const m of content.matchAll(IMG_TARGET_RE)) {
         if (found.has(m[2])) continue;
         const file = mediaFor(baseDir, m[2], media);
@@ -271,7 +271,7 @@ export function useImportDocs({ auth, library, nav }: Params) {
       });
     };
 
-    /** 已有文章的本地写入：未上云的落本地库，已上云的落镜像并标脏交给同步引擎 */
+    /** Local write for an existing doc: not-yet-uploaded ones go to the local library, uploaded ones go to the mirror marked dirty for the sync engine */
     const writeLocal = (id: string, content: string) => {
       if (isLocalId(id)) updateLocalDoc(id, { content });
       else saveMirrorLocal(id, { content });
@@ -279,7 +279,7 @@ export function useImportDocs({ auth, library, nav }: Params) {
 
     const importOne = async (entry: Entry) => {
       let content = await entry.file.text();
-      // 图片要传上云才有 URL 可写进正文，所以只有登录且在线的文件夹导入才处理
+      // Images must be uploaded to get a URL to write into the body, so only folder imports while logged in and online handle them
       if (!offline && entry.baseDir !== "") content = await rewriteImages(content, entry.baseDir);
 
       const k = idxKey(entry.category, entry.title);
@@ -301,10 +301,10 @@ export function useImportDocs({ auth, library, nav }: Params) {
         });
         if (!res.ok) throw new Error(await failReason(res));
         const saved = await res.json().catch(() => null);
-        saveMirrorLocal(existing, { content }, false); // 云端已确认，镜像跟上但不标脏
-        // saveMirrorLocal 记的是本机时间，改盖成响应里的服务端时间，
-        // 否则本机时钟快时打开这篇文章会被校新误判成「云端更旧」而永远不校新。
-        // rev 传刚写完的那个：确认的就是这一份，同时把冲突基线记成服务端版本
+        saveMirrorLocal(existing, { content }, false); // Confirmed by the cloud: update the mirror without marking dirty
+        // saveMirrorLocal records local time; overwrite it with the server time from the response,
+        // otherwise with a fast local clock, opening this doc would misjudge the cloud as "older" and never refresh it.
+        // Pass the rev just written: this is the confirmed version, and it also sets the conflict baseline to the server version
         if (typeof saved?.updatedAt === "string")
           markMirrorSynced(existing, getMirrorRev(existing), saved.updatedAt);
         result.updated += 1;
@@ -324,7 +324,7 @@ export function useImportDocs({ auth, library, nav }: Params) {
       });
       if (!res.ok) throw new Error(await failReason(res));
       const doc = await res.json();
-      applyServerDoc(doc); // 新文档立即入镜像，编辑页/离线随时可用
+      applyServerDoc(doc); // New docs go into the mirror right away, available to the editor and offline at any time
       index.set(k, doc.id);
       result.created += 1;
     };
@@ -348,7 +348,7 @@ export function useImportDocs({ auth, library, nav }: Params) {
 
     setDocs(relist());
     if (offline) notifyDocsChanged();
-    else void syncNow(); // 本地建的稿（离线时）与正文改动交给同步引擎推上云
+    else void syncNow(); // Docs created locally (while offline) and body changes are pushed to the cloud by the sync engine
     return result;
   };
 

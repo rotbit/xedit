@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 后台的「审核提示词」：每类审核一份「审核要求」，管理员随便改。
+ * Admin 「审核提示词」 (Review prompts): one 「审核要求」 (review requirements) per review category, freely editable by admins.
  *
- * 能改的只有「你是谁、重点看什么、话怎么说」这一段；JSON 形状、分类、引文逐字这些
- * 「输出格式」是解析与正文定位的命根子，服务端永远接在后面，这里只读展示——
- * 让人知道不用自己写，也改不坏。默认文案就填在输入框里，「恢复默认」随时回得去。
+ * Only the "who you are, what to focus on, how to phrase it" part is editable; the JSON shape, categories, verbatim quotes and other
+ * "output format" rules are critical for parsing and locating text in the body, so the server always appends them; they're shown read-only here —
+ * so people know they needn't write them and can't break them. The default text is prefilled, and 「恢复默认」 (Restore default) brings it back anytime.
  */
 import { useEffect, useState } from "react";
 import { FileText, Loader2, RotateCcw } from "lucide-react";
@@ -32,7 +32,7 @@ const ghostBtn =
 export function AiPromptCard() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [kind, setKind] = useState("");
-  /** 各类正在编辑的文字；切页签不丢 */
+  /** Text being edited per category; survives tab switches */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -78,7 +78,7 @@ export function AiPromptCard() {
         toast(data.error ?? "保存失败", "error");
         return;
       }
-      // 只认回这一类：另一个页签里没保存的草稿别被冲掉
+      // Only accept this category back: don't wipe unsaved drafts in another tab
       setSnap(data);
       const saved = data.prompts.find((p) => p.kind === kind);
       if (saved) setDrafts((d) => ({ ...d, [kind]: saved.text }));

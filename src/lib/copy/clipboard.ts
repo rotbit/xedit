@@ -1,7 +1,7 @@
 /**
- * 以富文本（text/html）+ 纯文本双格式写入剪贴板。
- * 优先使用选区 + execCommand 复制：该路径不会经过异步剪贴板 API 的
- * HTML 消毒（后者可能丢弃 data: URI 背景图等样式），对公众号粘贴最友好。
+ * Writes to the clipboard in both rich text (text/html) and plain text formats.
+ * Prefers selection + execCommand copy: this path skips the async Clipboard API's
+ * HTML sanitizing (which may drop styles like data: URI background images), so it pastes best into WeChat.
  */
 import { t } from "@/i18n/t";
 
@@ -24,11 +24,11 @@ function copyViaSelection(html: string): boolean {
   container.style.position = "fixed";
   container.style.left = "-9999px";
   container.style.top = "0";
-  // 复制时浏览器会把容器链上的有效底色盖印到每个块级元素上：
-  // 必须固定纯白，否则应用自身的纸面灰会跟着进公众号（纯白微信深色模式还能正确反转）
+  // When copying, the browser stamps the effective background from the container chain onto every block element:
+  // it must be pinned to pure white, or the app's own paper gray would follow into WeChat (pure white still inverts correctly in WeChat dark mode)
   container.style.backgroundColor = "#ffffff";
   container.setAttribute("contenteditable", "true");
-  // html 由 buildWechatHtml/buildZhihuHtml 产出，源头已经过 DOMPurify 消毒
+  // html comes from buildWechatHtml/buildZhihuHtml and was already sanitized by DOMPurify at the source
   container.innerHTML = html;
   document.body.appendChild(container);
   try {

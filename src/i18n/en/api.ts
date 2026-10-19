@@ -1,10 +1,10 @@
 /**
- * 服务端返回给网页的报错 / 提示（src/app/api），以及 OAuth 授权页（src/app/oauth）。
- * 路由里用 tk() 标记、原样返回中文，客户端展示处 t(msg) 时按这张表翻；
- * 带变量的几句在服务端按请求语言直接 translate()，同样以这里为准。
+ * Errors / messages the server returns to the web app (src/app/api), plus the OAuth consent page (src/app/oauth).
+ * Routes mark them with tk() and return the Chinese as-is; the client translates via this table when displaying t(msg).
+ * The few with variables are translated on the server with translate() in the request's language, also using this table.
  */
 export const api: Record<string, string> = {
-  // 通用
+  // General
   "未登录": "Not signed in",
   "请先登录": "Please sign in first",
   "无权访问": "Access denied",
@@ -14,7 +14,7 @@ export const api: Record<string, string> = {
   "操作失败，稍后再试": "Something went wrong, please try again later",
   "保存失败，稍后再试": "Couldn't save, please try again later",
 
-  // 后台管理
+  // Admin
   "认不出这个 key 槽位": "Unrecognized key slot",
   "提示词得是一段文字": "The prompt must be text",
   "认不出这个 AI 供应商": "Unrecognized AI provider",
@@ -28,7 +28,7 @@ export const api: Record<string, string> = {
   "没有要修改的字段": "Nothing to update",
   "管理员账号不能删除": "Admin accounts can't be deleted",
 
-  // AI 审核
+  // AI review
   "读审核记录失败": "Couldn't load the review record",
   "存审核动作失败": "Couldn't save the review action",
   "删审核记录失败": "Couldn't delete the review record",
@@ -47,7 +47,7 @@ export const api: Record<string, string> = {
   "审核失败，请稍后再试": "Review failed, please try again later",
   "正文太长了": "The article is too long",
 
-  // AI 生成封面
+  // AI cover generation
   "请先登录再使用 AI 生成封面": "Sign in to generate covers with AI",
   "封面信息不完整": "Cover details are incomplete",
   "上一张还在生成，等它出来再点": "The previous cover is still generating, please wait for it to finish",
@@ -56,7 +56,7 @@ export const api: Record<string, string> = {
   "生成失败，请稍后再试": "Generation failed, please try again later",
   "封面信息太长了": "Cover details are too long",
 
-  // 素材 / 上传
+  // Assets / uploads
   "尺寸不合法": "Invalid dimensions",
   "图片不存在": "Image not found",
   "素材不存在": "Asset not found",
@@ -76,7 +76,7 @@ export const api: Record<string, string> = {
   "图片不能超过 10MB": "Images can't exceed 10 MB",
   "上传失败，请稍后重试": "Upload failed, please try again later",
 
-  // 导出时代理媒体
+  // Media proxy during export
   "无效地址": "Invalid URL",
   "仅允许代理本站图床的媒体": "Only media hosted on this site can be proxied",
   "源站返回 {status}": "Origin returned {status}",
@@ -84,7 +84,7 @@ export const api: Record<string, string> = {
   "图片过大": "Image is too large",
   "拉取媒体失败": "Couldn't fetch the media",
 
-  // 文档 / 版本 / 分享
+  // Documents / versions / sharing
   "文档不存在": "Document not found",
   "baseUpdatedAt 无法解析": "Couldn't parse baseUpdatedAt",
   "尚未创建分享": "No share link has been created yet",
@@ -99,7 +99,7 @@ export const api: Record<string, string> = {
   "缺少批注锚点": "Missing comment anchor",
   "该分享的批注数已达上限": "This share has reached its comment limit",
 
-  // 飞书
+  // Feishu
   "请先保存你的飞书应用凭证": "Save your Feishu app credentials first",
   "App ID 不能为空": "App ID is required",
   "加载知识空间失败": "Couldn't load wiki spaces",
@@ -113,13 +113,13 @@ export const api: Record<string, string> = {
   "{err}，请回到 xedit 重试。": "{err}. Go back to xedit and try again",
   "已连接飞书，此窗口即将自动关闭。": "Connected to Feishu. This window will close automatically",
 
-  // 注册
+  // Sign up
   "邮箱格式不正确": "Invalid email address",
   "密码至少 8 位": "Password must be at least 8 characters",
   "密码过长": "Password is too long",
   "该邮箱已注册，请直接登录": "This email is already registered. Please sign in",
 
-  // OAuth 授权（MCP 客户端接入）
+  // OAuth authorization (MCP client access)
   "未命名应用": "Unnamed App",
   "缺少 clientId": "Missing clientId",
   "无效的客户端": "Invalid Client",

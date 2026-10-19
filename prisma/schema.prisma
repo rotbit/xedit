@@ -13,23 +13,23 @@ model User {
   email         String?           @unique
   emailVerified DateTime?
   image         String?
-  /// 邮箱注册用户的 scrypt 密码散列；OAuth 用户为空
+  /// scrypt password hash for email-registered users; null for OAuth users
   passwordHash  String?
-  /// 注册时间（历史用户由迁移回填为其最早一篇文档的创建时间）
+  /// Signup time (backfilled by migration for legacy users as the creation time of their earliest document)
   createdAt     DateTime          @default(now())
-  /// 最近一次登录（next-auth signIn 事件写入）；历史用户在下次登录前为空
+  /// Last login (written by the next-auth signIn event); null for legacy users until their next login
   lastLoginAt   DateTime?
-  /// 只读封禁时间；非空表示仅可查看导出，不能写入上传
+  /// Read-only ban time; non-null means the user can only view/export, not write or upload
   bannedAt      DateTime?
-  /// 封禁原因，随 403 提示展示给被封用户
+  /// Ban reason, shown to the banned user with the 403 message
   banReason     String?
-  /// 存储配额（字节）；空 = 用全局默认，0 = 不限制
+  /// Storage quota (bytes); null = use the global default, 0 = unlimited
   storageQuota  BigInt?
-  /// 已开通的功能权限 key（见 lib/permissionKeys）；新用户默认一个都没有，管理员不看这列、一律全开
+  /// Granted feature permission keys (see lib/permissionKeys); new users have none by default; admins ignore this column and get everything
   permissions   String[]          @default([])
-  /// AI 审核每日次数的单独额度；空 = 用全局默认（AI_DAILY_LIMIT）
+  /// Per-account daily AI review limit; null = use the global default (AI_DAILY_LIMIT)
   aiReviewDailyLimit Int?
-  /// AI 生成封面每日张数的单独额度；空 = 用全局默认（COVER_GENERATE_DAILY_LIMIT）
+  /// Per-account daily AI cover generation limit; null = use the global default (COVER_GENERATE_DAILY_LIMIT)
   aiCoverDailyLimit  Int?
   accounts      Account[]
   sessions      Session[]
@@ -86,11 +86,11 @@ model Document {
   title     String            @default("未命名文章")
   content   String            @default("") @db.Text
   category  String            @default("未分类")
-  /// 软删除时间；非空表示在回收站
+  /// Soft-delete time; non-null means in the trash
   deletedAt DateTime?
-  /// 客户端新建去重键：离线新建与弱网重试会重发同一条「新建」，带同一个 key 只落一篇。
-  /// 可空——老客户端与服务端建档（MCP、飞书同步）都不带，Postgres 唯一索引默认 NULLS DISTINCT，
-  /// 多行 NULL 互不冲突。
+  /// Client-side creation dedupe key: offline creation and flaky-network retries resend the same 「新建」 (create); the same key creates only one doc.
+  /// Nullable: old clients and server-side creation (MCP, Feishu sync) don't send it, and Postgres unique indexes default to NULLS DISTINCT,
+  /// so multiple NULL rows don't conflict.
   clientKey String?
   userId    String
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -105,59 +105,59 @@ model Document {
   @@index([userId, category])
 }
 
-/// 文章分享链接：id 即 URL 中的 token（随机 hex，不可枚举）。
-/// 一篇文章至多一条；关闭分享置 enabled=false 而不删行，重开时链接与批注都还在。
+/// Article share link: id is the token in the URL (random hex, not enumerable).
+/// At most one per article; closing a share sets enabled=false instead of deleting the row, so the link and annotations survive a reopen.
 model DocShare {
   id           String         @id
   documentId   String         @unique
   document     Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
   userId       String
   enabled      Boolean        @default(true)
-  /// 是否允许访客批注；关闭后分享页不渲染批注栏，正文列更宽
+  /// Whether guests may annotate; when off, the share page hides the annotation column and the body column is wider
   allowComment Boolean        @default(true)
-  /// 到期时刻；null 表示永久有效（现为默认，链接只由作者手动关闭）。
-  /// 字段保留是为将来可能的限时分享，逻辑上 null 与未来时刻都算有效
+  /// Expiry time; null means permanent (now the default; links are only closed manually by the author).
+  /// Kept for possible time-limited shares in the future; logically both null and a future time count as valid
   expiresAt    DateTime?
   createdAt    DateTime       @default(now())
   comments     ShareComment[]
 }
 
-/// 分享页批注：锚定在渲染后正文的纯文本上（选中文本 + 前文 + 第几次出现）。
-/// 访客无账号，凭浏览器本地随机 key 的 sha256 认领自己的批注；文档作者走登录态。
+/// Share page annotations: anchored to the rendered body's plain text (selected text + preceding text + occurrence number).
+/// Guests have no account and claim their annotations via the sha256 of a random browser-local key; the doc author uses the session.
 model ShareComment {
   id            String    @id @default(cuid())
   shareId       String
   share         DocShare  @relation(fields: [shareId], references: [id], onDelete: Cascade)
-  /// 顶级批注为空；回复挂在顶级批注下
+  /// Null for top-level annotations; replies hang under a top-level annotation
   parentId      String?
   author        String
   authorKeyHash String    @default("")
-  /// 登录态的文档作者本人发表
+  /// Posted by the logged-in doc author themselves
   isOwner       Boolean   @default(false)
-  /// 锚点类型：text=选中文字（anchorText/Prefix/Index 定位纯文本区间）；
-  /// media=图片或视频（anchorText 存 src，anchorIndex 为同 src 第几个）
+  /// Anchor type: text = selected text (anchorText/Prefix/Index locate a plain-text range);
+  /// media = image or video (anchorText stores the src, anchorIndex is which occurrence of that src)
   anchorType    String    @default("text")
   anchorText    String    @default("") @db.Text
   anchorPrefix  String    @default("")
   anchorIndex   Int       @default(0)
   body          String    @db.Text
-  /// 解决（销记）时间；仅顶级批注有意义
+  /// Resolved time; only meaningful for top-level annotations
   resolvedAt    DateTime?
   createdAt     DateTime  @default(now())
 
   @@index([shareId, createdAt])
-  /// 删顶级批注时按 parentId 连带删回复，这条 where 不带 shareId
+  /// Deleting a top-level annotation cascades to replies by parentId; this where doesn't include shareId
   @@index([parentId])
 }
 
-// 版本快照：自动保存按时间间隔留存，支持一键回滚
+// Version snapshots: autosaves are kept at intervals, with one-click rollback
 model DocumentVersion {
   id         String   @id @default(cuid())
   documentId String
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   title      String
   content    String   @db.Text
-  /// auto = 自动留存, manual = 手动存档, restore = 回滚前的自动备份
+  /// auto = automatic snapshot, manual = manual save, restore = automatic backup before a rollback
   kind       String   @default("auto")
   createdAt  DateTime @default(now())
 
@@ -172,28 +172,28 @@ model UserSettings {
   customCss    String  @default("") @db.Text
   macCode      Boolean @default(true)
   linkFootnote Boolean @default(true)
-  /// 用户自建分类（JSON 数组），与文章上的分类取并集展示，保证空分类不消失
+  /// User-created categories (JSON array), shown as the union with article categories so empty categories don't disappear
   categories   String  @default("[]")
-  /// 侧栏手动排序（JSON：{ cats: { 父路径: [子名…] }, docs: { 分类: [文档id…] } }）
+  /// Manual sidebar order (JSON: { cats: { parentPath: [childName…] }, docs: { category: [docId…] } })
   sidebarOrder String  @default("{}") @db.Text
-  /// 可视化主题编辑器保存的「我的主题」（CustomThemeSpec JSON 数组）
+  /// 「我的主题」 (My themes) saved by the visual theme editor (CustomThemeSpec JSON array)
   customThemes String  @default("[]") @db.Text
-  /// 默认文本平台 id（对应 scope=chat 的 AiProvider.provider）；为空表示回落到首个已填密钥的平台
+  /// Default text platform id (matches AiProvider.provider with scope=chat); null falls back to the first platform with a key filled in
   aiChatProvider  String @default("")
 }
 
-/// 用户配置的 AI 文本平台凭据（内容审查用）。apiKeyEnc 为 AES-256-GCM 加密后的密钥，明文绝不落库。
+/// User-configured AI text platform credentials (for content review). apiKeyEnc is the AES-256-GCM encrypted key; plaintext never touches the DB.
 model AiProvider {
   userId    String
-  /// 用途：现仅剩 chat（文本对话）
+  /// Purpose: only chat (text conversation) remains
   scope     String   @default("chat")
-  /// 平台 id：replicate | moonshot | zhipu | deepseek
+  /// Platform id: replicate | moonshot | zhipu | deepseek
   provider  String
-  /// 加密后的 API Key（空串表示尚未填写）
+  /// Encrypted API key (empty string means not entered yet)
   apiKeyEnc String   @default("") @db.Text
-  /// 可选的接口地址覆盖；为空时用内置默认
+  /// Optional API endpoint override; built-in default when null
   baseUrl   String   @default("")
-  /// 该平台在此用途下选定的模型
+  /// The model selected for this platform and purpose
   model     String   @default("")
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -201,38 +201,38 @@ model AiProvider {
   @@id([userId, scope, provider])
 }
 
-/// 全站级的键值设置，只有管理后台能写。现存两类键：
-/// ai.review → JSON {provider, model}（全站 AI 审核用哪个模型）；
-/// ai.key.<槽位> → AES-256-GCM 加密后的上游 token（槽位即 providers.ts 里的 envKey）。
+/// Site-wide key-value settings, writable only from the admin. Two kinds of keys exist:
+/// ai.review → JSON {provider, model} (which model site-wide AI review uses);
+/// ai.key.<slot> → AES-256-GCM encrypted upstream token (the slot is the envKey in providers.ts).
 model SiteSetting {
   key       String   @id
   value     String   @db.Text
   updatedAt DateTime @updatedAt
 }
 
-/// AI 审核的历史记录：每跑成一趟存一条，关掉审核、换台设备都还能翻回来看。
-/// docId 只是个字符串（不连外键）：文章进了回收站、甚至删了，当时的意见也还留着。
-/// 这里只有审核结果和「忽略 / 知道了」这两种按钮动作——没有 token，也不存正文。
+/// AI review history: one row per successful run, so it can still be revisited after closing review or switching devices.
+/// docId is just a string (no foreign key): even if the article is trashed or deleted, the suggestions from then are kept.
+/// Only review results and the 「忽略 / 知道了」 (Ignore / Got it) button actions are stored here; no tokens, no body text.
 model ReviewRecord {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   docId     String
-  /// 审了哪几类，逗号分隔（lib/ai/reviewKinds 里的 id）
+  /// Which kinds were reviewed, comma-separated (ids from lib/ai/reviewKinds)
   kinds     String
-  /// 当时用的模型，形如 deepseek/deepseek-chat，只为回看时心里有数
+  /// The model used at the time, like deepseek/deepseek-chat, just for context when looking back
   model     String   @default("")
   /// ReviewResult：summary / categories / items
   result    Json
-  /// 意见 id → ignored / acked
+  /// Suggestion id → ignored / acked
   actions   Json     @default("{}")
   createdAt DateTime @default(now())
 
   @@index([userId, docId, createdAt(sort: Desc)])
 }
 
-/// 每日活跃打点（date 为东八区 YYYY-MM-DD）：后台 DAU 曲线的数据源，
-/// 网页与 MCP 的关键接口都会打点，历史由 WritingActivity 回填
+/// Daily activity tracking (date is YYYY-MM-DD in UTC+8): data source for the admin DAU curve,
+/// tracked by key web and MCP endpoints, history backfilled from WritingActivity
 model DailyActive {
   userId String
   date   String
@@ -242,7 +242,7 @@ model DailyActive {
   @@index([date])
 }
 
-/// 每日写作流水（date 为东八区 YYYY-MM-DD）
+/// Daily writing log (date is YYYY-MM-DD in UTC+8)
 model WritingActivity {
   userId     String
   date       String
@@ -253,7 +253,7 @@ model WritingActivity {
   @@id([userId, date])
 }
 
-/// 「今天」页的当日记录：客户端生成 id 幂等上云；day 是客户端本地时区的 YYYY-MM-DD；删除用 deletedAt 墓碑让其它设备知道
+/// Daily log for the 「今天」 (Today) page: client-generated ids sync idempotently; day is YYYY-MM-DD in the client's local time zone; deletes use a deletedAt tombstone so other devices know
 model DayLogEvent {
   id        String
   userId    String
@@ -274,14 +274,14 @@ model DayLogEvent {
   @@index([userId, day])
 }
 
-/// MCP 内置的 OAuth 2.1 授权服务器：动态注册（RFC 7591）的客户端。
-/// MCP 客户端（Claude Desktop / Cursor）是公有客户端，走 PKCE，无 client_secret。
+/// MCP's built-in OAuth 2.1 authorization server: dynamically registered (RFC 7591) clients.
+/// MCP clients (Claude Desktop / Cursor) are public clients using PKCE, with no client_secret.
 model OAuthClient {
   id              String              @id @default(cuid()) // client_id
   name            String              @default("") // client_name
-  /// 允许的回调地址（JSON 字符串数组）；换码时精确匹配，防开放重定向
+  /// Allowed redirect URIs (JSON string array); matched exactly at code exchange to prevent open redirects
   redirectUris    String              @db.Text
-  /// 机密客户端的 secret 散列（scrypt）；公有客户端为空
+  /// Secret hash (scrypt) for confidential clients; null for public clients
   secretHash      String?
   tokenAuthMethod String              @default("none")
   createdAt       DateTime            @default(now())
@@ -289,10 +289,10 @@ model OAuthClient {
   refreshTokens   OAuthRefreshToken[]
 }
 
-/// 一次性授权码：只存 sha256，绑定 PKCE challenge、客户端、回调地址与 resource，短 TTL（分钟级）。
+/// One-time authorization code: only the sha256 is stored, bound to the PKCE challenge, client, redirect URI and resource, with a short TTL (minutes).
 model OAuthAuthCode {
   id            String      @id @default(cuid())
-  /// sha256(授权码明文)，明文只在回跳 URL 里出现一次
+  /// sha256(plaintext code); the plaintext appears only once, in the redirect URL
   codeHash      String      @unique
   clientId      String
   client        OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -302,17 +302,17 @@ model OAuthAuthCode {
   codeChallenge String
   codeMethod    String      @default("S256")
   scope         String      @default("")
-  /// RFC 8707 目标资源（MCP 服务器规范 URI），换 token 时原样绑定进 aud
+  /// RFC 8707 target resource (MCP server canonical URI), bound into aud as-is at token exchange
   resource      String      @default("")
   expiresAt     DateTime
-  /// 已兑换时间；非空表示此码已用过，禁止重放
+  /// Redeemed time; non-null means the code has been used, replay is rejected
   consumedAt    DateTime?
   createdAt     DateTime    @default(now())
 
   @@index([clientId])
 }
 
-/// 刷新令牌：只存 sha256，轮换时把旧令牌置 revokedAt。
+/// Refresh token: only the sha256 is stored; rotation sets revokedAt on the old token.
 model OAuthRefreshToken {
   id         String      @id @default(cuid())
   tokenHash  String      @unique
@@ -323,7 +323,7 @@ model OAuthRefreshToken {
   scope      String      @default("")
   resource   String      @default("")
   expiresAt  DateTime
-  /// 轮换或撤销时间；非空表示不可再用
+  /// Rotation or revocation time; non-null means no longer usable
   revokedAt  DateTime?
   createdAt  DateTime    @default(now())
 
@@ -331,44 +331,44 @@ model OAuthRefreshToken {
   @@index([clientId])
 }
 
-/// 飞书连接（知识库导入用）：应用凭证按账号各自配置，token 走用户身份 OAuth 获取。
-/// App Secret 与 token 均 AES-256-GCM 加密存储，明文绝不落库。
+/// Feishu connection (for wiki import): app credentials are configured per account, tokens obtained via user-identity OAuth.
+/// App Secret and tokens are both stored AES-256-GCM encrypted; plaintext never touches the DB.
 model FeishuConnection {
   userId          String   @id
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// 用户自己创建的飞书自建应用 App ID（非敏感，用于回显与发起授权）
+  /// App ID of the user's own custom Feishu app (not sensitive; used for display and starting authorization)
   appId           String   @default("")
-  /// 加密后的 App Secret（空串表示尚未填写）
+  /// Encrypted App Secret (empty string means not entered yet)
   appSecretEnc    String   @default("") @db.Text
-  /// 飞书侧用户标识与展示名，仅用于界面回显
+  /// Feishu-side user identifier and display name, for UI display only
   feishuOpenId    String   @default("")
   feishuName      String   @default("")
   accessTokenEnc  String   @default("") @db.Text
   refreshTokenEnc String   @default("") @db.Text
-  /// access_token 过期时刻，提前刷新
+  /// access_token expiry time, refreshed ahead of time
   expiresAt       DateTime @default(now())
-  /// 上次同步选择的知识空间（回显与默认值）
+  /// Wiki space chosen at the last sync (for display and as the default)
   spaceId         String   @default("")
   spaceName       String   @default("")
-  /// 实际授予的 OAuth scope（空串 = 旧的只读授权）；推送前据此判断是否已开写入权限
+  /// OAuth scopes actually granted (empty string = legacy read-only authorization); checked before push to see if write scope is granted
   scopes          String   @default("")
   lastSyncAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
 
-/// 飞书 wiki 节点 ↔ xedit 文档的同步映射：增量跳过与幂等更新的依据。
-/// 挂在 User 而非 FeishuConnection 下：断开重连飞书不丢映射，不会重复建档。
+/// Sync mapping between Feishu wiki nodes and xedit documents: the basis for incremental skipping and idempotent updates.
+/// Attached to User rather than FeishuConnection, so disconnecting and reconnecting Feishu keeps the mappings and doesn't create duplicate docs.
 model FeishuDocLink {
   userId      String
-  /// wiki 节点 token
+  /// wiki node token
   nodeToken   String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   documentId  String
   document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  /// 上次同步时飞书侧的编辑时间戳（秒），未变则整篇跳过
+  /// Feishu-side edit timestamp (seconds) at the last sync; if unchanged, the whole doc is skipped
   objEditTime String   @default("")
-  /// 关联来源：pull=从飞书导入，push=从 xedit 推送——推送来源的拉取时不改分类
+  /// Link source: pull = imported from Feishu, push = pushed from xedit; pulls don't change the category for push-sourced links
   origin      String   @default("pull")
   syncedAt    DateTime @updatedAt
 
@@ -376,7 +376,7 @@ model FeishuDocLink {
   @@index([userId, documentId])
 }
 
-/// 图片资产（上传/AI 生成到 OSS 的文件索引）
+/// Image assets (index of files uploaded/AI-generated to OSS)
 model Asset {
   id        String   @id @default(cuid())
   userId    String
@@ -385,15 +385,15 @@ model Asset {
   size      Int      @default(0)
   mime      String   @default("")
   source    String   @default("upload")
-  /// 图片像素宽；上传时由浏览器读出，MCP/飞书等服务端路径为空，前端首次展示时补录
+  /// Image pixel width; read by the browser on upload, null for server-side paths like MCP/Feishu, backfilled on first frontend display
   width     Int?
-  /// 图片像素高；同 width，视频与读不出尺寸的图片留空
+  /// Image pixel height; same as width, null for videos and images whose size can't be read
   height    Int?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, key])
   @@index([userId, createdAt(sort: Desc)])
-  /// 飞书同步按 source 找已转存的素材：没有这条只能顺着 userId 扫这人全部素材
+  /// Feishu sync looks up already-copied assets by source: without this it would have to scan all of the user's assets by userId
   @@index([userId, source])
 }

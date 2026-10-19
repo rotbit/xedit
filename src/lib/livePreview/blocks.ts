@@ -14,44 +14,44 @@ import {
 } from "@/lib/livePreview/context";
 
 /**
- * 块级即时渲染（表格、$$ 公式、frontmatter）——必须走状态字段而不是视图插件：
- * CodeMirror 明令「跨行的 replace 装饰不能由插件提供」（会抛 RangeError），
- * 而整块表格/公式天然跨行。
+ * Block-level live rendering (tables, $$ math, frontmatter) — must use a state field rather than a view plugin:
+ * CodeMirror explicitly says "multi-line replace decorations may not be provided by plugins" (it throws RangeError),
+ * and whole tables/math blocks naturally span lines.
  *
- * 字段看不到 visibleRanges，因此缓存全文块区间（扫描与增量见 blockScan.ts），
- * 本文件只管两件事：哪些块此刻该让位给源码，以及据此建装饰。
+ * Fields can't see visibleRanges, so we cache whole-document block ranges (scanning and incremental updates live in blockScan.ts);
+ * this file handles just two things: which blocks should yield to source right now, and building decorations from that.
  */
 
 interface BlockDecorations {
-  /** 本次真正被替换掉的区间：插件那边的逐行扫描要跳过（隐藏行不该再加行级类） */
+  /** Ranges actually replaced this time: the plugin's line scan skips them (hidden lines shouldn't get line classes) */
   rendered: CodeRange[];
   deco: DecorationSet;
   atomics: DecorationSet;
 }
 
 interface BlockState extends BlockDecorations, BlockScan {
-  /** 与 ranges 同序：该块此刻是否以部件形态渲染。光标移动时先比这个集合，
-   *  没变就直接复用上次的装饰，不必把全篇部件重建一遍 */
+  /** Same order as ranges: whether each block is currently rendered as a widget. On cursor moves we compare this set first;
+   *  if unchanged we reuse the previous decorations instead of rebuilding every widget in the doc */
   shown: boolean[];
 }
 
 /**
- * 块是否以部件形态渲染（false = 现出源码）。两条判定：
- * - block 装饰必须整行覆盖，否则 CodeMirror 会在渲染时抛错；缩进在引用/列表里的表格
- *   拿不到整行，索性保持源码不渲染
- * - 光标（含两侧边界）落在块里时让位给源码 —— 与图片/分割线同一档 caretTouches：
- *   点开源码后按 Home/← 回到块首、上下键路过停在块尾，严格内部判定会当场翻回部件，
- *   在块里挪一下光标就成了来回闪。
- * 不认横扫而过的选区：选区（⌘A、拖选）沿着 selectionTouches 走的话，选中一瞬间全篇
- * 表格/公式/frontmatter 会一起炸成源码，页面整个跳一次；块被选中时本就整块高亮，
- * 看得出选了什么。
- * 例外是整个落在块内部的非空选区：那是块已经展开、正在源码里选文字，此时改动文档
- * （⌘B 之类保留选区的命令）不能把块收回部件形态——光标判定在这种事务里帮不上忙，
- * caretPositions 拿不到任何空选区。拖选途中的形态另见 update 里的冻结
+ * Whether a block renders as a widget (false = show source). Two rules:
+ * - block decorations must cover whole lines, or CodeMirror throws while rendering; tables indented inside quotes/lists
+ *   can't get whole lines, so just keep them as unrendered source
+ * - when the cursor (including both boundaries) is inside the block, yield to source — same caretTouches tier as images/dividers:
+ *   after opening the source, Home/← back to the block start or arrowing past to stop at the block end would flip it back to a widget
+ *   under a strict-interior check, so moving the cursor inside the block would flicker back and forth.
+ * Sweeping selections don't count: if selections (⌘A, drag) followed selectionTouches, the moment you select, every
+ * table/math/frontmatter in the doc would burst into source and the whole page would jump; a selected block is already highlighted
+ * as a whole, so you can see what's selected.
+ * The exception is a non-empty selection entirely inside a block: the block is already expanded and text is being selected in source, so editing
+ * the doc then (selection-preserving commands like ⌘B) mustn't collapse it back to a widget — the caret check can't help in such transactions,
+ * since caretPositions has no empty selections. For the drag-in-progress state see the freeze in update
  */
 function renderable(state: EditorState, r: BlockRange, caret: number[]): boolean {
   if (state.doc.lineAt(r.from).from !== r.from || state.doc.lineAt(r.to).to !== r.to) return false;
-  // 只装着封面的 frontmatter 永远渲染成图，不给源码让位（理由见 isCoverOnlyFrontmatter）
+  // Frontmatter containing only a cover always renders as an image and never yields to source (see isCoverOnlyFrontmatter for why)
   if (r.kind === "frontmatter" && isCoverOnlyFrontmatter(r.payload)) return true;
   return !caretTouches(caret, r.from, r.to) && !selectionInside(state, r.from, r.to);
 }
@@ -60,8 +60,8 @@ function renderFlags(state: EditorState, ranges: BlockRange[]): boolean[] {
   const caret = caretPositions(state);
   let lastTo = -1;
   return ranges.map((r) => {
-    // 增量扫描理论上不会给出重叠区间，真给出了也不能同时替换：重叠的 block 装饰会让
-    // CodeMirror 抛错、整个编辑器白屏，所以这里兜一道（前一个已渲染的块之内的一律跳过）
+    // Incremental scanning shouldn't produce overlapping ranges, but if it does they can't both be replaced: overlapping block decorations make
+    // CodeMirror throw and white-screen the whole editor, so guard here (skip anything inside the previous rendered block)
     const ok = r.from > lastTo && renderable(state, r, caret);
     if (ok) lastTo = r.to;
     return ok;
@@ -100,18 +100,18 @@ const livePreviewBlockField = StateField.define<BlockState>({
     return withDecorations(state, scanAll(state));
   },
   update(value, tr) {
-    // 语法树是后台增量解析的：树换了也要重扫，否则大文档滚到后半程表格不渲染
+    // The syntax tree is parsed incrementally in the background: a new tree also needs a rescan, or tables in the latter half of big docs won't render
     const treeChanged = syntaxTree(tr.state) !== syntaxTree(tr.startState);
     const forced = tr.effects.some((e) => e.is(refreshLivePreview));
     const rescan = tr.docChanged || treeChanged;
     if (!rescan && !tr.selection && !forced) return value;
 
     if (!rescan) {
-      // 区间没变，只可能是「哪些块要让位给源码」变了：命中集合一样就连装饰都不用碰。
-      // forced（MathJax 就绪、附件读出来）必须重建——部件内容变了，区间却没变。
-      // 选区非空时一律沿用上一轮的形态（caretPositions 此刻是空的，重算等于把所有块
-      // 都收回部件形态）：和视图插件的「光标位置只在空选区时更新」是同一套规矩，
-      // 展开的公式里拖选不会被收回去，拖选扫过的表格也不会中途炸开
+      // Ranges unchanged, so only "which blocks yield to source" can have changed: if the hit set is the same, don't touch decorations at all.
+      // forced (MathJax ready, attachment loaded) must rebuild — widget content changed even though ranges didn't.
+      // With a non-empty selection, always keep the previous round's state (caretPositions is empty then, so recomputing would collapse
+      // every block back to a widget): same rule as the view plugin's "caret positions update only on empty selections",
+      // so drag-selecting inside expanded math won't collapse it, and tables swept by a drag won't burst open midway
       const shown = hasTextSelection(tr.state) ? value.shown : renderFlags(tr.state, value.ranges);
       if (!forced && sameFlags(shown, value.shown)) return value;
       return { ...value, shown, ...buildBlockDecorations(value.ranges, shown) };
@@ -121,21 +121,21 @@ const livePreviewBlockField = StateField.define<BlockState>({
   },
   provide: (f) => [
     EditorView.decorations.from(f, (v) => v.deco),
-    // 表格/公式整体跳过：上下键路过时光标停在两侧边界，部件不还原、不跳动
+    // Skip tables/math as a whole: when arrowing past, the cursor stops at the boundaries and the widget doesn't revert or jump
     EditorView.atomicRanges.of((view) => view.state.field(f, false)?.atomics ?? RangeSet.empty),
   ],
 });
 
-/** 当前被块级部件替换掉的区间，供插件的逐行扫描回避 */
+/** Ranges currently replaced by block widgets, for the plugin's line scan to avoid */
 export function renderedBlockRanges(state: EditorState): CodeRange[] {
   return state.field(livePreviewBlockField, false)?.rendered ?? [];
 }
 
 /**
- * 全文的围栏代码区间 + 三类块级区间（表格、$$ 公式、frontmatter），不论此刻是不是
- * 以部件形态渲染。行内公式与脚注要按原文逐行扫描，这些地方的 `$`、`[^x]` 一律不算数：
- * 代码块里的是代码，$$ 块里的已经归块级公式管，frontmatter 压根不是正文。
- * 用的是块级字段已经缓存好的那份扫描结果，行内这边不必再遍历一次全文。
+ * Whole-document fenced code ranges + the three block range kinds (tables, $$ math, frontmatter), whether or not they're
+ * currently rendered as widgets. Inline math and footnotes scan the source line by line, and `$` / `[^x]` in these places never count:
+ * in code blocks they're code, in $$ blocks they belong to block math, and frontmatter isn't body text at all.
+ * Uses the scan result already cached by the block field, so the inline side doesn't traverse the whole doc again.
  */
 export function blockGuardRanges(state: EditorState): CodeRange[] {
   const value = state.field(livePreviewBlockField, false);

@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 「上次审的是哪几类」这点偏好，存在本机 localStorage 里。
+ * The "which types did I review last time" preference, stored in this browser's localStorage.
  *
- * 这里没有模型也没有 API Key：用哪家的哪个模型、key 是什么，都由管理员在后台定
- * （见 lib/ai/siteSettings），前端不选、不存、不传。
+ * No model or API key here: which provider, which model and what key are all set by the admin in the backend
+ * (see lib/ai/siteSettings); the frontend doesn't pick, store or send them.
  */
 import { useCallback, useSyncExternalStore } from "react";
 import {
@@ -17,13 +17,13 @@ import {
 const STORE_KEY = "xedit.ai.config";
 
 export interface AiConfig {
-  /** 上次勾的是哪几类（表述 / 公众号规则，可多选，至少一类）：下次点「审核」仍停在这儿 */
+  /** Which types were checked last time (wording / WeChat rules, multi-select, at least one): the next 「审核」 (Review) click starts from here */
   kinds: ReviewKind[];
 }
 
 const FALLBACK: AiConfig = { kinds: [DEFAULT_REVIEW_KIND] };
 
-/** 快照要稳定：useSyncExternalStore 每次渲染都会比对，现 parse 一份会导致无限重渲 */
+/** The snapshot must be stable: useSyncExternalStore compares it every render, and parsing a fresh copy would cause infinite re-renders */
 let cache: AiConfig = FALLBACK;
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -32,34 +32,34 @@ function parse(raw: string | null): AiConfig {
   if (!raw) return FALLBACK;
   try {
     const data = JSON.parse(raw) as { kinds?: unknown; kind?: unknown };
-    // 存里那份可能是旧版本写的，也可能被人改花了，一律过一遍校验。
-    // 单选时代存的是 kind，认一下，别让人升级后选择被重置
+    // The stored value may have been written by an older version or tampered with, so always validate it.
+    // The single-select era stored `kind`; accept it so people's selection isn't reset after upgrading
     const legacy = isReviewKind(data.kind) ? [data.kind] : [];
     return { kinds: cleanReviewKinds(Array.isArray(data.kinds) ? data.kinds : legacy) };
   } catch {
-    // 存坏了就当没存过：这点设置重选一遍就好，不值得为它弹个错
+    // If it's corrupt, treat it as never stored: re-picking this setting is trivial, not worth an error
     return FALLBACK;
   }
 }
 
-/** 读当前设置。第一次读才碰 localStorage，之后都走缓存 */
+/** Read the current settings. Only the first read touches localStorage; later reads hit the cache */
 export function readAiConfig(): AiConfig {
   if (!loaded) {
     loaded = true;
     try {
       const raw = typeof window === "undefined" ? null : localStorage.getItem(STORE_KEY);
       cache = parse(raw);
-      // 早先的版本在这里存过用户自己的 key 和模型选择；现在都归后台管，
-      // 旧数据读到就按新形状重写一遍——尤其别让凭证继续留在浏览器里
+      // Earlier versions stored the user's own key and model choice here; the backend owns those now,
+      // so when old data is read, rewrite it in the new shape, and above all don't leave credentials in the browser
       if (raw && raw !== JSON.stringify(cache)) localStorage.setItem(STORE_KEY, JSON.stringify(cache));
     } catch {
-      cache = FALLBACK; // 隐私模式下 localStorage 会直接抛
+      cache = FALLBACK; // localStorage throws outright in private mode
     }
   }
   return cache;
 }
 
-/** 改设置 */
+/** Update settings */
 export function writeAiConfig(patch: Partial<AiConfig>): AiConfig {
   const base = readAiConfig();
   cache = { kinds: patch.kinds ? cleanReviewKinds(patch.kinds) : base.kinds };
@@ -75,14 +75,14 @@ function subscribe(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
-/** 单测用：把模块级缓存复位 */
+/** For unit tests: reset the module-level cache */
 export function __resetAiConfigForTests(): void {
   cache = FALLBACK;
   loaded = false;
   listeners.clear();
 }
 
-/** 组件里用这个，改完设置能自己重渲 */
+/** Use this in components so they re-render after settings change */
 export function useAiConfig(): [AiConfig, (patch: Partial<AiConfig>) => void] {
   const cfg = useSyncExternalStore(subscribe, readAiConfig, () => FALLBACK);
   const set = useCallback((patch: Partial<AiConfig>) => {

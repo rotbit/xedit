@@ -1,7 +1,7 @@
 /**
- * 自托管授权服务器的 token 端点，配合 /api/oauth/authorize 与 /api/mcp 使用。
- * 接入的都是公有客户端：没有 client_secret，安全性靠 PKCE S256 校验和刷新令牌轮换撑着。
- * 所有出口都带 CORS 头（corsJson / oauthError / corsPreflight），因为 MCP 客户端从别的源直接打过来。
+ * Token endpoint of the self-hosted authorization server, used with /api/oauth/authorize and /api/mcp.
+ * All clients are public: no client_secret, so security rests on PKCE S256 checks and refresh token rotation.
+ * Every response carries CORS headers (corsJson / oauthError / corsPreflight) because MCP clients call in directly from other origins.
  */
 import { OAUTH, mcpResourceUrl, publicOrigin } from "@/lib/oauth/config";
 import { corsJson, corsPreflight, oauthError, readCredentials } from "@/lib/oauth/http";
@@ -17,8 +17,8 @@ import { signAccessToken } from "@/lib/oauth/token";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** 签发一组令牌。existingRefresh 有值表示调用方已经轮换出了新的刷新令牌，直接沿用；
- *  这里不能再签一个，否则一次刷新会留下两个都有效的刷新令牌。 */
+/** Issue a token set. A non-empty existingRefresh means the caller already rotated in a new refresh token, so reuse it;
+ *  don't sign another here, or one refresh would leave two valid refresh tokens. */
 async function issueTokens(
   origin: string,
   clientId: string,
@@ -27,7 +27,7 @@ async function issueTokens(
   resource: string,
   existingRefresh?: string
 ): Promise<Response> {
-  // access token 必须绑定受众（RFC 8707），客户端没传 resource 时退回本站的 MCP 资源标识
+  // Access tokens must be audience-bound (RFC 8707); if the client didn't pass resource, fall back to this site's MCP resource identifier
   const aud = resource || mcpResourceUrl(origin);
   const accessToken = await signAccessToken({ userId, clientId, scope, issuer: origin, resource: aud });
   const refreshToken =
@@ -41,14 +41,14 @@ async function issueTokens(
   });
 }
 
-// OAuth 2.1 token 端点：授权码兑换（强制 PKCE）与刷新令牌轮换。公有客户端，无 client_secret。
+// OAuth 2.1 token endpoint: authorization code exchange (PKCE enforced) and refresh token rotation. Public clients, no client_secret.
 export async function POST(req: Request): Promise<Response> {
   const origin = publicOrigin(req);
   const form = await readCredentials(req);
   const grantType = form.get("grant_type") ?? "";
   const clientId = form.get("client_id") ?? "";
 
-  // 客户端身份相关的错误按规范回 401，其余参数类错误走 oauthError 默认的 400
+  // Client identity errors return 401 per the spec; other parameter errors use oauthError's default 400
   if (!clientId) return oauthError("invalid_client", "缺少 client_id", 401); // i18n-ignore
   const client = await getClient(clientId);
   if (!client) return oauthError("invalid_client", "客户端不存在", 401); // i18n-ignore
@@ -86,7 +86,7 @@ export async function POST(req: Request): Promise<Response> {
   return oauthError("unsupported_grant_type", `不支持的 grant_type: ${grantType}`); // i18n-ignore
 }
 
-/** 跨源预检。少了它，浏览器里的 MCP 客户端连令牌都换不到。 */
+/** CORS preflight. Without it, in-browser MCP clients can't even exchange tokens. */
 export function OPTIONS(): Response {
   return corsPreflight();
 }

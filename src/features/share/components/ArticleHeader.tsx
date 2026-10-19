@@ -1,6 +1,6 @@
 "use client";
 
-// 分享页顶栏：品牌入口、批注数、CTA（从 SharedArticle 搬出）
+// Share page top bar: brand link, annotation count, CTA (moved out of SharedArticle)
 
 import Link from "next/link";
 

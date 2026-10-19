@@ -2,9 +2,9 @@ import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * 服务层的并发保护（条件更新 + 新建去重）。本机没有数据库，
- * 所以把 prisma 换成假客户端：验证的是这一层自己的判断与递给数据库的参数，
- * 「条件是否真的原子」由 SQL 的 UPDATE … WHERE 保证，不在单测范围内。
+ * Concurrency protection in the service layer (conditional update + create dedupe). There's no local database,
+ * so prisma is replaced by a fake client: what's verified is this layer's own logic and the arguments passed to the database;
+ * "whether the condition is truly atomic" is guaranteed by SQL's UPDATE … WHERE and is out of scope for unit tests.
  */
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -18,7 +18,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-/** 留版自己会写库，这里只关心副作用有没有被触发 */
+/** Versioning writes to the database itself; here we only care whether the side effect fired */
 vi.mock("@/lib/versions", () => ({
   autoSnapshot: vi.fn(async () => true),
   AUTOSAVE_RULE: { minIntervalMs: 0, minChars: 0 },
@@ -37,7 +37,7 @@ const snapshot = autoSnapshot as unknown as Mock;
 const BASE = new Date("2026-09-18T03:00:00.000Z");
 const NEWER = new Date("2026-09-18T03:00:05.000Z");
 
-/** 一行文档；只给被测代码用得上的字段 */
+/** A document row; only the fields the code under test uses */
 function row(over: Partial<Record<string, unknown>> = {}) {
   return {
     id: "d1",
@@ -65,7 +65,7 @@ beforeEach(() => {
 describe("updateDocument 带 baseUpdatedAt（条件更新）", () => {
   it("服务端已被别人写过：回冲突与当前版本，不落任何写入", async () => {
     db.document.findFirst
-      .mockResolvedValueOnce(row()) // 前置读：取旧正文、判在不在回收站
+      .mockResolvedValueOnce(row()) // Pre-read: fetch the old body and check whether it's in the trash
       .mockResolvedValueOnce(row({ updatedAt: NEWER, content: "别的设备写的正文" }));
     db.document.updateMany.mockResolvedValue({ count: 0 });
 
@@ -78,7 +78,7 @@ describe("updateDocument 带 baseUpdatedAt（条件更新）", () => {
       conflict: true,
       doc: expect.objectContaining({ id: "d1", content: "别的设备写的正文", updatedAt: NEWER }),
     });
-    // 关键：没有退回无条件覆盖，也没留版、没记流水
+    // Key point: no fallback to an unconditional overwrite, and no version saved or log entry written
     expect(db.document.update).not.toHaveBeenCalled();
     expect(snapshot).not.toHaveBeenCalled();
     expect(db.writingActivity.upsert).not.toHaveBeenCalled();
@@ -103,11 +103,11 @@ describe("updateDocument 带 baseUpdatedAt（条件更新）", () => {
     });
 
     const args = db.document.updateMany.mock.calls[0][0];
-    // where 把版本条件交给数据库；deletedAt 一并带上，回收站里的文章写不进去
+    // where hands the version condition to the database; deletedAt goes along too, so articles in the trash can't be written
     expect(args.where).toEqual({ id: "d1", userId: "u1", deletedAt: null, updatedAt: BASE });
     expect(args.data.title).toBe("新标题");
     expect(args.data.content).toBe("新正文");
-    // 时间戳自己盖：回给客户端的就是写进库的那个值，中间不再回查
+    // Stamp the timestamp ourselves: the client gets back exactly the value written to the database, with no re-query
     expect(args.data.updatedAt.getTime()).toBeGreaterThan(BASE.getTime());
     if (!out || out.conflict) throw new Error("应当写入成功");
     expect(out.updatedAt).toEqual(args.data.updatedAt);
@@ -153,7 +153,7 @@ describe("updateDocument 不带 baseUpdatedAt（历史行为）", () => {
     expect(db.document.update).toHaveBeenCalledTimes(1);
     expect(db.document.update.mock.calls[0][0].where).toEqual({ id: "d1" });
     expect(out).toEqual({ conflict: false, updatedAt: served });
-    // 副作用与条件路径一致
+    // Side effects match the conditional path
     expect(snapshot).toHaveBeenCalledTimes(1);
     expect(db.writingActivity.upsert).toHaveBeenCalledTimes(1);
   });
@@ -187,7 +187,7 @@ describe("createDocumentRow 的 clientKey 去重", () => {
     expect(db.document.create.mock.calls[0][0].data).toMatchObject({
       userId: "u1",
       title: "新建",
-      clientKey: "k2", // 首尾空白裁掉
+      clientKey: "k2", // Leading and trailing whitespace trimmed
     });
     expect(doc).toMatchObject({ clientKey: "k2" });
   });

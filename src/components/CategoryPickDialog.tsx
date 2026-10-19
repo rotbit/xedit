@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 带搜索的分类选择弹窗：分类多、层级深时替代右键菜单里平铺的一长串分类。
- * 走 createDialogHost 的「单宿主 + 全局 open()」模式，调用方 await askCategoryPick() 直接拿结果。
- * 返回值有三种含义要分清：分类路径字符串、空串（选了顶级）、null（取消或宿主没挂载）。
+ * Searchable category picker dialog: replaces the long flat category list in the context menu when there are many deeply nested categories.
+ * Uses createDialogHost's "single host + global open()" pattern; callers simply await askCategoryPick() for the result.
+ * The return value has three distinct meanings: a category path string, an empty string (top level chosen), or null (cancelled or host not mounted).
  */
 import { useMemo, useState } from "react";
 import { Folder, FolderPlus, FolderUp, Search } from "lucide-react";
@@ -12,35 +12,35 @@ import { nameOf } from "@/features/workspace/lib/catPath";
 import { PaperDialog } from "./Modal";
 import { useT } from "@/i18n/useT";
 
-/** 选中「新建分类」入口时的返回哨兵（NUL 不可能出现在真实分类名里） */
+/** Sentinel returned when the 「新建分类」 (New category) entry is chosen (NUL can never appear in a real category name) */
 export const CREATE_CATEGORY = "\0create";
 
 export interface CategoryPickOptions {
   title: string;
-  /** 全量分类路径（已排序）；层级由 `/` 拆出 */
+  /** All category paths (sorted); levels are split on `/` */
   categories: string[];
-  /** 当前所在分类：列表里置灰不可选 */
+  /** The current category: greyed out and unselectable in the list */
   current?: string;
-  /** 提供该文案时列表顶部固定一项「顶级」，选中后 resolve 空串（null 仍表示取消） */
+  /** When this label is provided, a fixed 「顶级」 (Top level) item sits at the top; choosing it resolves an empty string (null still means cancel) */
   topOption?: string;
-  /** 提供该文案时列表底部固定一项「新建分类」，选中后 resolve CREATE_CATEGORY */
+  /** When this label is provided, a fixed 「新建分类」 (New category) item sits at the bottom; choosing it resolves CREATE_CATEGORY */
   createOption?: string;
 }
 
 const pickHost = createDialogHost<CategoryPickOptions, string | null>(null);
 
-/** 带搜索的分类选择弹窗（分类多、层级深时替代菜单平铺）；取消 / 宿主未挂载时 resolve null */
+/** Searchable category picker (replaces the flat menu when categories are many and deep); resolves null on cancel / when the host isn't mounted */
 export const askCategoryPick = pickHost.open;
 
-/** 深层缩进与侧栏同思路：前两层大步进，之后小步进并封顶 */
+/** Deep indentation follows the sidebar: big steps for the first two levels, then small capped steps */
 const indentOf = (depth: number) =>
   Math.min(Math.min(depth, 2) * 14 + Math.max(depth - 2, 0) * 8, 72);
 
-/** 弹窗宿主，在根布局挂一份即可；没有打开时返回 null，不占 DOM。 */
+/** Dialog host; mount one in the root layout. Returns null when not open, taking no DOM. */
 export function CategoryPickHost() {
   const t = useT();
   const [query, setQuery] = useState("");
-  // 每次打开都从空搜索词开始
+  // Every open starts with an empty search
   const { state, close } = pickHost.useHost(() => setQuery(""));
 
   const q = query.trim().toLowerCase();
@@ -51,7 +51,7 @@ export function CategoryPickHost() {
 
   if (!state) return null;
 
-  // 只给回车直选用：候选唯一时回车才敢替用户决定，剩下多个时回车不做任何事
+  // Only for Enter-to-pick: Enter decides for the user only when there's a single candidate; with several it does nothing
   const selectable = shown.filter((c) => c !== state.current);
 
   return (
@@ -104,7 +104,7 @@ export function CategoryPickHost() {
                     ? "cursor-default text-[var(--ink-faint)]"
                     : "cursor-pointer text-[var(--ink)] hover:bg-[var(--paper)]"
                 }`}
-                // 搜索态取消层级缩进：过滤后的结果在树里本来就不连续，留着缩进反而看起来错位
+                // Drop tree indentation while searching: filtered results aren't contiguous in the tree, so indentation would look misaligned
                 style={{ paddingLeft: `${12 + (q ? 0 : indentOf(depth))}px` }}
                 title={c}
                 disabled={isCurrent}
@@ -112,7 +112,7 @@ export function CategoryPickHost() {
               >
                 <Folder size={14} className="shrink-0 text-[var(--ink-faint)]" />
                 {q ? (
-                  // 搜索态平铺：显示完整路径便于区分同名分类
+                  // Flat while searching: show the full path to tell same-named categories apart
                   <span className="truncate">{c}</span>
                 ) : (
                   <span className="truncate">{nameOf(c)}</span>

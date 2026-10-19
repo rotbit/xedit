@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 工作台侧栏最底下那一排。三种形态互斥：已登录给图片库/回收站/账户菜单，
- * 离线态照样显示账号（只是点不开菜单，那些都要联网），
- * 未登录（本地模式）给登录引导和「打开文件夹作为文库」。
- * 状态都来自 useWorkspace 聚合出的 ws，本文件不发请求、不自己存状态。
+ * The bottom row of the workspace sidebar. Three mutually exclusive forms: logged in shows image library/trash/account menu,
+ * offline still shows the account (the menu just can't open, since everything there needs the network),
+ * logged out (local mode) shows a login prompt and 「打开文件夹作为文库」 (Open folder as library).
+ * All state comes from the ws aggregated by useWorkspace; this file sends no requests and stores no state of its own.
  */
 import { useState } from "react";
 import { ChevronsUpDown, FolderOpen, Images, Loader2, LogIn, Trash2 } from "lucide-react";
@@ -31,13 +31,13 @@ import { NavRow } from "./NavRow";
 import type { AuthUser } from "../hooks/useAuthMode";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 账号头像。第三方头像离线必然加载失败，落回首字母，别留一个破图框 */
+/** Account avatar. Third-party avatars always fail to load offline, so fall back to the initial instead of leaving a broken image box */
 function Avatar({ user }: { user: AuthUser | undefined }) {
   const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
   const src = user?.image;
   if (src && brokenSrc !== src) {
     return (
-      // 头像地址来自第三方登录，域名不固定，配不进 next/image 的远端白名单
+      // Avatar URLs come from third-party login with no fixed domain, so they can't be added to next/image's remote allowlist
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
@@ -54,11 +54,11 @@ function Avatar({ user }: { user: AuthUser | undefined }) {
   );
 }
 
-/** 底部这排次要按钮：与工作台其他 ghost 按钮同款，压在深色侧栏上也够清楚 */
+/** Secondary buttons in this bottom row: same as the other ghost buttons in the workspace, clear enough on the dark sidebar */
 const vaultBtnCls =
   "flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--hairline)] px-2 text-[12.5px] text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]";
 
-/** 图片库 / 回收站入口：就是一条 NavRow，选中态按当前视图算 */
+/** Image library / trash entry: just a NavRow, selected state based on the current view */
 function ViewRow({
   ws,
   viewKey,
@@ -83,7 +83,7 @@ function ViewRow({
   );
 }
 
-/** 本地模式的文库来源：开着磁盘文件夹就显示库名，否则给个入口去开一个 */
+/** Library source in local mode: shows the library name if a disk folder is open, otherwise an entry to open one */
 function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) {
   const t = useT();
   if (vault.status === "open") {
@@ -115,7 +115,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
     );
   }
 
-  // 刷新后权限掉回 prompt：重新授权必须发生在点击里
+  // After a refresh the permission falls back to prompt: re-granting must happen inside a click
   if (vault.status === "pending") {
     return (
       <button className={vaultBtnCls} onClick={() => void resumeVault()}>
@@ -125,7 +125,7 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
     );
   }
 
-  // Safari、Firefox 没有 File System Access，给不出入口，就只说明数据存在本机，别让人点了没反应
+  // Safari and Firefox lack File System Access, so no entry can be offered; just say data is stored locally so nobody clicks something that does nothing
   if (!isVaultSupported()) {
     return (
       <span
@@ -145,14 +145,14 @@ function VaultRow({ vault, onOpen }: { vault: VaultState; onOpen: () => void }) 
   );
 }
 
-/** 侧栏底部：登录态是工具入口 + 账户，离线态是提示，本地模式是登录引导 */
+/** Sidebar bottom: logged in shows tool entries + account, offline shows a notice, local mode shows a login prompt */
 export function SidebarFooter({ ws }: { ws: Workspace }) {
   const { auth, menus, library, vault } = ws;
   const t = useT();
 
-  /** 选一个磁盘文件夹当文库；浏览器里还攒着文章就问一句要不要一起搬进去 */
+  /** Pick a disk folder as the library; if the browser still holds documents, ask whether to move them in too */
   const openVaultAsLibrary = async () => {
-    // 选文件夹必须发生在用户手势的调用栈里，picker 之前不能有 await，所以先同步数一遍浏览器里的篇数
+    // Picking a folder must happen within the user gesture's call stack with no await before the picker, so count the browser's documents synchronously first
     const n = countBrowserDocs();
     const r = await openVaultFromPicker();
     if (r === "cancelled") return;
@@ -160,9 +160,9 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
       toast(t("当前浏览器不支持打开本地文件夹，请用 Chrome / Edge"), "error");
       return;
     }
-    if (r === "failed") return; // vaultSession 已经弹过失败原因
+    if (r === "failed") return; // vaultSession has already shown the failure reason
     toast(t("已打开文件夹「{name}」", { name: getVaultState().name ?? "" }), "success");
-    if (n === 0) return; // 空库就空着，让用户自己新建
+    if (n === 0) return; // Leave an empty library empty and let the user create documents
     const ok = await askConfirm({
       title: t("迁移浏览器里的文章"),
       message: t("浏览器里还有 {n} 篇本地文章，要搬进这个文件夹吗？搬完后浏览器里的副本会删除。", { n }),
@@ -171,11 +171,11 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
     if (!ok) return;
     const moved = await migrateBrowserDocsToVault();
     notifyDocsChanged();
-    library.setCustomCats(listLocalCats()); // 空分类只在分类表里，得单独再读一次
+    library.setCustomCats(listLocalCats()); // Empty categories exist only in the category table, so read it separately again
     toast(t("已迁入 {n} 篇文章", { n: moved }), "success");
   };
 
-  // 0 转成 null：NavRow 拿到 null 就不画计数，空回收站不该顶着一个「0」
+  // Turn 0 into null: NavRow draws no count for null, and an empty trash shouldn't wear a 「0」
   const trashCount = library.trashDocs?.length ? library.trashDocs.length : null;
   const trashRow = (
     <ViewRow
@@ -216,8 +216,8 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
           </div>
         </>
       ) : auth.offlineAuthed ? (
-        // 服务器够不着，但本机还认得这是谁：账号照常摆着，右边一个克制的「离线」小标记。
-        // 不给账户菜单——登出、后台这些都要联网；图片库/回收站同理，先藏着
+        // The server is unreachable, but this device still knows who you are: the account shows as usual with a restrained 「离线」 (Offline) badge on the right.
+        // No account menu: sign out, admin and the rest need the network; image library/trash likewise stay hidden for now
         <div className="mt-1.5 border-t border-[var(--hairline)] pt-1.5">
           <div
             className="flex w-full items-center gap-2 rounded-md px-2 py-1"
@@ -231,7 +231,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--ink-faint)]" />
               {t("离线")}
             </span>
-            {/* 两个方块按钮紧挨着成一组，不吃外层的 gap */}
+            {/* The two square buttons sit snug together as a group, not taking the outer gap */}
             <div className="flex shrink-0 items-center">
               <LangToggle />
               <DarkToggle />
@@ -240,9 +240,9 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
         </div>
       ) : (
         <>
-          {/* 磁盘文库的删除是移进 .trash/，所以只有开着库时才有回收站可看 */}
+          {/* Deleting from a disk library moves files into .trash/, so there's a trash to view only while a library is open */}
           {vault.status === "open" ? trashRow : null}
-          {/* 本地模式：文章保存在本设备，登录后自动同步上云 */}
+          {/* Local mode: documents are saved on this device and synced to the cloud after login */}
           <button
             className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-[12.5px] font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-deep)]"
             onClick={() => openAuth("login")}
@@ -254,7 +254,7 @@ export function SidebarFooter({ ws }: { ws: Workspace }) {
             <div className="min-w-0 flex-1">
               <VaultRow vault={vault} onOpen={() => void openVaultAsLibrary()} />
             </div>
-            {/* 两个方块按钮紧挨着成一组，不吃外层的 gap */}
+            {/* The two square buttons sit snug together as a group, not taking the outer gap */}
             <div className="flex shrink-0 items-center">
               <LangToggle />
               <DarkToggle />

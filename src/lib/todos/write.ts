@@ -1,9 +1,9 @@
 /**
- * 待办的写回（副作用层）：勾选、追加、删除都落到文章正文里，走现有的存储与同步。
+ * Writing todos back (side-effect layer): check, append and delete all land in the article body via existing storage and sync.
  *
- * 编辑器正开着的那篇不能直接写存储：编辑器 store 里的内容才是最新的，
- * 下一次自动保存会拿它整篇回写，把这边写进存储的改动盖掉。
- * 所以那一篇改 store、让编辑器重挂载，落盘交给自动保存。
+ * The doc open in the editor can't be written to storage directly: the editor store holds the latest content,
+ * and the next autosave writes the whole doc back from it, overwriting whatever we wrote to storage.
+ * So for that doc we update the store, remount the editor, and leave persistence to autosave.
  */
 
 import { getDocContent } from "@/lib/docContent";
@@ -30,14 +30,14 @@ import {
   toggleTaskLine,
 } from "./parse";
 
-export const NOTES_TITLE = "待办清单"; // i18n-ignore 存储名，显示处 t()
+export const NOTES_TITLE = "待办清单"; // i18n-ignore stored name, displayed via t()
 
-/** 关掉阅读器后 store.docId 不会清空，只认 store 会把改动写进没人落盘的 store 里；以编辑器挂载登记为准 */
+/** store.docId isn't cleared after closing the reader; trusting it alone would write changes into a store nobody persists. Go by the editor's mount registration instead */
 const isOpenInEditor = (docId: string) => isDocOpenInEditor(docId) && useStore.getState().docId === docId;
 
 /**
- * 读正文：编辑器开着它就读 store。先借 flushOnly 让编辑器把节流窗口里压着的输入吐进 store
- * （同 useEditorSave 的 persistOnHide），否则改写基于的是少了最后几个字的旧稿。
+ * Read the body: if the editor has it open, read the store. First use flushOnly to have the editor push throttled input into the store
+ * (like persistOnHide in useEditorSave); otherwise the rewrite is based on a stale draft missing the last few characters.
  */
 function readDocContent(docId: string): string {
   if (isOpenInEditor(docId)) {
@@ -50,8 +50,8 @@ function readDocContent(docId: string): string {
 }
 
 /**
- * 整篇写回正文。updateLocalDoc / saveMirrorLocal 都是按字段打补丁，
- * 只传 content 不会清掉标题和分类。存储写满时 saveMirrorLocal 会抛，交给调用方提示。
+ * Write the whole body back. updateLocalDoc / saveMirrorLocal patch by field,
+ * so passing only content won't clear the title or category. saveMirrorLocal throws when storage is full; the caller shows the message.
  */
 export async function writeDocContent(docId: string, next: string): Promise<void> {
   if (isOpenInEditor(docId)) {
@@ -61,33 +61,33 @@ export async function writeDocContent(docId: string, next: string): Promise<void
     updateLocalDoc(docId, { content: next });
   } else {
     saveMirrorLocal(docId, { content: next });
-    // 离线时镜像已标脏，联网后同步引擎会推；这里不等推送结果，勾选要即时
+    // Offline, the mirror is already marked dirty and the sync engine pushes once back online; don't wait for the push here, checking must feel instant
     if (typeof navigator !== "undefined" && navigator.onLine) void pushMirrorDoc(docId);
   }
   notifyDocsChanged();
 }
 
 /**
- * 找到这条待办此刻所在的行。列表是按缓存算的，用户可能刚在别处改过正文，
- * 行号对不上就按文字再找一次；找不到返回 -1。
- * notChecked 给定时只认勾选状态与它相反的同名任务（勾选要找还没勾的那条）；
- * 删除不挑状态，传 null。勾选状态按 resolveTask 的口径算：每日任务的 `[x]` 可能是昨天勾的，
- * 照原始勾选框比会把今天还没做的那条漏掉。
+ * Find the line this todo is on right now. The list is computed from the cache and the user may have just edited the body elsewhere,
+ * so if the line number doesn't match, search again by text; -1 if not found.
+ * When notChecked is given, only a same-text task whose checked state is its opposite matches (checking looks for the unchecked one);
+ * deletion doesn't care about state, pass null. Checked state follows resolveTask: a daily task's `[x]` may be from yesterday,
+ * so comparing the raw checkbox would miss the one not yet done today.
  */
 function locateTask(md: string, item: TodoItem, notChecked: boolean | null, today: string = todayKey()): number {
-  // 口径同 collectTodos：清单行要连关联标记一起剥掉再比，正文行只剥日期 / 重复标签
+  // Same rule as collectTodos: checklist lines strip the link marker too before comparing; body lines strip only date / repeat tags
   const tasks = parseTaskLines(md).map((t) => ({ line: t.line, ...resolveTask(t.raw, t.checked, today, item.source === "notes") }));
   const exact = tasks.find((t) => t.line === item.line);
   if (exact && exact.text === item.text) return exact.line;
   return tasks.find((t) => (notChecked === null || t.checked !== notChecked) && t.text === item.text)?.line ?? -1;
 }
 
-/** 勾选 / 取消一条待办；勾上时记一条「完成」到当日记录 */
+/** Check / uncheck a todo; checking logs a 「完成」 (Done) entry to the day log */
 export async function setTaskChecked(item: TodoItem, checked: boolean): Promise<void> {
   const md = readDocContent(item.docId);
   let next = md;
   if (item.source === "publish") {
-    // 发布排期只能勾上：取消勾选意味着删掉 published 键，没人需要
+    // Publish schedules can only be checked: unchecking would mean deleting the published key, which nobody needs
     if (!checked) return;
     next = markPublished(md);
   } else {
@@ -101,17 +101,17 @@ export async function setTaskChecked(item: TodoItem, checked: boolean): Promise<
   if (checked) logEvent({ kind: "task", text: item.text, docId: item.docId, title: item.docTitle });
 }
 
-/** 往指定文章末尾追加一条待办（addNoteTask 往清单那篇追加时用） */
+/** Append a todo to the end of the given article (used by addNoteTask when appending to the checklist) */
 export async function addTaskToDoc(docId: string, text: string): Promise<void> {
   const md = readDocContent(docId);
   const next = appendTask(md, text);
-  if (next === md) return; // 空文字
+  if (next === md) return; // Empty text
   await writeDocContent(docId, next);
 }
 
 /**
- * 从文章正文里删掉这条待办所在的那一行。publish 来源没有对应的行（它来自 frontmatter），
- * 界面上不给删除入口，这里也直接忽略。
+ * Delete the line holding this todo from the article body. Publish sources have no corresponding line (they come from frontmatter);
+ * the UI offers no delete for them, so just ignore here.
  */
 export async function deleteTask(item: TodoItem): Promise<void> {
   if (item.source === "publish") return;
@@ -124,9 +124,9 @@ export async function deleteTask(item: TodoItem): Promise<void> {
 }
 
 /**
- * 把一条待办挪到 range（开始日 + 可选结束日；null = 不定日期）：正文里的改行尾日期标签，
- * 发布排期改 frontmatter，且只取开始日（发布是某一天的事，没有时间段）。
- * 发布排期没有「不定日期」——去掉 publish 键等于取消排期，界面上不给这个入口，这里也忽略。
+ * Move a todo to range (start date + optional end date; null = undated): body todos get their trailing date tag rewritten,
+ * publish schedules get frontmatter updated, using only the start date (publishing happens on one day, no ranges).
+ * Publish schedules have no "undated" — removing the publish key means unscheduling, which the UI doesn't offer, so ignore here.
  */
 export async function setTaskDue(item: TodoItem, range: DueRange | null): Promise<void> {
   const md = readDocContent(item.docId);
@@ -144,8 +144,8 @@ export async function setTaskDue(item: TodoItem, range: DueRange | null): Promis
 }
 
 /**
- * 关联 / 更换 / 取消关联文章（link 为 null）：改清单行尾的 `[[docId]]`。
- * 发布排期本身就是某篇文章的，没有关联可改，直接忽略。
+ * Link / change / unlink an article (link null): edits the `[[docId]]` at the end of the checklist line.
+ * A publish schedule already belongs to an article, so there's no link to change; ignore.
  */
 export async function setTaskLink(item: TodoItem, link: string | null): Promise<void> {
   if (item.source === "publish") return;
@@ -158,7 +158,7 @@ export async function setTaskLink(item: TodoItem, link: string | null): Promise<
 }
 
 /**
- * 设 / 取消每日重复。取消时换成今天的日期，见 setTaskLineRepeat；发布排期没有重复这回事，忽略。
+ * Set / clear daily repeat. Clearing swaps in today's date, see setTaskLineRepeat; publish schedules don't repeat, ignore.
  */
 export async function setTaskRepeat(item: TodoItem, on: boolean): Promise<void> {
   if (item.source === "publish") return;
@@ -172,20 +172,20 @@ export async function setTaskRepeat(item: TodoItem, on: boolean): Promise<void> 
 }
 
 /**
- * 建稿函数由界面层提供（要走本地 / 云端两条建稿路径，且不跳转打开），返回新文章 id。
- * opts.log 为 false 时不记「新建」到当日记录（建待办清单那篇这种用户看不见的实现细节）
+ * The doc-creation function is supplied by the UI layer (it goes through the local / cloud creation paths, without navigating to it) and returns the new article id.
+ * With opts.log false, no 「新建」 (New) entry is logged to the day log (for implementation details the user doesn't see, like creating the todo checklist)
  */
 export type CreateDocQuietly = (title: string, content: string, opts?: { log?: boolean }) => Promise<string>;
 
 /**
- * 快速输入的默认目标（独立待办）：往待办清单那篇追加一行；还没有这篇就建一篇。
- * docs 要传全库：清单那篇不在侧栏可见列表里，传可见列表会每次都误建一篇。
+ * Default target for quick entry (standalone todo): append a line to the todo checklist; create it if it doesn't exist yet.
+ * docs must be the whole library: the checklist isn't in the sidebar's visible list, and passing that list would create a new one every time.
  */
 export async function addNoteTask(text: string, docs: DocMeta[], createDoc: CreateDocQuietly): Promise<void> {
   const body = appendTask("", text);
   if (!body) return;
   const notes = findNotesDoc(docs);
   if (notes) return addTaskToDoc(notes.id, text);
-  // 清单那篇对用户隐形，建它不算「新建了一篇文章」
+  // The checklist is invisible to the user; creating it doesn't count as "created an article"
   await createDoc(NOTES_TITLE, `---\ntype: todo\n---\n\n${body}`, { log: false });
 }

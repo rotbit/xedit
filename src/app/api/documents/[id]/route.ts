@@ -11,13 +11,13 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(req: Request, { params }: Params) {
   const userId = await requireUserId();
   if (isResponse(userId)) return userId;
-  // 直接打开 /edit/[id] 不经过文档列表，这里补一个 DAU 打点位
+  // Opening /edit/[id] directly bypasses the doc list, so add a DAU tracking point here
   void touchDailyActive(userId);
   const { id } = await params;
 
-  // 带 since= 的是「已有镜像、只想知道云端有没有更新」的后台校新：
-  // 先用轻量 select 比一次时间戳，没变就 204 收场，整篇正文不必白下一趟。
-  // 不带（或时间串没法解析）时一切照旧，冷路径装载与其它调用方不受影响。
+  // since= means a background freshness check "I have a mirror, just tell me if the cloud has changed":
+  // compare timestamps with a lightweight select first, and if unchanged return 204 without shipping the whole body.
+  // Without it (or with an unparseable time string) everything is as before; cold-path loads and other callers are unaffected.
   const since = new URL(req.url).searchParams.get("since");
   const sinceAt = since ? new Date(since) : null;
   if (sinceAt && !Number.isNaN(sinceAt.getTime())) {
@@ -33,7 +33,7 @@ export async function GET(req: Request, { params }: Params) {
     }
   }
 
-  // 编辑器要整行（正文、时间戳都在响应里），这里不走 requireOwnedDoc 的轻量 select
+  // The editor needs the full row (body and timestamps are in the response), so this doesn't use requireOwnedDoc's lightweight select
   const doc = await prisma.document.findFirst({ where: { id, userId } });
   if (!doc || doc.deletedAt) {
     return NextResponse.json({ error: tk("文档不存在") }, { status: 404 });
@@ -49,7 +49,7 @@ export async function PUT(req: Request, { params }: Params) {
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 
-  // 从回收站恢复
+  // Restore from trash
   if (body?.restore === true) {
     const restored = await prisma.document.updateMany({
       where: { id, userId, deletedAt: { not: null } },
@@ -61,17 +61,17 @@ export async function PUT(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true });
   }
 
-  // baseUpdatedAt = 客户端这次编辑基于的服务端版本时刻，带了就是条件保存（乐观锁）：
-  // 服务端已被另一台设备写过就回 409 并附上当前这版，由客户端合并，不做后写覆盖。
-  // 不带则与历史行为一致（老客户端无条件覆盖）。给了但解析不出来的一律拦下——
-  // 这种时候悄悄退回无条件覆盖，等于保护没了却没人知道。
+  // baseUpdatedAt = the server version time this client edit is based on; if given, it's a conditional save (optimistic lock):
+  // if another device already wrote to the server, return 409 with the current version for the client to merge, rather than last-write-wins.
+  // Without it, behavior matches history (old clients overwrite unconditionally). If given but unparseable, it's rejected:
+  // silently falling back to an unconditional overwrite would mean losing the protection without anyone knowing.
   const baseUpdatedAt = parseBaseUpdatedAt(body?.baseUpdatedAt);
   if (body?.baseUpdatedAt != null && !baseUpdatedAt) {
     return NextResponse.json({ error: tk("baseUpdatedAt 无法解析") }, { status: 400 });
   }
 
-  // 保存的副作用（字段裁剪、自动留版、当日写作流水，以及回收站里的文章不给改写）
-  // 全在服务层；MCP 的 update_document 走的也是这一条，两条通道语义不会漂
+  // Save side effects (field trimming, automatic versions, the daily writing log, and refusing writes to trashed articles)
+  // all live in the service layer; MCP's update_document goes through the same path, so the two channels can't drift
   const saved = await updateDocument(userId, id, {
     title: body.title,
     content: body.content,
@@ -80,7 +80,7 @@ export async function PUT(req: Request, { params }: Params) {
   });
   if (!saved) return NextResponse.json({ error: tk("文档不存在") }, { status: 404 });
   if (saved.conflict) {
-    // 409 带回服务端当前版本：客户端据此做合并，别再原样重试同一次保存
+    // 409 returns the server's current version: the client merges from it instead of retrying the same save unchanged
     return NextResponse.json(
       {
         ok: false,
@@ -96,7 +96,7 @@ export async function PUT(req: Request, { params }: Params) {
       { status: 409 }
     );
   }
-  // 回传服务端时间：客户端镜像据此记 updatedAt，本机时钟偏差就不会影响之后的新旧比较
+  // Return the server time: the client mirror records updatedAt from it, so local clock skew won't affect later freshness comparisons
   return NextResponse.json({ ok: true, updatedAt: saved.updatedAt.toISOString() });
 }
 

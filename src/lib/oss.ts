@@ -1,6 +1,6 @@
 import OSS from "ali-oss";
 
-// 媒体类型白名单与大小上限在 src/lib/media.ts（客户端也要用，不能依赖本文件的 ali-oss）
+// Media type allowlist and size limits live in src/lib/media.ts (the client needs them too and can't depend on this file's ali-oss)
 
 export function ossConfigured(): boolean {
   return Boolean(
@@ -28,17 +28,17 @@ export function ossUrlOf(key: string, fallback?: string): string {
   return `https://${process.env.OSS_BUCKET}.${process.env.OSS_REGION}.aliyuncs.com/${key}`;
 }
 
-/** 生成对象 key：xedit/年月/uuid.ext */
+/** Generate an object key: xedit/yearmonth/uuid.ext */
 export function ossObjectKey(ext: string): string {
   const date = new Date();
   const dir = `xedit/${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}`;
   return `${dir}/${crypto.randomUUID()}.${ext}`;
 }
 
-/** 只有本服务签发的 key 才允许登记入库 */
+/** Only keys issued by this service may be registered in the database */
 export const OSS_KEY_PATTERN = /^xedit\/\d{6}\/[0-9a-f-]{36}\.[a-z0-9]{1,5}$/;
 
-/** 上传 Buffer 到 OSS，返回可访问 URL 与对象 key */
+/** Upload a Buffer to OSS, returning the accessible URL and object key */
 export async function ossPut(
   buffer: Buffer,
   ext: string,
@@ -49,7 +49,7 @@ export async function ossPut(
   return { url: ossUrlOf(key, result.url), key };
 }
 
-/** 签一个限时的 PUT 直传地址，浏览器凭它把文件直接发给 OSS（不经本服务中转） */
+/** Sign a time-limited PUT URL so the browser sends the file straight to OSS (no relay through this service) */
 export function ossSignedPutUrl(key: string, contentType: string): string {
   return client().signatureUrl(key, {
     method: "PUT",
@@ -58,7 +58,7 @@ export function ossSignedPutUrl(key: string, contentType: string): string {
   });
 }
 
-/** 读对象元信息；对象不存在返回 null（用来确认直传是否真的成功） */
+/** Read object metadata; null if the object doesn't exist (used to confirm a direct upload really succeeded) */
 export async function ossStat(key: string): Promise<{ size: number; mime: string } | null> {
   try {
     const res = await client().head(key);
@@ -72,7 +72,7 @@ export async function ossStat(key: string): Promise<{ size: number; mime: string
   }
 }
 
-/** 列出 xedit/ 前缀下的对象（最多 1000 个） */
+/** List objects under the xedit/ prefix (up to 1000) */
 export async function ossList(): Promise<{ key: string; size: number; lastModified: string }[]> {
   const result = await client().list(
     { prefix: "xedit/", "max-keys": 1000 },
@@ -89,7 +89,7 @@ export async function ossDelete(key: string): Promise<void> {
   await client().delete(key);
 }
 
-/** 批量删除对象（删除账号时清理其全部素材）；OSS 单次上限 1000 个 */
+/** Batch-delete objects (cleans up all of an account's assets on deletion); OSS caps a single call at 1000 */
 export async function ossDeleteMany(keys: string[]): Promise<void> {
   for (let i = 0; i < keys.length; i += 1000) {
     await client().deleteMulti(keys.slice(i, i + 1000), { quiet: true });

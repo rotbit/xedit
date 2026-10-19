@@ -1,6 +1,6 @@
 /**
- * 本地文档库的后端注册处：默认走浏览器 localStorage，
- * 后续接磁盘 Vault 时 setLocalBackend 换一个实现即可，门面与调用方都不动。
+ * Registry for the local document library backend: defaults to browser localStorage;
+ * the disk Vault swaps in another implementation via setLocalBackend, with the facade and callers unchanged.
  */
 
 import { createBrowserBackend } from "./browserBackend";
@@ -9,13 +9,13 @@ import type { LocalBackend } from "./types";
 export type { LocalBackend, LocalDocMeta } from "./types";
 export { summarize } from "./types";
 
-/** 后端被替换（打开/关闭 Vault）时广播，供依赖本地库的视图整体重载 */
+/** Broadcast when the backend is swapped (Vault opened/closed) so views depending on the local library reload */
 export const LOCAL_BACKEND_CHANGED_EVENT = "xedit:local-backend-changed";
 
 let active: LocalBackend | null = null;
 let browser: LocalBackend | null = null;
 
-/** 始终是 localStorage 那个后端：切到 Vault 后仍要用它做迁移 */
+/** Always the localStorage backend: still needed for migration after switching to the Vault */
 export function getBrowserBackend(): LocalBackend {
   browser ??= createBrowserBackend();
   return browser;

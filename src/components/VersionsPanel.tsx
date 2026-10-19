@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 版本历史抽屉（贴右）与版本预览盖层（占满左边），数据全来自 /api/documents/[id]/versions。
- * 只有登录用户的云端文档才有版本表，本地模式与未登录时这里只放一段说明文案。
- * 服务端每篇最多留 100 版、按时间倒序返回（见 lib/versions.ts），所以列表第一条就是最新的。
+ * Version history drawer (docked right) and version preview overlay (filling the left); all data comes from /api/documents/[id]/versions.
+ * Only signed-in users' cloud documents have a version table; in local mode or when signed out this just shows an explanation.
+ * The server keeps at most 100 versions per document, returned newest first (see lib/versions.ts), so the first list item is the latest.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X, History, Loader2, ArchiveRestore, BookmarkPlus, Trash2 } from "lucide-react";
@@ -18,7 +18,7 @@ import { tk } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 import { rich } from "@/i18n/rich";
 
-/** 列表项：接口刻意不返回正文（只带字数），正文由 VersionPreview 单独再取一次 */
+/** List item: the API deliberately omits the body (word count only); VersionPreview fetches the body separately */
 export interface VersionMeta {
   id: string;
   title: string;
@@ -27,17 +27,17 @@ export interface VersionMeta {
   chars: number;
 }
 
-// 三种来源都由服务端写死：auto=写作途中定时定格，manual=点了「存档」，restore=回滚前对当前稿的自动备份
+// All three sources are fixed server-side: auto = periodic snapshot while writing, manual = clicked 「存档」 (Save version), restore = automatic backup of the current draft before rolling back
 const KIND_LABEL: Record<VersionMeta["kind"], { text: string; cls: string }> = {
   auto: { text: tk("自动"), cls: "bg-[var(--paper)] text-[var(--ink-faint)]" },
   manual: { text: tk("手动"), cls: "bg-[#eef4fb] text-[#1e6bb8] dark:bg-[#1c2a3a] dark:text-[#7fb3e8]" },
   restore: { text: tk("回滚备份"), cls: "bg-[var(--accent-wash)] text-[var(--accent-deep)]" },
 };
 
-/** 版本列表里的时刻：同年的省掉年份——这里的条目绝大多数是今年的，年份纯噪音 */
+/** Timestamp in the version list: omit the year when it's the current one — nearly all entries are from this year, so the year is noise */
 const versionTime = (iso: string) => formatDateTime(iso, { omitCurrentYear: true });
 
-/** 版本历史抽屉：列出这篇文档的版本快照，可预览 diff、回滚、删除，或立刻存一版 */
+/** Version history drawer: lists this document's snapshots, with diff preview, rollback, delete, or saving a version now */
 export function VersionsPanel({
   open,
   onClose,
@@ -47,20 +47,20 @@ export function VersionsPanel({
   open: boolean;
   onClose: () => void;
   loggedIn: boolean;
-  /** 回滚成功后由外层重新加载文档 */
+  /** After a successful rollback the parent reloads the document */
   onRestored: (docId: string) => void;
 }) {
   const docId = useStore((s) => s.docId);
   const t = useT();
   useEscape(onClose, open);
-  // 上面两个 hook 必须无条件调用（useEscape 靠第二个参数开关），所以 return 只能放在它们后面
+  // Both hooks above must be called unconditionally (useEscape toggles via its second argument), so the return has to come after them
   if (!open) return null;
 
   return (
-    // z-80 低于弹窗外壳的默认 110（见 components/Modal.tsx）：回滚、删除的确认框要能压在抽屉上面
+    // z-80 is below the dialog shell's default 110 (see components/Modal.tsx): rollback/delete confirmations must stack above the drawer
     <div className="fixed inset-0 z-[80]" onClick={onClose}>
       <aside
-        // top-12 让开顶栏、bottom-7 让开底部状态条；340 的宽度与 VersionPreview 的 right-[340px] 是一对，改一个就要改两处
+        // top-12 clears the top bar, bottom-7 clears the bottom status bar; the 340 width pairs with VersionPreview's right-[340px], so change both together
         className="absolute bottom-7 right-0 top-12 flex w-[340px] flex-col border-l border-[var(--hairline)] bg-[var(--panel)] shadow-[-8px_0_30px_rgba(0,0,0,0.08)]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -103,9 +103,9 @@ function PanelHeader({ onClose, extra }: { onClose: () => void; extra?: React.Re
 }
 
 /**
- * 版本预览：盖在编辑区上方（版本抽屉左侧），显示所选版本全文，
- * 并与当前稿做行级 diff——绿 = 该版本有而当前稿没有（回滚将恢复），
- * 红 = 当前稿有而该版本没有（回滚将丢弃）。
+ * Version preview: overlays the editing area (left of the version drawer), showing the selected version's full text
+ * with a line-level diff against the current draft — green = in this version but not the current draft (rollback restores it),
+ * red = in the current draft but not this version (rollback discards it).
  */
 function VersionPreview({
   docId,
@@ -120,9 +120,9 @@ function VersionPreview({
   onRestore: () => void;
   restoring: boolean;
 }) {
-  // 当前稿只在挂载（= 选中这个版本）那一刻快照一次：活订阅的话，编辑区后台自动保存
-  // 或同步引擎一改 store，整份 diff 就会在用户眼前重算/跳动。version.id 是 key，
-  // 换版本重挂载即重新取一份最新的当前稿
+  // The current draft is snapshotted only once at mount (= when this version is selected): with a live subscription, background autosave
+  // or the sync engine updating the store would recompute/jump the whole diff in front of the user. version.id is the key,
+  // so switching versions remounts and takes a fresh snapshot of the current draft
   const t = useT();
   const [current] = useState(() => {
     const s = useStore.getState();
@@ -132,7 +132,7 @@ function VersionPreview({
   const [snap, setSnap] = useState<{ title: string; content: string } | null>(null);
   const [failed, setFailed] = useState(false);
 
-  // 组件以 version.id 为 key 挂载：换版本即重挂载，状态天然回到初始值
+  // The component mounts keyed by version.id: switching versions remounts, so state naturally resets
   useEffect(() => {
     let cancelled = false;
     void fetch(`/api/documents/${docId}/versions/${version.id}`)
@@ -150,7 +150,7 @@ function VersionPreview({
     };
   }, [docId, version.id]);
 
-  // 当前稿已是快照，diff 只在版本内容到手时算一次
+  // The current draft is already a snapshot, so the diff is computed once when the version content arrives
   const diff = useMemo(
     () => (snap ? diffLines(current.content, snap.content) : null),
     [snap, current.content]
@@ -167,7 +167,7 @@ function VersionPreview({
   }, [diff]);
 
   return (
-    // right-[340px] 正好让开右边的抽屉；窄屏（max-md）改成铺满，它在 DOM 里排在抽屉之后，会直接盖住抽屉
+    // right-[340px] exactly clears the drawer on the right; on narrow screens (max-md) it fills the width and, coming after the drawer in the DOM, covers it
     <section className="fixed bottom-7 left-0 right-[340px] top-12 flex flex-col border-r border-[var(--hairline)] bg-[var(--paper)] max-md:right-0">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--hairline)] bg-[var(--panel)] pl-5 pr-2">
         <span className="text-[13px] font-medium">{versionTime(version.createdAt)}</span>
@@ -279,10 +279,10 @@ function VersionList({
   onRestored: (docId: string) => void;
 }) {
   const t = useT();
-  // null 表示加载中
+  // null means loading
   const [versions, setVersions] = useState<VersionMeta[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  /** 正在预览的版本：内容在左侧盖层展示，与当前稿做 diff */
+  /** The version being previewed: its content shows in the left overlay, diffed against the current draft */
   const [preview, setPreview] = useState<VersionMeta | null>(null);
 
   const load = useCallback(async (): Promise<VersionMeta[] | null> => {
@@ -300,12 +300,12 @@ function VersionList({
     };
   }, [load]);
 
-  // load 失败返回 null，而 null 在下面的渲染里表示「加载中」：刷新失败会停在加载态，不会留一份可能已过期的列表
+  // A failed load returns null, which below means "loading": a failed refresh stays in the loading state rather than leaving a possibly stale list
   const refresh = async () => {
     setVersions(await load());
   };
 
-  // 不带 body：服务端按 manual 存档，只与最近一版去重（lib/versions.ts 的 snapshot），所以 created=false 就是内容没变
+  // No body: the server saves it as manual, deduped only against the latest version (snapshot in lib/versions.ts), so created=false means nothing changed
   const saveNow = async () => {
     const res = await fetch(`/api/documents/${docId}/versions`, { method: "POST" });
     const data = await res.json().catch(() => ({}));
@@ -317,7 +317,7 @@ function VersionList({
     }
   };
 
-  // 提示里那句「当前内容会先自动备份」不是这里做的：服务端在同一个事务里先存一版 kind=restore，再用旧内容覆盖文档
+  // The "current content will be backed up first" in the prompt isn't done here: the server, in one transaction, saves a kind=restore version first and then overwrites the document with the old content
   const restore = async (v: VersionMeta) => {
     const ok = await askConfirm({
       title: t("回滚到该版本"),
@@ -330,7 +330,7 @@ function VersionList({
       const res = await fetch(`/api/documents/${docId}/versions/${v.id}`, { method: "POST" });
       if (!res.ok) throw new Error();
       toast(t("已回滚到所选版本"), "success");
-      setPreview(null); // 回滚后当前稿已变，预览失去意义
+      setPreview(null); // After rollback the current draft has changed, so the preview is meaningless
       onRestored(docId);
       await refresh();
     } catch {
@@ -410,11 +410,11 @@ function VersionList({
                 >
                   {KIND_LABEL[v.kind] ? t(KIND_LABEL[v.kind].text) : v.kind}
                 </span>
-                {/* 接口按 createdAt 倒序给，所以只有下标 0 才是最新的一版 */}
+                {/* The API returns versions by createdAt descending, so only index 0 is the latest */}
                 {i === 0 ? <span className="text-[10px] text-[var(--ink-faint)]">{t("最新")}</span> : null}
                 <span className="flex-1" />
                 <button
-                  // 触屏没有 hover，group-hover 永远不会触发，所以 hover:none 下让删除、回滚两个按钮常显，否则根本点不出来
+                  // Touch screens have no hover, so group-hover never fires; under hover:none the delete and rollback buttons stay visible, or they'd be unreachable
                   className="invisible cursor-pointer rounded p-1 text-[var(--ink-faint)] hover:bg-[var(--panel)] hover:text-red-600 dark:hover:text-red-400 group-hover:visible [@media(hover:none)]:visible"
                   title={t("删除该版本")}
                   onClick={(e) => {

@@ -1,9 +1,9 @@
-// 输入 `[[` 时的文章标题补全：触发检测、StateField、keymap、候选过滤。
+// Article title completion when typing `[[`: trigger detection, StateField, keymap, candidate filtering.
 //
-// 架构完全镜像斜杠菜单（lib/slashMenu.ts）：状态放 CodeMirror 而不是 React，
-// 按键用 Prec.highest 的 keymap 抢在 defaultKeymap 之前，菜单没开时一律返回 false 放行。
-// 唯一的差别在候选来源 —— 文库随时在增删改，放进 StateField 就得再写一套同步，
-// 所以候选不进状态，过滤时现读 getDocs()，StateField 只存「开在哪、过滤词是什么」。
+// Architecture mirrors the slash menu (lib/slashMenu.ts): state lives in CodeMirror rather than React,
+// keys use a Prec.highest keymap to beat defaultKeymap, and always return false to pass through when the menu is closed.
+// The only difference is the candidate source — the library changes constantly, and putting it in a StateField would need another sync mechanism,
+// so candidates stay out of state and getDocs() is read fresh when filtering; the StateField only stores "where it's open and what the filter is".
 
 import { Prec, StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
@@ -11,10 +11,10 @@ import { caretInFencedCode } from "@/lib/livePreview/context";
 import { normalizeTitle } from "@/lib/wikiLink";
 import type { DocMeta } from "@/features/workspace/types";
 
-/** 一次最多列 8 条文章：再多就得翻页，键盘选择反而变慢（「新建」项不占这 8 条） */
+/** List at most 8 articles at a time: more would need paging and slow down keyboard selection (the "new" item doesn't count toward the 8) */
 const LIMIT = 8;
 
-/** 候选项：现有文章，或「按当前输入新建一篇」 */
+/** Candidate: an existing article, or "create a new one from the current input" */
 export type WikiCandidate =
   | { kind: "doc"; title: string; doc: DocMeta }
   | { kind: "create"; title: string };
@@ -24,13 +24,13 @@ function byRecent(a: DocMeta, b: DocMeta): number {
 }
 
 /**
- * 过滤候选：前缀命中排前、其次包含，同级内按更新时间倒序，最多 8 条。
- * 过滤词为空时给最近编辑的 8 篇（刚写过的文章最可能被链回）。
- * 过滤词非空且没有标题与之完全相等时，末尾追加「新建」项 —— 链一篇还不存在的文章
- * 是 Obsidian 式写作的常态，不该被迫先去建好再回来。
+ * Filter candidates: prefix matches first, then substring matches, each tier by updatedAt desc, at most 8.
+ * With an empty filter, show the 8 most recently edited (just-written articles are the likeliest to be linked back).
+ * With a non-empty filter and no exactly matching title, append a "new" item — linking to an article that doesn't exist yet
+ * is normal in Obsidian-style writing, and nobody should be forced to create it first and come back.
  */
 export function filterWikiCandidates(docs: DocMeta[], query: string): WikiCandidate[] {
-  // 无标题的文章没法被 `[[标题]]` 指到，列出来只会选了也没用
+  // Untitled articles can't be targeted by `[[title]]`, so listing them is useless even if selected
   const named = docs.filter((d) => d.title.trim()).sort(byRecent);
   const q = query.trim();
   const key = q.toLowerCase();
@@ -55,32 +55,32 @@ export function filterWikiCandidates(docs: DocMeta[], query: string): WikiCandid
 }
 
 export interface WikiMenuState {
-  /** `[[` 中第一个 `[` 的位置 */
+  /** Position of the first `[` in `[[` */
   from: number;
-  /** `[[` 之后到光标之间的过滤词 */
+  /** Filter text between `[[` and the cursor */
   query: string;
-  /** 高亮项在过滤结果中的下标 */
+  /** Index of the highlighted item in the filtered results */
   index: number;
 }
 
 interface WikiFieldValue {
   open: WikiMenuState | null;
-  /** Esc 关掉的那个 `[[` 的位置：光标还在它后面时不自动重开 */
+  /** Position of the `[[` dismissed with Esc: don't reopen automatically while the cursor is still after it */
   dismissed: number | null;
 }
 
 const EMPTY: WikiFieldValue = { open: null, dismissed: null };
 
-/** `[[query` 的整段范围末端：选中后连它一起换成 `[[标题]]` */
+/** End of the whole `[[query` range: replaced together with it by `[[title]]` on selection */
 export function wikiQueryEnd(st: WikiMenuState): number {
   return st.from + 2 + st.query.length;
 }
 
 /**
- * 触发条件：光标前同一行有个未闭合的 `[[`。
- * 取最近的那个 `[[` 作锚点，所以过滤词里天然不含 `[[`；再排除三种情况：
- * 含 `]`（这个链接已经闭合了）、含 `|`（用户在写别名，补全的是目标不是别名）、
- * 光标在围栏代码里（代码里的 `[[` 是数组下标之类，弹菜单只会碍事）。
+ * Trigger: an unclosed `[[` before the cursor on the same line.
+ * The nearest `[[` is the anchor, so the filter text never contains `[[`; three cases are excluded:
+ * containing `]` (the link is already closed), containing `|` (the user is writing an alias; completion is for the target, not the alias),
+ * and the cursor inside fenced code (`[[` there is array indexing and the like; a popup would just get in the way).
  */
 function detectWiki(state: EditorState): { from: number; query: string } | null {
   const sel = state.selection.main;
@@ -95,17 +95,17 @@ function detectWiki(state: EditorState): { from: number; query: string } | null 
   return { from: line.from + open, query };
 }
 
-/** 关闭菜单。value=true 表示「记住这个 `[[`」（Esc 主动关掉，别马上弹回来） */
+/** Close the menu. value=true means "remember this `[[`" (dismissed with Esc, don't pop back up right away) */
 const closeWiki = StateEffect.define<boolean>();
-/** 高亮项换行：键盘与鼠标共用同一份下标，所以只能由状态层裁决 */
+/** Move the highlight: keyboard and mouse share the same index, so only the state layer can arbitrate */
 const setWikiIndex = StateEffect.define<number>();
 
 const wikiField = StateField.define<WikiFieldValue>({
   create: () => EMPTY,
   update(prev, tr) {
-    // dismissed 记的是文档里的绝对偏移：前方插入/删除文本后这个位置会漂，
-    // 不跟着映射，Esc 关掉的那个 `[[` 就认不出来了（菜单会立刻弹回来）。
-    // 不 docChanged 时保持同一个对象引用，React 侧的「无变化不重渲染」才成立。
+    // dismissed stores an absolute document offset: inserting/deleting text before it makes the position drift,
+    // and without mapping, the `[[` dismissed with Esc can't be recognized (the menu would pop right back).
+    // Keep the same object reference when !docChanged, so React's "no change, no re-render" holds.
     const value =
       tr.docChanged && prev.dismissed !== null
         ? { ...prev, dismissed: tr.changes.mapPos(prev.dismissed, -1) }
@@ -118,13 +118,13 @@ const wikiField = StateField.define<WikiFieldValue>({
         return { ...value, open: { ...value.open, index: e.value } };
       }
     }
-    // 文档与光标都没动就保持原值（同一个对象），React 侧据此判断无需重渲染
+    // If neither doc nor cursor moved, keep the original value (same object); React uses that to skip re-rendering
     if (!tr.docChanged && !tr.selection) return value;
     const next = detectWiki(tr.state);
-    // `[[` 已不在光标前（被删、移开、链接闭合了）：连 Esc 的记忆一起清掉
+    // `[[` no longer before the cursor (deleted, moved away, link closed): clear the Esc memory too
     if (!next) return EMPTY;
     if (next.from === value.dismissed) return { open: null, dismissed: value.dismissed };
-    // 同一个 `[[` 且过滤词没变才保留高亮位置；一改过滤词就回到第一项
+    // Keep the highlight only for the same `[[` with an unchanged filter; any filter change goes back to the first item
     const keep =
       value.open && value.open.from === next.from && value.open.query === next.query
         ? value.open.index
@@ -138,10 +138,10 @@ export function wikiMenuStateOf(state: EditorState): WikiMenuState | null {
 }
 
 /**
- * 选中一项：把 `[[query` 换成 `[[标题]]`，光标落到 `]]` 之后。
- * 光标后若已经有一对 `]]`（自动配对括号的编辑器会预先补上），连它一起吃掉，
- * 否则会留下 `[[标题]]]]`。「新建」项与普通项插入行为一致 ——
- * 这里只负责写链接，点开时若文章仍不存在，useWikiLinkOpen 会问要不要建。
+ * Select an item: replace `[[query` with `[[title]]`, cursor after `]]`.
+ * If a `]]` already follows the cursor (editors with auto-paired brackets add it in advance), consume it too,
+ * otherwise we'd leave `[[title]]]]`. The "new" item inserts the same way as normal items —
+ * this only writes the link; if the article still doesn't exist when clicked, useWikiLinkOpen asks whether to create it.
  */
 export function pickWikiItem(
   view: EditorView,
@@ -158,12 +158,12 @@ export function pickWikiItem(
   view.focus();
 }
 
-/** 鼠标 hover 高亮：由 React 侧调进来，保证键鼠共用同一份下标 */
+/** Mouse hover highlight: called from the React side so keyboard and mouse share the same index */
 export function highlightWikiIndex(view: EditorView, index: number): void {
   view.dispatch({ effects: setWikiIndex.of(index) });
 }
 
-/** 下标可能落在过滤结果之外（文库刚变过），取最后一条兜底 */
+/** The index may fall outside the filtered results (library just changed); fall back to the last item */
 export function activeWikiIndex(index: number, count: number): number {
   return count > 0 ? Math.min(index, count - 1) : 0;
 }
@@ -173,7 +173,7 @@ function wikiKeymap(getDocs: () => DocMeta[]): Extension {
     const st = wikiMenuStateOf(view.state);
     if (!st) return false;
     const items = filterWikiCandidates(getDocs(), st.query);
-    // 无候选时不消费 Enter/Tab，交回 CodeMirror 该换行换行、该缩进缩进
+    // With no candidates, don't consume Enter/Tab; hand back to CodeMirror to newline or indent as usual
     const item = items[activeWikiIndex(st.index, items.length)];
     if (!item) return false;
     pickWikiItem(view, item, st.from, wikiQueryEnd(st));
@@ -184,13 +184,13 @@ function wikiKeymap(getDocs: () => DocMeta[]): Extension {
     const st = wikiMenuStateOf(view.state);
     if (!st) return false;
     const n = filterWikiCandidates(getDocs(), st.query).length;
-    // 无候选项时没有可高亮的行，↑↓ 放行给编辑器：光标离开这一行，菜单自然关掉
+    // With no candidates there's no row to highlight; let ↑↓ through to the editor: the cursor leaves the line and the menu closes naturally
     if (!n) return false;
     highlightWikiIndex(view, (activeWikiIndex(st.index, n) + delta + n) % n);
     return true;
   };
 
-  // 菜单开着才消费按键，否则一律 false 放行 —— 斜杠菜单、⌘B/⌘I/⌘K 都不受影响
+  // Only consume keys while the menu is open, otherwise always return false — the slash menu and ⌘B/⌘I/⌘K are unaffected
   return Prec.highest(
     keymap.of([
       { key: "ArrowDown", run: (v) => moveHighlight(v, 1) },
@@ -210,8 +210,8 @@ function wikiKeymap(getDocs: () => DocMeta[]): Extension {
 }
 
 /**
- * 装配扩展。onState 只在菜单状态真的变了时调用（含关闭时的 null），
- * 由 MarkdownEditor 推给 <WikiLinkMenu>；getDocs 每次过滤现读，文库变了立刻生效。
+ * Assemble the extension. onState is called only when menu state actually changes (including null on close),
+ * and MarkdownEditor forwards it to <WikiLinkMenu>; getDocs is read fresh on every filter, so library changes apply immediately.
  */
 export function wikiLinkMenu(options: {
   getDocs: () => DocMeta[];
@@ -226,7 +226,7 @@ export function wikiLinkMenu(options: {
       if (prev !== next) options.onState(next);
     }),
     EditorView.domEventHandlers({
-      // 失焦即关；菜单自己的 onMouseDown 会 preventDefault，点菜单不会走到这里
+      // Close on blur; the menu's own onMouseDown calls preventDefault, so clicking the menu never gets here
       blur: (_e, view) => {
         if (wikiMenuStateOf(view.state)) view.dispatch({ effects: closeWiki.of(false) });
         return false;

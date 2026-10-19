@@ -26,36 +26,36 @@ import { getSavedDocument, rememberSavedDocument, hasPendingContent } from "@/li
 import { useEditorSave } from "@/hooks/useEditorSave";
 import { useEditorSettings } from "@/hooks/useEditorSettings";
 
-/** 回到前台的校新节流：来回切标签页不该反复打接口 */
+/** Throttle for freshness checks on returning to foreground: switching tabs back and forth shouldn't keep hitting the API */
 const REFRESH_MIN_INTERVAL = 3000;
 
 /**
- * 校新提示的驻留时长。内容被云端版本替换是「顺带发生的事」，不值得弹 toast 挡视线，
- * 只在状态行（已保存 / 已同步云端 那一格）短暂换成提示文案再回落。
- * 需与 globals.css 里 .sync-hint 动画时长保持一致，淡出正好接上文案切回。
+ * How long the freshness notice stays. Content being replaced by the cloud version is "something that happened along the way" and doesn't deserve a toast blocking the view;
+ * the status line (the Saved / Synced to cloud slot) just briefly swaps to a notice and then reverts.
+ * Must match the .sync-hint animation duration in globals.css so the fade-out lines up with the text switching back.
  */
 const REFRESH_HINT_MS = 4000;
 
 /**
- * 文档会话入口：负责装载和后台校新，保存与偏好同步由独立 hook 管理。
- * routeDocId 为 null 表示本地文稿模式（未登录直接写作）。
+ * Doc session entry point: handles loading and background freshness checks; saving and preference sync are managed by separate hooks.
+ * routeDocId null means local draft mode (writing while logged out).
  */
 export function useEditorDoc(routeDocId: string | null) {
   const { status } = useSession();
   const loggedIn = status === "authenticated";
   const router = useRouter();
 
-  /** 文档装载完成的标识，编辑器以它为 key 重建 */
+  /** Marker for a finished doc load; the editor uses it as a key to rebuild */
   const [docVersion, setDocVersion] = useState(0);
   const [loading, setLoading] = useState(routeDocId !== null);
   const [reloadTick, setReloadTick] = useState(0);
 
-  /** 已直接沿用 store 内容的文档，防止 effect 重跑时重复装载打断输入 */
+  /** Docs that reused store content directly, to prevent reloading when the effect reruns and interrupting typing */
   const adoptedRef = useRef<string | null>(null);
-  /** 上次向服务端校新的时刻，用于节流 */
+  /** When we last checked freshness with the server, for throttling */
   const lastRefreshAtRef = useRef(0);
 
-  /** 刚把内容换成云端最新版：状态行显示提示，几秒后自行回落 */
+  /** Content was just replaced with the latest cloud version: the status line shows a notice that reverts after a few seconds */
   const [refreshedHint, setRefreshedHint] = useState(false);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showRefreshHint = useCallback(() => {
@@ -70,11 +70,11 @@ export function useEditorDoc(routeDocId: string | null) {
   }, []);
 
   /**
-   * 从云端校新当前文档：仅当镜像不 dirty（无未推送改动）且 store 与镜像一致
-   * （无未落盘编辑）时才替换，本地一律优先。装载后、回到前台、网络恢复三处共用。
+   * Refresh the current doc from the cloud: only replace when the mirror isn't dirty (no unpushed changes) and the store matches the mirror
+   * (no unsaved edits); local always wins. Shared by three places: after load, on returning to foreground, and on network recovery.
    *
-   * 带上镜像时间戳 ?since=：没变服务端直接 204，不再把整篇正文白下一趟
-   * （这条路径每次打开文章、每次切回前台都会跑）。200 时仍留着下面的时间比较兜底。
+   * Sends the mirror timestamp as ?since=: if nothing changed the server returns 204 instead of re-downloading the whole body
+   * (this path runs every time a doc is opened and every time the page returns to the foreground). On 200 the time comparison below is still kept as a fallback.
    */
   const refreshFromServer = useCallback(async (id: string) => {
     if (!id || isLocalId(id) || !navigator.onLine) return;
@@ -85,21 +85,21 @@ export function useEditorDoc(routeDocId: string | null) {
     if (before.docId !== id || before.content !== mirrored || before.title !== meta.title) return;
     lastRefreshAtRef.current = Date.now();
     try {
-      // 老镜像缺创建时间：这一趟不带 ?since=，宁可多下一次正文也要拿到整行把它补上
-      // （增量同步只发有变动的篇，没改过的老文章别处补不到）
+      // Old mirror lacks a creation time: skip ?since= this round, preferring one extra body download to get the full row and fill it in
+      // (incremental sync only sends changed docs, so untouched old docs can't get it filled in elsewhere)
       const backfill = !meta.createdAt;
       const res = await fetch(
         backfill
           ? `/api/documents/${id}`
           : `/api/documents/${id}?since=${encodeURIComponent(meta.updatedAt)}`
       );
-      if (res.status === 204) return; // 云端没有更新
+      if (res.status === 204) return; // Nothing newer in the cloud
       if (!res.ok) return;
       const doc = await res.json();
-      // 先补创建时间再判断要不要替换内容：云端没更新时下面会直接 return
+      // Fill in the creation time before deciding whether to replace content: when the cloud has nothing newer, we return right below
       if (backfill && typeof doc.createdAt === "string") setMirrorCreatedAt(id, doc.createdAt);
       if (new Date(doc.updatedAt).getTime() <= new Date(meta.updatedAt).getTime()) return;
-      // 请求往返期间用户可能已开始打字或切走，写回 store 前再核一次
+      // The user may have started typing or switched away during the round trip; check again before writing back to the store
       const now = useStore.getState();
       if (now.docId !== id || now.content !== mirrored || now.title !== meta.title) return;
       applyServerDoc(doc);
@@ -115,26 +115,26 @@ export function useEditorDoc(routeDocId: string | null) {
       setDocVersion((v) => v + 1);
       showRefreshHint();
     } catch {
-      // 网络抖动等：保持现有内容，下次触发再试
+      // Network blips etc.: keep current content and retry on the next trigger
     }
   }, [showRefreshHint]);
 
-  // —— 装载文档 ——
+  // —— Load the doc ——
   useEffect(() => {
     if (!routeDocId) {
-      // 本地文稿模式：沿用持久化的本地内容
+      // Local draft mode: reuse the persisted local content
       const s = useStore.getState();
       s.setDoc({ id: null, title: s.title, content: s.content });
       s.setCategory(UNCATEGORIZED);
       s.setSaveState("local");
       return;
     }
-    // 会话状态落定等原因导致 effect 重跑时，已装载的文档不重复装载（防止打断输入）
+    // When the effect reruns because session status settled etc., don't reload an already loaded doc (prevents interrupting typing)
     if (reloadTick === 0 && adoptedRef.current === routeDocId) return;
-    // 阅读视图 ↔ 编辑页互切时 store 可能持有未落盘的防抖编辑，这种情况才沿用 store
-    // 避免旧数据覆盖，随后的自动保存会把这份待存内容刷下去。
-    // 反之（store 与已落盘内容一致）不能沿用——镜像可能刚被后台同步刷新过，
-    // 沿用旧 store 会把新内容盖回去，「回工作台再点进来还是旧稿」就是这么来的。
+    // When switching between reading view ↔ editor page the store may hold debounced edits not yet saved; only then reuse the store
+    // to avoid stale data overwriting them; the following autosave will flush the pending content.
+    // Conversely (store matches saved content) it must not be reused — the mirror may have just been refreshed by background sync,
+    // and reusing the old store would overwrite the new content; that's exactly where "go back to the workspace, click in again, still the old draft" came from.
     if (
       reloadTick === 0 &&
       useStore.getState().docId === routeDocId &&
@@ -148,9 +148,9 @@ export function useEditorDoc(routeDocId: string | null) {
       return;
     }
     if (isLocalId(routeDocId)) {
-      // 本地文档：不依赖会话状态，直接从本地库装载；
-      // 会话状态从 loading 落定时 effect 会重跑，靠落盘基准防止重复装载打断输入。
-      // 落盘基准跨 mount 存活，故还要确认 store 确实持有这篇，否则会漏装载。
+      // Local doc: doesn't depend on session status, load straight from the local library;
+      // the effect reruns when session status settles from loading, and the saved baseline prevents reloading and interrupting typing.
+      // The saved baseline survives across mounts, so also confirm the store actually holds this doc, or a load would be missed.
       if (getSavedDocument().docId === routeDocId && useStore.getState().docId === routeDocId)
         return;
       const meta = listLocalDocs().find((d) => d.id === routeDocId);
@@ -170,15 +170,15 @@ export function useEditorDoc(routeDocId: string | null) {
       s.setDoc({ id: routeDocId, title: meta.title, content });
       s.setCategory(meta.category ?? UNCATEGORIZED);
       s.setSaveState("local");
-      prefetchAttachments(content); // 磁盘文库的图片先读起来，少几帧空图
+      prefetchAttachments(content); // Start reading disk-library images early to cut a few frames of blank images
       queueMicrotask(() => {
         setDocVersion((v) => v + 1);
         setLoading(false);
       });
       return;
     }
-    // —— 云端文档：镜像优先 ——
-    // 有镜像立即装载（秒开、离线可用、无需会话），联网时后台校新
+    // —— Cloud doc: mirror first ——
+    // With a mirror, load immediately (instant, offline, no session needed), and check freshness in the background when online
     let cancelled = false;
     const mirrorMeta = reloadTick === 0 ? getMirrorMeta(routeDocId) : null;
     const mirrorContent = mirrorMeta ? getMirrorContent(routeDocId) : null;
@@ -198,17 +198,17 @@ export function useEditorDoc(routeDocId: string | null) {
         setDocVersion((v) => v + 1);
         setLoading(false);
       });
-      // 后台校新：服务端更新、且本地无改动时才替换（本地优先）。
-      // 与上面的装载一样挪出 effect 同步体，避免装载即触发级联渲染
+      // Background freshness check: only replace when the server is newer and there are no local changes (local-first).
+      // Like the load above, move it out of the effect's synchronous body to avoid cascading renders right on load
       queueMicrotask(() => void refreshFromServer(routeDocId));
       return;
     }
 
-    // 无镜像：需要网络与登录（首次打开该文档，顺手落镜像供之后离线用）
+    // No mirror: needs network and login (first open of this doc; also save a mirror for later offline use)
     if (status === "loading") return;
     if (status === "unauthenticated") {
-      // unauthenticated 未必是真登出：断网或服务器够不着时 next-auth 给的也是这个。
-      // 本机记得登录过就别把人往登录上引，按「这篇没缓存过」说
+      // unauthenticated doesn't necessarily mean logged out: next-auth reports it too when offline or the server is unreachable.
+      // If this device remembers logging in, don't push the user to log in; say "this doc hasn't been cached" instead
       toast(
         wasAuthed()
           ? t("离线中，这篇文章还没有缓存到本地，联网后打开一次即可离线使用")
@@ -234,7 +234,7 @@ export function useEditorDoc(routeDocId: string | null) {
       }
       const doc = await res.json();
       if (cancelled) return;
-      // 版本回滚等强制重拉的场景：先清镜像 dirty 再落库，避免旧的待推内容覆盖回滚结果
+      // Forced refetch cases like version rollback: clear the mirror's dirty flag before saving, so stale pending content doesn't overwrite the rollback
       removeMirrorDoc(doc.id);
       applyServerDoc(doc);
       adoptedRef.current = doc.id;
@@ -255,8 +255,8 @@ export function useEditorDoc(routeDocId: string | null) {
     };
   }, [routeDocId, status, router, reloadTick, refreshFromServer]);
 
-  // —— 回到前台 / 网络恢复时校新 ——
-  // 没有 WebSocket 推送，这是 MCP、其他设备或另一个标签页改过的内容进到当前页的唯一时机。
+  // —— Freshness check on returning to foreground / network recovery ——
+  // There's no WebSocket push, so this is the only moment changes from MCP, other devices or another tab reach the current page.
   useEffect(() => {
     if (!routeDocId || isLocalId(routeDocId)) return;
     const tryRefresh = () => {
@@ -272,7 +272,7 @@ export function useEditorDoc(routeDocId: string | null) {
     };
   }, [routeDocId, refreshFromServer]);
 
-  // 当前文档在外部被改动、内容已由 useVaultWatch 换进 store：重挂载编辑器接上新内容
+  // The current doc was changed externally and useVaultWatch already swapped the content into the store: remount the editor to pick it up
   useEffect(() => {
     const onReplaced = (e: Event) => {
       const id = (e as CustomEvent<string>).detail;
@@ -292,9 +292,9 @@ export function useEditorDoc(routeDocId: string | null) {
     sessionStatus: status,
     docVersion,
     loading,
-    /** 刚拉到云端新内容，状态行据此短暂提示（替代弹窗） */
+    /** New cloud content was just pulled; the status line briefly shows a notice based on this (instead of a popup) */
     refreshedHint,
-    /** 重新从云端拉取当前文档（版本回滚后使用） */
+    /** Refetch the current doc from the cloud (used after a version rollback) */
     reload: () => setReloadTick((t) => t + 1),
   };
 }

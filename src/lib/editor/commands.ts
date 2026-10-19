@@ -1,4 +1,4 @@
-// 编辑器格式命令的统一入口：快捷键、浮动工具条、插入菜单和斜杠菜单共用。
+// Single entry point for editor formatting commands: shared by shortcuts, the floating toolbar, the insert menu, and the slash menu.
 
 import { EditorView } from "@codemirror/view";
 import { uploadMediaFile } from "@/lib/uploadMedia";
@@ -21,11 +21,11 @@ import {
   tableTemplate,
 } from "@/lib/editor/format";
 
-/** 提示的种类，与 Toast 的三档一致（这里只声明语义，不认识具体 UI） */
+/** Message kinds, matching Toast's three levels (only semantics are declared here, with no knowledge of the UI) */
 export type NoticeKind = "success" | "error" | "info";
 /**
- * 命令层要弹的提示统统经这个回调交回调用方。
- * lib 不 import components：提示怎么呈现由编辑器组件决定（现在传的是 toast）。
+ * All messages from the command layer go back to the caller through this callback.
+ * lib doesn't import components: how messages are shown is up to the editor component (currently toast).
  */
 export type Notify = (message: string, kind?: NoticeKind) => void;
 
@@ -48,20 +48,20 @@ export type FormatCommand =
   | "table"
   | "hr";
 
-// 服务端/上传层的消息是中文字典 key：命中就翻，没命中原样
+// Server/upload messages are Chinese dictionary keys: translate on a hit, pass through otherwise
 const errText = (e: unknown, fallback: string) => (e instanceof Error ? t(e.message) : fallback);
 
 async function uploadMedia(file: File, notify: Notify): Promise<string | null> {
   try {
     return await uploadMediaFile(file);
   } catch (e) {
-    // 带上文件名：一次粘好几张时，光说「上传失败」用户不知道是哪张没成
+    // Include the file name: when pasting several at once, just "upload failed" doesn't tell the user which one failed
     notify(t("「{name}」{error}", { name: file.name, error: errText(e, t("上传失败")) }), "error");
     return null;
   }
 }
 
-/** 上传视频，产出待插入的 Markdown：正片与封面帧并行上传，封面写进 title 位（poster= 约定） */
+/** Upload a video and produce the Markdown to insert: the video and poster frame upload in parallel, poster goes in the title slot (poster= convention) */
 async function videoMarkdown(file: File, notify: Notify): Promise<string | null> {
   const [url, posterUrl] = await Promise.all([
     uploadMedia(file, notify),
@@ -72,15 +72,15 @@ async function videoMarkdown(file: File, notify: Notify): Promise<string | null>
   return `\n![${altFromFileName(file.name)}](${url}${posterPart})\n`;
 }
 
-/** 文件名里的空格和括号会把 Markdown 链接截断，逐字转义（读附件时会 decode 回去） */
+/** Spaces and parentheses in file names would break Markdown links, so escape them char by char (decoded back when reading attachments) */
 const encodeMdPath = (rel: string): string =>
   rel.replace(/[ ()<>]/g, (c) => encodeURIComponent(c));
 
 /**
- * 一张图 → 能写进文档的 src：有磁盘文库就落 <vault>/attachments/ 只留相对路径
- * （不传云端，同一个库用 Obsidian 打开也显示得出来），没有文库才传云端。
- * 正文插图与封面（CoverPicker 的上传 / AI 生成）走的是同一条规则，所以抽在这里共用。
- * 失败抛出带原因的 Error，怎么提示由调用方定。
+ * One image → a src that can go in the document: with a disk library, save to <vault>/attachments/ and keep only the relative path
+ * (no cloud upload, so the same vault opened in Obsidian still shows it); upload to the cloud only without a library.
+ * Body images and covers (CoverPicker upload / AI generation) follow the same rule, so it's shared here.
+ * Failures throw an Error with the reason; the caller decides how to show it.
  */
 export async function saveImageSrc(
   file: File,
@@ -103,14 +103,14 @@ async function vaultImageMarkdown(
   }
 }
 
-/** 一个文件 → 待插入的 Markdown（失败自己弹提示并返回 null，绝不抛出：
- *  它挂在落笔队列上，一旦 reject 后面的文件就永远轮不到了） */
+/** One file → Markdown to insert (on failure, shows its own message and returns null, never throws:
+ *  it runs on the insertion queue, and one reject would mean later files never get their turn) */
 function mediaMarkdown(
   file: File,
   vault: VaultBackend | null,
   notify: Notify
 ): Promise<string | null> {
-  // 视频只能传云端（正文里的本地相对路径进不了公众号），图片能落本地就落本地
+  // Videos can only go to the cloud (local relative paths in the body can't reach WeChat); images stay local when possible
   if (isVideoMime(file.type)) return videoMarkdown(file, notify);
   if (vault) return vaultImageMarkdown(vault, file, notify);
   return uploadMedia(file, notify).then((url) =>
@@ -119,10 +119,10 @@ function mediaMarkdown(
 }
 
 /**
- * 粘贴/拖入/选文件进来的媒体统一入口。
- * at：落点。拖放传鼠标位置，其余不传＝当前光标处。
+ * Single entry point for media coming in via paste/drop/file picker.
+ * at: insertion position. Drops pass the mouse position; otherwise omitted = current cursor.
  *
- * 落点在此刻就用占位牌子占住（见 uploadPlaceholder.ts），上传期间用户接着编辑也不会插错地方。
+ * The insertion point is reserved right away with a placeholder pill (see uploadPlaceholder.ts), so editing during upload doesn't misplace it.
  */
 export function handleMediaFiles(
   view: EditorView,
@@ -135,7 +135,7 @@ export function handleMediaFiles(
   for (const f of unsupported) {
     notify(t("「{name}」格式不支持，视频请用 mp4 / webm / mov", { name: f.name }), "error");
   }
-  // 图片视频混着拖进来也按用户给的文件顺序排，不分两拨
+  // Mixed images and videos keep the user's file order rather than being split into two groups
   const media = all.filter((f) => f.type.startsWith("image/") || isVideoMime(f.type));
   if (media.length === 0) return unsupported.length > 0;
 
@@ -146,10 +146,10 @@ export function handleMediaFiles(
     pos,
     media.map((f) => f.name || t("未命名文件"))
   );
-  // 进度与成功都不弹 toast：占位牌子就在落点上转着，传完原地变成图，盖一条提示反而挡正文
+  // No toasts for progress or success: the placeholder pill spins right at the insertion point and turns into the image in place; a toast would just cover the text
 
-  // 上传并行跑，落笔串行等：第 i 个落完才轮到第 i+1 个，
-  // 正文里的先后顺序因此恒等于用户选文件的顺序，谁先传完不算数
+  // Uploads run in parallel, insertions wait in series: item i+1 goes only after item i is inserted,
+  // so order in the body always matches the user's file selection order, regardless of which upload finishes first
   let queue = Promise.resolve();
   media.forEach((file, i) => {
     const uploading = mediaMarkdown(file, vault, notify);
@@ -166,8 +166,8 @@ export function handleMediaFiles(
 }
 
 /**
- * notify：video 命令会拉起上传，上传过程中的提示由它弹出。
- * arg：color 命令的色值（缺省 = 清除颜色），其余命令忽略。
+ * notify: the video command starts an upload, and upload messages are shown through it.
+ * arg: the color value for the color command (omitted = clear color); ignored by other commands.
  */
 export function runFormatCommand(
   view: EditorView,
@@ -205,7 +205,7 @@ export function runFormatCommand(
     case "image":
       return insertBlock(view, `![${t("图片描述")}](https://)`);
     case "video": {
-      // 直接拉起文件选择上传，比让用户手填视频 URL 更顺手
+      // Open the file picker to upload directly, smoother than making the user type a video URL
       const input = document.createElement("input");
       input.type = "file";
       input.accept = Object.keys(VIDEO_EXT).join(",");

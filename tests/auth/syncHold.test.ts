@@ -29,7 +29,7 @@ describe("换账号但草稿挪不走时的推送闸门", () => {
     const { pushMirrorDoc, syncNow } = await import("@/lib/sync");
     expect(await pushMirrorDoc("d1")).toBe(false);
     await syncNow();
-    // 拉取可以照常（GET），但没有任何 PUT/POST 带着旧主人的内容出去
+    // Pulls proceed as usual (GET), but no PUT/POST goes out carrying the previous owner's content
     const writes = fetchMock.mock.calls.filter(
       (c) => c[1] && ["PUT", "POST"].includes((c[1] as RequestInit).method ?? "GET")
     );

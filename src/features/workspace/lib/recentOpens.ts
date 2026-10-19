@@ -5,25 +5,25 @@ import type { DocMeta } from "../types";
 import { readLocal, writeLocal } from "./storage";
 
 /**
- * 「最近打开」的本地记录：{ [docId]: 最后一次打开的毫秒时间戳 }。
+ * Local record for "Recently opened": { [docId]: millisecond timestamp of the last open }.
  *
- * 为什么放 localStorage 而不进服务端：
- * - 打开是纯客户端行为，阅读不改文档，不该为了它碰 updatedAt 或多打一个接口；
- * - 记录只用来给「最近打开」视图排序，丢了也只是退回按最后编辑排，没有一致性要求；
- * - 已知取舍：换设备 / 换浏览器不同步，各端各记各的。
+ * Why localStorage instead of the server:
+ * - Opening is purely client-side; reading doesn't change the doc, so it shouldn't touch updatedAt or cost an extra API call;
+ * - The record only sorts the "Recently opened" view; losing it just falls back to sorting by last edit, with no consistency requirement;
+ * - Known trade-off: not synced across devices / browsers; each keeps its own.
  */
 const KEY = "xedit.recentOpens";
-/** 条目上限：只保留最近打开的这么多篇，免得长年累月无限增长 */
+/** Entry cap: keep only this many recently opened docs so it doesn't grow forever */
 const MAX_ENTRIES = 300;
-/** 本页内写入后派发，useRecentOpens 据此刷新（storage 事件只在别的标签页触发） */
+/** Dispatched after writes in this page so useRecentOpens refreshes (the storage event only fires in other tabs) */
 export const RECENT_OPENS_EVENT = "xedit:recent-opens";
 
 type Opens = Readonly<Record<string, number>>;
 
-/** 服务端快照 / 空记录共用同一个常量，useSyncExternalStore 要求引用稳定 */
+/** The server snapshot and empty record share one constant; useSyncExternalStore requires a stable reference */
 const EMPTY: Opens = Object.freeze({});
 
-/** 快照缓存：原始字符串没变就返回同一个对象引用 */
+/** Snapshot cache: return the same object reference while the raw string hasn't changed */
 let cacheRaw: string | null | undefined;
 let cacheValue: Opens = EMPTY;
 
@@ -42,7 +42,7 @@ function parse(raw: string | null): Opens {
   }
 }
 
-/** 读取全部打开记录；坏数据返回空对象。内容不变时返回同一引用 */
+/** Read all open records; bad data returns an empty object. Returns the same reference when content is unchanged */
 export function readOpens(): Opens {
   const raw = readLocal(KEY);
   if (raw === cacheRaw) return cacheValue;
@@ -53,11 +53,11 @@ export function readOpens(): Opens {
 
 function write(next: Record<string, number>) {
   writeLocal(KEY, JSON.stringify(next));
-  cacheRaw = undefined; // 失效快照，下一次 readOpens 重新解析
+  cacheRaw = undefined; // Invalidate the snapshot so the next readOpens reparses
   if (typeof window !== "undefined") window.dispatchEvent(new Event(RECENT_OPENS_EVENT));
 }
 
-/** 记一次打开；超出上限时只留最新的 MAX_ENTRIES 条 */
+/** Record an open; beyond the cap keep only the newest MAX_ENTRIES */
 export function markOpened(id: string, now: number = Date.now()): void {
   let entries = Object.entries({ ...readOpens(), [id]: now });
   if (entries.length > MAX_ENTRIES) {
@@ -66,7 +66,7 @@ export function markOpened(id: string, now: number = Date.now()): void {
   write(Object.fromEntries(entries));
 }
 
-/** 删掉已不在库里的 id；没有变化就不写、不派发 */
+/** Remove ids no longer in the library; if nothing changed, don't write or dispatch */
 export function pruneOpens(liveIds: Iterable<string>): void {
   const live = new Set(liveIds);
   const cur = readOpens();
@@ -87,14 +87,14 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-/** 订阅打开记录；服务端渲染时恒为空对象 */
+/** Subscribe to open records; always an empty object during SSR */
 export function useRecentOpens(): Opens {
   return useSyncExternalStore(subscribe, readOpens, () => EMPTY);
 }
 
 /**
- * 「最近打开」视图用的时间：最后打开与最后编辑取较晚者（编辑也算一种打开）。
- * updatedAt 解析失败按 0；两者都没有时原样返回 updatedAt，交给下游的脏数据兜底。
+ * Time used by the "Recently opened" view: the later of last opened and last edited (editing counts as opening).
+ * updatedAt parse failures count as 0; when neither exists return updatedAt as-is and let downstream bad-data handling deal with it.
  */
 export function recencyOf(doc: DocMeta, opens: Opens): string {
   const opened = opens[doc.id] ?? 0;

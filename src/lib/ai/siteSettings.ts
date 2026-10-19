@@ -1,12 +1,12 @@
 /**
- * 全站的 AI 设置（服务端专用）：AI 审核用哪个模型、各家上游的 token、各类审核的提示词。
+ * Site-wide AI settings (server only): which model AI review uses, upstream tokens per provider, and prompts per review kind.
  *
- * 都由管理后台写进 SiteSetting 表。token 入库前用 lib/ai/crypto 加密，
- * 明文只在这个模块里短暂出现，绝不出现在任何接口的返回里——后台回显只给「来源 + 末四位」。
- * 环境变量仍然有效，当兜底：后台没填的槽位就读 env，老部署不用迁移。
+ * All written to the SiteSetting table by the admin panel. Tokens are encrypted with lib/ai/crypto before storage;
+ * plaintext only appears briefly inside this module and never in any API response -- admin display only shows "source + last four".
+ * Env vars still work as a fallback: slots not filled in admin read from env, so old deployments need no migration.
  *
- * 读得很勤（/api/config 每次开页都来问一遍），所以整表缓存在内存里；
- * 本站是单容器部署，写的时候顺手把缓存作废就够了，TTL 只是多一道保险。
+ * Read very often (/api/config asks on every page open), so the whole table is cached in memory;
+ * this site runs as a single container, so invalidating the cache on write is enough; the TTL is just extra insurance.
  */
 import { prisma } from "@/lib/prisma";
 import { decryptSecret, encryptSecret, keyLast4 } from "./crypto";
@@ -26,7 +26,7 @@ const REVIEW_KEY = "ai.review";
 const KEY_PREFIX = "ai.key.";
 const PROMPT_PREFIX = "ai.prompt.";
 const TTL_MS = 60_000;
-/** token 再长也不至于过这个数；超了多半是粘错了东西 */
+/** No token is ever this long; going over usually means something wrong was pasted */
 const MAX_TOKEN_CHARS = 400;
 
 let cache: { at: number; rows: Map<string, string> } | null = null;
@@ -46,7 +46,7 @@ async function put(key: string, value: string | null): Promise<void> {
   cache = null;
 }
 
-/** 所有 key 槽位（去重后的 envKey）：Replicate 的两个供应商共用一个 */
+/** All key slots (deduped envKey): Replicate's two providers share one */
 export const AI_KEY_SLOTS: string[] = [...new Set(AI_PROVIDERS.map((p) => p.envKey))];
 
 export interface ReviewModel {
@@ -54,7 +54,7 @@ export interface ReviewModel {
   model: string;
 }
 
-/** 库里那段 JSON 的洗法：认不出的供应商回到默认，模型名过一遍 cleanModel */
+/** Sanitizing the stored JSON: unknown providers revert to the default, model names go through cleanModel */
 export function parseReviewModel(raw: string | undefined): ReviewModel {
   let data: { provider?: unknown; model?: unknown } = {};
   try {
@@ -63,11 +63,11 @@ export function parseReviewModel(raw: string | undefined): ReviewModel {
   } catch {}
   const known = aiProvider(data.provider);
   const spec = known ?? aiProvider(DEFAULT_AI_PROVIDER)!;
-  // 供应商认不出时连模型名一起丢：那是别家的名字，拿去问默认这家只会 404
+  // Drop the model name too when the provider is unknown: it's another provider's name and would just 404 on the default one
   return { provider: spec.id, model: cleanModel(known ? data.model : undefined, spec) };
 }
 
-/** 全站 AI 审核现在用哪个模型；后台没设过就是 DeepSeek 的默认模型 */
+/** Which model site-wide AI review currently uses; DeepSeek's default model if admin never set one */
 export async function getReviewModel(): Promise<ReviewModel> {
   return parseReviewModel((await rows()).get(REVIEW_KEY));
 }
@@ -78,16 +78,16 @@ export async function setReviewModel(provider: AiProvider, model: unknown): Prom
   return next;
 }
 
-/** 这家现在能用的 token：后台填的优先，没填读环境变量，都没有返回空串 */
+/** Usable token for this provider right now: admin-entered first, otherwise env, else an empty string */
 export async function siteAiKey(provider: AiProvider): Promise<string> {
   const stored = decryptSecret((await rows()).get(KEY_PREFIX + provider.envKey) ?? "");
   return stored || (process.env[provider.envKey]?.trim() ?? "");
 }
 
-/** 能直接给管理员看的那类错（填错了）；别的错（库挂了之类）不往外说细节 */
+/** Errors that can be shown to admins directly (bad input); for others (DB down, etc.) don't leak details */
 export class AiSettingError extends Error {}
 
-/** 写一个槽位的 token；传空串 = 清掉后台填的那份（环境变量里的不受影响） */
+/** Writes the token for a slot; an empty string = clear the admin-entered one (env values are unaffected) */
 export async function setAiKey(slot: string, plain: string): Promise<void> {
   if (!AI_KEY_SLOTS.includes(slot)) throw new AiSettingError(tk("认不出这个 key 槽位"));
   const value = plain.trim();
@@ -97,13 +97,13 @@ export async function setAiKey(slot: string, plain: string): Promise<void> {
 
 export interface AiKeyStatus {
   slot: string;
-  /** 后台填的 / 环境变量里的 / 都没有 */
+  /** Entered in admin / from env / none */
   source: "admin" | "env" | "none";
-  /** 只回显末四位，够管理员认出是哪一把就行 */
+  /** Only show the last four, enough for admins to tell which one it is */
   last4: string;
 }
 
-/** 后台回显用：每个槽位的来源与末四位，绝不含完整 token */
+/** For admin display: source and last four of each slot, never the full token */
 export async function aiKeyStatuses(): Promise<AiKeyStatus[]> {
   const all = await rows();
   return AI_KEY_SLOTS.map((slot) => {
@@ -114,26 +114,26 @@ export async function aiKeyStatuses(): Promise<AiKeyStatus[]> {
   });
 }
 
-/** AI 审核此刻能不能跑：选定的那家有没有 token。/api/config 据此告诉网页按钮灰不灰 */
+/** Whether AI review can run right now: does the selected provider have a token. /api/config uses this to tell the web whether to disable the button */
 export async function aiReviewReady(): Promise<boolean> {
   const { provider } = await getReviewModel();
   return (await siteAiKey(aiProvider(provider)!)) !== "";
 }
 
-/** 这一类审核现在用的「审核要求」：后台改过用后台的，没改过用代码里的默认文案 */
+/** Current "review guide" for this kind: admin's version if changed, otherwise the default in code */
 export async function getReviewGuide(kind: ReviewKind): Promise<string> {
   return (await rows()).get(PROMPT_PREFIX + kind)?.trim() || defaultReviewGuide(kind);
 }
 
 /**
- * 改一类审核的「审核要求」。传空串、或者与默认文案一字不差 = 恢复默认（库里不留行）：
- * 这样以后默认文案改进了，没自己改过的站点自动跟上，不会被一份一模一样的旧拷贝钉住。
+ * Changes a kind's "review guide". An empty string, or one identical to the default = restore default (no row kept in the DB):
+ * that way, when the default text improves later, sites that never customized it follow along instead of being pinned to an identical old copy.
  */
 export async function setReviewGuide(kind: unknown, text: string): Promise<void> {
   if (!isReviewKind(kind)) throw new AiSettingError(tk("认不出这个审核类型"));
   const value = text.trim();
   if (value.length > MAX_GUIDE_CHARS) {
-    throw new AiSettingError(`提示词太长了，最多 ${MAX_GUIDE_CHARS} 字`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    throw new AiSettingError(`提示词太长了，最多 ${MAX_GUIDE_CHARS} 字`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   }
   const same = value === "" || value === defaultReviewGuide(kind).trim();
   await put(PROMPT_PREFIX + kind, same ? null : value);
@@ -142,14 +142,14 @@ export async function setReviewGuide(kind: unknown, text: string): Promise<void>
 export interface ReviewGuideStatus {
   kind: ReviewKind;
   label: string;
-  /** 现在生效的那份 */
+  /** The one currently in effect */
   text: string;
-  /** 代码里的默认文案，「恢复默认」用 */
+  /** Default text in code, used by 「恢复默认」 (Restore default) */
   defaultText: string;
   custom: boolean;
 }
 
-/** 后台回显用：每类审核现在的提示词与默认文案 */
+/** For admin display: each kind's current prompt and default text */
 export async function reviewGuideStatuses(): Promise<ReviewGuideStatus[]> {
   const all = await rows();
   return REVIEW_KINDS.map((k) => {

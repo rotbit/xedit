@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 内容区顶栏右端的「新建文章」分体按钮：左段直接新建，右段 chevron 展开导入菜单。
- * 做成一颗按钮的两半而不是两颗：新建是高频主操作，导入一年用不了几次，
- * 让它蹭主按钮的位置但不占视觉权重。
- * 这里的导入不指定分类，落点沿用 useImportDocs 的「当前分类」算法；
- * 要往某个具体文件夹里导入，走文件树的右键菜单。
+ * The 「新建文章」 (New document) split button at the right end of the content top bar: the left half creates directly, the right chevron opens the import menu.
+ * Two halves of one button rather than two buttons: creating is the frequent primary action while importing happens a few times a year,
+ * so it borrows the primary button's spot without taking visual weight.
+ * Imports here don't specify a category; the destination uses useImportDocs' "current category" logic;
+ * to import into a specific folder, use the file tree's context menu.
  */
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -17,10 +17,10 @@ import { menuItemCls, menuPanelCls } from "../constants";
 import type { ImportMode } from "../hooks/useImportDocs";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 下拉宽度：与分类菜单的 w-44 同宽 */
+/** Dropdown width: same as the category menu's w-44 */
 const MENU_WIDTH = 176;
 
-/** 右锚定位：菜单贴按钮右缘展开，顶栏靠右时不会伸出屏幕 */
+/** Right-anchored: the menu opens along the button's right edge so it doesn't overflow the screen at the right of the top bar */
 interface Anchor {
   top: number;
   right: number;
@@ -35,7 +35,7 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
   useEscape(close, anchor !== null);
   useDismissMenu(panelRef, close, anchor !== null);
 
-  /** 再点一次 chevron 收起：按钮带 data-menu-trigger，外部关闭逻辑会放它一马 */
+  /** Clicking the chevron again closes it: the button has data-menu-trigger, so the outside-click logic spares it */
   const toggle = (e: React.MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     setAnchor((prev) => (prev ? null : { top: r.bottom + 4, right: window.innerWidth - r.right }));
@@ -49,9 +49,9 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
 
   return (
     <>
-      {/* 外观跟左边的视图切换器同一家族：描边 + 面板底色的低调控件，两段各自是圆角小按钮，
-          悬停才亮 accent-wash。不再用实心 accent 大色块：顶栏本来安静，一块高对比色板压过了内容。
-          新建中整颗一起变淡：只淡左半会看着像按钮裂了 */}
+      {/* Same family as the view switcher on the left: a low-key outlined control on the panel background, each half a small rounded button,
+          lighting up accent-wash only on hover. No more solid accent block: the top bar is meant to be quiet, and a high-contrast slab overpowered the content.
+          While creating, the whole button fades together: fading only the left half looks like the button cracked */}
       <div
         className={`ml-2 flex h-8 shrink-0 items-center gap-0.5 rounded-md border border-[var(--hairline)] bg-[var(--panel)] p-0.5 ${docActions.creating ? "opacity-60" : ""}`}
       >
@@ -92,7 +92,7 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
                 <FolderInput size={14} className="text-[var(--ink-faint)]" />
                 {t("导入文件夹")}
               </button>
-              {/* 飞书导入走服务端，未登录（本地模式）时没有这条路 */}
+              {/* Feishu import runs server-side, so this option doesn't exist when logged out (local mode) */}
               {auth.loggedIn ? (
                 <>
                   <div className="my-1 border-t border-[var(--hairline)]" />

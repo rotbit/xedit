@@ -1,10 +1,10 @@
 "use client";
 
-// 正文右侧的意见栏（Word 批注栏那套）：每张卡片贴着自己那句话的高度站，站不下就互相让。
-// 卡片和编辑器同在一个滚动容器里，所以滚动时两边是焊死的，不必另外跟一遍滚动。
+// Comment column to the right of the body (like Word's comment pane): each card sits at its sentence's height and they make room for each other when crowded.
+// Cards and editor share one scroll container, so both sides scroll locked together without separately syncing scroll.
 //
-// 高度从哪来：view.lineBlockAt(from).top + view.documentTop。
-// 不用 coordsAtPos —— 它只对渲染出来的那一屏有效，而意见摊在全篇，屏外的卡片同样要就位。
+// Where heights come from: view.lineBlockAt(from).top + view.documentTop.
+// Not coordsAtPos: it only works for the rendered screen, while comments span the whole doc and off-screen cards need placing too.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Settings2 } from "lucide-react";
@@ -19,17 +19,17 @@ import type { ReviewApi } from "./useReview";
 import type { ReviewItemView } from "./types";
 import { useT } from "@/i18n/useT";
 
-/** 总评卡也参与避让排版，给它一个不会跟意见撞车的位置 */
+/** The summary card also takes part in the layout; give it a position that won't collide with comments */
 const SUMMARY_ID = "\u0000summary";
 
-/** 两次排版结果差不到半像素就当没变，省一次无谓的重渲染 */
+/** If two layouts differ by less than half a pixel, treat them as unchanged and skip a pointless re-render */
 function same(a: number[], b: number[]): boolean {
   return a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 0.5);
 }
 
 /**
- * 一条意见在屏幕上的高度（引文所在那一行的顶端）。
- * 引文已经不在正文里（采纳过 / 已失效）时退到它记着的行号，卡片至少还站在原处附近。
+ * A comment's on-screen height (the top of the line its quote is on).
+ * When the quote is no longer in the body (accepted / stale), fall back to its remembered line number so the card at least stays near its spot.
  */
 function anchorY(view: EditorView, item: ReviewItemView, from: number | null): number | null {
   const doc = view.state.doc;
@@ -40,8 +40,8 @@ function anchorY(view: EditorView, item: ReviewItemView, from: number | null): n
 }
 
 /**
- * 总评：栏里只露个开头（三行），点一下在审核条底下展开成一张正经的阅读面板。
- * 260px 宽的小卡里读一两百字太憋屈；高度固定下来，下面的卡片也不用跟着它一收一放地挪。
+ * Summary: the column shows only the beginning (three lines); clicking expands it into a proper reading panel below the review bar.
+ * Reading a hundred or two characters in a 260px card is cramped; with a fixed height, the cards below don't shift as it expands and collapses.
  */
 function SummaryCard({ text, onOpen }: { text: string; onOpen: () => void }) {
   const t = useT();
@@ -66,7 +66,7 @@ function SummaryCard({ text, onOpen }: { text: string; onOpen: () => void }) {
   );
 }
 
-/** 加载态：一张说明「AI 正在干活」的状态卡，底下三张骨架卡让人知道意见会摆在这儿 */
+/** Loading state: a status card saying "AI is working", with three skeleton cards below showing where comments will appear */
 function Skeletons() {
   const t = useT();
   const elapsed = useElapsedSeconds(true);
@@ -108,9 +108,9 @@ export function ReviewCards({
 }: {
   api: ReviewApi;
   width?: number;
-  /** 出错时那句「换个审核类型」：打开的是审核条上那张设置面板 */
+  /** The "try another review type" action on error: opens the settings panel on the review bar */
   onOpenSettings: () => void;
-  /** 点总评小卡：打开的是审核条底下那张阅读面板 */
+  /** Clicking the summary card: opens the reading panel below the review bar */
   onOpenSummary: () => void;
 }) {
   const t = useT();
@@ -120,34 +120,34 @@ export function ReviewCards({
   const colRef = useRef<HTMLElement>(null);
   const elsRef = useRef(new Map<string, HTMLElement>());
   const [tops, setTops] = useState<number[]>([]);
-  /** 落过位没有：没落位的卡片不画（都堆在 top:0，画出来就是一摞） */
+  /** Whether cards have been placed: unplaced cards aren't drawn (they'd all be at top:0, a stacked pile) */
   const laid = tops.length > 0;
-  /** 允不允许 top 走过渡：第一次落位是「瞬间就位」，之后的挪动才滑 */
+  /** Whether top may transition: the first placement is instant, only later moves slide */
   const [flow, setFlow] = useState(false);
 
   /**
-   * 量高度 → 算避让 → 落位。必须在绘制前做完（useLayoutEffect），
-   * 否则会先看见一摞卡片叠在顶上再弹开。
+   * Measure heights → compute layout → place. Must finish before paint (useLayoutEffect),
+   * otherwise you'd first see a pile of cards at the top that then springs apart.
    */
   useLayoutEffect(() => {
     const col = colRef.current;
     const view = editorView();
     if (!col || !view || phase !== "done") {
-      // 换一趟（重跑 / 出错 / 还在加载）就把落位作废：新一批卡片不该接着上一批的位置站，
-      // 否则第一帧先画在旧位置上，再当着用户的面滑过去
+      // A new run (rerun / error / still loading) invalidates placement: a new batch of cards shouldn't start from the previous batch's positions,
+      // or the first frame paints at the old positions and then slides over in front of the user
       setTops((prev) => (prev.length === 0 ? prev : []));
       setFlow(false);
       return;
     }
     const base = col.getBoundingClientRect().top;
 
-    const anchors = [0]; // 总评贴着栏顶
+    const anchors = [0]; // Summary sticks to the top of the column
     const heights = [elsRef.current.get(SUMMARY_ID)?.offsetHeight ?? 0];
     let last = 0;
     for (const item of cards) {
       heights.push(elsRef.current.get(item.id)?.offsetHeight ?? 0);
       const y = anchorY(view, item, spanOf(item.id)?.from ?? null);
-      // 量不到就跟在上一张后面，至少顺序还对
+      // If it can't be measured, follow the previous card so at least the order is right
       last = y === null ? last : y - base;
       anchors.push(last);
     }
@@ -158,9 +158,9 @@ export function ReviewCards({
   }, [cards, activeId, tick, spanOf, editorView, phase]);
 
   /**
-   * 落位落定、这一帧画完了，才把过渡打开。
-   * 不能在给 top 的同一帧里开：浏览器比对的是改完之后的样式，
-   * 那样照样会从 0 滑下来——进入审核头一秒「一摞卡片散开」就是这么来的。
+   * Only enable transitions once placement has settled and this frame has painted.
+   * Can't enable it in the same frame that sets top: the browser compares against the post-change styles,
+   * so it would still slide down from 0; that's where the "pile of cards scattering" in the first second of review came from.
    */
   useEffect(() => {
     if (!laid || flow) return;
@@ -178,8 +178,8 @@ export function ReviewCards({
   if (phase === "error") {
     return (
       <aside className="absolute right-0 top-0" style={{ width }}>
-        {/* 出错不能是条死路：服务端那句话照原样摆出来（没登录、站点没配这家、额度用完各有各的说法），
-            再给一条去改设置的路和一颗重试 */}
+        {/* An error must not be a dead end: show the server's message as-is (not logged in, provider not configured, quota used up each have their own wording),
+            then offer a way to change settings and a retry button */}
         <div className={emptyBox}>
           {api.error ? t(api.error) : t("审核失败")}
           <div className="mt-2 flex items-center gap-3">
@@ -206,7 +206,7 @@ export function ReviewCards({
 
   return (
     <aside ref={colRef} className="absolute right-0 top-0" style={{ width }}>
-      {/* 总评与意见卡都是绝对定位，位置由上面的避让算法给 */}
+      {/* Summary and comment cards are absolutely positioned; positions come from the layout algorithm above */}
       <div
         ref={(el) => {
           if (el) elsRef.current.set(SUMMARY_ID, el);
@@ -249,10 +249,10 @@ export function ReviewCards({
 }
 
 /**
- * 那句话底下浮出的一张卡片：鼠标停在标注上就出哪条；
- * 摆不下意见栏时（pinActive）也兜底显示选中的那条。
- * 位置用 coordsAtPos（只有这一条要定位，它一定在视口里），
- * 相对自己的 offsetParent（正文与意见栏共用的那一层，审核模式下是 relative）。
+ * A card that floats up under the sentence: shows whichever comment the mouse is resting on;
+ * when the comment column doesn't fit (pinActive), it also falls back to showing the selected one.
+ * Positioned with coordsAtPos (only this one needs placing, and it's always in the viewport),
+ * relative to its offsetParent (the layer shared by the body and the comment column, `relative` in review mode).
  */
 export function ReviewPopover({ api, pinActive }: { api: ReviewApi; pinActive: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -283,7 +283,7 @@ export function ReviewPopover({ api, pinActive }: { api: ReviewApi; pinActive: b
         }
       : null;
     if (!next) return;
-    // 位置没变就别 setState：这个 effect 每次渲染都可能跑，不拦会自己把自己叫醒
+    // Don't setState if the position didn't change: this effect may run every render and would otherwise wake itself up
     setPos((prev) =>
       prev && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.left - next.left) < 0.5
         ? prev
@@ -291,7 +291,7 @@ export function ReviewPopover({ api, pinActive }: { api: ReviewApi; pinActive: b
     );
   }, [itemId, itemLine, tick, spanOf, editorView]);
 
-  /** 点到别处就收起来（点在别的标注上不算——那是要换一条看） */
+  /** Collapse on clicking elsewhere (clicking another mark doesn't count; that means switching to view another) */
   const onOutside = useCallback(
     (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;

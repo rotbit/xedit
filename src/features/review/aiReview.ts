@@ -1,11 +1,11 @@
 /**
- * 真审核：把正文发给本站的 /api/ai/review，拿回一份 ReviewResult。
+ * The real review: sends the body to this site's /api/ai/review and gets back a ReviewResult.
  *
- * 只有这一条路——早先那份本地造的假数据已经删掉了：给用户看一堆本地正则编出来的
- * 「意见」，不如明说「还没配模型」。用哪个模型、key 是什么全由后台定，这里只报「审哪几类」；
- * 后台还没配好时界面上「开始审核」是灰的，万一还是打过来了，服务端会明确回 no_key / 401 / 403。
+ * This is the only path; the old locally faked data is gone. Showing users a pile of "comments" made up by local regexes
+ * is worse than plainly saying "no model configured yet". The backend decides the model and key; this side only says which types to review.
+ * When the backend isn't configured, 「开始审核」 (Start review) is disabled; if a request still gets through, the server replies no_key / 401 / 403 explicitly.
  *
- * 纯函数，不认识 React，也不弹提示：错误一律抛出，message 就是能给用户看的一句话。
+ * Pure functions: no React, no toasts. All errors are thrown, and the message is a sentence fit to show the user.
  */
 import type { ReviewRecordMeta, ReviewResult } from "./types";
 import { readAiConfig, type AiConfig } from "./aiConfig";
@@ -14,7 +14,7 @@ import { t, tk } from "@/i18n/t";
 const REVIEW_API = "/api/ai/review";
 const OFFLINE = tk("现在连不上服务器，稍后再试");
 
-/** 带服务端错误码的失败，界面据此分流（no_key 说明后台还没配好） */
+/** Failure carrying a server error code, used by the UI to branch (no_key means the backend isn't configured yet) */
 export class AiReviewError extends Error {
   code: string;
   constructor(message: string, code: string) {
@@ -23,13 +23,13 @@ export class AiReviewError extends Error {
   }
 }
 
-/** 一趟审核的产出：结果，外加服务端替它存下的那条历史（没存成就是 null，意见照看，只是回看不了） */
+/** Output of one review run: the result, plus the history record the server saved for it (null if saving failed; comments still show, just can't be revisited) */
 export interface ReviewRun {
   result: ReviewResult;
   record: ReviewRecordMeta | null;
 }
 
-/** 回包里的 record 是服务端自己拼的，这里只确认形状，不细究 */
+/** The record in the response is built by the server; only check its shape here, not the details */
 export function asRecordMeta(value: unknown): ReviewRecordMeta | null {
   const r = value as Partial<ReviewRecordMeta> | null;
   if (!r || typeof r.id !== "string" || typeof r.createdAt !== "string") return null;
@@ -42,12 +42,12 @@ export function asRecordMeta(value: unknown): ReviewRecordMeta | null {
   };
 }
 
-/** 请求一次真审核。调用方务必传 signal：退出审核 / 换文档时要能把它掐掉 */
+/** Request one real review. Callers must pass a signal so it can be aborted when leaving review or switching documents */
 export async function requestAiReview(
   content: string,
   cfg: AiConfig,
   signal?: AbortSignal,
-  /** 哪篇文章：带上它，服务端才会把这一趟记进历史 */
+  /** Which document: only with this will the server record the run in history */
   docId?: string
 ): Promise<ReviewRun> {
   let res: Response;
@@ -63,7 +63,7 @@ export async function requestAiReview(
       signal,
     });
   } catch (e) {
-    // abort 原样往上抛，否则界面分不清「用户退出了审核」和「连不上服务器」
+    // Rethrow aborts as-is, otherwise the UI can't tell "user exited review" from "can't reach the server"
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new AiReviewError(OFFLINE, "offline");
   }
@@ -89,8 +89,8 @@ export async function requestAiReview(
 }
 
 /**
- * 界面真正调的那个：按本机此刻勾的审核类型跑一趟（勾了几类，服务端就一起审、合成一份结果）。
- * 设置是在发起这一刻读的，所以在面板里改完再点「重新审核」，用的就是新设置。
+ * What the UI actually calls: runs once with the review types currently checked on this device (however many are checked, the server reviews them together into one result).
+ * Settings are read at the moment of launch, so changing them in the panel and clicking 「重新审核」 (Review again) uses the new settings.
  */
 export function runReview(
   content: string,

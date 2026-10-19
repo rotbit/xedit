@@ -3,45 +3,45 @@ import { translate } from "@/i18n/t";
 import type { DocMeta } from "../types";
 
 /**
- * 时间流的一组。粒度随时间递减：今天 / 昨天 / 本周每天各一组，上周并成一组，再往前按月一组。
+ * One group in the timeline. Granularity coarsens with age: one group each for today / yesterday / each day this week, last week as one group, then one per month before that.
  *
- * key 有固定格式，组件靠它判断组的种类（不去匹配标签文案，切语言也不会错）：
+ * key has a fixed format that components use to tell the group kind (rather than matching label text, so switching languages can't break it):
  * - "today" / "yesterday"
- * - "day:Y-M-D"   本周内其余某天
- * - "lastweek"    上周一到上周日
- * - "month:Y-M"   更早的某个自然月
+ * - "day:Y-M-D"   another day within this week
+ * - "lastweek"    last Monday through last Sunday
+ * - "month:Y-M"   an earlier calendar month
  */
 export interface DayGroup {
-  /** 组键，同时用作 React key，格式见上 */
+  /** Group key, also used as the React key; format above */
   key: string;
-  /** 左栏大字：日号 "11"，或文字标签「上周」「九月」 */
+  /** Large text in the left column: day number "11", or a text label like 「上周」「九月」 */
   heading: string;
-  /** 大字下的小标签：「十月 · 今天」/ 月份名 / 「9/29 – 10/5」/ 跨年时的年份，可能为空串 */
+  /** Small label under the large text: 「十月 · 今天」 / month name / 「9/29 – 10/5」 / the year when crossing years; may be an empty string */
   sub: string;
   docs: DocMeta[];
 }
 
-/** 大字是日号（宋体 30px）的组；其余组（上周 / 某月）是文字标签，字号要收小 */
+/** Groups whose large text is a day number (serif 30px); other groups (last week / a month) are text labels and need a smaller size */
 export function isDayHeading(key: string): boolean {
   return key === "today" || key === "yesterday" || key.startsWith("day:");
 }
 
-/** 只有今天、昨天两组的行上显示相对时间，再往前「几天前」已经没有信息量 */
+/** Relative time is shown on rows only in the today and yesterday groups; earlier, "N days ago" carries no information */
 export function showsRelativeTime(key: string): boolean {
   return key === "today" || key === "yesterday";
 }
 
-/** 月份名交给 Intl：zh-CN 给「九月」，en 给 "September"，不用自己维护两份表 */
+/** Month names come from Intl: zh-CN gives 「九月」, en gives "September", so we don't maintain two tables */
 function monthOf(date: Date, locale: Locale): string {
   return new Intl.DateTimeFormat(htmlLang(locale), { month: "long" }).format(date);
 }
 
-/** 本地日期键：必须按本地年月日拼，用 toISOString 会折回 UTC，把深夜的文档分到前一天 */
+/** Local date key: must be built from local year/month/day; toISOString folds back to UTC and files late-night docs under the previous day */
 function dayKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
-/** 本地零点。之后的加减天数一律走 setDate，让 Date 自己处理月初、年初与夏令时的退位 */
+/** Local midnight. All later day arithmetic uses setDate so Date handles month starts, year starts and DST borrowing itself */
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
@@ -53,20 +53,20 @@ function addDays(d: Date, n: number): Date {
 }
 
 /**
- * 本周一零点。getDay() 周日为 0，换算成「距周一几天」：(getDay() + 6) % 7。
- * 再用 setDate 往回退，跨月（10/1 周三 → 9/29）跨年（1/1 周四 → 12/29）都由 Date 自己进位。
+ * Midnight this Monday. getDay() is 0 for Sunday; convert to "days since Monday": (getDay() + 6) % 7.
+ * Then step back with setDate, letting Date carry across months (Wed 10/1 → 9/29) and years (Thu 1/1 → 12/29).
  */
 function startOfWeek(d: Date): Date {
   const day = startOfDay(d);
   return addDays(day, -((day.getDay() + 6) % 7));
 }
 
-/** 日期范围的短写：两种语言都用 "9/29"，比月份名省地方 */
+/** Short form for date ranges: both languages use "9/29", which takes less space than month names */
 function shortDate(d: Date): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-/** 算出一篇文档该落进哪一组（只给 key / heading / sub，docs 由调用方收集） */
+/** Work out which group a doc belongs to (key / heading / sub only; the caller collects docs) */
 function bucketOf(date: Date, now: Date, locale: Locale): Omit<DayGroup, "docs"> {
   const today = startOfDay(now);
   const yesterday = addDays(today, -1);
@@ -75,18 +75,18 @@ function bucketOf(date: Date, now: Date, locale: Locale): Omit<DayGroup, "docs">
   const month = monthOf(date, locale);
   const t = date.getTime();
 
-  // 比今天还晚的（客户端时钟偏差）也算今天，不单独开一组「未来」
+  // Later than today (client clock skew) counts as today too, without a separate "future" group
   if (t >= today.getTime()) {
     return { key: "today", heading: String(date.getDate()), sub: `${month} · ${translate("今天", locale)}` };
   }
   if (t >= yesterday.getTime()) {
     return { key: "yesterday", heading: String(date.getDate()), sub: `${month} · ${translate("昨天", locale)}` };
   }
-  // 本周内其余的日子：今天是周一 / 周二时这一段为空，昨天已先一步落进「昨天」
+  // Other days this week: empty when today is Monday / Tuesday, since yesterday already went into "yesterday"
   if (t >= thisWeek.getTime()) {
     return { key: `day:${dayKey(date)}`, heading: String(date.getDate()), sub: month };
   }
-  // 上周一到上周日；今天是周一时上周日已是「昨天」，这里自然排除
+  // Last Monday through last Sunday; when today is Monday last Sunday is already "yesterday", so it's naturally excluded
   if (t >= lastWeek.getTime()) {
     return {
       key: "lastweek",
@@ -94,7 +94,7 @@ function bucketOf(date: Date, now: Date, locale: Locale): Omit<DayGroup, "docs">
       sub: `${shortDate(lastWeek)} – ${shortDate(addDays(thisWeek, -1))}`,
     };
   }
-  // 更早按自然月；年份只在跨年时补上
+  // Earlier: by calendar month; the year is added only when crossing years
   return {
     key: `month:${date.getFullYear()}-${date.getMonth() + 1}`,
     heading: month,
@@ -103,11 +103,11 @@ function bucketOf(date: Date, now: Date, locale: Locale): Omit<DayGroup, "docs">
 }
 
 /**
- * 按时间远近归组（默认 updatedAt，「最近打开」视图传入 max(打开, 编辑)）。
- * 列表已按同一套时间倒序，所以只把**连续**同组的文档
- * 收进一组即可，不重排、不跨段合并，顺序与传入完全一致。
- * now 可注入，便于测试今天 / 昨天 / 周界 / 跨年；locale 由组件从 useLocale() 传入，
- * 切换语言后组件重渲染、标签跟着重算。
+ * Group by recency (updatedAt by default; the "Recently opened" view passes max(opened, edited)).
+ * The list is already sorted descending by the same time, so we only collect **consecutive** same-group docs
+ * into one group — no reordering, no merging across segments; the order matches the input exactly.
+ * now is injectable for testing today / yesterday / week boundaries / year crossings; locale is passed in from useLocale() by the component,
+ * so after a language switch the component re-renders and labels are recomputed.
  */
 export function groupByRecency(
   docs: DocMeta[],
@@ -118,7 +118,7 @@ export function groupByRecency(
   const groups: DayGroup[] = [];
   for (const doc of docs) {
     const parsed = new Date(timeOf(doc));
-    // 时间脏数据会解析成 Invalid Date，退回当下，免得整组渲染成 NaN
+    // Bad time data parses to Invalid Date; fall back to now so the whole group doesn't render as NaN
     const date = Number.isNaN(parsed.getTime()) ? now : parsed;
     const bucket = bucketOf(date, now, locale);
     const last = groups[groups.length - 1];

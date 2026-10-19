@@ -1,7 +1,7 @@
 /**
- * 今天页左栏「本周已完成」的数据：按天日志里的勾选事件——今天的、本周往前几天的，以及全部历史的件数。
- * 页面和左栏共用一份结果（页面拿它判断整页是否全空），所以抽成纯函数、每次渲染只读一次日志。
- * 各处用同一套去重规则（doneOn），往前几天和当天看到的口径一致。
+ * Data for the Today page's left column "Done this week": check events from the daily log — today's, earlier days this week, and the all-time count.
+ * The page and the left column share one result (the page uses it to decide whether everything is empty), so it's a pure function that reads the log once per render.
+ * Everything uses the same dedupe rule (doneOn), so earlier days and today are counted the same way.
  */
 import type { TodoItem } from "@/lib/todos/collect";
 import { daysBetween, nextMonday, shiftDay } from "@/lib/todos/dates";
@@ -10,16 +10,16 @@ import { listDayLogKeys, readDayEvents, type DayEvent } from "@/lib/todos/events
 const sameTask = (text: string | undefined, docId: string | undefined) => `${docId ?? ""}|${text ?? ""}`;
 
 /**
- * 某一天的勾选事件：按时间升序；同一篇同一句勾了又取消再勾，只留最后一条。
- * 左栏列表里还在的条目不列：刚勾掉的那条正划线留在列表里，取消勾选的又回到了列表——
- * 回顾里也照此排除，否则取消勾选的事会以「做完了」的样子留在前几天。
+ * Check events for one day, oldest first; if the same line in the same doc was checked, unchecked and checked again, keep only the last.
+ * Items still in the left-column list are left out: one just checked stays in the list struck through, and an unchecked one is back in the list —
+ * the review excludes them too, otherwise an unchecked task would linger in earlier days looking "done".
  */
 function doneOn(day: string, shown: Set<string>): DayEvent[] {
   const last = new Map<string, DayEvent>();
   const tasks = readDayEvents(day)
     .filter((e) => e.kind === "task")
     .sort((a, b) => a.ts - b.ts);
-  // Map 按首次插入排序：先删再设，顺序才落在最后一次勾选的时间上
+  // Map keeps first-insertion order: delete then set so the order reflects the latest check time
   for (const e of tasks) {
     const k = sameTask(e.text, e.docId);
     last.delete(k);
@@ -35,8 +35,8 @@ export function doneToday(today: string, rows: TodoItem[]): DayEvent[] {
 }
 
 /**
- * 近 days 天（昨天到 days 天前，不含今天——今天归「做完了」）每天做完的事。
- * 没记录的天不进结果，省得一串空标题；按日期倒序，离今天近的在前。
+ * What got done on each of the last `days` days (yesterday back to `days` ago, excluding today — today belongs to "Done").
+ * Days with no records are skipped to avoid a run of empty headings; newest date first.
  */
 export function doneRecent(
   today: string,
@@ -54,18 +54,18 @@ export function doneRecent(
 }
 
 /**
- * 本周（周一起）往前几天做完的事，不含今天——今天的由 doneToday 单列、可撤回。
- * 今天是周几就往前看几天（周一 0 天，返回空）；按日期倒序，没记录的天不进结果。
+ * What got done on earlier days this week (from Monday), excluding today — today is listed separately by doneToday and can be undone.
+ * Looks back as many days as today's weekday index (Monday = 0 days, returns empty); newest first, days without records skipped.
  */
 export function doneThisWeek(today: string, rows: TodoItem[]): { day: string; events: DayEvent[] }[] {
-  // 下周一离今天 7 天说明今天是周一，6 天是周二……反推今天是本周第几天（周一为 0）
+  // Next Monday 7 days away means today is Monday, 6 means Tuesday…; work back to today's index in the week (Monday = 0)
   const weekday = 7 - daysBetween(today, nextMonday(today));
   return weekday > 0 ? doneRecent(today, rows, weekday) : [];
 }
 
 /**
- * 本地日志里全部做完过的事有几件：「历史已完成」入口右侧的数。
- * 每天按 doneOn 去重（同一篇同一句只算最后一次），不排除左栏里的行——这是总账，不管眼下列表。
+ * How many things were ever done in the local log: the number on the right of the "Completed history" entry.
+ * Deduped per day by doneOn (same line in the same doc counts once, last event), not excluding left-column rows — it's the grand total, independent of the current list.
  */
 export function doneCountAll(): number {
   const none = new Set<string>();
@@ -75,9 +75,9 @@ export function doneCountAll(): number {
 }
 
 /**
- * 今天写了多少：日期下那行小结用。
- * chars 是净增量（删字为负），按净值相加——写了一千又删掉八百，说「写了 200 字」才诚实；净值不为正就不提字数。
- * 「改了几篇」数的是今天有过写入或新建的不同文章。
+ * How much was written today: for the summary line under the date.
+ * chars are net deltas (deletions negative), summed as such — write 1000 and delete 800, and "wrote 200 chars" is the honest number; omit the count if the net isn't positive.
+ * "Docs edited" counts distinct docs written to or created today.
  */
 export function writingToday(day: string): { chars: number; docs: number } {
   const events = readDayEvents(day);

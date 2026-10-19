@@ -14,12 +14,12 @@ import { feishuBlocksToMarkdown, feishuImageTokens } from "./markdown";
 import { tk } from "@/i18n/t";
 
 /**
- * 知识库 → xedit 的分批增量同步。
- * 每次调用只处理一小批文档就返回进度（HTTP 请求不能太长），客户端循环调到 done；
- * 幂等依据是 FeishuDocLink 里记录的 obj_edit_time——飞书侧没改过的文档整篇跳过。
+ * Batched incremental sync from wiki → xedit.
+ * Each call handles only a small batch of documents and returns progress (HTTP requests can't run too long); the client loops until done.
+ * Idempotency relies on obj_edit_time recorded in FeishuDocLink — documents unchanged on the Feishu side are skipped entirely.
  */
 
-/** 单批最多处理的文档数与时间预算：先到者停，至少完成 1 篇保证收敛 */
+/** Max documents and time budget per batch: stop at whichever comes first, finishing at least 1 doc to guarantee progress */
 const BATCH_DOCS = 5;
 const TIME_BUDGET_MS = 20000;
 
@@ -32,19 +32,19 @@ export interface SyncBatchResult {
   skipped: number;
   unsupported: number;
   failed: { nodeToken: string; title: string; reason: string }[];
-  /** 本批实际写入的文档，前端进度列表用 */
+  /** Documents actually written in this batch, for the frontend progress list */
   items: { title: string; action: "created" | "updated" }[];
-  /** 接下来将处理的文档标题：下一批在跑时前端显示「正在同步 X」 */
+  /** Title of the next document to process: while the next batch runs, the frontend shows 「正在同步 X」 (Syncing X) */
   nextUp: string[];
 }
 
-/** 导入分类树的根：文章还在这棵子树下就跟随飞书目录，挪出去即视为用户认领 */
-const ROOT_CAT = "飞书知识库"; // i18n-ignore 同步落库的分类名，是数据
+/** Root of the imported category tree: articles still under this subtree follow the Feishu hierarchy; moving one out counts as the user claiming it */
+const ROOT_CAT = "飞书知识库"; // i18n-ignore category name stored by sync, it's data
 
-/** 目录层级 → 分类路径：`飞书知识库/空间名/祖先…`，段内斜杠替换掉，超长丢弃深层级 */
+/** Hierarchy → category path: `飞书知识库/space name/ancestors…`, slashes within segments are replaced, overly deep levels dropped */
 function buildCategory(spaceName: string, path: string[]): string {
   const segs = [spaceName, ...path]
-    .map((s) => s.replaceAll("/", "／").trim().slice(0, 24)) // i18n-ignore 路径分隔符替换，是数据
+    .map((s) => s.replaceAll("/", "／").trim().slice(0, 24)) // i18n-ignore path separator replacement, it's data
     .filter(Boolean);
   let out = ROOT_CAT;
   for (const seg of segs) {
@@ -54,20 +54,20 @@ function buildCategory(spaceName: string, path: string[]): string {
   return out;
 }
 
-/** 文章当前是否还在「飞书知识库」镜像子树下 */
+/** Whether the article is still under the 「飞书知识库」 (Feishu wiki) mirror subtree */
 const inMirrorTree = (cat: string): boolean => cat === ROOT_CAT || cat.startsWith(`${ROOT_CAT}/`);
 
-/** 图片转存：同一飞书素材只存一次（按 source 复用），OSS 未配置时直接放弃 */
+/** Image re-hosting: each Feishu asset is stored only once (reused by source); give up directly when OSS isn't configured */
 function makeImageResolver(userId: string, token: string) {
-  /** fileToken → 可用 URL；null = 本次同步已确认拿不到，不再重试 */
+  /** fileToken → usable URL; null = confirmed unavailable in this sync, don't retry */
   const cache = new Map<string, string | null>();
-  /** 已经查过库的 fileToken（命中与否都记），resolve 据此跳过逐图查询 */
+  /** fileTokens already looked up in the DB (hit or miss); resolve uses this to skip per-image queries */
   const looked = new Set<string>();
 
   /**
-   * 转换前预热：本篇用到的素材一次 findMany 查完。
-   * 原先每张图一次 findFirst，一篇几十张图就是几十个往返（N+1）。
-   * 预热失败不算错——resolve 会退回逐图查库的老路，只是慢一点。
+   * Pre-warm before converting: look up all assets used by this doc in one findMany.
+   * Previously each image did its own findFirst, so a doc with dozens of images meant dozens of round trips (N+1).
+   * Pre-warm failure isn't an error — resolve falls back to per-image lookups, just slower.
    */
   async function prime(fileTokens: string[]): Promise<void> {
     if (!ossConfigured()) return;
@@ -82,7 +82,7 @@ function makeImageResolver(userId: string, token: string) {
       for (const t of missing) {
         looked.add(t);
         const url = urlOf.get(`feishu:${t}`);
-        // 没查到的不写 cache（那会被当成「确认拿不到」），留给 resolve 去下载
+        // Don't cache misses (that would mean "confirmed unavailable"); leave them for resolve to download
         if (url) cache.set(t, url);
       }
     } catch {
@@ -96,7 +96,7 @@ function makeImageResolver(userId: string, token: string) {
     if (ossConfigured()) {
       const source = `feishu:${fileToken}`;
       try {
-        // prime 查过的直接进下载分支（查到了的早已在 cache 里），没预热到的才兜底查一次
+        // Tokens primed already go straight to download (hits are already in the cache); only un-primed ones get a fallback lookup
         const existing = looked.has(fileToken)
           ? null
           : await prisma.asset.findFirst({ where: { userId, source }, select: { url: true } });
@@ -109,7 +109,7 @@ function makeImageResolver(userId: string, token: string) {
           }
         }
       } catch {
-        url = null; // 单图失败不拖垮整篇：正文落占位文案
+        url = null; // one failed image doesn't sink the whole doc: placeholder text goes into the body
       }
     }
     cache.set(fileToken, url);
@@ -148,7 +148,7 @@ export async function syncFeishuSpace(
     });
   }
 
-  // 快捷方式指向的原文档多半也在树里，同步会重复建档，按不支持处理
+  // The source doc of a shortcut is usually in the tree too; syncing it would create duplicates, so treat it as unsupported
   const docxNodes = nodes.filter((n) => n.objType === "docx" && n.nodeType === "origin");
   result.total = docxNodes.length;
   result.unsupported = nodes.length - docxNodes.length;
@@ -179,7 +179,7 @@ export async function syncFeishuSpace(
     if (processed >= BATCH_DOCS) break;
     if (processed > 0 && Date.now() - startedAt > TIME_BUDGET_MS) break;
     processed++;
-    const title = node.title.trim() || "未命名文档"; // i18n-ignore 落库的文章标题，是数据
+    const title = node.title.trim() || "未命名文档"; // i18n-ignore article title stored in the DB, it's data
     try {
       const blocks = await listDocBlocks(token, node.objToken);
       await images.prime(feishuImageTokens(blocks));
@@ -188,10 +188,10 @@ export async function syncFeishuSpace(
 
       const link = linkOf.get(node.nodeToken);
       if (link) {
-        // 分类只在文章仍留在「飞书知识库」镜像子树里时跟随飞书目录；
-        // 推送来源的、以及被用户挪到自己分类下的（视为认领），拉取都只更新内容不动分类
+        // Categories follow the Feishu hierarchy only while the article stays in the 「飞书知识库」 mirror subtree;
+        // for pushed-origin articles and ones the user moved into their own category (claimed), pulls only update content, not category
         const followCategory = link.origin !== "push" && inMirrorTree(link.document.category);
-        // 返回的是服务端 updatedAt（null = 没写成），这里只关心写没写成
+        // Returns the server updatedAt (null = not written); here we only care whether it was written
         const updated = await updateDocument(userId, link.documentId, {
           title,
           content,
@@ -200,7 +200,7 @@ export async function syncFeishuSpace(
         if (updated) {
           result.updated++;
           result.items.push({ title, action: "updated" });
-        } else result.skipped++; // 文章在回收站（或已没了又被外键清走）：尊重用户删除，不再写
+        } else result.skipped++; // article is in the trash (or gone and cleaned up via foreign key): respect the user's deletion, don't write
       } else {
         const doc = await createDocument(userId, { title, content, category });
         await prisma.feishuDocLink.create({
@@ -225,7 +225,7 @@ export async function syncFeishuSpace(
   result.pending = changed.length - processed;
   result.nextUp = changed
     .slice(processed, processed + BATCH_DOCS)
-    .map((n) => n.title.trim() || "未命名文档"); // i18n-ignore 落库的文章标题，是数据
+    .map((n) => n.title.trim() || "未命名文档"); // i18n-ignore article title stored in the DB, it's data
   result.done = result.pending === 0;
   if (result.done) {
     await prisma.feishuConnection.updateMany({

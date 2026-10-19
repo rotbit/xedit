@@ -5,14 +5,14 @@ import type { EditorHandle } from "@/lib/editor/types";
 import { useStore } from "@/store/useStore";
 
 type EditorViewMode = "edit" | "split" | "read";
-// 与 ArticleReader 的宽度过渡 duration-300 保持一致。
+// Matches ArticleReader's duration-300 width transition.
 const PREVIEW_CLOSE_MS = 300;
 
-/** 管理互斥的显示模式；预览卸载单独延迟，以保留收起动画。编辑器实例始终由组件保留。 */
+/** Manages mutually exclusive view modes; preview unmount is delayed separately to keep the collapse animation. The component always keeps the editor instance. */
 export function useEditorViewMode(
   editorRef: RefObject<EditorHandle | null>,
   scrollEl: HTMLElement | null,
-  /** 离开普通编辑视图的那一下（进双屏 / 进阅读）：只在编辑视图里成立的东西（AI 审核）借它一起收 */
+  /** Fires when leaving the normal edit view (into split / reading): things that only make sense in the edit view (AI review) close along with it */
   onLeaveEdit?: () => void
 ) {
   const [mode, setMode] = useState<EditorViewMode>("edit");
@@ -27,7 +27,7 @@ export function useEditorViewMode(
   }, []);
   useEffect(() => cancelPreviewClose, [cancelPreviewClose]);
 
-  // 阅读视图隐藏编辑器；退出后在布局恢复时归还焦点及滚动位置。
+  // Reading view hides the editor; on exit, focus and scroll position are restored once the layout is back.
   useEffect(() => {
     const restore = previousMode.current === "read" && mode !== "read";
     previousMode.current = mode;
@@ -59,13 +59,13 @@ export function useEditorViewMode(
   }, [mode, editorRef, scrollEl, cancelPreviewClose, onLeaveEdit]);
 
   const toggleSplit = useCallback(() => changeMode(mode === "split" ? "edit" : "split"), [mode, changeMode]);
-  /** 只回不切：AI 审核只在普通编辑视图里成立，开它之前先从双屏 / 阅读退回来 */
+  /** Return only, never toggle: AI review only works in the normal edit view, so back out of split / reading before opening it */
   const openEdit = useCallback(() => {
     if (mode !== "edit") changeMode("edit");
   }, [mode, changeMode]);
   const toggleReading = useCallback(() => changeMode(mode === "read" ? "edit" : "read"), [mode, changeMode]);
 
-  // capture 阶段处理视图快捷键，优先于页面内其他监听。
+  // Handle view shortcuts in the capture phase, ahead of other listeners on the page.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;

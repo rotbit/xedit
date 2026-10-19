@@ -9,7 +9,7 @@ import { localeOfRequest } from "@/i18n/server";
 
 export const runtime = "nodejs";
 
-/** 回调页在授权弹窗里打开：成功则通知主窗口刷新并自关。message 传进来时已按 locale 翻好 */
+/** The callback page opens in the auth popup: on success it tells the main window to refresh and closes itself. message arrives already translated for the locale */
 function resultPage(ok: boolean, message: string, locale: Locale): NextResponse {
   const html = `<!doctype html>
 <html lang="${htmlLang(locale)}"><head><meta charset="utf-8"><title>${translate("飞书授权", locale)}</title></head>
@@ -24,7 +24,7 @@ setTimeout(function () { window.close(); }, 1200);
     status: ok ? 200 : 400,
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
-  // 与设置时相同的 path 才能删掉
+  // Must use the same path as when it was set, or it won't be deleted
   res.cookies.set("feishu_oauth_state", "", { path: "/api/feishu", maxAge: 0 });
   res.cookies.set("feishu_oauth_scope", "", { path: "/api/feishu", maxAge: 0 });
   return res;
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     feishuRedirectUri(publicOrigin(req)),
     req.cookies.get("feishu_oauth_scope")?.value ?? ""
   );
-  // err 来自 lib/feishu，字典里有就跟着翻
+  // err comes from lib/feishu; translate it if the dictionary has it
   if (err) return page(false, tk("{err}，请回到 xedit 重试。"), { err: translate(err, locale) });
   return page(true, tk("已连接飞书，此窗口即将自动关闭。"));
 }

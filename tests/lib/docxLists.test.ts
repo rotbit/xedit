@@ -8,7 +8,7 @@ import { childBlocks } from "@/lib/docx/block";
 import { stripSpaceAfterBreaks } from "@/lib/docx/media";
 import type { Build } from "@/lib/docx/types";
 
-/** 跑真实的 Markdown → HTML → docx 管线并解包，把正文每个 <w:p> 压成「是否带编号 + 文本」便于断言 */
+/** Run the real Markdown → HTML → docx pipeline and unzip it, flattening each body <w:p> into "numbered or not + text" for assertions */
 async function paragraphs(md: string): Promise<{ marked: boolean; text: string }[]> {
   const body = new DOMParser().parseFromString(sanitizeHtml(renderMarkdown(md, {})), "text/html").body;
   stripSpaceAfterBreaks(body);

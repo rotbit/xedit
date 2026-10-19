@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * 权限判定口径：管理员全开、封禁全关、其余看库里存的；以及后台提交权限列表时的清洗。
- * resolvePermissions 是纯函数，库换成空桩只为让 lib/permissions 能 import 进来。
+ * Permission rules: admins get everything, banned users nothing, everyone else what's stored in the database; plus sanitizing permission lists submitted from the admin backend.
+ * resolvePermissions is a pure function; the database is stubbed out only so lib/permissions can be imported.
  */
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 

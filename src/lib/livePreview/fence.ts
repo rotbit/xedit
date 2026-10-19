@@ -3,11 +3,11 @@ import { CodeLangWidget } from "@/lib/livePreview/widgets";
 import type { LpContext } from "@/lib/livePreview/context";
 
 /**
- * 围栏代码块的即时渲染：整块铺随主题的浅色卡片、开栏行换成带语言下拉的标题条、闭栏行折成块底内边距。
+ * Live rendering of fenced code blocks: the whole block gets a theme-tinted light card, the opening fence becomes a header bar with a language dropdown, and the closing fence collapses into bottom padding.
  *
- * 行缝的成因值得记一笔：底色画在每行的 ::before 上，而行高是分数像素，相邻行之间
- * 会漏出亮线。解决办法是让相邻行的伪元素上下各外扩 1px 互相重叠（CSS 里的
- * cm-lp-code-mid），首尾行不外扩以保住圆角边缘。
+ * The cause of the seams is worth noting: the background is painted on each line's ::before, and line heights are fractional pixels, so thin bright lines
+ * leak through between adjacent lines. The fix is to extend adjacent lines' pseudo-elements by 1px up and down so they overlap (see
+ * cm-lp-code-mid in the CSS); the first and last lines don't extend, to keep the rounded edges.
  */
 export function fencedCodeDecorations(ctx: LpContext, node: SyntaxNodeRef): void {
   const { state } = ctx;
@@ -21,14 +21,14 @@ export function fencedCodeDecorations(ctx: LpContext, node: SyntaxNodeRef): void
         : "cm-lp-code cm-lp-code-mid"
   );
 
-  // 下面这几样一律按节点位置取行，不受 eachLine 可见区裁剪的影响：
-  // 滚到长代码块中段时开栏行远在视口之上，首行标题条/闭栏行内边距照旧挂在真正的首末行上
-  // （视口外的装饰本就不渲染），绝不会把视口里的中间行误当成开栏行
+  // The items below always pick lines by node position, unaffected by eachLine's visible-range clipping:
+  // scrolled to the middle of a long code block, the opening fence is far above the viewport, and the header bar / closing padding still attach to the real first/last lines
+  // (decorations outside the viewport aren't rendered anyway), so a middle line in the viewport is never mistaken for the opening fence
   const marks = node.node.getChildren("CodeMark");
   const info = node.node.getChild("CodeInfo");
   const firstLine = state.doc.lineAt(node.from);
 
-  // 开栏行换语言下拉：光标落到该行才还原 ``` 源码，平时这一行只当块顶留白
+  // Opening fence becomes the language dropdown: the ``` source is revealed only when the cursor is on that line; otherwise the line just serves as top spacing
   if (marks.length > 0 && !ctx.lineActive(firstLine.from)) {
     const lang = info ? state.sliceDoc(info.from, info.to).trim() : "";
     ctx.replaceAtomic(
@@ -41,11 +41,11 @@ export function fencedCodeDecorations(ctx: LpContext, node: SyntaxNodeRef): void
   if (marks.length < 2) return;
   const lastLine = state.doc.lineAt(marks[marks.length - 1].from);
   if (lastLine.number === firstLine.number || lastLine.from >= lastLine.to) return;
-  // 闭栏行被整行隐藏后文字没了、行高还在，块底会多出一条空行。
-  // 行级类把它压成一条固定高度的块底内边距（不能 display:none，CodeMirror 要求每行可测高）。
-  // 关键是这个类两种状态都下发：以前光标一落到闭栏行类就撤掉，行高从 12px 弹回 22px+10px，
-  // 整篇下文被顶开二十来像素——只是把光标挪过去而已，不该有这种跳动。
-  // 现在行盒高度钉死，光标在这一行时不替换、``` 以同样高度的小号淡字现出（见 CSS）
+  // Once the closing fence line is hidden, its text is gone but its line height remains, leaving an extra blank line at the bottom of the block.
+  // A line class squashes it into fixed-height bottom padding (can't use display:none; CodeMirror requires every line to be measurable).
+  // The key is that this class is applied in both states: it used to be removed as soon as the cursor reached the closing line, so the height jumped from 12px to 22px+10px,
+  // pushing everything below down by twenty-odd pixels — just for moving the cursor there, which shouldn't cause any jump.
+  // Now the line box height is pinned; with the cursor on this line it isn't replaced, and ``` appears in small faint text at the same height (see CSS)
   ctx.lineClass(lastLine.from, "cm-lp-code-close");
   if (ctx.lineActive(lastLine.from)) return;
   ctx.replaceAtomic(lastLine.from, lastLine.to);

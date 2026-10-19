@@ -9,14 +9,14 @@ import { markOpened } from "../lib/recentOpens";
 import { removeLocal } from "../lib/storage";
 import type { SidebarPrefs } from "./useSidebarPrefs";
 
-/** 多标签时代留下的本地记忆，见到就清掉，免得一直占着 localStorage */
+/** Local memory left over from the multi-tab era; clear it on sight so it doesn't keep occupying localStorage */
 const K_LEGACY_TABS = "xedit:open-tabs";
 
 /**
- * 切走当前文章前先落盘。编辑器的输入回调按 ~120ms 节流、自动保存又压着 800ms 防抖，
- * 直接换 docId 会被新文章的装载覆盖掉这两段还没落盘的编辑（useEditorDoc 里没有 flush）。
- * 先派事件让编辑器把压着的那一次同步吐进 store，再就地写盘——落盘由这里发起，
- * 所以事件带 flushOnly 标记，useEditorSave 不会再跑一遍手动保存（弹提示 + 归档版本）。
+ * Save before switching away from the current doc. The editor's input callback is throttled at ~120ms and autosave debounced at 800ms,
+ * so switching docId directly would let the new doc's load overwrite those two windows of unsaved edits (useEditorDoc has no flush).
+ * First dispatch an event so the editor synchronously flushes the pending change into the store, then write to disk here — since saving starts here,
+ * the event carries a flushOnly flag so useEditorSave doesn't run a manual save again (toast + version archive).
  */
 function flushEditorBeforeSwitch(nextId: string | null) {
   if (typeof window === "undefined") return;
@@ -24,36 +24,36 @@ function flushEditorBeforeSwitch(nextId: string | null) {
   if (!before.docId || before.docId === nextId) return;
   window.dispatchEvent(new CustomEvent("xedit:save-now", { detail: { flushOnly: true } }));
   const doc = useStore.getState();
-  // 没有未落盘的改动就别白写一遍镜像（会平白标脏、多推一次云端）
+  // With no unsaved changes, don't rewrite the mirror for nothing (it would mark it dirty and push to the cloud once more)
   if (doc.docId !== before.docId || isDocumentSaved(doc)) return;
-  // 状态行归新文章所有，这里不改 saveState；推送失败仍由镜像 dirty + 同步引擎兜底
+  // The status line belongs to the new doc now, so don't touch saveState here; push failures are still covered by mirror dirty + the sync engine
   void persistEditorDocument(doc, () => {});
 }
 
 interface Params {
   prefs: SidebarPrefs;
-  /** 打开文章时顺手收掉可能还开着的文档菜单 */
+  /** Opening a doc also closes any doc menu that might still be open */
   closeDocMenu: () => void;
 }
 
 /**
- * 工作台导航：当前分类 / 正在阅读的文章 / 搜索词。
- * 同一时刻只开一篇，readingId 为 null 即停在列表视图。
- * 编辑器返回时带 ?doc=<id>，直接落到该文章的阅读视图。
+ * Workspace navigation: current category / doc being read / search query.
+ * Only one doc is open at a time; readingId null means we're on the list view.
+ * The editor returns with ?doc=<id>, landing directly on that doc's reading view.
  */
 export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
   const searchParams = useSearchParams();
-  // 首页 = 今天页（待办 + 最近在写）；ALL 视图仍在，只是从今天页「全部」或命令进入
+  // Home = Today page (todos + recent writing); the ALL view still exists, reached from Today's "All" or a command
   const [activeCat, setActiveCat] = useState<string>(TODAY);
   const [search, setSearch] = useState("");
-  // 在读哪篇不落本地：刷新后回到列表是有意的，省得每次进来都被上次那篇挡住
+  // Which doc is open isn't persisted: returning to the list after a reload is intentional, so the last doc doesn't block you every time
   const [readingId, setReading] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return new URLSearchParams(window.location.search).get("doc");
   });
 
-  // 客户端导航下 window.location 有时序竞态，从 useSearchParams 读取；
-  // 渲染期间带守卫地调整状态（React 推荐模式），地址栏清理放 effect
+  // window.location has timing races under client navigation, so read from useSearchParams;
+  // adjust state during render with a guard (React's recommended pattern), and clean up the URL in an effect
   const urlDoc = searchParams.get("doc");
   const [consumedUrlDoc, setConsumedUrlDoc] = useState<string | null>(null);
   if (urlDoc && urlDoc !== consumedUrlDoc) {
@@ -64,17 +64,17 @@ export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
     if (urlDoc) window.history.replaceState(null, "", "/");
   }, [urlDoc]);
 
-  // 记「最近打开」：侧栏点开、?doc= 直达、编辑路由重定向最终都落到 readingId，在这一处记就全覆盖
+  // Record "Recently opened": sidebar clicks, ?doc= deep links and editor route redirects all end up at readingId, so recording here covers them all
   useEffect(() => {
     if (readingId) markOpened(readingId);
   }, [readingId]);
 
-  // 标签栏已下线，把老版本留在本地的那份记忆清一次
+  // The tab bar is gone; clear the memory older versions left locally, once
   useEffect(() => {
     removeLocal(K_LEGACY_TABS);
   }, []);
 
-  /** 侧栏全局搜索：在阅读/图片库/今天视图里输入时先切回文章列表（这两个视图不展示搜索结果） */
+  /** Global sidebar search: typing while in reading/image library/Today view switches back to the doc list first (those views don't show search results) */
   const onSearch = (v: string) => {
     setSearch(v);
     if (!v) return;
@@ -91,7 +91,7 @@ export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
   };
 
   const openDoc = (id: string) => {
-    // 回收站视图渲染不了阅读器，切回常规视图再打开
+    // The trash view can't render the reader; switch back to a regular view before opening
     if (activeCat === TRASH) setActiveCat(ALL);
     flushEditorBeforeSwitch(id);
     setReading(id);
@@ -99,9 +99,9 @@ export function useWorkspaceNav({ prefs, closeDocMenu }: Params) {
     prefs.closeDrawerOnMobile();
   };
 
-  /** 打开某篇；null = 退回列表视图 */
+  /** Open a doc; null = back to list view */
   const setReadingId = (id: string | null) => {
-    // 退回列表不 flush：删除文章后也走这条路，把已删文档再写回镜像会把它「救活」
+    // No flush when returning to the list: deleting a doc goes through this path too, and writing the deleted doc back to the mirror would "revive" it
     if (id === null) setReading(null);
     else openDoc(id);
   };

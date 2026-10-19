@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * 编辑器 →「视口顶端是第几行」的广播通道，目录面板据此高亮当前章节。
+ * Broadcast channel from the editor for "which line is at the top of the viewport"; the outline panel uses it to highlight the current section.
  *
- * 为什么不抬成 state：滚动一次就 setState，整篇文章视图（编辑器、标题、字数…）
- * 跟着重渲染一遍，代价远大于高亮本身。这里只把行号推给订阅者自己消化，
- * 与选区上报（ArticleReader 的 selectionSubRef）、浮层菜单通道是同一套思路。
+ * Why not lift it into state: setState on every scroll re-renders the whole article view (editor, title, word count...),
+ * which costs far more than the highlight itself. Here the line number is pushed to subscribers to handle themselves,
+ * the same approach as selection reporting (ArticleReader's selectionSubRef) and the floating menu channel.
  */
 export type SubscribeTopLine = (cb: (line: number) => void) => () => void;
 
@@ -22,7 +22,7 @@ export function useTopLineChannel() {
 
   const subscribe = useCallback<SubscribeTopLine>((cb) => {
     subsRef.current.add(cb);
-    cb(lineRef.current); // 订阅当下补发现值：面板后展开时不必等下一次滚动才亮
+    cb(lineRef.current); // Replay the current value on subscribe, so a panel expanded later lights up without waiting for the next scroll
     return () => {
       subsRef.current.delete(cb);
     };
@@ -32,31 +32,31 @@ export function useTopLineChannel() {
 }
 
 /**
- * 顶端行的提前量（行）：标题刚滚到视口顶就该算进入这一章。
- * 另一半作用是补目录跳转的 12px margin —— 跳过去之后标题顶端离容器顶还有 12px，
- * 顶端行会落在标题的前一行，没有余量就会差一格高亮到上一章。
+ * Lead for the top line (in lines): a heading that just reached the viewport top should count as entering that section.
+ * It also compensates for the outline jump's 12px margin -- after jumping, the heading top is still 12px below the container top,
+ * so the top line lands on the line before the heading, and without slack the highlight would be one section off.
  */
 const LOOKAHEAD_LINES = 2;
 
-/** 两次滚动上报隔了这么久，就认为跳转的平滑滚动已经结束、接下来是用户自己在滚 */
+/** After this long between scroll reports, the smooth scroll from a jump is considered done and the user is scrolling on their own */
 const PIN_QUIET_MS = 300;
 
-/** 视口顶端所处的章节 = 最后一个起始行不超过顶端行的标题；还在第一个标题之前时返回 -1 */
+/** Section at the viewport top = the last heading whose start line is at or above the top line; -1 if still before the first heading */
 function findActive(headings: readonly { line: number }[], topLine: number): number {
   const limit = topLine + LOOKAHEAD_LINES;
   let index = -1;
   for (let i = 0; i < headings.length; i++) {
-    if (headings[i].line > limit) break; // headings 按行号升序，越过就不必再看
+    if (headings[i].line > limit) break; // headings are sorted by line ascending, so stop once past it
     index = i;
   }
   return index;
 }
 
 /**
- * 订阅顶端行号，算出当前章节在大纲里的下标。
- * 只有下标真的变了才 setState，滚过一整段长正文通常一次都不重渲染。
+ * Subscribes to the top line number and computes the current section's index in the outline.
+ * Only calls setState when the index actually changes, so scrolling through a long section usually doesn't re-render at all.
  *
- * @param active 面板收起时传 false：不订阅、不计算
+ * @param active Pass false when the panel is collapsed: no subscription, no computation
  */
 export function useActiveHeading(
   headings: readonly { line: number }[],
@@ -65,7 +65,7 @@ export function useActiveHeading(
 ): { index: number; pin: (index: number) => void } {
   const [index, setIndex] = useState(-1);
   const indexRef = useRef(-1);
-  /** 点击目录钉住的那一项，last 是最近一次滚动上报的时刻 */
+  /** The item pinned by clicking the outline; last is the time of the latest scroll report */
   const pinRef = useRef<{ last: number } | null>(null);
 
   const apply = useCallback((next: number) => {
@@ -75,8 +75,8 @@ export function useActiveHeading(
   }, []);
 
   /**
-   * 点了哪项就亮哪项。文末的标题、正文很短的章节滚不到视口顶端，
-   * 单看顶端行它们永远亮不起来，点了像没反应。
+   * Whatever item was clicked gets highlighted. Headings at the end of the doc, or very short sections, can't scroll to the viewport top,
+   * so judging by the top line alone they'd never light up, and clicking would seem to do nothing.
    */
   const pin = useCallback(
     (next: number) => {
@@ -91,12 +91,12 @@ export function useActiveHeading(
       apply(-1);
       return;
     }
-    // headings 变（正文改了标题）也要重算：订阅当下会补发现值，重订阅顺手把这件事办了
+    // Also recompute when headings change (a heading was edited): subscribing replays the current value, so resubscribing handles it
     return subscribe((line) => {
       const pinned = pinRef.current;
       if (pinned) {
-        // 跳转那段平滑滚动的上报是连着来的（间隔一帧），期间一概不理；
-        // 隔了一阵再来的才是用户自己在滚，这时放开，回到按位置计算
+        // Scroll reports during the jump's smooth scroll come back to back (one frame apart), so ignore them all;
+        // one that arrives after a pause is the user scrolling, so release the pin and go back to position-based computation
         const now = performance.now();
         if (now - pinned.last < PIN_QUIET_MS) {
           pinned.last = now;

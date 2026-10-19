@@ -1,5 +1,5 @@
-// 访客批注身份：无需登录，浏览器本地生成随机 key（服务端只存其 sha256），
-// 同一浏览器可删除/销记自己的批注；昵称首次批注时填写，之后复用。
+// Visitor annotation identity: no login needed; the browser generates a random key locally (the server stores only its sha256),
+// so the same browser can delete/resolve its own annotations; the nickname is entered on the first annotation and reused after.
 
 export interface GuestIdentity {
   name: string;
@@ -15,7 +15,7 @@ export function loadIdentity(): GuestIdentity {
       return { name: typeof raw.name === "string" ? raw.name : "", key: raw.key };
     }
   } catch {
-    // 解析失败则重新生成
+    // Regenerate if parsing fails
   }
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);

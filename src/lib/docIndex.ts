@@ -1,16 +1,16 @@
 /**
- * 文库派生数据的统一缓存层（纯函数，无 React）。
+ * Unified cache layer for library-derived data (pure functions, no React).
  *
- * 全文检索与 `[[双向链接]]` 要的两样东西都是从同一份正文算出来的，
- * 各算各的就得把每篇正文从 localStorage 读两遍、解析两遍；合到一处只解析一遍。
+ * Full-text search and `[[wikilinks]]` both need data computed from the same body text;
+ * computing them separately means reading and parsing each body from localStorage twice; merged, it's parsed once.
  *
- * 缓存是必须的而不是优化：自动保存每隔几百毫秒就换一次 docs 引用，
- * 检索与改名重链都会跟着重跑一轮全库扫描，代价应该只落在真正动过的那一篇上。
+ * The cache is required, not an optimization: autosave swaps the docs reference every few hundred ms,
+ * and search and rename-relinking rerun a full-library scan each time; the cost should only land on the doc that actually changed.
  *
- * 失效只看元信息里的 updatedAt + chars，不读正文：写盘的那几条路径
- * （saveMirrorLocal / updateLocalDoc / vault 回扫）每次都连带刷新这两项，
- * 正文变了元信息不可能不变。为了比长度而把整篇正文从 localStorage 捞出来，
- * 等于缓存白做——几百篇文章每敲一键就是几百次 getItem。
+ * Invalidation only looks at updatedAt + chars in the metadata, never the body: every write path
+ * (saveMirrorLocal / updateLocalDoc / vault rescan) refreshes both,
+ * so the body can't change without the metadata changing. Pulling the full body out of localStorage just to compare lengths
+ * would defeat the cache: with hundreds of docs, every keystroke would be hundreds of getItem calls.
  */
 
 import { getDocContent } from "@/lib/docContent";
@@ -19,19 +19,19 @@ import { parseWikiLinks, wikiLinkText, type WikiLinkRef } from "@/lib/wikiLink";
 import type { DocMeta } from "@/features/workspace/types";
 
 export interface DocIndexEntry {
-  /** 正文里的 `[[双向链接]]`，带原文偏移 */
+  /** `[[wikilinks]]` in the body, with source offsets */
   links: WikiLinkRef[];
-  /** 抹掉 Markdown 记号的纯文本，检索与改名重链共用这一份口径 */
+  /** Plain text with Markdown markup stripped; search and rename-relinking share this one convention */
   text: string;
 }
 
-// 纯文本化的实现搬去了 excerpt.ts（列表摘要、服务端列表接口共用同一口径）；
-// 出口保留在这里不变——docSearch 还在往外转发这个符号
+// The plain-text implementation moved to excerpt.ts (shared by list excerpts and the server list API);
+// the export stays here unchanged because docSearch still re-exports this symbol
 export { plainText };
 
 /**
- * 纯文本化，并把 `[[目标|别名]]` 摊平成它显示出来的文字 —— 摘要里不该露方括号。
- * 检索走这一份：搜「别名」能命中写着 `[[目标|别名]]` 的文章，和读者看到的一致。
+ * Convert to plain text, flattening `[[target|alias]]` into its displayed text; excerpts shouldn't show brackets.
+ * Search uses this: searching "alias" matches docs containing `[[target|alias]]`, consistent with what readers see.
  */
 export function flatten(md: string): string {
   return plainText(
@@ -44,9 +44,9 @@ export function flatten(md: string): string {
 
 interface CacheRow {
   updatedAt: string;
-  /** 元信息里的字数；老条目/老 meta 没有这一项时是 undefined，此时只认 updatedAt */
+  /** Character count from metadata; undefined for old entries/meta without it, in which case only updatedAt is checked */
   chars: number | undefined;
-  /** 建这条时正文是空的：云端镜像可能晚一步才落到本地，空结果不能长住 */
+  /** The body was empty when this entry was built: the cloud mirror may land locally a bit later, so empty results shouldn't stick */
   empty: boolean;
   entry: DocIndexEntry;
 }
@@ -54,8 +54,8 @@ interface CacheRow {
 const cache = new Map<string, CacheRow>();
 
 /**
- * 一篇文章的派生数据。元信息没变就直接给缓存，连正文都不读；
- * 只有缓存缺失、updatedAt/chars 变了，或上次建索引时正文还没到，才回头读一次正文重建。
+ * Derived data for one document. If the metadata hasn't changed, return the cache without even reading the body;
+ * only when the cache is missing, updatedAt/chars changed, or the body hadn't arrived at last indexing, re-read the body and rebuild.
  */
 export function indexOf(doc: DocMeta): DocIndexEntry {
   const hit = cache.get(doc.id);
@@ -78,8 +78,8 @@ export function indexOf(doc: DocMeta): DocIndexEntry {
 }
 
 /**
- * 丢掉已不在文库里的条目（删除、退出登录换库）。
- * 缓存按 id 长住，不清就会把再也用不到的正文一直攥在内存里。
+ * Drop entries no longer in the library (deleted, or library switched by logging out).
+ * The cache is keyed by id and long-lived; without pruning it would hold bodies that will never be used again in memory.
  */
 export function pruneIndex(liveIds: Iterable<string>): void {
   const live = new Set(liveIds);

@@ -2,12 +2,12 @@ import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * 路由层只负责把服务层的三种结局映射成 200 / 404 / 409（外加 baseUpdatedAt 解析失败的 400）。
- * 鉴权、封禁守卫、prisma 全部换成桩，业务判断在 documents.test.ts 里验。
+ * The route layer only maps the service layer's three outcomes to 200 / 404 / 409 (plus 400 when baseUpdatedAt fails to parse).
+ * Auth, the ban guard and prisma are all stubbed; business logic is verified in documents.test.ts.
  */
 vi.mock("@/lib/routeAuth", () => ({
   requireUserId: vi.fn(async () => "u1"),
-  // 真实实现判的是 NextResponse，而它就是 Response 的子类
+  // The real implementation checks for NextResponse, which is a subclass of Response
   isResponse: (v: unknown) => v instanceof Response,
 }));
 vi.mock("@/lib/guards", () => ({ readOnlyGuard: vi.fn(async () => null) }));
@@ -20,7 +20,7 @@ vi.mock("@/lib/prisma", () => ({
     document: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
   },
 }));
-// parseBaseUpdatedAt 用真的（400 的判断就靠它），写操作换成桩
+// Use the real parseBaseUpdatedAt (the 400 check depends on it); stub the write operations
 vi.mock("@/lib/documents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/documents")>()),
   updateDocument: vi.fn(),
@@ -81,7 +81,7 @@ describe("PUT /api/documents/[id]", () => {
         updatedAt: NEWER.toISOString(),
       },
     });
-    // baseUpdatedAt 原样解析成 Date 递给服务层
+    // baseUpdatedAt is parsed into a Date as-is and passed to the service layer
     expect(update.mock.calls[0][2].baseUpdatedAt).toEqual(BASE);
   });
 

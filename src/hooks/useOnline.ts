@@ -11,7 +11,7 @@ function subscribe(cb: () => void) {
   };
 }
 
-/** 网络在线状态（SSR 期间视为在线） */
+/** Network online status (treated as online during SSR) */
 export function useOnline(): boolean {
   return useSyncExternalStore(
     subscribe,

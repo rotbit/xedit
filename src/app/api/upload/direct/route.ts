@@ -22,11 +22,11 @@ import { tk, translate } from "@/i18n/t";
 import { localeOfRequest } from "@/i18n/server";
 
 /**
- * 浏览器直传 OSS 的两步接口：
- *   POST 换一个限时签名地址（文件本身不经过本服务）
- *   PUT  直传成功后回来登记入库（用 head 向 OSS 确认对象确实存在）
- * 需要在 Bucket 的跨域设置里放行本站来源的 PUT 与 Content-Type 头；
- * 没配的话前端会自动回落到 /api/upload 中转（仅图片；视频只能直传）。
+ * Two-step API for direct browser uploads to OSS:
+ *   POST gets a time-limited signed URL (the file itself never passes through this service)
+ *   PUT  registers it in the DB after a successful upload (using head to confirm the object really exists in OSS)
+ * The bucket's CORS settings must allow PUT and the Content-Type header from this site's origin;
+ * if not configured, the frontend falls back to /api/upload relay (images only; videos are direct only).
  */
 
 async function requireUser() {
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
   if (size > maxSizeOf(mime)) {
     return NextResponse.json({ error: sizeLimitError(mime) }, { status: 413 });
   }
-  // 签名前先按声明大小预检封禁与配额，别让用户白传一趟
+  // Pre-check bans and quota against the declared size before signing, so users don't upload for nothing
   const blocked = await uploadBlocked(userId, size);
   if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
 
@@ -72,23 +72,23 @@ export async function PUT(req: Request) {
 
   const stat = await ossStat(key);
   if (!stat) return NextResponse.json({ error: tk("文件未上传成功") }, { status: 404 });
-  // 大小按对象实际类型限额：签名时校过声明值，这里再校 OSS 里的真实值
+  // Size limit by the object's actual type: the declared value was checked at signing, here we check OSS's real value
   const mime = stat.mime || MIME_BY_EXT[key.split(".").pop() ?? ""] || "";
   if (stat.size > maxSizeOf(mime)) {
     return NextResponse.json({ error: sizeLimitError(mime) }, { status: 413 });
   }
-  // 登记时按 OSS 真实大小终检；超了就把刚传的对象删掉，不留无主文件
+  // Final check against OSS's real size at registration; if over, delete the just-uploaded object so no orphan file is left
   const blocked = await uploadBlocked(userId, stat.size);
   if (blocked) {
     try {
       await ossDelete(key);
     } catch {
-      /* 对象可能已不存在 */
+      /* The object may already be gone */
     }
     return NextResponse.json({ error: blocked }, { status: 403 });
   }
 
-  // 浏览器读出的像素尺寸，可缺；不合法就忽略，update 时也不覆盖已有值
+  // Pixel dimensions read by the browser, optional; ignored if invalid, and update won't overwrite existing values
   const dims = parseImageDimensions(body?.width, body?.height);
   const url = ossUrlOf(key);
   await prisma.asset.upsert({

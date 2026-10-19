@@ -11,21 +11,21 @@ import { groupByRecency, isDayHeading, showsRelativeTime } from "../lib/recencyG
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** 列表摘要是服务端粗剥的纯文本，里面常剩整条长链接，行上只显示域名，别让 URL 把版面撑乱 */
+/** List excerpts are plain text roughly stripped by the server and often still contain whole long links; show only the domain so URLs don't break the layout */
 function cleanExcerpt(s: string): string {
   return s
     .replace(/https?:\/\/([^\s/?#]+)[^\s]*/g, (_, host: string) => {
       const parts = host.replace(/^www\./, "").split(".");
       return `‹${parts.slice(-2).join(".")}›`;
     })
-    // 身份证号、订单号这类长数字串只留前 4 位，既不撑版面也不在列表里裸露
+    // Long digit strings like ID or order numbers keep only the first 4 digits, so they neither stretch the layout nor sit exposed in the list
     .replace(/\d{12,}/g, (m) => `${m.slice(0, 4)}…`)
     .replace(/\\_/g, "_")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-/** 回收站行右侧的恢复 / 彻底删除：行布局里不再需要分隔线，压成一排贴边小按钮 */
+/** Restore / permanently delete on the right of trash rows: the row layout no longer needs a divider, so they're compacted into a row of small edge buttons */
 function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
   const { docActions } = ws;
   const t = useT();
@@ -53,10 +53,10 @@ function TrashActions({ ws, doc }: { ws: Workspace; doc: DocMeta }) {
   );
 }
 
-/** 时间流里的一篇：左边标题 + 单行摘要，右边浅字文件夹与字数，无边框只靠留白分隔。
- *  showTime：只有今天 / 昨天两组在字数前带相对时间，更早的组左栏已经说清了时间。
- *  at：这一行的时间（「最近打开」视图是 max(打开, 编辑)，其它视图是 updatedAt），由 ws.timeOf 给出
- *  名字别再叫 DocRow——侧栏树里那个同名组件是另一套布局（components/DocRow.tsx） */
+/** One document in the timeline: title + one-line excerpt on the left, faint folder and word count on the right, separated only by whitespace, no borders.
+ *  showTime: only the Today / Yesterday groups show relative time before the word count; older groups' left column already says when.
+ *  at: this row's time (max(opened, edited) in the 「最近打开」 (Recent) view, updatedAt elsewhere), provided by ws.timeOf
+ *  Don't name this DocRow again: the same-named component in the sidebar tree is a different layout (components/DocRow.tsx) */
 function TimelineRow({
   ws,
   doc,
@@ -74,7 +74,7 @@ function TimelineRow({
   const cat = doc.category || UNCATEGORIZED;
   const excerpt = cleanExcerpt(doc.excerpt || "");
   const chars = typeof doc.chars === "number" ? doc.chars : 0;
-  // 回收站行右侧只有两个按钮，少一条空的轨道，免得白白多出一份 gap
+  // Trash rows have only two buttons on the right, so one fewer empty track to avoid an extra gap
   const cols = isTrash
     ? "grid-cols-[minmax(0,1fr)_auto]"
     : "grid-cols-[minmax(0,1fr)_auto_auto]";
@@ -84,7 +84,7 @@ function TimelineRow({
         isTrash ? "" : "cursor-pointer"
       } ${drag.isDragging({ kind: "doc", id: doc.id }) ? "opacity-40" : ""}`}
       onClick={() => {
-        // 回收站里的行点不开：那里只有恢复 / 彻底删除两个按钮
+        // Rows in the trash can't be opened: there are only the restore / permanently delete buttons
         if (!isTrash) nav.openDoc(doc.id);
       }}
       onContextMenu={isTrash ? undefined : (e) => menus.openDocMenuAt(e, doc.id)}
@@ -107,7 +107,7 @@ function TimelineRow({
       ) : (
         <>
           <div className="whitespace-nowrap pt-1 text-right text-[11.5px] leading-relaxed">
-            {/* 只显示末级文件夹名，点它直接进那个文件夹；窄屏放不下就整行让位给下面一行 */}
+            {/* Only show the last-level folder name; clicking it opens that folder. On narrow screens it yields the whole line to the row below */}
             <button
               className="hidden cursor-pointer text-[var(--ink-soft)] underline-offset-2 hover:text-[var(--ink)] hover:underline sm:ml-auto sm:block"
               title={displayCatPath(cat, t)}
@@ -131,7 +131,7 @@ function TimelineRow({
             className={`mt-0.5 cursor-pointer self-start rounded-md p-1 text-[var(--ink-faint)] hover:bg-[var(--paper)] hover:text-[var(--ink)] [@media(hover:none)]:visible ${
               menus.docMenu?.id === doc.id ? "visible" : "invisible group-hover:visible"
             }`}
-            // 菜单触发器：外部关闭逻辑放它一马，再点一次由这里 toggle 关掉
+            // Menu trigger: the outside-click logic spares it, so clicking again toggles it closed here
             data-menu-trigger
             onClick={(e) => menus.toggleDocMenuAt(e, doc.id)}
           >
@@ -143,32 +143,32 @@ function TimelineRow({
   );
 }
 
-/** 「最近打开」默认只铺 30 天内的文章；不足这个篇数就按倒序补够，免得久不写作的人看到一片空 */
+/** 「最近打开」 (Recent) shows only documents from the last 30 days by default; if fewer than this many, top up in reverse order so infrequent writers don't see an empty page */
 const RECENT_DAYS = 30;
 const RECENT_MIN = 30;
 
-/** 窗口内显示几篇：30 天内的篇数与 30 篇取大。列表已按 timeOf 倒序，取前 n 篇即可 */
+/** How many to show in the window: the larger of the 30-day count and 30. The list is already sorted by timeOf descending, so take the first n */
 function recentCount(docs: DocMeta[], now: number, timeOf: (d: DocMeta) => string): number {
   const cutoff = now - RECENT_DAYS * 24 * 60 * 60 * 1000;
-  // 脏时间解析成 NaN，比较恒为 false，自然不计入「30 天内」
+  // Bad timestamps parse to NaN and comparisons are always false, so they naturally don't count as "within 30 days"
   const within = docs.filter((d) => new Date(timeOf(d)).getTime() >= cutoff).length;
   return Math.max(within, RECENT_MIN);
 }
 
 /**
- * 时间流视图：左栏宋体大字（日号，或「上周」「九月」这类文字标签），右栏该组的文档。
- * 组之间只用一条细线分隔，越往前粒度越粗，免得一天一篇时整页变成流水账。
- * 「最近打开」入口只铺最近一段，底部按钮一次展开全部；文件夹 / 搜索 / 回收站照旧全量。
+ * Timeline view: big serif text on the left (day number, or labels like 「上周」「九月」 (last week, September)), the group's documents on the right.
+ * Groups are separated by a single thin line, and granularity coarsens further back, so one-doc-a-day doesn't turn the page into a ledger.
+ * The 「最近打开」 (Recent) entry shows only a recent stretch, with a bottom button to expand everything; folder / search / trash still show all.
  */
 export function DocTimeline({ ws }: { ws: Workspace }) {
   const locale = useLocale();
   const t = useT();
   const { nav, timeOf } = ws;
-  // 展开状态记住是在哪个视图点的：key 只挂在内层 div，组件本身不随切分类重挂，
-  // 所以不能用裸布尔，否则在「最近打开」展开后去别的文件夹再回来还是全量
+  // Remember which view the expansion happened in: the key is only on the inner div and the component itself doesn't remount on category change,
+  // so a bare boolean won't do, otherwise expanding in Recent, going to another folder and coming back would still show everything
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const expanded = expandedFor === nav.activeCat;
-  // 30 天窗口的基准取挂载那一刻：渲染里直接 Date.now() 不纯；一次会话里差几分钟无关紧要
+  // The 30-day window is based on mount time: calling Date.now() during render is impure, and a few minutes' drift within a session doesn't matter
   const [mountedAt] = useState(() => Date.now());
   const windowed = nav.activeCat === ALL && !nav.search.trim() && !nav.isTrash && !expanded;
   const all = ws.filtered;
@@ -177,8 +177,8 @@ export function DocTimeline({ ws }: { ws: Workspace }) {
   const groups = groupByRecency(shown, undefined, locale, timeOf);
 
   return (
-    // 切换分类时整个列表一次短淡入就够了（key 一换就重挂），行不各自上浮：
-    // 这是工作列表不是首页，逐行错开的入场只会让人等
+    // On category change one short fade-in of the whole list is enough (changing the key remounts it), rows don't each float up:
+    // this is a work list, not a home page, and staggered row entrances just make people wait
     <div key={nav.activeCat} className="fade-in mt-4">
       {groups.map((group, gi) => (
         <div
@@ -187,11 +187,11 @@ export function DocTimeline({ ws }: { ws: Workspace }) {
             gi > 0 ? "border-t border-[var(--hairline)] pt-2.5" : ""
           }`}
         >
-          {/* 窄屏左栏折成一行横排，大字缩小、标签跟在后面 */}
+          {/* On narrow screens the left column folds into one horizontal line, with smaller big text and the label following */}
           <div className="flex items-baseline gap-2 sm:block sm:pt-3">
             <span
               className={`[font-family:var(--serif)] text-[20px] leading-none tracking-tight text-[var(--ink)] ${
-                // 文字标签（上周 / 九月）比日号宽得多，收到 20px 免得撑出左栏
+                // Text labels (last week / September) are much wider than day numbers; shrink to 20px so they don't stretch the left column
                 isDayHeading(group.key) ? "sm:text-[30px]" : "sm:text-[20px]"
               }`}
             >

@@ -1,91 +1,91 @@
 @import "tailwindcss";
-/* 编辑器样式已拆分：外壳 / 即时渲染排版 / 块级组件，入口仍在这里 */
+/* Editor styles are split into shell / live-rendering typography / block components; the entry is still here */
 @import "./editor.css";
 @import "./live-preview.css";
 @import "./live-blocks.css";
 @import "./live-frontmatter.css";
 @import "./live-callout.css";
 
-/* data-theme 驱动的暗色变体：dark:xxx */
+/* data-theme-driven dark variant: dark:xxx */
 @custom-variant dark ([data-theme="dark"] &);
 
 :root {
-  /* 极简冷白：界面全中性，颜色只属于内容 */
+  /* Minimal cool white: the UI is fully neutral, color belongs only to content */
   --paper: #fafafa;
   --panel: #ffffff;
   --ink: #191919;
   --brand-mark: #3478f6;
   --brand-mark-secondary: #20b8a6;
-  /* 落地页强调色与主行动按钮；书页图标由独立的双色变量控制。
-     靛青为主、朱砂为辅，是中文刊物的老配色，也是落地页的识别色 */
+  /* Landing page accent and primary action button; the book-page icon is controlled by its own two-tone variables.
+     Indigo primary with vermilion secondary, a classic Chinese publication palette and the landing page's signature colors */
   --brand: #3f3a9e;
   --brand-deep: #2e2a7d;
   --brand-fg: #ffffff;
   --brand-wash: #ebeaf8;
-  /* 比 wash 更淡一档的面底色，用于卡片与标签的底 */
+  /* A surface one step lighter than wash, for card and tag backgrounds */
   --brand-tint: #f5f4fc;
-  /* 首屏顶部那团几乎看不见的光晕 */
+  /* The barely visible glow at the top of the hero */
   --brand-glow: rgb(63 58 158 / 0.1);
-  /* 朱砂点缀：栏目标签的那颗点、标题的小记号，只在落地页出现 */
+  /* Vermilion accent: the dot on section tags and small marks on headings, landing page only */
   --ember: #b4432c;
   --ember-wash: #f9ece8;
-  /* 首屏稿纸网格线，淡到只在余光里成立 */
+  /* Hero manuscript-paper grid lines, faint enough to register only in peripheral vision */
   --landing-grid: rgb(25 25 25 / 0.05);
   --ink-soft: #565656;
   --ink-faint: #8c8c8c;
   --hairline: #e8e8e8;
   --hairline-strong: #d4d4d4;
-  /* 软发丝线：框架与正文之间保留的唯一分界，存在但不抢眼 */
+  /* Soft hairline: the only divider kept between the frame and the body, present but unobtrusive */
   --hairline-soft: #f0f0f0;
   --accent: #171717;
   --accent-deep: #000000;
   --accent-fg: #ffffff;
   --accent-wash: #efefee;
-  /* Notion 式双色层次：侧栏灰、内容白 */
+  /* Notion-style two-tone layering: gray sidebar, white content */
   --sidebar: #f4f4f2;
   --sidebar-hover: #ebebe9;
   --sidebar-active: #e6e6e3;
-  /* 朱砂：登录框与提示等少量强调用色 */
+  /* Vermilion: accent color for a few places like the login box and hints */
   --seal: #c0392b;
   --seal-deep: #a53125;
   --seal-wash: #faeae7;
-  /* 选区半透明：选区画在文字之下，且必须选中性灰——纯黑压在深色代码卡上会隐身，
-     半透明中灰在白纸和炭黑代码窗上都看得见选中范围 */
+  /* Semi-transparent selection: it's drawn beneath the text and must be neutral gray; pure black vanishes on dark code cards,
+     while semi-transparent mid-gray shows the selected range on both white paper and charcoal code windows */
   --cm-selection: rgb(127 127 127 / 0.35);
   --cm-active-line: #f5f5f5;
-  /* 代码块是随主题的浅色卡片：纸面上一张略深的卡，安静地待着不抢眼 */
+  /* Code blocks are light theme-following cards: a slightly darker card on the paper, sitting quietly without drawing attention */
   --codeblock-bg: #f4f4f1;
   --codeblock-fg: #2a2a2a;
   --codeblock-faint: #8c8c8c;
   --codeblock-border: #e4e4e0;
-  /* 热力图色阶：未活跃 → 高产 */
+  /* Heatmap color scale: inactive → highly productive */
   --heat-0: #efe9e2;
   --heat-1: #f3d9d4;
   --heat-2: #eab5aa;
   --heat-3: #dd8672;
   --heat-4: #cd5a41;
   --heat-5: #b03c26;
-  /* 分类色（固定次序，已过色觉验证） */
+  /* Category colors (fixed order, color-vision verified) */
   --cat-1: #c0392b;
   --cat-2: #1e6bb8;
   --cat-3: #0e9285;
   --cat-4: #d4881f;
   --cat-5: #8e44ad;
   --cat-6: #7a8f3c;
-  /* Markdown 源码高亮 */
+  /* Markdown source highlighting */
   --md-link: #1e6bb8;
   --md-code: #7c5cbf;
   --md-code-bg: #f5f2fa;
-  /* 语法高亮里代码文字的底色：半透明，选区（画在文字层之下）才透得出来 */
+  /* Background of code text in syntax highlighting: semi-transparent so the selection (drawn beneath the text layer) shows through */
   --md-code-tint: rgb(124 92 191 / 0.07);
-  /* 代码块内的语言 token 配色（即时渲染/源码模式通用） */
+  /* Language token colors inside code blocks (shared by live rendering and source mode) */
   --code-keyword: #a626a4;
   --code-string: #3f8e46;
   --code-comment: #9c948a;
   --code-number: #b76b01;
   --code-func: #1e6bb8;
   --code-type: #0e9285;
-  /* 刊物体：标题、报头、卡片名走真正的宋体，透出"稿/刊物"的编辑气质 */
+  /* Publication type: headings, mastheads and card names use a true Song (serif) face for an editorial "manuscript/publication" feel */
   --serif: "Songti SC", "Source Han Serif SC", "Noto Serif SC", "STSong",
     "SimSun", Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
@@ -93,7 +93,7 @@
   --mono: "SF Mono", Menlo, Monaco, "JetBrains Mono", Consolas, monospace;
 }
 
-/* 纸面子树（预览稿纸、主题缩略图、样机）在夜间模式下仍按日间变量渲染 */
+/* Paper subtrees (preview paper, theme thumbnails, mockups) still render with light-mode variables in dark mode */
 .light-lock {
   --paper: #fafafa;
   --panel: #ffffff;
@@ -116,23 +116,23 @@
   --accent-wash: #efefee;
 }
 
-/* —— 夜间：中性炭黑 —— */
+/* —— Dark mode: neutral charcoal —— */
 [data-theme="dark"] {
-  /* 三层明度拉开：纸面(#141415) < 面板(#1b1b1c) < 代码卡(#1c1c1e)。
-     原来的 #161616 / #1e1e1e 差得太近，夜间看不出「纸上放着一张卡」的层次 */
+  /* Three distinct lightness levels: paper (#141415) < panel (#1b1b1c) < code card (#1c1c1e).
+     The old #161616 / #1e1e1e were too close, so in dark mode you couldn't see the "card on paper" layering */
   --paper: #141415;
   --panel: #1b1b1c;
   --ink: #ededed;
   --brand-mark: #80adff;
   --brand-mark-secondary: #58dac5;
-  /* 夜间把靛蓝提亮成薰衣草，压在炭黑上仍读得出品牌色 */
+  /* In dark mode, brighten the indigo to lavender so the brand color still reads on charcoal */
   --brand: #a5a3ee;
   --brand-deep: #c2c1f6;
   --brand-fg: #141415;
   --brand-wash: #262551;
   --brand-tint: #1a1a2b;
   --brand-glow: rgb(165 163 238 / 0.13);
-  /* 夜间的朱砂要退一步火气，否则压在炭黑上发荧光 */
+  /* Tone down the vermilion in dark mode, or it fluoresces on charcoal */
   --ember: #e0795d;
   --ember-wash: #38201a;
   --landing-grid: rgb(255 255 255 / 0.045);
@@ -153,7 +153,7 @@
   --seal-wash: #3b211b;
   --cm-selection: rgb(255 255 255 / 0.16);
   --cm-active-line: #222222;
-  /* 夜间是同一张卡的深色版：比纸面稍抬一档，卡的边界主要靠边框交代 */
+  /* Dark mode is the dark version of the same card: one step above the paper, with the edge defined mainly by the border */
   --codeblock-bg: #1c1c1e;
   --codeblock-fg: #e6e4e1;
   --codeblock-faint: #8a8a8a;
@@ -195,9 +195,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* —— 细滚动条：平时隐形，只在滚动时浮现、停下即淡出（Obsidian 同款）——
-   is-scrolling 由 ScrollbarReveal 打上；鼠标直接压在滑块位置也显出来，方便拖。
-   轨道宽度不变，只切滑块颜色，出现时不会挤动内容 */
+/* —— Thin scrollbars: invisible normally, appear while scrolling and fade out when stopped (like Obsidian) ——
+   is-scrolling is set by ScrollbarReveal; hovering directly over the thumb also shows it, for easy dragging.
+   The track width never changes, only the thumb color, so appearing doesn't shift content */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -216,12 +216,12 @@ body {
   background: transparent;
 }
 
-/* —— 工作台背景：Notion 式素面 —— */
+/* —— Workspace background: plain Notion-style surface —— */
 .desk {
   background-color: var(--paper);
 }
 
-/* —— Toast 出入场 —— */
+/* —— Toast enter/exit —— */
 @keyframes toast-in {
   from {
     opacity: 0;
@@ -249,7 +249,7 @@ body {
   animation: toast-out 0.2s ease-in both;
 }
 
-/* —— 云端校新提示：状态行里淡入、驻留、淡出，总时长与 REFRESH_HINT_MS 对齐 —— */
+/* —— Cloud freshness hint: fades in, lingers, fades out in the status line; total duration matches REFRESH_HINT_MS —— */
 @keyframes sync-hint {
   0% {
     opacity: 0;
@@ -274,15 +274,15 @@ body {
   }
 }
 
-/* —— 落地页 —— */
+/* —— Landing page —— */
 
-/* 首页对未登录会话一律服务端直出落地页（SEO 需要真实 DOM）。本机已有工作区的老用户
-   由 theme-init.js 在首次绘制前打上 data-ws，这一帧直接盖掉，等工作台接管。 */
+/* The home page always server-renders the landing page for logged-out sessions (SEO needs real DOM). Returning users who already
+   have a workspace on this machine get data-ws set by theme-init.js before first paint, so this frame is covered until the workspace takes over. */
 [data-ws="1"] .landing-boot {
   display: none;
 }
 
-/* 落地页在自己的滚动容器里，锚点跳转要避开吸顶栏 */
+/* The landing page has its own scroll container, so anchor jumps must clear the sticky header */
 .landing-scroll {
   scroll-behavior: smooth;
 }
@@ -290,8 +290,8 @@ body {
   scroll-margin-top: 90px;
 }
 
-/* 首屏像一张正在校对的稿纸。网格必须画在独立的装饰层上，不能直接挂在 .landing-hero：
-   下面的 mask 会连同子元素一起裁掉，标题和样机会跟着淡出。 */
+/* The hero looks like a manuscript sheet being proofread. The grid must be drawn on a separate decoration layer, not on .landing-hero itself:
+   the mask below would clip the children too, fading out the title and mockup with it. */
 .landing-hero {
   position: relative;
 }
@@ -308,7 +308,7 @@ body {
   mask-image: radial-gradient(ellipse 72% 58% at 50% 0%, #000 8%, transparent 72%);
 }
 
-/* 落地页通用面：卡片、样机窗口、FAQ 条目共用一张纸的质感，hover 只抬一点点 */
+/* Shared landing surface: cards, mockup windows and FAQ items share one paper texture; hover lifts just slightly */
 .lp-card {
   border: 1px solid var(--hairline);
   background: var(--panel);
@@ -322,13 +322,13 @@ body {
   box-shadow: 0 16px 36px -26px rgb(0 0 0 / 0.5);
 }
 
-/* 标题里的强调词：一道压在文字底下的品牌色淡底，像荧光笔划过（不影响行高） */
+/* Emphasized words in headings: a faint brand-colored band under the text, like a highlighter stroke (doesn't affect line height) */
 .lp-mark {
   background-image: linear-gradient(transparent 70%, var(--brand-wash) 70%);
   padding: 0 0.06em;
 }
 
-/* 样机里的源码：Markdown 与 HTML 片段共用同一套等宽排版 */
+/* Source code in mockups: Markdown and HTML snippets share the same monospace typography */
 .xe-source {
   font-family: var(--mono);
   font-size: 12.5px;
@@ -337,14 +337,14 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
 }
-/* Markdown 标记符号（#、**、-、>）：品牌靛蓝点出，正文仍是墨色 */
+/* Markdown markers (#, **, -, >): picked out in brand indigo, while the body stays ink-colored */
 .xe-source .xe-mk {
   color: var(--brand);
 }
 .xe-source .xe-dim {
   color: var(--ink-soft);
 }
-/* 内联结果里的 HTML 片段着色 */
+/* Coloring for HTML snippets in inline results */
 .xe-source .xe-tag {
   color: var(--md-code);
 }
@@ -355,12 +355,12 @@ body {
   color: var(--ink-soft);
 }
 
-/* FAQ 的 details：去掉浏览器默认三角，交给自绘的箭头 */
+/* FAQ details: remove the browser's default triangle in favor of a custom-drawn arrow */
 .landing-scroll summary::-webkit-details-marker {
   display: none;
 }
 
-/* 主题样张一律按日间纸面渲染：公众号里就是白底黑字 */
+/* Theme samples always render on light paper: in WeChat it's black text on white */
 .xe-paper {
   color-scheme: light;
 }
@@ -375,7 +375,7 @@ body {
   }
 }
 
-/* —— 入场动画（首页用） —— */
+/* —— Entrance animations (home page) —— */
 @keyframes rise {
   from {
     opacity: 0;
@@ -390,7 +390,7 @@ body {
   animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 
-/* 工作台列表切换：只淡入、不位移、不错开，快到不打断操作 */
+/* Workspace list switching: fade in only, no movement or stagger, fast enough not to interrupt */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -403,34 +403,34 @@ body {
   animation: fade-in 0.15s ease-out both;
 }
 
-/* —— 桌面端（Electron 隐藏系统标题栏）：顶栏充当标题栏 —— */
-/* 整条顶栏可拖动窗口；里面的控件排除，否则点不到 */
+/* —— Desktop app (Electron hides the system title bar): the top bar acts as the title bar —— */
+/* The whole top bar drags the window; controls inside are excluded, or they can't be clicked */
 html.desktop-mac .app-titlebar {
   -webkit-app-region: drag;
 }
 html.desktop-mac .app-titlebar :is(button, input, a, [role="button"], [contenteditable]) {
   -webkit-app-region: no-drag;
 }
-/* 阅读器的操作栏是 portal 进顶栏的，它的菜单卡片和全屏关闭层也就长在顶栏里。
-   这些浮层绝不能跟着变成拖拽区：否则菜单一开整个窗口都在拖，点空白还关不掉。
-   顶栏自身没有绝对定位的元素，这条只命中浮层。 */
+/* The reader's action bar is portaled into the top bar, so its menu cards and fullscreen close layer live in the top bar too.
+   These overlays must never become drag regions: otherwise opening a menu drags the whole window, and clicking empty space can't close it.
+   The top bar itself has no absolutely positioned elements, so this rule only hits overlays. */
 html.desktop-mac .app-titlebar :is(.fixed, .absolute) {
   -webkit-app-region: no-drag;
 }
-/* 给 Mac 红绿灯留位 */
+/* Leave room for the Mac traffic lights */
 html.desktop-mac .traffic-inset {
   padding-left: 80px;
 }
-/* 桌面壳里 Dock 图标已经表明身份，侧栏顶栏不再重复放 logo，只留红绿灯与收起按钮 */
+/* In the desktop shell the Dock icon already shows identity, so the sidebar top bar skips the logo and keeps only the traffic lights and collapse button */
 html.desktop-mac .sidebar-logo {
   display: none;
 }
 
-/* 预览里的 [[双向链接]]。
-   刻意放在这里而不是主题 CSS（src/lib/themes）：主题字符串会被复制管线整份内联进
-   公众号正文，而站内链接出了 xedit 就是普通文字，不该带着链接色跑出去。
-   用 --brand 而不是 --md-link：预览卡固定日间白底（.light-lock 只覆盖了品牌色一组变量），
-   靛蓝在白底上两套主题下都读得清，也正好把「站内」与外链的蓝区分开 */
+/* [[Wiki links]] in the preview.
+   Deliberately here rather than in theme CSS (src/lib/themes): theme strings are inlined wholesale into the
+   WeChat article body by the copy pipeline, and internal links are plain text outside xedit, so the link color shouldn't leak out.
+   Uses --brand rather than --md-link: the preview card is fixed to a light white background (.light-lock only overrides the brand color variables),
+   indigo reads clearly on white under both themes, and it also distinguishes "internal" from the blue of external links */
 #nice .wikilink {
   color: var(--brand);
   cursor: pointer;
@@ -441,7 +441,7 @@ html.desktop-mac .sidebar-logo {
 }
 
 
-/* 预览区打印时只打印稿纸 */
+/* When printing the preview, print only the paper */
 @media print {
   body * {
     visibility: hidden;
@@ -452,8 +452,8 @@ html.desktop-mac .sidebar-logo {
   }
 }
 
-/* ---- AI 审核 ---- */
-/* 总评面板入场：从审核条底下轻轻落下来 */
+/* ---- AI review ---- */
+/* Summary panel entrance: drops gently from under the review bar */
 @keyframes review-pop {
   from {
     opacity: 0;
@@ -467,8 +467,8 @@ html.desktop-mac .sidebar-logo {
 .review-pop {
   animation: review-pop 140ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }
-/* 审核进行中：审核条底边一道来回流动的细光，告诉人「AI 还在干活」。
-   不知道总时长，所以是不定进度——一段光从左滑到右，而不是一根假装在涨的进度条 */
+/* Review in progress: a thin light sweeping back and forth along the review bar's bottom edge, saying "AI is still working".
+   The total duration is unknown, so it's indeterminate: a band of light sliding left to right, not a bar pretending to fill up */
 @keyframes review-progress {
   from {
     transform: translateX(-100%);
@@ -495,7 +495,7 @@ html.desktop-mac .sidebar-logo {
   background: linear-gradient(90deg, transparent, var(--accent), transparent);
   animation: review-progress 1.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
-/* 骨架卡上扫过去的一道微光，比整块一明一暗的 pulse 安静 */
+/* A shimmer sweeping across skeleton cards, quieter than a whole-block pulse */
 @keyframes review-shimmer {
   from {
     background-position: 200% 0;
@@ -514,7 +514,7 @@ html.desktop-mac .sidebar-logo {
   background-size: 200% 100%;
   animation: review-shimmer 1.8s linear infinite;
 }
-/* 「正在审」那颗星：慢慢地呼吸 */
+/* The 「正在审」 (Reviewing) star: breathes slowly */
 @keyframes review-breathe {
   0%,
   100% {
@@ -535,7 +535,7 @@ html.desktop-mac .sidebar-logo {
   .review-shimmer {
     animation: none;
   }
-  /* 不滑了，但留一道静止的色条：状态还得看得出来 */
+  /* No sliding, but keep a static color bar: the state still has to be visible */
   .review-progress::after {
     animation: none;
     width: 100%;

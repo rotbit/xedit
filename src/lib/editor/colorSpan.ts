@@ -1,13 +1,13 @@
 /**
- * 字体颜色的载体形态：Markdown 没有颜色语法，工具栏写出的是内联
- * `<span style="color:…">…</span>`（预览、公众号复制、导出链路都已放行这个形态）。
+ * How font color is carried: Markdown has no color syntax, so the toolbar writes inline
+ * `<span style="color:…">…</span>` (preview, WeChat copy, and export all allow this form).
  *
- * 生成（editor/format.ts）与识别（livePreview/inline.ts）必须一字不差地对齐，
- * 所以标签拼法、匹配正则、回看窗口都收在这里，改一处即两边同步。
+ * Generation (editor/format.ts) and recognition (livePreview/inline.ts) must match character for character,
+ * so the tag spelling, matching regexes, and lookback window all live here; change one place and both stay in sync.
  *
- * 「从语法树里找出一对颜色标签」也收在这里：即时渲染据此藏标签、删除键据此跳标签、
- * 工具栏据此就地改色、事务过滤器据此收拾孤儿标签——四处判定必须是同一份，
- * 各写各的总会有一处对不上（藏起来的标签删不掉，或者删了一半剩个孤儿）。
+ * "Find a pair of color tags in the syntax tree" lives here too: live preview hides tags with it, Delete skips tags with it,
+ * the toolbar recolors in place with it, and the transaction filter cleans up orphan tags with it; all four must share one check,
+ * since separate implementations always disagree somewhere (hidden tags that can't be deleted, or half-deleted pairs leaving an orphan).
  */
 
 import { syntaxTree } from "@codemirror/language";
@@ -20,42 +20,42 @@ export function colorSpanOpen(color: string): string {
   return `<span style="color:${color}">`;
 }
 
-/** 整段文字恰好就是一个开标签（捕获颜色值）——语法树里 HTMLTag 节点的整体匹配 */
+/** The whole text is exactly one opening tag (captures the color value); matches an HTMLTag node in the syntax tree as a whole */
 export const COLOR_SPAN_OPEN_EXACT = /^<span style="color:([^"]*)">$/;
 
-/** 文字末尾紧跟着一个开标签——选区左侧回看时用 */
+/** Text ending with an opening tag; used when looking back to the left of the selection */
 export const COLOR_SPAN_OPEN_AT_END = /<span style="color:[^"]*">$/;
 
-/** 整段文字恰好是一个完整的颜色 span（捕获内部文字） */
+/** The whole text is exactly one complete color span (captures the inner text) */
 export const COLOR_SPAN_WRAPPED = /^<span style="color:[^"]*">([\s\S]*)<\/span>$/;
 
-/** 向左回看多少个字符去找开标签：固定部分 `<span style="color:` + `">` 共 21 字符，
- *  余下近 40 个留给颜色值，`rgb(255 255 255 / 0.85)` 这类最长写法也装得下 */
+/** How many chars to look back for an opening tag: the fixed part `<span style="color:` + `">` is 21 chars,
+ *  leaving nearly 40 for the color value, enough for the longest forms like `rgb(255 255 255 / 0.85)` */
 export const COLOR_SPAN_LOOKBACK = 60;
 
-/** 一个标签在文档里占的区间 */
+/** The range a tag occupies in the document */
 export interface ColorSpanTag {
   readonly from: number;
   readonly to: number;
 }
 
-/** 配对成功的一对颜色标签 */
+/** A successfully matched pair of color tags */
 export interface ColorSpanPair {
   readonly open: ColorSpanTag;
   readonly close: ColorSpanTag;
-  /** 开标签里写着的颜色值，原样取出（`#e11d48`、`rgb(…)` 都可能） */
+  /** The color value written in the opening tag, taken verbatim (could be `#e11d48`, `rgb(…)`, etc.) */
   readonly color: string;
-  /** 首尾标签紧挨着，中间一个字都没有 —— 这种不藏，见 livePreview/inline.ts */
+  /** Opening and closing tags are adjacent with nothing in between; these aren't hidden, see livePreview/inline.ts */
   readonly empty: boolean;
 }
 
-/** 任意 `<span …>` 开标签：嵌套计数时不带颜色的 span 也得数上，否则深度会算错 */
+/** Any `<span …>` opening tag: spans without color must be counted when tracking nesting, or the depth is wrong */
 const SPAN_OPEN_ANY = /^<span[\s>]/i;
 const SPAN_CLOSE_ANY = /^<\/span\s*>$/i;
 
 function pairOf(state: EditorState, open: SyntaxNode, close: SyntaxNode): ColorSpanPair | null {
   const color = state.sliceDoc(open.from, open.to).match(COLOR_SPAN_OPEN_EXACT);
-  if (!color) return null; // 是 span 但不是工具栏写的颜色 span，不归这套逻辑管
+  if (!color) return null; // A span, but not a toolbar color span; not handled here
   return {
     open: { from: open.from, to: open.to },
     close: { from: close.from, to: close.to },
@@ -64,7 +64,7 @@ function pairOf(state: EditorState, open: SyntaxNode, close: SyntaxNode): ColorS
   };
 }
 
-/** node 是颜色 span 的开标签时，往后按深度计数找配对的 `</span>`；不成对返回 null */
+/** When node is a color span's opening tag, scan forward counting depth for the matching `</span>`; null if unpaired */
 export function colorSpanPairFromOpen(state: EditorState, node: SyntaxNode): ColorSpanPair | null {
   if (node.name !== "HTMLTag") return null;
   if (!COLOR_SPAN_OPEN_EXACT.test(state.sliceDoc(node.from, node.to))) return null;
@@ -78,7 +78,7 @@ export function colorSpanPairFromOpen(state: EditorState, node: SyntaxNode): Col
   return null;
 }
 
-/** 反过来：node 是 `</span>` 时往前找配对的开标签（光标贴在闭标签上时要认出这一对） */
+/** The reverse: when node is `</span>`, scan back for the matching opening tag (needed to recognize the pair when the cursor sits on the closing tag) */
 export function colorSpanPairFromClose(state: EditorState, node: SyntaxNode): ColorSpanPair | null {
   if (node.name !== "HTMLTag") return null;
   if (!SPAN_CLOSE_ANY.test(state.sliceDoc(node.from, node.to))) return null;
@@ -93,9 +93,9 @@ export function colorSpanPairFromClose(state: EditorState, node: SyntaxNode): Co
 }
 
 /**
- * 把 [from, to] 放宽到所在的顶层块（段落、列表项、标题…）。
- * 一对颜色标签必在同一个块里，可开标签往往在变更点左边好几行（跨行的段落），
- * 只按变更区间去 iterate 会漏掉它；放宽到整块既扫得全，又不必每次遍历全文。
+ * Widen [from, to] to the enclosing top-level block (paragraph, list item, heading…).
+ * A pair of color tags is always within one block, but the opening tag is often lines to the left of the change (multi-line paragraphs);
+ * iterating only the changed range would miss it; widening to the block catches it without walking the whole doc each time.
  */
 function blockRange(state: EditorState, from: number, to: number): [number, number] {
   const tree = syntaxTree(state);
@@ -114,7 +114,7 @@ function blockRange(state: EditorState, from: number, to: number): [number, numb
   return [start, end];
 }
 
-/** [from, to] 附近所有配对成功的颜色 span（按开标签位置升序） */
+/** All matched color spans near [from, to] (ascending by opening-tag position) */
 export function colorSpanPairsIn(state: EditorState, from: number, to: number): ColorSpanPair[] {
   const len = state.doc.length;
   const [start, end] = blockRange(state, Math.max(0, Math.min(from, len)), Math.max(0, Math.min(to, len)));
@@ -132,11 +132,11 @@ export function colorSpanPairsIn(state: EditorState, from: number, to: number): 
 }
 
 /**
- * pos 紧贴着的那个「即时渲染下藏起来的颜色标签」；dir=-1 看左边、1 看右边，没有则 null。
- * 判定走的是与 livePreview/inline.ts 同一套配对函数：那边藏什么，删除键就跳什么。
+ * The color tag hidden by live preview right next to pos; dir=-1 looks left, 1 looks right, null if none.
+ * Uses the same pairing functions as livePreview/inline.ts: whatever is hidden there is what Delete skips.
  *
- * 注意 HTMLTag 是有子节点的（`<span …>` 里还嵌着 StartTag/TagName/EndTag），
- * resolveInner 交回来的是最里层的那个子节点，得往上走到 HTMLTag 才谈得上边界。
+ * Note HTMLTag has children (`<span …>` contains StartTag/TagName/EndTag),
+ * and resolveInner returns the innermost child, so walk up to HTMLTag before talking about boundaries.
  */
 export function hiddenColorTagAt(
   state: EditorState,
@@ -148,13 +148,13 @@ export function hiddenColorTagAt(
   if (!node) return null;
   if (dir < 0 ? node.to !== pos : node.from !== pos) return null;
   const pair = colorSpanPairFromOpen(state, node) ?? colorSpanPairFromClose(state, node);
-  // 空 span 是原样露着的（见 inline.ts），按字符删才对
+  // Empty spans are shown as-is (see inline.ts), so delete by character
   if (!pair || pair.empty) return null;
   return { from: node.from, to: node.to };
 }
 
-/** 从 pos 往 dir 方向连着跳过隐藏标签，停在第一个真实字符处。
-    `</span><span …>` 这种首尾相接的两对标签要一口气跳完，否则删除键会卡在中间 */
+/** Skip consecutive hidden tags from pos in direction dir, stopping at the first real character.
+    Back-to-back pairs like `</span><span …>` must be skipped in one go, or Delete gets stuck in between */
 export function skipHiddenColorTags(state: EditorState, pos: number, dir: -1 | 1): number {
   let at = pos;
   for (let tag = hiddenColorTagAt(state, at, dir); tag; tag = hiddenColorTagAt(state, at, dir)) {
@@ -163,7 +163,7 @@ export function skipHiddenColorTags(state: EditorState, pos: number, dir: -1 | 1
   return at;
 }
 
-/** pos 落在哪个颜色 span 的文字里（含紧贴标签内侧的两个边界）；嵌套时取最里面那一层 */
+/** Which color span's text pos falls in (including the two boundaries just inside the tags); for nesting, the innermost */
 export function colorSpanPairAt(state: EditorState, pos: number): ColorSpanPair | null {
   let hit: ColorSpanPair | null = null;
   for (const pair of colorSpanPairsIn(state, pos, pos)) {

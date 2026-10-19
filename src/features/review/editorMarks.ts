@@ -1,12 +1,12 @@
 /**
- * 正文里的审核标注：一个装在编辑器里的 CodeMirror 扩展。
+ * Review marks in the body: a CodeMirror extension installed in the editor.
  *
- * 为什么标注要长在编辑器里而不是渲染面上：作者审稿时人就坐在编辑区，意见得画在他正在改的
- * 那几个字上；画在另一栏的成品里，看得见改不着，还得两边对着找。
+ * Why marks live in the editor rather than the rendered view: while reviewing, the author sits in the editing area, so comments must be drawn on
+ * the very words being edited; drawn on the rendered output in another pane, you can see them but can't edit there, and must cross-reference both sides.
  *
- * 装法：StateField 存一套 Decoration.mark，靠 StateEffect 从外面（React 那侧）喂进来。
- * 文档一改，RangeSet 自己把位置映射过去，于是打字途中标注不会错位；下一轮重新对位再覆盖。
- * 扩展是审核开启时用 appendConfig 动态挂上去的——平时一行代码都不进编辑器。
+ * How: a StateField holds a set of Decoration.mark, fed from outside (the React side) via StateEffect.
+ * When the doc changes, the RangeSet maps positions itself, so marks don't drift while typing; the next round re-aligns and replaces them.
+ * The extension is attached dynamically with appendConfig when review starts; normally not a line of it enters the editor.
  */
 
 import { StateEffect, StateField, type Extension } from "@codemirror/state";
@@ -14,7 +14,7 @@ import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import { lighten, tint } from "./colors";
 import type { ReviewCategory } from "./types";
 
-/** 一处标注：位置 + 它是哪条意见、哪一类、是不是当前选中的那条 */
+/** One mark: position + which comment, which category, and whether it's the currently selected one */
 export interface ReviewMark {
   from: number;
   to: number;
@@ -23,22 +23,22 @@ export interface ReviewMark {
   active: boolean;
 }
 
-/** 点击落在标注上时，从 DOM 上读回意见 id 用的属性名 */
+/** Attribute name used to read the comment id back from the DOM when a click lands on a mark */
 export const REVIEW_ID_ATTR = "data-review-id";
 
-/** 分类 id 是「服务端」给的，未必是合法的 CSS 标识符，洗一遍再拼类名 */
+/** Category ids come from the server and aren't necessarily valid CSS identifiers, so sanitize before building class names */
 export function markClass(categoryId: string): string {
   return `cm-review-cat-${categoryId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }
 
-/** 换一整套标注（传空数组就是全部清掉） */
+/** Replace the whole set of marks (an empty array clears them all) */
 export const setReviewMarks = StateEffect.define<readonly ReviewMark[]>();
 
 function build(marks: readonly ReviewMark[]): DecorationSet {
   const ranges = marks
     .filter((m) => m.to > m.from)
     .slice()
-    // RangeSet 要求按起点升序喂进来；同起点的让长的排前面，短的叠在上层
+    // RangeSet requires ascending start order; for equal starts put the longer first so the shorter stacks on top
     .sort((a, b) => a.from - b.from || b.to - a.to)
     .map((m) =>
       Decoration.mark({
@@ -52,7 +52,7 @@ function build(marks: readonly ReviewMark[]): DecorationSet {
 export const reviewMarksField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update(marks, tr) {
-    // 先跟着文档变化挪位置，再看这次事务有没有带来新的一套
+    // First map positions through the doc change, then see whether this transaction brings a new set
     let next = marks.map(tr.changes);
     for (const effect of tr.effects) {
       if (effect.is(setReviewMarks)) next = build(effect.value);
@@ -63,8 +63,8 @@ export const reviewMarksField = StateField.define<DecorationSet>({
 });
 
 /**
- * 几何变化的信号：卡片要贴着自己那句话的高度站，行高一变位置就得重算。
- * docChanged 只是其中一种——折行、视口推进（远处的行从估算高度换成实测）同样会挪动一切。
+ * Geometry change signal: cards align to the height of their sentence, so positions must be recomputed when line heights change.
+ * docChanged is only one case; wrapping and viewport progress (distant lines switching from estimated to measured heights) move everything too.
  */
 function geometrySignal(onGeometry: () => void): Extension {
   return EditorView.updateListener.of((update) => {
@@ -73,11 +73,11 @@ function geometrySignal(onGeometry: () => void): Extension {
 }
 
 /**
- * 把标注扩展挂进一个已经跑起来的编辑器（审核开启时调用一次）。
+ * Attach the marks extension to an already running editor (called once when review starts).
  *
- * appendConfig 挂上去就摘不下来了，所以：
- * - 重复挂要拦住（切文档会重建编辑器，那是另一个 view，自然要再挂一次）；
- * - onGeometry 里得自己判断审核还开着没有，退出审核后别再叫醒 React。
+ * appendConfig can't be detached once attached, so:
+ * - guard against attaching twice (switching docs rebuilds the editor, which is a different view, so it naturally gets attached again);
+ * - onGeometry must check itself whether review is still on, so it doesn't wake React after review exits.
  */
 export function installReviewMarks(view: EditorView, onGeometry: () => void): void {
   if (view.state.field(reviewMarksField, false) !== undefined) return;
@@ -86,7 +86,7 @@ export function installReviewMarks(view: EditorView, onGeometry: () => void): vo
   });
 }
 
-/** 换一套标注；扩展还没挂上（编辑器刚重建）时返回 false，由调用方决定要不要先挂 */
+/** Replace the set of marks; returns false when the extension isn't attached yet (editor just rebuilt), letting the caller decide whether to attach first */
 export function pushReviewMarks(view: EditorView, marks: readonly ReviewMark[]): boolean {
   if (view.state.field(reviewMarksField, false) === undefined) return false;
   view.dispatch({ effects: setReviewMarks.of(marks) });
@@ -94,9 +94,9 @@ export function pushReviewMarks(view: EditorView, marks: readonly ReviewMark[]):
 }
 
 /**
- * 每一类的配色。分类是结果自己带的，所以这段 CSS 只能现生成：
- * 类名里只放 --rv-* 变量，下划线、底色的写法在 editor.css 里固定一份。
- * 夜间单独给一套——深色分类色压在炭黑面板上几乎看不见，先提亮再配底。
+ * Colors per category. Categories come with the result, so this CSS has to be generated on the fly:
+ * class names only set --rv-* variables, while the underline and background rules live once in editor.css.
+ * Night mode gets its own set: dark category colors are nearly invisible on a charcoal panel, so brighten first, then add the background.
  */
 export function reviewMarkCss(categories: readonly ReviewCategory[]): string {
   const rules: string[] = [];

@@ -1,8 +1,8 @@
 "use client";
 
-// Obsidian 式命令面板（⌘⇧P）：打字即筛全站命令，↑↓ 选、↵ 执行，不用记菜单藏在哪。
-// 命令本身由各宿主注册进 lib/commandRegistry，这里只管数据源与行渲染，
-// 弹窗外壳（遮罩、输入框、列表、键盘导航）与快速切换器共用 PaletteShell。
+// Obsidian-style command palette (⌘⇧P): type to filter every command, ↑↓ to select, ↵ to run — no need to remember which menu hides what.
+// Commands are registered into lib/commandRegistry by each host; this only handles the data source and row rendering;
+// the dialog shell (backdrop, input, list, keyboard navigation) is the PaletteShell shared with the quick switcher.
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { Command as CommandIcon } from "lucide-react";
@@ -22,33 +22,33 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const t = useT();
   const [query, setQuery] = useState("");
 
-  // 注册表是模块级可变状态，订阅它拿快照（引用在注册表不变时稳定，不会触发无限重渲染）
+  // The registry is module-level mutable state; subscribe for a snapshot (the reference is stable while the registry is unchanged, so no render loop)
   const all = useSyncExternalStore(subscribeCommands, commandsSnapshot, commandsSnapshot);
 
-  // 每次打开都是一次全新的检索，上次的关键词不留到下一次。
-  // 渲染期间带守卫地重置，放 effect 里会多跑一帧、弹窗先闪一下旧结果
+  // Each open is a fresh search; the previous query doesn't carry over.
+  // Reset during render behind a guard; doing it in an effect costs an extra frame and briefly flashes the old results
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) setQuery("");
   }
 
-  // 命令表不读 localStorage，过滤纯粹是字符串比对，不必像切换器那样防抖。
-  // open 进 deps 不只是省一次空跑：when() 的结果跟界面状态走，每次打开都要重新问一遍
+  // The command list doesn't touch localStorage and filtering is plain string matching, so no debounce like the switcher.
+  // open is in the deps for more than skipping an empty run: when() results follow UI state, so re-ask on every open
   const hits = useMemo(
     () => (open ? filterCommands(all.filter(isAvailable), query) : NONE),
     [open, all, query]
   );
 
   /**
-   * 先收面板再同步执行：格式类命令会把焦点抢回编辑器，此时输入框已不是 activeElement，
-   * React 随后卸载它也就不会把焦点甩回 body。异步命令（复制/导出）也保持在用户手势这一拍里，
-   * 否则 Safari 会判定剪贴板写入失去用户激活
+   * Close the palette first, then run synchronously: formatting commands pull focus back to the editor, so the input is no longer activeElement
+   * and React unmounting it won't throw focus back to body. Async commands (copy/export) also stay within this user-gesture tick,
+   * otherwise Safari decides the clipboard write has lost user activation
    */
   const run = (cmd: Command) => {
     onClose();
     void (async () => cmd.run())().catch((e) => {
-      // 命令自己负责给用户提示（toast），这里只兜住漏网的异常，别静默吞掉
+      // Commands show their own toasts; this only catches stray exceptions so they aren't silently swallowed
       console.error("[command] 执行失败", cmd.id, e);
     });
   };

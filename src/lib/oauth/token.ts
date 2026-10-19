@@ -3,8 +3,8 @@ import { randomUUID } from "crypto";
 import { OAUTH, jwtKey } from "./config";
 
 /**
- * access token 用 JWT（HS256）表示，资源服务器无状态验签，不落库。
- * 撤销靠短 TTL；长效撤销通过刷新令牌轮换实现。
+ * Access tokens are JWTs (HS256); the resource server verifies statelessly, nothing stored.
+ * Revocation relies on short TTLs; long-term revocation is done via refresh token rotation.
  */
 
 export async function signAccessToken(params: {
@@ -12,7 +12,7 @@ export async function signAccessToken(params: {
   clientId: string;
   scope: string;
   issuer: string;
-  /** RFC 8707 目标资源，写入 aud */
+  /** RFC 8707 target resource, written into aud */
   resource: string;
 }): Promise<string> {
   return new SignJWT({ scope: params.scope, client_id: params.clientId })
@@ -34,8 +34,8 @@ export interface VerifiedToken {
 }
 
 /**
- * 验签 + 校验 audience（token 必须是发给本 MCP 服务器的）+ 校验过期。
- * 任一环节不过一律返回 null，由调用方回 401。
+ * Verify signature + audience (the token must be issued for this MCP server) + expiry.
+ * Any failure returns null, and the caller responds 401.
  */
 export async function verifyAccessToken(
   token: string,

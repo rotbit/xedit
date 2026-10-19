@@ -1,9 +1,9 @@
 /**
- * Vault 后端：文档库直接落在用户选的磁盘目录上（Obsidian 式）。
- * 打开时整库读进内存，所以 LocalBackend 那些同步读照样能用；写入全部丢进一条串行队列，
- * 界面不等磁盘。id 用 "local-v:<相对路径>"，既让 isLocalId 成立，又天然带着位置信息；
- * 改名/搬家只改 entry.relPath，会话内 id 保持不变，免得编辑器手里的 id 突然失效。
- * 回收站、附件、磁盘对账分别在 vaultTrash / vaultAttachments / vaultRescan，这里只做组装。
+ * Vault backend: the library lives directly in a user-chosen folder on disk (Obsidian-style).
+ * The whole library is read into memory on open, so LocalBackend's sync reads still work; all writes go into a serial queue
+ * so the UI never waits on disk. Ids are "local-v:<relative path>", which satisfies isLocalId and carries the location;
+ * renames/moves only change entry.relPath and ids stay stable within a session, so the editor's id never goes stale.
+ * Trash, attachments and disk rescan live in vaultTrash / vaultAttachments / vaultRescan; this file just wires them up.
  */
 
 import { toast } from "@/components/Toast";
@@ -49,32 +49,32 @@ export type { RescanResult };
 
 export interface VaultBackend extends LocalBackend {
   readonly kind: "vault";
-  /** 根目录名，用来在界面上显示当前库 */
+  /** Root folder name, shown in the UI as the current library */
   readonly name: string;
-  /** 打开时读到的侧栏排序（.xedit/order.json），没有则 null */
+  /** Sidebar order read on open (.xedit/order.json), or null if none */
   loadOrder(): unknown;
   saveOrder(o: unknown): void;
-  /** 等当前写队列排空，关库前调用 */
+  /** Wait for the write queue to drain; call before closing the library */
   flush(): Promise<void>;
-  /** 与磁盘对账：外部（Obsidian 等）新增/修改/删除的文件反映进缓存。返回变动的文档 id */
+  /** Rescan disk: reflect files added/changed/deleted externally (Obsidian etc.) into the cache. Returns changed document ids */
   rescan(): Promise<RescanResult>;
-  /** 回收站列表，与 listDocs 一样给副本 */
+  /** Trash listing; returns copies like listDocs */
   listTrash(): LocalDocMeta[];
-  /** 还原回原路径（撞名加后缀、目录没了就重建），返回新的 meta；id 不在回收站里返回 null */
+  /** Restore to the original path (suffix on name clash, recreate missing folders); returns new meta, or null if id isn't in trash */
   restoreFromTrash(id: string): LocalDocMeta | null;
-  /** 彻底删掉回收站里的一篇 */
+  /** Permanently delete one item from trash */
   purgeFromTrash(id: string): void;
-  /** 清空回收站 */
+  /** Empty the trash */
   emptyTrash(): void;
-  /** 把图片等二进制写进 attachments/，返回相对 vault 根的路径（如 "attachments/xxx.png"） */
+  /** Write an image or other binary into attachments/; returns the path relative to the vault root (e.g. "attachments/xxx.png") */
   saveAttachment(file: Blob, suggestedName: string): Promise<string>;
-  /** 读附件为 object URL（缓存，同一路径只建一次），不存在返回 null */
+  /** Read an attachment as an object URL (cached, created once per path); null if missing */
   getAttachmentUrl(relPath: string): Promise<string | null>;
 }
 
 const ORDER_DIR = ".xedit";
 const ORDER_FILE = "order.json";
-/** 写失败的提示节流，避免一串失败刷满屏 */
+/** Throttle write-failure toasts so a burst of failures doesn't flood the screen */
 const TOAST_GAP = 3000;
 
 async function readOrder(root: FileSystemDirectoryHandle): Promise<unknown> {
@@ -83,7 +83,7 @@ async function readOrder(root: FileSystemDirectoryHandle): Promise<unknown> {
     if (!dir) return null;
     return JSON.parse(await readTextFile(await dir.getFileHandle(ORDER_FILE)));
   } catch {
-    return null; // 没写过或者内容坏了，当没排序过
+    return null; // Never written or corrupted; treat as unsorted
   }
 }
 
@@ -101,7 +101,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
   let queue: Promise<void> = Promise.resolve();
   let lastToast = 0;
 
-  /** 写操作按调用顺序串行执行；出错只提示不中断后续 */
+  /** Writes run serially in call order; errors toast but don't stop later writes */
   function enqueue(op: () => Promise<void>): void {
     queue = queue.then(op).catch((e: unknown) => {
       const now = Date.now();
@@ -118,8 +118,8 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
     });
   }
 
-  /** 目录整体搬家之后逐篇回读 mtime：这些文件在磁盘上可能是复制出来的新文件，
-   *  不回读的话下一次对账会把它们全当成外部改动 */
+  /** After moving a whole folder, re-read each file's mtime: on disk they may be freshly copied files,
+   *  and without this the next rescan would treat them all as external changes */
   function refreshMtimes(entries: Entry[]): void {
     if (!entries.length) return;
     enqueue(async () => {
@@ -146,8 +146,8 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
     name: root.name,
 
     listDocs(): LocalDocMeta[] {
-      // 必须给副本：缓存里的 meta 是原地改的，直接交出去的话
-      // 侧栏拿新旧两份列表比字段会全等（指向同一对象），改完标题不刷新
+      // Must return copies: cached meta is mutated in place, so handing it out directly
+      // makes the sidebar's old/new list comparison see identical objects and miss a title change
       return [...docs.values()].map((e) => ({ ...e.meta }));
     },
 
@@ -165,15 +165,15 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       const now = new Date().toISOString();
       const meta: LocalDocMeta = {
         id: uniqueDocId(docs, relPath),
-        // 文件名即标题：非法字符替换、撞名加后缀之后以磁盘上的名字为准，重开库不会变
+        // Filename is the title: after sanitizing and de-duplicating, the on-disk name wins so it's stable across reopen
         title: stripMd(name),
         category,
         createdAt: now,
         updatedAt: now,
         ...summarize(content),
       };
-      // 缓存里放副本，返回的那份给调用方自己留着（后续改动不该顺着引用倒灌回去）；
-      // mtime 先留 0，等队列里那次写落盘再回填
+      // Cache a copy and give the caller its own (later changes shouldn't leak back through the reference);
+      // mtime stays 0 until the queued write lands, then gets backfilled
       const entry: Entry = { meta: { ...meta }, content, relPath, mtime: 0 };
       docs.set(meta.id, entry);
       if (dirPath) addCat(cats, category);
@@ -189,7 +189,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       const e = docs.get(id);
       if (!e) return false;
       const oldRel = e.relPath;
-      // 先定目标目录再定文件名：撞名要按目标目录算，标题+分类同时改也只搬一次
+      // Resolve the target folder before the filename: clashes are per target folder, and a title+category change moves only once
       let dirPath = parentPath(oldRel);
       let name = baseName(oldRel);
       if (patch.category !== undefined) {
@@ -204,19 +204,19 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       } else if (dirPath !== parentPath(oldRel)) {
         name = uniqueName(docs.values(), dirPath, stripMd(name), id);
       }
-      // 文件名即标题：清洗/去重之后以磁盘名为准，与重开库时读到的一致
+      // Filename is the title: after sanitizing/de-duplicating, the on-disk name wins, matching what a reopen reads
       e.meta.title = stripMd(name);
       if (patch.content !== undefined) {
         e.content = patch.content;
         Object.assign(e.meta, summarize(patch.content));
       }
-      // 仅移动分类不算编辑，不刷新时间戳
+      // Moving categories alone isn't an edit; don't bump the timestamp
       if (patch.title !== undefined || patch.content !== undefined) {
         e.meta.updatedAt = new Date().toISOString();
       }
       const relPath = join(dirPath, name);
       if (relPath !== oldRel) {
-        // moveFile 自己会按需建目标目录
+        // moveFile creates the target folder as needed
         e.relPath = relPath;
         enqueue(async () => {
           e.mtime = await moveFile(root, oldRel, relPath);
@@ -224,7 +224,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       }
       if (patch.content !== undefined) {
         const text = patch.content;
-        // 路径在上一条队列任务里已经搬好了，这里直接写新位置
+        // The path was already moved by the previous queued task; write to the new location
         enqueue(async () => {
           const dir = await getDirectory(root, parentPath(relPath), true);
           if (!dir) throw new Error(t("建不出目录 {path}", { path: parentPath(relPath) }));
@@ -234,7 +234,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       return true;
     },
 
-    /** 删除不真删：搬进 .trash，磁盘上的文件还在，用户还能还原 */
+    /** Delete doesn't really delete: move into .trash so the file stays on disk and can be restored */
     deleteDoc(id: string) {
       const e = docs.get(id);
       if (!e) return;
@@ -246,7 +246,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
       return [...cats];
     },
 
-    /** 只补新分类的目录，这里永不删目录（删除走 removeCategory） */
+    /** Only creates folders for new categories; never deletes folders here (deletion goes through removeCategory) */
     saveCats(next: string[]) {
       for (const raw of next) {
         const cat = raw.trim();
@@ -264,7 +264,7 @@ export async function openVaultBackend(root: FileSystemDirectoryHandle): Promise
         const cat = e.meta.category || UNCATEGORIZED;
         const next = remap(cat);
         if (next === cat) continue;
-        // 文件跟着目录整体搬，不必逐篇 move；只改分类不刷新 updatedAt
+        // Files move with the folder, no per-file move needed; category-only changes don't bump updatedAt
         e.meta.category = next;
         e.relPath = join(catDir(next), baseName(e.relPath));
         moved.push(e);

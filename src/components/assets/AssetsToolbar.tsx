@@ -7,7 +7,7 @@ import type { AssetFilter } from "./useAssetsFeed";
 import { tk } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
 
-/** 图片库顶栏：分段过滤 + 计数 + 缩放滑杆 + 同步/上传 */
+/** Image library top bar: segmented filter + count + zoom slider + sync/upload */
 
 const FILTERS: [AssetFilter, string][] = [
   ["all", tk("全部")],
@@ -16,7 +16,7 @@ const FILTERS: [AssetFilter, string][] = [
   ["unused", tk("未引用")],
 ];
 
-/** 顶栏自己不持有筛选条件和列数，全部由 AssetsGallery 传入、改动回调上去，保证刷新后状态一致。 */
+/** The top bar holds neither filters nor column count; AssetsGallery passes them in and receives changes via callbacks, keeping state consistent after refresh. */
 export function AssetsToolbar({
   filter,
   onFilterChange,
@@ -37,7 +37,7 @@ export function AssetsToolbar({
   loading: boolean;
   cols: number;
   onColsChange: (cols: number) => void;
-  /** 「同步 OSS 历史」会认领整个 bucket 的无主文件，接口只对管理员开放 */
+  /** 「同步 OSS 历史」 (Sync OSS history) claims every orphaned file in the bucket, so the API is admin-only */
   isAdmin: boolean;
   ossConfigured: boolean;
   syncing: boolean;
@@ -45,13 +45,13 @@ export function AssetsToolbar({
   onSync: () => void;
   onUpload: (files: FileList | null) => void;
 }) {
-  // 隐藏的 file input：浏览器只在真实用户手势里允许打开文件选择框，所以得由按钮的 click 转发过来
+  // Hidden file input: browsers only open the file picker from a real user gesture, so the button's click is forwarded to it
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = useT();
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--hairline)] px-4 py-2.5 sm:px-6">
-      {/* 分段控件 */}
+      {/* Segmented control */}
       <div className="flex items-center gap-0.5 rounded-lg border border-[var(--hairline)] bg-[var(--paper)] p-0.5">
         {FILTERS.map(([value, label]) => (
           <button
@@ -71,10 +71,10 @@ export function AssetsToolbar({
         {loading ? t("加载中…") : t("共 {n} 个文件", { n: total })}
       </p>
 
-      {/* 计数与右侧按钮之间留空 */}
+      {/* Spacer between the count and the right-hand buttons */}
       <div className="flex-1" />
 
-      {/* 缩放滑杆：控制列数，越往右列数越多、图越小 */}
+      {/* Zoom slider: controls column count; further right means more columns and smaller images */}
       <div className="hidden items-center sm:flex" title={t("缩略图大小（越往右列数越多）")}>
         <input
           type="range"
@@ -102,7 +102,7 @@ export function AssetsToolbar({
       <button
         className="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-[var(--accent-fg)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] hover:bg-[var(--accent-deep)] disabled:opacity-60"
         onClick={() => fileInputRef.current?.click()}
-        // 对象存储没配好就没地方放文件，按钮直接禁用，不要让用户传完才看到失败
+        // Without object storage configured there's nowhere to put files, so disable the button rather than let the upload fail afterwards
         disabled={uploading || !ossConfigured}
       >
         {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
@@ -116,7 +116,7 @@ export function AssetsToolbar({
         className="hidden"
         onChange={(e) => {
           onUpload(e.target.files);
-          // 用完清空 value：否则连着选同一个文件不会再触发 change，用户会以为按钮坏了
+          // Clear value afterwards: otherwise picking the same file again won't fire change, and the user thinks the button is broken
           e.target.value = "";
         }}
       />

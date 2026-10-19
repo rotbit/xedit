@@ -1,11 +1,11 @@
 /**
- * 409 冲突：云端那份先存成历史版本，再用新基线把本地内容推上去。
- * 底线是「本地改动不丢、云端那份找得回」。
+ * 409 conflict: save the cloud copy as a history version first, then push local content on the new baseline.
+ * The bottom line: "local edits aren't lost and the cloud copy can be recovered".
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// vi.hoisted 保证整个文件共用同一个 fn：resetModules 后工厂会重跑，
-// 在工厂里现造 vi.fn 的话被测模块与断言拿到的就不是同一个了
+// vi.hoisted makes the whole file share one fn: factories rerun after resetModules,
+// and creating vi.fn inside the factory would give the module under test and the assertions different instances
 const toastSpy = vi.hoisted(() => vi.fn());
 vi.mock("@/components/Toast", () => ({ toast: toastSpy }));
 
@@ -27,7 +27,7 @@ const BASE = "2026-05-01T00:00:00.000Z";
 const SERVER = "2026-05-01T09:00:00.000Z";
 const MERGED = "2026-05-01T10:00:00.000Z";
 
-/** 先建一份「从服务端 BASE 版派生、本地又改过」的镜像 */
+/** First create a mirror "derived from the server's BASE version and edited locally" */
 async function seedDirtyMirror(store: {
   applyServerDoc: (doc: {
     id: string;
@@ -98,13 +98,13 @@ describe("409 冲突", () => {
       baseUpdatedAt?: string;
       content?: string;
     };
-    expect(retry.baseUpdatedAt).toBe(SERVER); // 以云端当前版本为新基线
+    expect(retry.baseUpdatedAt).toBe(SERVER); // Use the cloud's current version as the new baseline
     expect(retry.content).toBe("本地改过的正文");
 
     const meta = mods.getMirrorMeta("d1")!;
     expect(meta.dirty).toBe(false);
     expect(meta.updatedAt).toBe(MERGED);
-    expect(mods.getMirrorContent("d1")).toBe("本地改过的正文"); // 没被服务端那份盖掉
+    expect(mods.getMirrorContent("d1")).toBe("本地改过的正文"); // Not overwritten by the server copy
     expect(toastSpy).toHaveBeenCalledWith(
       "云端有另一份改动，已存为历史版本，本地内容已覆盖上去",
       "info"
@@ -147,7 +147,7 @@ describe("409 冲突", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(mods.pushMirrorDoc("d1")).resolves.toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(3); // PUT → versions → PUT，不再无限绕
+    expect(fetchMock).toHaveBeenCalledTimes(3); // PUT → versions → PUT, no more endless looping
     expect(mods.getMirrorMeta("d1")!.dirty).toBe(true);
     expect(mods.getMirrorContent("d1")).toBe("本地改过的正文");
     expect(toastSpy).not.toHaveBeenCalled();

@@ -9,8 +9,8 @@ import { tk } from "@/i18n/t";
 export const runtime = "nodejs";
 
 /**
- * 同步一批：每次调用处理一小批文档即返回进度，客户端循环调到 done=true。
- * skip 是客户端累计的本轮失败节点，避免坏文档每轮重试卡死进度。
+ * Sync one batch: each call processes a small batch of docs and returns progress; the client loops until done=true.
+ * skip is the client's accumulated list of nodes that failed this round, so a bad doc can't stall progress by retrying every round.
  */
 export async function POST(req: Request) {
   const session = await auth();
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     if (e instanceof FeishuReconnectError) {
       return NextResponse.json({ error: e.message, needReconnect: true }, { status: 400 });
     }
-    // 飞书接口的原始报文可能带内部 id 与凭证片段，只留一句给用户
+    // Raw Feishu API responses may contain internal ids and credential fragments; give the user just one line
     return serverError(e, tk("同步失败"));
   }
 }

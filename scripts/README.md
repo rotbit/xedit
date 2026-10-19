@@ -1,37 +1,37 @@
 # scripts
 
-## build-brand-assets.mjs — 品牌字标与应用图标
+## build-brand-assets.mjs — brand wordmark and app icons
 
-`public/logo.svg` 是已确认的「展页」图标与 xEdit 字标，`public/logo-mark.svg` 是独立书页图标。
-两份源图保留相同的书页轮廓；`page_right` 使用明亮蓝，`page_left` 使用薄荷青，`wordmark` 保持墨色。
-修改源图后运行：
+`public/logo.svg` is the approved "open page" icon plus the xEdit wordmark; `public/logo-mark.svg` is the standalone page icon.
+Both sources share the same page outline: `page_right` is bright blue, `page_left` is mint teal, and `wordmark` stays ink-colored.
+After editing the sources, run:
 
 ```bash
 node scripts/build-brand-assets.mjs
-# 同时更新相邻桌面仓库（ICNS 生成需要 macOS 自带 iconutil）：
+# Also update the sibling desktop repo (ICNS generation needs macOS's built-in iconutil):
 node scripts/build-brand-assets.mjs ../xedit-desktop
 ```
 
-脚本复用项目中的 sharp，生成 `src/lib/brand.ts`、网页图标，以及可选的桌面启动页资源、
-Dock PNG 和包含 16–1024 像素的 ICNS。页面内 logo 的颜色由 `globals.css` 的 `--brand-mark` 与 `--brand-mark-secondary` 控制：
-浅色主题为明亮蓝 `#3478f6` 与薄荷青 `#20b8a6`，深色主题为 `#80adff` 与 `#58dac5`；
-文字通过 `currentColor` 跟随正文颜色。导出图标读取 SVG 填色，底板为冰蓝白 `#f5faff`。
+The script reuses the project's sharp to generate `src/lib/brand.ts`, the web icons and, optionally, the desktop splash assets,
+Dock PNG and an ICNS containing 16–1024 px sizes. In-page logo colors are controlled by `--brand-mark` and `--brand-mark-secondary` in `globals.css`:
+bright blue `#3478f6` and mint teal `#20b8a6` in the light theme, `#80adff` and `#58dac5` in the dark theme;
+the text follows the body color via `currentColor`. Exported icons read the SVG fills and sit on an ice-white `#f5faff` background.
 
-## og-source.html — 社交分享卡片（public/og.png）的源文件
+## og-source.html — source for the social share card (public/og.png)
 
-`public/og.png` 是这张 HTML 的截图，1200×630。改完文案后重新生成：
+`public/og.png` is a 1200×630 screenshot of this HTML file. After changing the copy, regenerate it:
 
 ```bash
-# 1. 起一个静态服务（这个目录下）
+# 1. Start a static server (from this directory)
 python3 -m http.server 3211 --directory ..
 
-# 2. 用浏览器把视口调成 1200×630 打开 http://localhost:3211/scripts/og-source.html 截图，
-#    或用任意 headless 截图工具，例如：
+# 2. Open http://localhost:3211/scripts/og-source.html in a browser with a 1200×630 viewport and take a screenshot,
+#    or use any headless screenshot tool, e.g.:
 #    npx playwright screenshot --viewport-size=1200,630 http://localhost:3211/scripts/og-source.html og.png
 
-# 3. 确认尺寸并落位
+# 3. Check the size and move it into place
 sips -g pixelWidth -g pixelHeight og.png
 mv og.png ../public/og.png
 ```
 
-改动会同时反映到 Open Graph 与 Twitter 卡片上（引用处见 `src/lib/site.ts` 的 `OG_IMAGE`）。
+Changes apply to both the Open Graph and Twitter cards (referenced by `OG_IMAGE` in `src/lib/site.ts`).

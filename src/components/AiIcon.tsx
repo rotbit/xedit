@@ -1,2 +1,2 @@
-/** AI 入口、审核、生成和设置共用一枚柔角星；尺寸与笔画继承全站图标规范。 */
+/** One soft-cornered star shared by the AI entry, review, generation and settings; size and stroke follow the site-wide icon spec. */
 export { Sparkle as AiIcon } from "lucide-react";

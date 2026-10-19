@@ -23,10 +23,10 @@ import {
 } from "@/lib/sessionProbe";
 import { useOnline } from "@/hooks/useOnline";
 
-/** 渲染账号那一行用：在线拿会话，离线拿本地快照，两者字段对得上 */
+/** For rendering the account row: session when online, local snapshot when offline; their fields line up */
 export type AuthUser = Session["user"] | AuthSnapshot;
 
-/** 另一个标签页写进来的账号快照 / 归属记录里，识别字段长什么样 */
+/** What the identifying fields look like in an account snapshot / ownership record written by another tab */
 function identityOf(raw: string | null) {
   if (raw === null) return null;
   try {
@@ -38,15 +38,15 @@ function identityOf(raw: string | null) {
 }
 
 /**
- * 工作台的三种运行模式：
- * - loggedIn：正常云端模式
- * - offlineAuthed：本机登录态仍然有效，但服务器暂时够不着（断网、反代挂了、VPN 断了），
- *   一切照常落本地镜像，联网后自动补同步
- * - localMode：未登录，数据存在浏览器本地（Obsidian 式本地优先）
+ * The workspace's three run modes:
+ * - loggedIn: normal cloud mode
+ * - offlineAuthed: the local login is still valid but the server is temporarily unreachable (offline, reverse proxy down, VPN dropped);
+ *   everything goes to the local mirror as usual and syncs automatically once back online
+ * - localMode: logged out, data lives in the browser (Obsidian-style local-first)
  *
- * 判定原则只有一条：**只有服务器明确回了「没有会话」才算登出**。next-auth 客户端
- * 对网络失败和真登出给的都是 unauthenticated，信它就会一断网就掉回游客模式，
- * 所以这里额外跑一个探测（lib/sessionProbe），没有结论期间一律保持登录态。
+ * There's only one rule: **it's a logout only if the server explicitly says "no session"**. The next-auth client
+ * reports unauthenticated for both network failures and real logouts; trusting it would drop to guest mode whenever the network blips,
+ * so we run an extra probe (lib/sessionProbe) and stay logged in until it reaches a verdict.
  */
 export function useAuthMode() {
   const { data: session, status } = useSession();
@@ -54,7 +54,7 @@ export function useAuthMode() {
   const probe = useSyncExternalStore(subscribeProbe, getProbeState, getProbeServerState);
 
   const loggedIn = status === "authenticated";
-  // 本机记得自己登录过：此刻的 unauthenticated 很可能只是「问不到答案」
+  // This device remembers being logged in: the current unauthenticated most likely just means "couldn't get an answer"
   const authedBefore = status === "unauthenticated" && wasAuthed();
   const offlineAuthed = authedBefore && probe !== "signed-out";
   const localMode = status === "unauthenticated" && !offlineAuthed;
@@ -63,10 +63,10 @@ export function useAuthMode() {
   const userId = user?.id;
   const userEmail = user?.email;
 
-  // 每确认一次登录就落定一次「本机这份镜像归谁」：同一个人续快照、领回上次没推上去的草稿；
-  // 换了人（另一个标签页登进别人、cookie 被换掉，没经过登出）先把旧主人的 dirty 草稿
-  // 挪进孤儿列表再清镜像，否则两边文章会串成一堆。
-  // 本 effect 排在 useDocLibrary 那几个之前，顺序是成立的
+  // Each confirmed login settles "who owns this mirror": the same person continues the snapshot and reclaims drafts that didn't get pushed last time;
+  // if the user changed (another tab logged in as someone else, the cookie got swapped, with no logout in between), first move the old owner's dirty drafts
+  // into the orphan list, then clear the mirror, or the two accounts' docs get mixed together.
+  // This effect runs before the useDocLibrary ones, so the ordering holds
   useEffect(() => {
     if (status !== "authenticated" || !user) return;
     const r = resolveAccountSwitch(user);
@@ -74,15 +74,15 @@ export function useAuthMode() {
       toast(t("上一账号有未同步草稿，本次未清理本地缓存"), "info");
       return;
     }
-    // 同步派事件时 useDocLibrary 的监听还没挂上（同一轮 effect 里它在后面），推到微任务
+    // When dispatching the event synchronously, useDocLibrary's listener isn't attached yet (it comes later in the same effect pass), so defer to a microtask
     if (r.cleared || r.reclaimed > 0) queueMicrotask(() => notifyDocsChanged());
     if (r.reclaimed > 0) toast(t("找回 {n} 篇上次未同步的草稿，将自动同步", { n: r.reclaimed }), "success");
   }, [status, user]);
 
-  // 别的标签页登出或换了账号：本标签的 localStorage 已经被改过了，但 React 这边还一无所知。
-  // next-auth 自己用 BroadcastChannel 广播 signIn/signOut（node_modules/next-auth/react.js），
-  // 会话状态它会重拉；这里补的是本地那摊东西——代际作废掉在途写入，再让列表重读一次。
-  // 同一个人只是刷新了 confirmedAt 不算换人，否则每个标签续一次期就白白作废一批在途请求
+  // Another tab logged out or switched accounts: this tab's localStorage has already changed, but React knows nothing about it.
+  // next-auth broadcasts signIn/signOut itself via BroadcastChannel (node_modules/next-auth/react.js)
+  // and refetches the session; what we add is the local state — bump the generation to invalidate in-flight writes, then have the list reread.
+  // The same person just refreshing confirmedAt isn't a user change; otherwise every tab renewing would needlessly invalidate a batch of in-flight requests
   useEffect(() => {
     const mine = toMirrorOwner({ id: userId, email: userEmail });
     const onStorage = (e: StorageEvent) => {
@@ -90,13 +90,13 @@ export function useAuthMode() {
       if (e.key !== null && e.newValue !== null && sameOwner(identityOf(e.newValue), mine)) return;
       bumpSessionEpoch();
       notifyDocsChanged();
-      void getSession(); // 顺带催一把 provider，status 重新落定
+      void getSession(); // Also nudge the provider so status settles again
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [userId, userEmail]);
 
-  // 拿不到会话又记得自己登录过：自己去探服务器，别听 next-auth 的一面之词
+  // No session but this device remembers logging in: probe the server ourselves instead of taking next-auth's word for it
   useEffect(() => {
     if (!authedBefore) return;
     return startProbing();
@@ -105,12 +105,12 @@ export function useAuthMode() {
   return {
     session,
     status,
-    /** 浏览器在线「且」服务器够得着：各处据此决定直连云端还是先落本地 */
+    /** Browser online "and" server reachable: callers use this to decide between going straight to the cloud or saving locally first */
     online: navigatorOnline && !offlineAuthed,
     loggedIn,
     offlineAuthed,
     localMode,
-    /** 当前账号：在线取会话，离线取本地快照（快照带缓存，引用稳定） */
+    /** Current account: session when online, local snapshot when offline (the snapshot is cached, so the reference is stable) */
     user: user ?? readAuthSnapshot() ?? undefined,
   };
 }

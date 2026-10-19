@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 历史页右栏：顶部一行切换本周 / 本月 / 本年，下面是选中那一天或那个范围的明细。
- * 每天先列到期（或时间段覆盖那天）还没做完的待办，再列做完的事（「今天」页里勾掉的那些），
- * 上下顺序同今天页；一个范围时按天分组，本周含今天之后有安排的日子。写过的文章不在这里列。
- * 本年先按月折叠，只列月份与件数；点开某个月才渲染那个月按天分组的明细。
+ * History page right column: a row at the top switches between this week / month / year, with details for the selected day or range below.
+ * Each day lists unfinished todos due that day (or whose time span covers it) first, then completed items (those checked off on the 「今天」 (Today) page),
+ * in the same order as Today; ranges are grouped by day, and this week includes upcoming scheduled days. Written documents aren't listed here.
+ * This year is folded by month, showing just month and count; a month's day-grouped details render only when it's expanded.
  */
 import { useState } from "react";
 import { Check, ChevronRight } from "lucide-react";
@@ -33,11 +33,11 @@ import type { HistorySel } from "./HistoryView";
 
 const rowCls = "flex items-start gap-2.5 px-0.5 py-[7px] text-[13.5px] leading-[1.45]";
 
-/** 文章的显示与跳转：文库里还在就用现名、可点；已删的用记录里的标题、不可点 */
+/** How documents display and link: if still in the library use the current name and make it clickable; deleted ones use the recorded title, not clickable */
 export interface DocLookup {
-  /** 可见文章 id → 现名 */
+  /** Visible document id → current name */
   titles: Map<string, string>;
-  /** 待办清单那篇（对用户隐形）的 id：任务行不再注明出处 */
+  /** id of the todo list document (hidden from the user): task rows no longer note their source */
   notesIds: Set<string>;
   open: (id: string) => void;
 }
@@ -49,9 +49,9 @@ function relLabel(key: string, today: string, t: TFn): string | null {
 
 function TaskRow({ e, lookup, t }: { e: DayEvent; lookup: DocLookup; t: TFn }) {
   const label = eventLabel(e.text ?? "", e.title, t);
-  // 出处：清单那篇对用户隐形、发布排期的文字里已带标题，这两种不注；其余用现名，已删的用记录里的标题
+  // Source: not noted for the todo list doc (hidden from users) or publish schedules (title already in the text); others use the current name, deleted ones the recorded title
   const fromNotes = (e.docId !== undefined && lookup.notesIds.has(e.docId)) || e.title === NOTES_TITLE;
-  const isPublish = e.title !== undefined && e.text === `发布《${e.title}》`; // i18n-ignore 比对数据原文
+  const isPublish = e.title !== undefined && e.text === `发布《${e.title}》`; // i18n-ignore compared against the raw data text
   const source =
     e.title && !fromNotes && !isPublish ? ((e.docId && lookup.titles.get(e.docId)) ?? e.title) : null;
   return (
@@ -67,13 +67,13 @@ function TaskRow({ e, lookup, t }: { e: DayEvent; lookup: DocLookup; t: TFn }) {
   );
 }
 
-/** 没做完的待办：只读展示；那天早于今天的标逾期 */
+/** Unfinished todos: read-only; those dated before today are marked overdue */
 function PendingRow({ item, overdue, lookup, t }: { item: TodoItem; overdue: boolean; lookup: DocLookup; t: TFn }) {
   const label = itemLabel(item, t);
   const linked = linkedDoc(item, (id) => lookup.titles.get(id) ?? null);
-  // 出处：正文里的注那篇；清单里的有关联文章才注；发布排期文字里已带标题，不注
+  // Source: noted for items from a document body; list items only if linked to a document; publish schedules already include the title, so not noted
   const source = item.source === "doc" ? item.docTitle : (linked?.title ?? null);
-  // 点文字去哪：正文里的、发布排期回那篇；清单里的那篇对用户隐形，关联了文章才可点
+  // Where clicking the text goes: body items and publish schedules go to that document; the list doc is hidden from users, so only linked items are clickable
   const openId = item.source === "notes" ? (linked?.id ?? null) : item.docId;
   return (
     <div className={rowCls}>
@@ -103,7 +103,7 @@ function PendingRow({ item, overdue, lookup, t }: { item: TodoItem; overdue: boo
   );
 }
 
-/** 一天的明细：没做完的在前、做完的在后，同今天页上下顺序 */
+/** One day's details: unfinished first, completed after, same order as the Today page */
 interface DayRowsData {
   d: DayDigest;
   pending: TodoItem[];
@@ -123,7 +123,7 @@ function DigestRows({ day, today, lookup, t }: { day: DayRowsData; today: string
   );
 }
 
-// 做完的事加上没做完的待办；写了 / 新建了哪些文章不在这里列
+// Completed items plus unfinished todos; which documents were written / created isn't listed here
 const hasRows = (day: DayRowsData) => day.pending.length > 0 || day.d.tasks.length > 0;
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -151,10 +151,10 @@ const EMPTY_ZH: Record<HistoryRange, string> = {
   year: tk("今年没有记录"),
 };
 
-/** 范围切换：选中某一天时三个都不高亮 */
+/** Range switcher: none of the three is highlighted when a specific day is selected */
 function RangeTabs({ sel, onSelect, t }: { sel: HistorySel; onSelect: (sel: HistorySel) => void; t: TFn }) {
   return (
-    // 分段控件：描边外框 + 选中项实心，比一行淡字醒目，一眼看出现在在看哪一段
+    // Segmented control: outlined frame + solid selected item, more prominent than a row of faint text so you can see which range you're on
     <div className="mb-3.5 inline-flex rounded-[7px] border border-[var(--hairline)] p-0.5 text-[12.5px]">
       {RANGES.map(({ range, zh }) => {
         const on = sel.kind === "range" && sel.range === range;
@@ -186,7 +186,7 @@ interface GroupCtx {
   locale: Locale;
 }
 
-/** 按天分组的一串明细：keys 的顺序即显示顺序，没东西的日子跳过 */
+/** A run of day-grouped details: the order of keys is the display order, empty days are skipped */
 function DayGroups({
   keys,
   empty,
@@ -222,8 +222,8 @@ function DayGroups({
 }
 
 /**
- * 本年：按月折叠，近的月份在前。件数 = 做完的 + 没做完的；做完的只对有日志的键读 digest（最多 60 天），
- * 按天的明细只在月份展开时才渲染。
+ * This year: folded by month, most recent first. Count = completed + unfinished; completed only reads the digest for keys with logs (up to 60 days),
+ * and per-day details only render when a month is expanded.
  */
 function YearGroups({
   keys,
@@ -323,7 +323,7 @@ export function HistoryDetail({
   const visible = new Set(docs.map((d) => d.id));
   const lookup: DocLookup = {
     titles: new Map(docs.map((d) => [d.id, d.title || t(UNTITLED_DOC)])),
-    // 全库里有、可见列表里没有的就是待办清单那篇（它被刻意藏起来）
+    // What's in the full library but not the visible list is the todo list document (deliberately hidden)
     notesIds: new Set((library.allDocs ?? []).filter((d) => !visible.has(d.id)).map((d) => d.id)),
     open: nav.openDoc,
   };
@@ -359,11 +359,11 @@ export function HistoryDetail({
   } else {
     main = range === "month" ? formatMonthTitle(today.slice(0, 7), locale) : formatYearTitle(today.slice(0, 4), locale);
     sub = range === "month" ? t("本月") : t("本年");
-    // 本地日志只留最近 KEEP_DAYS 天：范围起点早于最早的日志，就说明前面是没留下，不是没做事
+    // Local logs only keep the last KEEP_DAYS days: if the range starts before the earliest log, earlier days just weren't kept, not that nothing was done
     const earliest = earliestLogKey();
     if (earliest && start < earliest) sub += ` · ${t("只有最近 {n} 天的记录", { n: KEEP_DAYS, abs: KEEP_DAYS })}`;
   }
-  // 本周按周一到周日顺着看；本月 / 本年一长串，近的放前面，不用滚到底才见最近几天
+  // This week reads Monday to Sunday in order; month / year are long, so most recent first, no scrolling to the bottom to see the latest days
   const keys = rangeKeys(range, today, undefined, pending.keys());
   const common = { dayOf, today, lookup, t, locale };
 

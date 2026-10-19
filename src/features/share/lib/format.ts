@@ -1,4 +1,4 @@
-// 分享页展示用的时间文案格式化（纯函数，从 SharedArticle 搬出）
+// Time label formatting for the share page (pure functions, moved out of SharedArticle)
 
 export function fmtTime(iso: string): string {
   const d = new Date(iso);

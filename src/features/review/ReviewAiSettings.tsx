@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * 审核条上那颗胶囊点开的面板：只有审核类型一项，
- * 跟启动面板是同一张表（见 ReviewSettings.tsx）。
+ * Panel opened by the pill on the review bar: just the review-type setting,
+ * the same form as the launch panel (see ReviewSettings.tsx).
  *
- * 改完不自动重跑。早先是「关掉面板顺手重跑一趟」，结果只是点开看一眼，
- * 面板一关就先烧掉一次额度。现在给一颗明摆着的按钮，
- * 什么时候按由用户说了算。
+ * Changes don't auto-rerun. It used to "rerun on panel close", so merely opening it to look
+ * burned one run of quota as soon as it closed. Now there's an explicit button,
+ * and the user decides when to press it.
  */
 import { useRef } from "react";
 import { RefreshCw, X } from "lucide-react";

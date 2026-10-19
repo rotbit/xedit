@@ -1,33 +1,33 @@
 /**
- * 飞书开放平台端点常量。
- * 应用凭证是账号维度的：每个用户在设置里填自己创建的自建应用 App ID/Secret，
- * 走「用户身份」OAuth（user_access_token）读自己有权限的知识库。
+ * Feishu open platform endpoint constants.
+ * App credentials are per account: each user enters the App ID/Secret of their own custom app in settings,
+ * and uses "user identity" OAuth (user_access_token) to read the wikis they have access to.
  */
 
 export const FEISHU = {
-  /** 用户授权页 */
+  /** User authorization page */
   authorizeUrl: "https://accounts.feishu.cn/open-apis/authen/v1/authorize",
-  /** 授权码换 token / 刷新 token 共用端点（v3 最新版；v2 已标注为历史版本） */
+  /** Shared endpoint for exchanging the auth code and refreshing tokens (latest v3; v2 is marked legacy) */
   tokenUrl: "https://accounts.feishu.cn/oauth/v3/token",
-  /** OpenAPI 根 */
+  /** OpenAPI root */
   apiBase: "https://open.feishu.cn/open-apis",
-  /** 请求的用户身份权限：读知识库结构、读 docx 内容、下载文档图片、发 refresh_token。
-   *  图片下载用细粒度的 docs:document.media:download 而非 drive:drive:readonly——
-   *  后者是需审核权限（要企业管理员批），前者免审、开通即生效，两者都能调「下载素材」。 */
+  /** User-identity scopes requested: read wiki structure, read docx content, download document images, issue refresh_token.
+   *  Image download uses the fine-grained docs:document.media:download rather than drive:drive:readonly —
+   *  the latter requires review (an enterprise admin must approve), the former needs none and works once enabled; both can call "download media". */
   scope:
     "wiki:wiki:readonly docx:document:readonly docs:document.media:download offline_access",
-  /** 推送/写回需要的额外写入权限（同样免审）：建知识库节点、写 docx 块、上传图片素材 */
+  /** Extra write scopes needed for push/write-back (also no review): create wiki nodes, write docx blocks, upload image assets */
   scopeWriteExtra: "wiki:wiki docx:document docs:document.media:upload",
 } as const;
 
-/** 判断一串已授予的 scope 是否包含推送所需的全部写入权限 */
+/** Whether a set of granted scopes includes all write scopes needed for push */
 export function hasFeishuWriteScopes(granted: string): boolean {
   const set = new Set(granted.split(/\s+/));
   return FEISHU.scopeWriteExtra.split(" ").every((s) => set.has(s));
 }
 
-/** OAuth 回调地址：随部署域名走（复用 MCP OAuth 的 publicOrigin 推导）。
- *  用户需把它配进自己飞书应用的「安全设置 → 重定向 URL」。 */
+/** OAuth callback URL: follows the deployment domain (reuses the MCP OAuth publicOrigin derivation).
+ *  Users must add it to their Feishu app under 「安全设置 → 重定向 URL」 (Security settings → Redirect URLs). */
 export function feishuRedirectUri(origin: string): string {
   return `${origin}/api/feishu/callback`;
 }

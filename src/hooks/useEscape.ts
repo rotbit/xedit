@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-/** Esc 键触发 onClose（用于弹窗/抽屉关闭）；enabled 为 false 时（如生成中）不响应 */
+/** Esc triggers onClose (for closing dialogs/drawers); ignored when enabled is false (e.g. while generating) */
 export function useEscape(onClose: () => void, enabled = true) {
   useEffect(() => {
     if (!enabled) return;

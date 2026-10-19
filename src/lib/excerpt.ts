@@ -1,36 +1,36 @@
 /**
- * Markdown → 纯文本 / 列表摘要的唯一口径（纯字符串处理，服务端与浏览器共用）。
+ * The single definition of Markdown → plain text / list excerpt (pure string processing, shared by server and browser).
  *
- * 「去代码块 → 去图片 → 提链接文字 → 去标记 → 压空白」这套正则原先在文档服务层、
- * REST 列表路由、本地文库、检索索引里各抄一份，摘要长度与预切长度也各写一遍，
- * 结果四处口径互相漂移（有的截 90 字有的截 120，有的剥 frontmatter 有的不剥）。
- * 只留这一份，长度常量也只在这里定。
+ * The "strip code blocks → strip images → keep link text → strip markup → collapse whitespace" regexes used to be copied into the document service,
+ * the REST list route, the local library, and the search index, each with its own excerpt and pre-truncation lengths,
+ * so they drifted apart (some cut at 90 chars, some at 120; some stripped frontmatter, some didn't).
+ * Only this copy remains, and the length constants live here too.
  */
 
 import { stripFrontmatter } from "@/lib/frontmatter";
 
-/** 列表摘要的字数上限：侧栏一行显示得下的量 */
+/** Max length of a list excerpt: what fits on one sidebar line */
 export const EXCERPT_MAX = 90;
 
 /**
- * 跑正则前先截掉的长度。摘要只要开头几十个字，长文没必要整篇扫五遍；
- * 比 EXCERPT_MAX 留足余量——开头若全是 Markdown 记号，抹完才够凑出摘要。
+ * Length to truncate to before running the regexes. An excerpt only needs the first few dozen chars, no need to scan a long doc five times;
+ * leaves plenty of headroom over EXCERPT_MAX — if the start is all Markdown markup, there's still enough left after stripping.
  */
 const SCAN_LIMIT = 2000;
 
-/** 围栏代码块：整块丢掉，里面的代码不是正文 */
+/** Fenced code block: drop entirely, code isn't prose */
 const FENCE_RE = /```[\s\S]*?```/g;
-/** 图片 `![alt](url)` */
+/** Image `![alt](url)` */
 const IMAGE_RE = /!\[([^\]]*)\]\([^)]*\)/g;
-/** 行内链接 `[文字](url)`：只留显示文字 */
+/** Inline link `[text](url)`: keep only the display text */
 const LINK_RE = /\[([^\]]*)\]\([^)]*\)/g;
-/** 剩下的行首/行内记号，直接抹掉 */
+/** Remaining line-start/inline markup, stripped outright */
 const MARK_RE = /[#>*`~$|-]/g;
 
 /**
- * 把图片与链接语法换成它们显示出来的文字（URL 一律不要）。
- * 两个开关是为字数统计留的：字数口径把图片 alt 当可见文字计入，
- * 还要用空格把替换处隔开——`[a](u)[b](u)` 不隔开会被当成一个词。
+ * Replace image and link syntax with their displayed text (URLs are always dropped).
+ * The two flags exist for word counting: it counts image alt as visible text,
+ * and needs spaces separating replacements — otherwise `[a](u)[b](u)` would count as one word.
  */
 export function stripLinkSyntax(
   md: string,
@@ -42,7 +42,7 @@ export function stripLinkSyntax(
     .replace(LINK_RE, `${pad}$1${pad}`);
 }
 
-/** 抹掉 Markdown 记号的纯文本：让「**重点**」能被「重点」搜到 */
+/** Plain text with Markdown markup stripped: so 「**重点**」 can be found by searching 「重点」 */
 export function plainText(md: string): string {
   return stripLinkSyntax(md.replace(FENCE_RE, " "))
     .replace(MARK_RE, "")
@@ -51,8 +51,8 @@ export function plainText(md: string): string {
 }
 
 /**
- * 列表摘要。frontmatter 是元数据不是正文，先剥掉，
- * 免得摘要开头全是 `tags: ...`。
+ * List excerpt. Frontmatter is metadata, not content, so strip it first,
+ * otherwise the excerpt would start with `tags: ...`.
  */
 export function summarize(md: string, opts: { max?: number } = {}): string {
   return plainText(stripFrontmatter(md).slice(0, SCAN_LIMIT)).slice(0, opts.max ?? EXCERPT_MAX);

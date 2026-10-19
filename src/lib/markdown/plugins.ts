@@ -5,9 +5,9 @@ import { isVideoUrl, posterFromTitle } from "@/lib/media";
 import { wikiLinkText } from "@/lib/wikiLink";
 import { parseCalloutHead } from "@/lib/callout";
 
-// —— 标题结构化 ——
-// 输出 <h2><span class="prefix"></span><span class="content">标题</span><span class="suffix"></span></h2>
-// 微信会丢弃伪元素，主题用真实的 prefix/suffix 节点做装饰才能在公众号里保留。
+// —— Structured headings ——
+// Outputs <h2><span class="prefix"></span><span class="content">Title</span><span class="suffix"></span></h2>
+// WeChat drops pseudo-elements, so themes decorate with real prefix/suffix nodes to survive in WeChat Official Accounts.
 export function headingPlugin(md: MarkdownIt): void {
   md.renderer.rules.heading_open = (tokens, idx, options, env, self) => {
     const token = tokens[idx];
@@ -18,8 +18,8 @@ export function headingPlugin(md: MarkdownIt): void {
     `</span><span class="suffix"></span></${tokens[idx].tag}>\n`;
 }
 
-// —— 独立成段的图片/视频转 figure，alt 文本作为图注 ——
-// 视频复用图片语法 ![说明](xx.mp4 "poster=封面URL")，按扩展名识别输出 <video>。
+// —— Standalone images/videos become figures, with alt text as the caption ——
+// Videos reuse image syntax ![caption](xx.mp4 "poster=coverURL"), detected by extension and output as <video>.
 export function figurePlugin(md: MarkdownIt): void {
   md.core.ruler.push("implicit_figure", (state) => {
     const tokens = state.tokens;
@@ -45,13 +45,13 @@ export function figurePlugin(md: MarkdownIt): void {
   md.renderer.rules.image = (tokens, idx) => {
     const token = tokens[idx];
     const rawSrc = token.attrGet("src") ?? "";
-    // 磁盘文库里的相对路径（attachments/…）换成读得出来的 object URL；
-    // 还没读出来先留原样，附件一解析好就会触发重渲染（见 attachmentUrls）
+    // Relative paths in a disk library (attachments/...) become readable object URLs;
+    // until read, keep the original; once the attachment resolves a re-render is triggered (see attachmentUrls)
     const shownSrc = isAttachmentSrc(rawSrc) ? (resolveAttachmentSrc(rawSrc) ?? rawSrc) : rawSrc;
     const src = md.utils.escapeHtml(shownSrc);
     const alt = md.utils.escapeHtml(token.content ?? "");
     const title = token.attrGet("title");
-    // 是否在 figure 内由父 token 决定；figure 内输出图注
+    // Whether we're inside a figure is decided by the parent token; inside a figure emit the caption
     const inFigure = tokens.length === 1;
 
     if (isVideoUrl(rawSrc)) {
@@ -75,8 +75,8 @@ export function figurePlugin(md: MarkdownIt): void {
   };
 }
 
-// —— [toc] 目录 ——
-// 单独一行 [toc]（不区分大小写）替换为静态目录列表（公众号内无法跳转，仅展示层级）。
+// —— [toc] table of contents ——
+// A standalone [toc] line (case-insensitive) becomes a static TOC list (no jumping inside WeChat, it just shows the hierarchy).
 export function tocPlugin(md: MarkdownIt): void {
   md.core.ruler.push("toc", (state) => {
     const tokens = state.tokens;
@@ -97,7 +97,7 @@ export function tocPlugin(md: MarkdownIt): void {
       }
     }
 
-    let html = `<section class="table-of-contents"><p class="toc-title">目录</p><ul>`; // i18n-ignore 目录标题写进渲染结果，内容格式
+    let html = `<section class="table-of-contents"><p class="toc-title">目录</p><ul>`; // i18n-ignore TOC title goes into the rendered output as content
     for (const h of headings) {
       html += `<li class="toc-level-${h.level}">${md.utils.escapeHtml(h.text)}</li>`;
     }
@@ -110,20 +110,20 @@ export function tocPlugin(md: MarkdownIt): void {
   });
 }
 
-// —— 保留多余空行 ——
-// Markdown 把任意多个空行折叠成一个段落间隔，但公众号作者习惯用空行控制留白，
-// 编辑器里看到的空行应与渲染效果一致：1 个空行是标准段落分隔，
-// 第 2 个起每个空行输出一个空段落（<p><br></p>，公众号编辑器自身表示空行的方式）。
-// 文首的空行没有分隔职责，每行都算留白；但文首若是 frontmatter（已被 renderMarkdown 剥掉），
-// 它就是「上一个块」，紧跟其后的那个空行只是与正文的分隔，不能变成公众号里的一个空段。
+// —— Preserve extra blank lines ——
+// Markdown collapses any run of blank lines into one paragraph break, but WeChat authors use blank lines for spacing,
+// so blank lines in the editor should match the render: 1 blank line is a normal paragraph break,
+// and from the 2nd on each blank line emits an empty paragraph (<p><br></p>, how the WeChat editor itself represents blank lines).
+// Leading blank lines separate nothing, so each counts as spacing; but if the document starts with frontmatter (already stripped by renderMarkdown),
+// that's the "previous block", and the blank line right after it only separates it from the body and must not become an empty paragraph in WeChat.
 export function blankLinePlugin(md: MarkdownIt): void {
   md.core.ruler.push("preserve_blank_lines", (state) => {
     const tokens = state.tokens;
-    // 这些空段落的 data-line 是当场拼进 HTML 的，赶在 lineMapPlugin 挪 token.map 之前，
-    // 所以 frontmatter 的行偏移得自己加（见 renderMarkdown 的 lineOffset）
+    // These empty paragraphs' data-line is spliced into the HTML on the spot, before lineMapPlugin shifts token.map,
+    // so the frontmatter line offset must be added here (see renderMarkdown's lineOffset)
     const offset = lineOffsetOf(state.env);
     let depth = 0;
-    let prevEnd = 0; // 上一个顶层块的结束行（不含尾随空行）
+    let prevEnd = 0; // End line of the previous top-level block (excluding trailing blank lines)
     let atStart = offset === 0;
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
@@ -150,16 +150,16 @@ export function blankLinePlugin(md: MarkdownIt): void {
   });
 }
 
-/** 本次渲染要补的行号偏移：frontmatter 被 renderMarkdown 剥掉了几行 */
+/** Line-number offset to add for this render: how many lines of frontmatter renderMarkdown stripped */
 function lineOffsetOf(env: unknown): number {
   const value = (env as { lineOffset?: unknown } | null)?.lineOffset;
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-// —— 块级元素写入 data-line，用于编辑器与预览的同步滚动 ——
-// 这条规则排在所有 core 规则最后，所以顺手把 frontmatter 的行偏移落到 token.map 上：
-// 标题、代码块、表格、公式的 data-line 都是渲染期才从 token.map 现取的，
-// 在这里挪一次，它们不必各自再加一遍，口径也不会走散。
+// —— Write data-line on block elements for editor/preview scroll sync ——
+// This rule runs last among the core rules, so it also applies the frontmatter line offset to token.map:
+// data-line for headings, code blocks, tables and math is read from token.map at render time,
+// so shifting once here saves each of them adding it again, and keeps them consistent.
 export function lineMapPlugin(md: MarkdownIt): void {
   md.core.ruler.push("line_map", (state) => {
     const offset = lineOffsetOf(state.env);
@@ -175,10 +175,10 @@ export function lineMapPlugin(md: MarkdownIt): void {
   });
 }
 
-// —— [[双向链接]] ——
-// 输出 <span class="wikilink" data-wiki="目标">显示文字</span>，刻意不用 <a>：
-// 站内链接出了 xedit 就没有意义，公众号/知乎的复制管线里一个 span 落地就是普通文字，
-// 不会变成一条点不开的死链。点击由预览组件做事件委托（见 Preview.tsx）。
+// —— [[Wikilinks]] ——
+// Outputs <span class="wikilink" data-wiki="target">display text</span>, deliberately not <a>:
+// in-site links mean nothing outside xedit; in the WeChat/Zhihu copy pipelines a span lands as plain text
+// instead of a dead link. Clicks are handled by event delegation in the preview component (see Preview.tsx).
 export function wikiLinkPlugin(md: MarkdownIt): void {
   md.inline.ruler.before("link", "wikilink", (state, silent) => {
     const start = state.pos;
@@ -188,16 +188,16 @@ export function wikiLinkPlugin(md: MarkdownIt): void {
     const close = state.src.indexOf("]]", start + 2);
     if (close === -1 || close + 2 > state.posMax) return false;
     const body = state.src.slice(start + 2, close);
-    // 不跨行、不允许嵌套 [[：与编辑器侧的 lezer 扩展保持同一套规则
+    // No line breaks, no nested [[: same rules as the editor-side lezer extension
     if (/[\r\n]/.test(body) || body.includes("[[")) return false;
 
     const bar = body.indexOf("|");
     const target = (bar === -1 ? body : body.slice(0, bar)).trim();
-    if (!target) return false; // 空目标不成链接
+    if (!target) return false; // Empty targets aren't links
 
     if (!silent) {
       const token = state.push("wikilink", "", 0);
-      token.info = target; // 目标标题（用 info 而不是 meta：后者在类型上是 any）
+      token.info = target; // Target title (info rather than meta: the latter is typed any)
       token.content = wikiLinkText(target, bar === -1 ? undefined : body.slice(bar + 1));
     }
     state.pos = close + 2;
@@ -211,12 +211,12 @@ export function wikiLinkPlugin(md: MarkdownIt): void {
   };
 }
 
-// —— Obsidian 式提示块（Callout）——
-// `> [!tip] 标题` 打头的引用块整体换成 <section class="callout callout-tip">，
-// 并在最前面插一条 <section class="callout-title">。
-// 用 section 不用 div：sanitize.ts 已放行 section，公众号粘贴也留得住 section。
-// 规则挂在 core 的 inline 之前：此刻 blockquote 已经解析完、inline token 还是原始文本，
-// 直接改 content 就够了，不必去拆已经建好的 children —— 顺带让标题里的 **粗体** 照常生效。
+// —— Obsidian-style callouts ——
+// A blockquote starting with `> [!tip] Title` is replaced wholesale with <section class="callout callout-tip">,
+// with a <section class="callout-title"> inserted at the front.
+// section rather than div: sanitize.ts already allows section, and WeChat pastes keep it too.
+// The rule hooks into core before inline: blockquote is parsed but inline tokens are still raw text,
+// so editing content suffices without taking apart built children, and **bold** in the title still works.
 export function calloutPlugin(md: MarkdownIt): void {
   md.core.ruler.before("inline", "callout", (state) => {
     const tokens = state.tokens;
@@ -225,7 +225,7 @@ export function calloutPlugin(md: MarkdownIt): void {
       if (tokens[i + 1]?.type !== "paragraph_open" || tokens[i + 2]?.type !== "inline") continue;
 
       const inline = tokens[i + 2];
-      // breaks:true 下首段可能是「首行 \n 正文…」一整块，只拿第一行去认记号
+      // With breaks:true the first paragraph may be one block of "first line \n body...", so only check the first line for the marker
       const br = inline.content.indexOf("\n");
       const head = parseCalloutHead(br === -1 ? inline.content : inline.content.slice(0, br));
       if (!head) continue;
@@ -234,7 +234,7 @@ export function calloutPlugin(md: MarkdownIt): void {
       open.tag = "section";
       open.attrSet("class", `callout callout-${head.type}`);
       open.attrSet("data-callout", head.type);
-      // 配对的 blockquote_close 可能隔着好几层嵌套块，按 nesting 计数找回来一起换标签
+      // The matching blockquote_close may be several nested blocks away; count nesting to find it and swap its tag too
       for (let depth = 0, j = i; j < tokens.length; j++) {
         depth += tokens[j].nesting;
         if (depth === 0) {
@@ -247,16 +247,16 @@ export function calloutPlugin(md: MarkdownIt): void {
       const body = br === -1 ? "" : inline.content.slice(br + 1);
       if (body.trim()) {
         inline.content = body;
-        // 正文实际从下一行起，data-line 跟着挪一行，同步滚动才不会整块偏一行
+        // The body actually starts on the next line; shift data-line by one so scroll sync isn't off by a line for the whole block
         for (const t of [tokens[i + 1], inline]) {
           if (t.map) t.map = [t.map[0] + 1, t.map[1]];
         }
       } else {
-        tokens.splice(i + 1, 3); // 首段只有记号行，留着就是个空 <p>
+        tokens.splice(i + 1, 3); // The first paragraph is just the marker line; keeping it leaves an empty <p>
       }
 
-      // 标题走真 token 而不是 html_block：它排在 inline 规则之前，
-      // 这条 inline token 随后会被正常解析，标题里写 **粗体**、`代码` 都能渲染
+      // The title uses a real token rather than html_block: it runs before the inline rule,
+      // so this inline token is parsed normally afterwards and **bold** or `code` in the title renders
       const titleOpen = new state.Token("callout_title_open", "section", 1);
       titleOpen.block = true;
       titleOpen.attrSet("class", "callout-title");

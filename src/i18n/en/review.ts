@@ -1,9 +1,9 @@
 /**
- * AI 审核（src/features/review）与产品内分享弹窗（ShareDialog）。
- * 审核类型名与说明来自 lib/ai/reviewKinds.ts 的 tk() 原文。
+ * AI review (src/features/review) and the in-app share dialog (ShareDialog).
+ * Review kind names and descriptions come from the tk() originals in lib/ai/reviewKinds.ts.
  */
 export const review: Record<string, string> = {
-  // 审核类型（reviewKinds.ts）
+  // Review kinds (reviewKinds.ts)
   表述审核: "Writing Review",
   "逐句看表达：啰嗦、说不清、用词不当，给得出改法的可一键采纳":
     "Checks each sentence for wordiness, unclear phrasing and poor word choice. Fixes can be applied in one click",
@@ -11,7 +11,7 @@ export const review: Record<string, string> = {
   "对照公众号平台规则：标题党、诱导分享关注、夸大与绝对化用语、敏感内容风险":
     "Checks against WeChat platform rules: clickbait, share or follow baiting, exaggerated or absolute claims, sensitive content",
 
-  // 启动面板与设置
+  // Launch panel and settings
   "AI 审核还没配置好：到管理后台的「AI 设置」里选模型、填 Key":
     "AI review isn't set up yet. Pick a model and add a key under “AI Settings” in the admin console",
   "审核类型（可多选，一起审）": "Review types (pick one or more)",
@@ -20,7 +20,7 @@ export const review: Record<string, string> = {
   审核设置: "Review Settings",
   按此设置重新审核: "Re-run with These Settings",
 
-  // 审核条
+  // Review bar
   "正在翻出这条审核记录…": "Loading this review…",
   "AI 正在通读全文，做{kind}…": "AI is reading the full article for {kind}…",
   "{n} 秒": "{n}s",
@@ -38,7 +38,7 @@ export const review: Record<string, string> = {
   重新审核: "Re-run Review",
   退出审核: "Exit Review",
 
-  // 意见栏与卡片
+  // Comment column and cards
   展开阅读: "Read More",
   "AI 正在审稿": "AI is reviewing",
   "通读全文、逐句挑问题，一般要半分钟到一分钟。意见出来后会贴着对应的句子摆在这一栏。":
@@ -58,7 +58,7 @@ export const review: Record<string, string> = {
   知道了: "Got It",
   忽略: "Ignore",
 
-  // 历史
+  // History
   历史记录读不出来: "Couldn't load history",
   "正在读取…": "Loading…",
   "这篇文章还没有审核记录。每审完一趟会自动存在这里。":
@@ -73,7 +73,7 @@ export const review: Record<string, string> = {
   "请求失败（{status}）": "Request failed ({status})",
   "服务返回的结果看不懂，请再试一次": "Got an unexpected response. Please try again",
 
-  // 分享弹窗（ShareDialog）
+  // Share dialog (ShareDialog)
   加载分享状态失败: "Couldn't load sharing status",
   "分享已开启，链接永久有效": "Sharing is on. The link never expires",
   分享文章: "Share Article",

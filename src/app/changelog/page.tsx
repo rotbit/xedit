@@ -1,7 +1,7 @@
 /**
- * /changelog 更新日志：照 features/changelog/data.ts 渲染的一条时间线。
- * 纯服务端组件；页头复用落地页的 LandingHeader（未挂 Provider 时它的按钮会回首页）。
- * 每次发版前往 data.ts 开头加一条，这个文件不用动。
+ * /changelog: a timeline rendered from features/changelog/data.ts.
+ * Pure server component; the header reuses the landing page's LandingHeader (without a Provider its buttons go home).
+ * Before each release, add an entry at the top of data.ts; this file needs no changes.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
 };
 
-/** 三种变化各一个安静的色：新功能用品牌色，其余退到灰阶，扫一眼先看见「新」的 */
+/** One quiet color per change type: new features use the brand color, the rest fall back to grays, so "new" stands out at a glance */
 const KIND_STYLE: Record<ChangeKind, string> = {
   new: "bg-[var(--brand-wash)] text-[var(--brand)]",
   improved: "bg-[var(--hairline-soft)] text-[var(--ink-soft)]",

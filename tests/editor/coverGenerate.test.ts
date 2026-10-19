@@ -7,10 +7,10 @@ import {
   isCoverColor,
 } from "@/features/editor/lib/coverGenerate";
 
-/** 大多数用例不关心填了什么：一个标题 + 一个产品就够发请求了 */
+/** Most cases don't care what's filled in: one title + one product is enough to send a request */
 const ONE = { title: "两家大模型谁更能写", left: { name: "Claude", color: "orange" } } as const;
 
-/** 只桩 generateCovers / coverServiceState 用得到的那几个字段 */
+/** Stub only the fields generateCovers / coverServiceState use */
 const reply = (status: number, body: unknown) => ({
   ok: status >= 200 && status < 300,
   status,
@@ -61,7 +61,7 @@ describe("generateCovers", () => {
     const fetchMock = mockFetch(() => reply(200, { images: ["data:image/png;base64,AA"] }));
     await expect(generateCovers({ ...ONE })).resolves.toEqual(["data:image/png;base64,AA"]);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    // 同源，浏览器自己带登录 cookie
+    // Same origin, so the browser sends the login cookie itself
     expect(url).toBe("/api/cover/generate");
     expect(init.method).toBe("POST");
     expect(init.headers).toEqual({ "Content-Type": "application/json" });

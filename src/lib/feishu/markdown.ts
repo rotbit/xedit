@@ -2,12 +2,12 @@ import type { FeishuBlock } from "./api";
 import { hexOfFeishuFontColor } from "./colors";
 
 /**
- * 飞书 docx 块树 → Markdown。
- * 块以扁平数组返回（block_id + parent_id + children id 列表），根是 page 块；
- * 覆盖常见可转换类型，转不动的（多维表格/电子表格/画板等）落一行占位引用，绝不丢正文。
+ * Feishu docx block tree → Markdown.
+ * Blocks come back as a flat array (block_id + parent_id + list of child ids), rooted at a page block;
+ * common convertible types are covered; anything that can't be converted (Bitable/Sheets/Whiteboard etc.) becomes a one-line placeholder quote, so no content is lost.
  */
 
-// block_type 数字枚举（官方文档「块数据结构」）
+// block_type numeric enum (official docs, "Block data structure")
 const B = {
   page: 1,
   text: 2,
@@ -28,8 +28,8 @@ const B = {
   quoteContainer: 34,
 } as const;
 
-/** code 块 language 数字枚举 → 代码围栏语言标记（常用子集，缺省回落纯文本）；
- *  mdToBlocks 反向转换共用（取反做 语言标记 → 枚举） */
+/** Code block language numeric enum → code fence language tag (common subset, defaults to plain text);
+ *  also used by mdToBlocks in reverse (inverted to map language tag → enum) */
 export const CODE_LANG: Record<number, string> = {
   1: "", 7: "bash", 8: "csharp", 9: "cpp", 10: "c", 12: "css", 15: "dart",
   18: "dockerfile", 22: "go", 24: "html", 28: "json", 29: "java", 30: "javascript",
@@ -39,11 +39,11 @@ export const CODE_LANG: Record<number, string> = {
   66: "xml", 67: "yaml", 68: "cmake", 69: "diff", 71: "graphql", 75: "toml",
 };
 
-/** 无法转换的块类型 → 占位文案里的名称 */
+/** Unconvertible block types → name used in the placeholder text */
 const UNSUPPORTED_NAME: Record<number, string> = {
-  18: "多维表格", 20: "群卡片", 21: "流程图", 23: "文件附件", 26: "内嵌网页", // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
-  28: "小组件", 29: "思维笔记", 30: "电子表格", 33: "视图", 35: "任务", // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
-  36: "OKR", 40: "文档小组件", 41: "Jira 卡片", 43: "画板", 48: "链接预览卡片", // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
+  18: "多维表格", 20: "群卡片", 21: "流程图", 23: "文件附件", 26: "内嵌网页", // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
+  28: "小组件", 29: "思维笔记", 30: "电子表格", 33: "视图", 35: "任务", // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
+  36: "OKR", 40: "文档小组件", 41: "Jira 卡片", 43: "画板", 48: "链接预览卡片", // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
 };
 
 interface TextElementStyle {
@@ -51,7 +51,7 @@ interface TextElementStyle {
   italic?: boolean;
   strikethrough?: boolean;
   inline_code?: boolean;
-  /** 飞书字体色枚举（FontColor 1~7） */
+  /** Feishu font color enum (FontColor 1–7) */
   text_color?: number;
   link?: { url?: string };
 }
@@ -69,7 +69,7 @@ interface TextPayload {
 }
 
 export interface ConvertContext {
-  /** 图片 token → 转存后的 URL；失败返回 null（会落占位文案） */
+  /** Image token → re-hosted URL; null on failure (falls back to placeholder text) */
   resolveImage: (token: string) => Promise<string | null>;
 }
 
@@ -81,7 +81,7 @@ function decodeUrl(u: string): string {
   }
 }
 
-/** 行内元素拼接：样式包裹顺序为 链接( 删除线( 粗斜 ) )，行内代码不再嵌套其他标记 */
+/** Joining inline elements: style wrap order is link( strikethrough( bold/italic ) ); inline code doesn't nest other marks */
 function inline(elements: TextElement[] | undefined): string {
   if (!elements) return "";
   let out = "";
@@ -93,7 +93,7 @@ function inline(elements: TextElement[] | undefined): string {
       if (s.inline_code) {
         piece = `\`${content.replaceAll("`", "'")}\``;
       } else if (piece.trim()) {
-        // 标记紧贴非空白字符才有效：样式只包住正文，两侧空白留在标记外
+        // Marks only work when adjacent to non-whitespace: wrap just the text and leave surrounding whitespace outside
         const lead = piece.match(/^\s*/)?.[0] ?? "";
         const tail = piece.match(/\s*$/)?.[0] ?? "";
         let core = piece.trim();
@@ -105,18 +105,18 @@ function inline(elements: TextElement[] | undefined): string {
         if (colorHex) core = `<span style="color:${colorHex}">${core}</span>`;
         piece = lead + core + tail;
       }
-      if (s.link?.url) piece = `[${piece || "链接"}](${decodeUrl(s.link.url)})`; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
+      if (s.link?.url) piece = `[${piece || "链接"}](${decodeUrl(s.link.url)})`; // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
       out += piece;
     } else if (el.equation) {
       const tex = (el.equation.content ?? "").replace(/\s+/g, " ").trim();
       if (tex) out += `$${tex}$`;
     } else if (el.mention_doc) {
       const url = decodeUrl(el.mention_doc.url ?? "");
-      out += url ? `[飞书文档](${url})` : ""; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
+      out += url ? `[飞书文档](${url})` : ""; // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
     } else if (el.mention_user) {
-      out += "@成员"; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
+      out += "@成员"; // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
     }
-    // reminder / inline file 等其余行内元素没有可迁移的正文，跳过
+    // Other inline elements like reminder / inline file have no transferable text, skip them
   }
   return out;
 }
@@ -165,7 +165,7 @@ class Converter {
     return this.renderChildren(root.children ?? [], 0);
   }
 
-  /** 渲染兄弟块序列：列表项之间紧凑换行并维护有序编号，其余块之间空一行 */
+  /** Render a sibling block sequence: list items get tight line breaks with ordered numbering maintained; other blocks are separated by a blank line */
   private async renderChildren(ids: string[], depth: number): Promise<string> {
     if (depth > 32) return "";
     const parts: { md: string; type: number }[] = [];
@@ -198,7 +198,7 @@ class Converter {
     if (t === B.text) return inline(textPayload(block).elements);
 
     if (t >= B.h1 && t <= B.h9) {
-      const level = Math.min(t - B.h1 + 1, 6); // h7-9 一律降为 h6
+      const level = Math.min(t - B.h1 + 1, 6); // h7–9 all drop to h6
       return `${"#".repeat(level)} ${inline(textPayload(block).elements)}`;
     }
 
@@ -246,24 +246,24 @@ class Converter {
       if (!img?.token) return "";
       const url = await this.ctx.resolveImage(img.token);
       const alt = img.caption?.content?.trim() ?? "";
-      return url ? `![${alt}](${url})` : "> （图片转存失败，请在飞书原文查看）"; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
+      return url ? `![${alt}](${url})` : "> （图片转存失败，请在飞书原文查看）"; // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
     }
 
     if (t === B.table) return this.renderTable(block, depth);
 
     if (t === B.grid || t === B.gridColumn || t === B.tableCell) {
-      // 布局容器：拍平直接渲染内容
+      // Layout containers: flatten and render the content directly
       return this.renderChildren(block.children ?? [], depth + 1);
     }
 
     if (t === B.page) return "";
 
     const name = UNSUPPORTED_NAME[t];
-    if (name) return `> （此处有暂不支持导入的飞书${name}，请在原文查看）`; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
-    return ""; // 目录、同步块等纯导航/装饰块静默跳过
+    if (name) return `> （此处有暂不支持导入的飞书${name}，请在原文查看）`; // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
+    return ""; // navigation/decorative blocks like TOC and synced blocks are skipped silently
   }
 
-  /** 表格：children 为 table_cell 序列（行主序），按 column_size 切行；首行作表头 */
+  /** Table: children are a table_cell sequence (row-major), split into rows by column_size; first row is the header */
   private async renderTable(block: FeishuBlock, depth: number): Promise<string> {
     const prop = (block.table as { property?: { column_size?: number } } | undefined)
       ?.property;
@@ -289,8 +289,8 @@ class Converter {
 }
 
 /**
- * 扫出整篇用到的图片素材 token（块是扁平数组，直接遍历即可）。
- * 转换前先拿到全集，调用方就能一次查完已转存的记录，不必逐图查库。
+ * Collect all image asset tokens used in the document (blocks are a flat array, so just iterate).
+ * Getting the full set before converting lets the caller look up already re-hosted records in one query instead of per image.
  */
 export function feishuImageTokens(blocks: FeishuBlock[]): string[] {
   const tokens = new Set<string>();

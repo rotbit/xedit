@@ -1,8 +1,8 @@
 /**
- * 本地文档库：未登录时的 Obsidian 式本地优先存储。
+ * Local document library: Obsidian-style local-first storage when logged out.
  *
- * 这里只是门面：具体存储由 `@/lib/localBackend` 的后端实现（默认 localStorage，
- * 后续可换成磁盘 Vault），门面负责统一排序与「本机数据变了」的广播。
+ * This is just a facade: storage is implemented by a backend in `@/lib/localBackend` (localStorage by default,
+ * or the disk Vault); the facade handles uniform sorting and the "local data changed" broadcast.
  */
 
 import { getLocalBackend, type LocalDocMeta } from "./localBackend";
@@ -11,8 +11,8 @@ export { summarize } from "./localBackend";
 export type { LocalDocMeta };
 
 /**
- * 本地文档库/云端镜像有写入时广播，供文库列表即时刷新（如编辑中改标题，侧栏跟着变）。
- * 同步引擎的整轮完成另有 SYNC_DONE_EVENT，这个事件只表示「本机数据变了」。
+ * Broadcast on writes to the local library/cloud mirror so library lists refresh immediately (e.g. renaming while editing updates the sidebar).
+ * A full sync round completing has its own SYNC_DONE_EVENT; this event only means "local data changed".
  */
 export const DOCS_CHANGED_EVENT = "xedit:docs-changed";
 
@@ -22,8 +22,8 @@ export function notifyDocsChanged() {
 }
 
 /**
- * 当前打开的文档内容被整份换掉（如磁盘文件被外部改动后重新读入）：
- * 编辑器听到后重挂载一次，CodeMirror 的文档才会换成 store 里的新内容。
+ * The open document's content was replaced wholesale (e.g. the disk file changed externally and was re-read):
+ * the editor remounts on hearing this so CodeMirror picks up the new content from the store.
  */
 export const DOC_REPLACED_EVENT = "xedit:doc-replaced";
 
@@ -32,7 +32,7 @@ export function notifyDocReplaced(docId: string) {
   window.dispatchEvent(new CustomEvent(DOC_REPLACED_EVENT, { detail: docId }));
 }
 
-/** local- 前缀区分本地文档与云端 cuid */
+/** The local- prefix distinguishes local documents from cloud cuids */
 export const isLocalId = (id: string | null | undefined): boolean =>
   typeof id === "string" && id.startsWith("local-");
 

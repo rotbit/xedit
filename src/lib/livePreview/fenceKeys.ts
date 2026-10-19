@@ -4,27 +4,27 @@ import { EditorView, keymap } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 
 /**
- * 围栏代码块在即时渲染下的删除按键。
+ * Delete keys for fenced code blocks under live rendering.
  *
- * 起因：开栏行被换成语言下拉、闭栏行被整行隐藏，两者都是 atomic 范围。默认的
- * Backspace / Delete 跨过 atomic 边界时照样按字符删，删掉的是看不见的 ```，
- * 结果要么块散架、要么把后面整篇正文吞进代码块。
+ * Why: the opening fence is replaced by a language dropdown and the closing fence is hidden entirely, both atomic ranges. The default
+ * Backspace / Delete still delete character by character across atomic boundaries, removing invisible ```,
+ * so either the block falls apart or the rest of the document gets swallowed into the code block.
  *
- * 对策：在围栏的进出口把删除键接管过来 —— 不许跨围栏合并（吞掉按键），改成先把
- * 光标送到该去的位置；只有「整块内容已空」这一种情形才真的动文档，直接删掉整块。
- * 优先级 Prec.high：高于默认按键表，低于斜杠菜单的 Prec.highest（菜单开着时
- * 它自己不碰删除键，两者互不打架）。整个扩展挂在 livePreview 上，源码模式不生效。
+ * Fix: take over delete keys at the fence entry/exit points — never merge across a fence (swallow the key), instead first move
+ * the cursor where it should go; only when "the block's content is already empty" do we actually touch the doc, deleting the whole block.
+ * Priority Prec.high: above the default keymap, below the slash menu's Prec.highest (while the menu is open
+ * it doesn't handle delete keys itself, so they don't conflict). The extension is attached to livePreview, so it has no effect in source mode.
  */
 
 export interface FencedBlock {
   readonly node: SyntaxNode;
-  /** 开栏行（```lang） */
+  /** Opening fence line (```lang) */
   readonly firstLine: Line;
-  /** 闭栏行（```）；未闭合的块为 null */
+  /** Closing fence line (```); null for unclosed blocks */
   readonly lastLine: Line | null;
-  /** 内容区起点：第一内容行行首；没有内容行时退化为开栏行行尾 */
+  /** Start of the content area: start of the first content line; falls back to the end of the opening line when there are no content lines */
   readonly contentFrom: number;
-  /** 内容区终点：最后一个内容行行尾 */
+  /** End of the content area: end of the last content line */
   readonly contentTo: number;
   readonly closed: boolean;
 }
@@ -33,7 +33,7 @@ function clampPos(state: EditorState, pos: number): number {
   return Math.max(0, Math.min(state.doc.length, pos));
 }
 
-/** pos 所在的围栏代码块；不在块内（含边界行）时返回 null */
+/** The fenced code block containing pos; null when not inside a block (including boundary lines) */
 export function fencedCodeAt(
   state: EditorState,
   pos: number,
@@ -48,11 +48,11 @@ export function fencedCodeAt(
   const marks = node.getChildren("CodeMark");
   let lastLine: Line | null =
     marks.length >= 2 ? state.doc.lineAt(clampPos(state, marks[marks.length - 1].from)) : null;
-  // 单行 ```（开栏与闭栏落在同一行）不算闭合，否则内容区会算出负区间
+  // A single-line ``` (opening and closing on the same line) doesn't count as closed, or the content area would be a negative range
   if (lastLine && lastLine.number <= firstLine.number) lastLine = null;
 
   const endLine = lastLine ?? state.doc.lineAt(clampPos(state, node.to));
-  // 光标虽然解析进了这个节点，但落在块的边界之外（比如闭栏行的换行符之后）时不算命中
+  // Even if the cursor resolves into this node, it doesn't count when it lies outside the block's bounds (e.g. after the closing line's newline)
   if (at < firstLine.from || at > endLine.to) return null;
 
   const hasContent = lastLine
@@ -65,13 +65,13 @@ export function fencedCodeAt(
   return { node, firstLine, lastLine, contentFrom, contentTo, closed: lastLine !== null };
 }
 
-/** 内容区全是空白（或压根没有内容行） */
+/** Content area is all whitespace (or has no content lines at all) */
 export function isContentEmpty(state: EditorState, block: FencedBlock): boolean {
   if (block.contentTo <= block.contentFrom) return true;
   return state.sliceDoc(block.contentFrom, block.contentTo).trim().length === 0;
 }
 
-/** 删掉整块（连同一个相邻换行，免得原地留下一条空行）；导出给开栏行的删除按钮复用 */
+/** Delete the whole block (plus one adjacent newline so no blank line is left behind); exported for reuse by the opening line's delete button */
 export function deleteFencedBlock(view: EditorView, block: FencedBlock): void {
   const { state } = view;
   const len = state.doc.length;
@@ -88,19 +88,19 @@ export function deleteFencedBlock(view: EditorView, block: FencedBlock): void {
   });
 }
 
-/** 两侧都试一次：光标停在围栏边界时，单一 side 可能解析到块外的兄弟节点 */
+/** Try both sides: with the cursor on a fence boundary, a single side may resolve to a sibling node outside the block */
 function fenceAt(state: EditorState, pos: number): FencedBlock | null {
   return fencedCodeAt(state, pos, -1) ?? fencedCodeAt(state, pos, 1);
 }
 
-/** pos 是否落在内容行上（开栏行、闭栏行不算） */
+/** Whether pos is on a content line (opening and closing fence lines don't count) */
 function onContentLine(state: EditorState, block: FencedBlock, pos: number): boolean {
   const line = state.doc.lineAt(clampPos(state, pos));
   if (line.number <= block.firstLine.number) return false;
   return block.lastLine ? line.number < block.lastLine.number : true;
 }
 
-/** 只移动光标、不动文档 */
+/** Move the cursor only, without touching the doc */
 function moveCaret(view: EditorView, pos: number): true {
   view.dispatch({
     selection: { anchor: clampPos(view.state, pos) },
@@ -109,7 +109,7 @@ function moveCaret(view: EditorView, pos: number): true {
   return true;
 }
 
-/** 光标在块外、但紧贴着某个块的那一侧时，把该块取出来（dir: -1 看上一行，1 看下一行） */
+/** When the cursor is outside but right next to a block on that side, return the block (dir: -1 looks at the previous line, 1 at the next) */
 function adjacentFence(state: EditorState, line: Line, dir: -1 | 1): FencedBlock | null {
   const n = line.number + dir;
   if (n < 1 || n > state.doc.lines) return null;
@@ -129,25 +129,25 @@ function handleBackspace(view: EditorView): boolean {
   const block = fenceAt(state, pos);
 
   if (block) {
-    // 1) 内容已经空了：整块留着只是垃圾，一次删干净
+    // 1) Content is already empty: keeping the block is just junk, delete it all at once
     if (onContentLine(state, block, pos) && isContentEmpty(state, block)) {
       deleteFencedBlock(view, block);
       return true;
     }
-    // 2) 第一内容行行首：默认行为会把首行代码并进开栏行，直接吞掉
+    // 2) Start of the first content line: default behavior would merge the first code line into the opening fence; swallow it
     if (pos === block.contentFrom && !isContentEmpty(state, block)) return true;
-    // 3) 闭栏行行首：闭栏行是隐藏的，往上退一行行尾（回到最后一个内容行）
+    // 3) Start of the closing line: the closing line is hidden, so step back to the end of the previous line (the last content line)
     if (block.lastLine && pos === block.lastLine.from) {
       return moveCaret(view, state.doc.line(block.lastLine.number - 1).to);
     }
-    // 4) 开栏行行首：不许和上一行合并，只把光标送到上一行行尾
+    // 4) Start of the opening line: don't merge with the previous line, just move the cursor to the end of the previous line
     if (pos === block.firstLine.from && line.number > 1) {
       return moveCaret(view, state.doc.line(line.number - 1).to);
     }
     return false;
   }
 
-  // 5) 紧跟闭栏行的下一行行首：空行就顺手删掉，光标一律落回块内最后一个内容行行尾
+  // 5) Start of the line right after the closing fence: delete it if blank; either way the cursor goes back to the end of the block's last content line
   const above = pos === line.from ? adjacentFence(state, line, -1) : null;
   if (above) {
     if (line.length === 0 && line.from > 0) {
@@ -173,33 +173,33 @@ function handleDelete(view: EditorView): boolean {
   const block = fenceAt(state, pos);
 
   if (block) {
-    // 1) 内容已经空了：整块删掉
+    // 1) Content is already empty: delete the whole block
     if (onContentLine(state, block, pos) && isContentEmpty(state, block)) {
       deleteFencedBlock(view, block);
       return true;
     }
-    // 2) 最后一个内容行行尾：再往后就是闭栏行，吞掉
+    // 2) End of the last content line: next comes the closing fence; swallow it
     if (pos === block.contentTo && !isContentEmpty(state, block)) return true;
-    // 3) 开栏行行尾：正向删会把第一行代码吸上来，吞掉
+    // 3) End of the opening line: forward delete would pull the first code line up; swallow it
     if (pos === block.firstLine.to) return true;
-    // 4) 闭栏行行尾：跳到块外的下一行行首，别把后文吸进代码块
+    // 4) End of the closing line: jump to the start of the next line outside the block, don't pull following text into the code block
     if (block.lastLine && pos === block.lastLine.to && block.lastLine.number < state.doc.lines) {
       return moveCaret(view, state.doc.line(block.lastLine.number + 1).from);
     }
     return false;
   }
 
-  // 5) 紧邻开栏行的上一行行尾：光标进块，落到第一内容行行首
+  // 5) End of the line right before the opening fence: move into the block, to the start of the first content line
   const below = pos === line.to ? adjacentFence(state, line, 1) : null;
   if (below) return moveCaret(view, below.contentFrom);
   return false;
 }
 
-/** 块内全选先只选内容区：⌘A → Backspace → Backspace 三步删掉整块 */
+/** Select-all inside a block selects only the content first: ⌘A → Backspace → Backspace deletes the whole block in three steps */
 function handleSelectAll(view: EditorView): boolean {
   const { state } = view;
   const range = state.selection.main;
-  // 已经全选整篇：再收缩回代码块只会像是全选失效（连按两下 ⌘A 的常见手势）
+  // Already selecting the whole doc: shrinking back to the code block would look like select-all broke (pressing ⌘A twice is a common gesture)
   if (range.from === 0 && range.to === state.doc.length) return false;
   const block = fenceAt(state, range.head);
   if (!block) return false;

@@ -1,6 +1,6 @@
 /**
- * 本地存储写不进去（配额满）时的底线：不抛异常、不把镜像写成半截、
- * 不推平落盘基准——内容还在编辑器里，下一次自动保存接着试。
+ * The bottom line when local storage can't be written (quota full): no exceptions, no half-written mirror,
+ * and the persisted baseline isn't advanced — the content is still in the editor, and the next autosave retries.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { storage } from "../setup";
@@ -52,12 +52,12 @@ describe("存储写失败", () => {
     storage.failSetIf = null;
 
     expect(result).toBe("local-error");
-    expect(fetchMock).not.toHaveBeenCalled(); // 本地都没写成，别推上云
+    expect(fetchMock).not.toHaveBeenCalled(); // Not even written locally, so don't push to the cloud
     const after = mods.getMirrorMeta("d1")!;
-    expect(after.rev).toBe(1); // 索引一个字节都没动
+    expect(after.rev).toBe(1); // Not a single byte of the index changed
     expect(after.title).toBe("长文");
     expect(mods.getMirrorContent("d1")).toBe("第一版");
-    // 落盘基准没被推平：下一次自动保存还会把「第二版」再存一遍
+    // The persisted baseline wasn't advanced: the next autosave will save the 「第二版」 (second version) again
     expect(
       mods.isDocumentSaved({ docId: "d1", title: "长文", content: "第二版", category: "随笔" })
     ).toBe(false);
@@ -87,7 +87,7 @@ describe("存储写失败", () => {
     );
     storage.failSetIf = (key) => key === INDEX_KEY;
 
-    // 自动保存那条链路没人接 reject，这里必须是老老实实地 resolve(false)
+    // Nobody handles rejections on the autosave path, so this must honestly resolve(false)
     await expect(mods.pushMirrorDoc("d1")).resolves.toBe(false);
     storage.failSetIf = null;
     expect(mods.getMirrorMeta("d1")!.dirty).toBe(true);

@@ -5,11 +5,11 @@ import { createPortal } from "react-dom";
 import { useEscape } from "@/hooks/useEscape";
 
 /**
- * 命令面板（⌘⇧P）与快速切换器（⌘O）的共用外壳：portal 遮罩 + 搜索框 + 结果列表，
- * 外加键盘导航（↑↓ 选、↵ 定、Esc 关）和「高亮项滚进视野」。两个面板视觉完全一致，
- * 所以外壳只留一份，各自只管数据源与行内容。
+ * Shared shell for the command palette (⌘⇧P) and quick switcher (⌘O): portal backdrop + search box + result list,
+ * plus keyboard navigation (↑↓ select, ↵ confirm, Esc close) and "scroll the highlighted item into view". The two look identical,
+ * so there's one shell and each only handles its data source and row content.
  *
- * 检索词由调用方持有（切换器要在外面防抖），高亮位置由这里持有。
+ * The query is owned by the caller (the switcher debounces outside); the highlight position is owned here.
  */
 export function PaletteShell<T>({
   open,
@@ -29,22 +29,22 @@ export function PaletteShell<T>({
   onClose,
 }: {
   open: boolean;
-  /** 搜索框左侧的图标 */
+  /** Icon left of the search box */
   icon: React.ReactNode;
   placeholder: string;
-  /** 右侧键位提示（窄屏隐藏） */
+  /** Key hints on the right (hidden on narrow screens) */
   hint: string;
   query: string;
   onQueryChange: (query: string) => void;
-  /** 变化即把高亮拉回第一条：命令面板传关键词本身，切换器传防抖后的关键词 */
+  /** Any change resets the highlight to the first item: the palette passes the raw query, the switcher passes the debounced one */
   resetKey: string;
   items: T[];
   keyOf: (item: T) => string;
   renderItem: (item: T) => React.ReactNode;
-  /** 行内元素纵向对齐：单行的命令居中，带摘要两行的搜索结果顶对齐 */
+  /** Vertical alignment of row content: single-line commands are centered, two-line search results with snippets are top-aligned */
   itemAlign?: "center" | "start";
   emptyText: string;
-  /** 列表顶部的固定内容（如「最近编辑」小标题），有结果时才出 */
+  /** Fixed content at the top of the list (e.g. a 「最近编辑」 (Recently edited) heading), shown only when there are results */
   listTop?: React.ReactNode;
   onPick: (item: T) => void;
   onClose: () => void;
@@ -52,14 +52,14 @@ export function PaletteShell<T>({
   const [index, setIndex] = useState(0);
   const activeRef = useRef<HTMLButtonElement>(null);
 
-  // 每次打开都从第一条开始。渲染期间带守卫地重置，放 effect 里会多跑一帧、先闪一下旧高亮
+  // Every open starts at the first item. Reset during render behind a guard; in an effect it costs an extra frame and flashes the old highlight
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) setIndex(0);
   }
 
-  // 换了词就回到第一条，否则高亮会停在一个已经不存在的位置上
+  // A new query goes back to the first item, otherwise the highlight would sit on a position that no longer exists
   const [lastKey, setLastKey] = useState(resetKey);
   if (resetKey !== lastKey) {
     setLastKey(resetKey);

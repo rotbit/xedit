@@ -1,13 +1,13 @@
 /**
- * 推送队列的可靠性：单飞、旧响应不清新编辑、文档之间互不串台、
- * 有界重试后保留 dirty、换账号后在途响应作废。
- * 被测的是 src 下的真实模块；sync.ts 有模块级队列，每个用例重置模块后再动态引入。
+ * Push queue reliability: single-flight, stale responses don't clear newer edits, docs don't cross-talk,
+ * dirty is kept after bounded retries, and in-flight responses are discarded after an account switch.
+ * The real modules under src are tested; sync.ts has a module-level queue, so each case resets modules and imports dynamically.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/Toast", () => ({ toast: vi.fn() }));
 
-/** 只实现被测代码用到的那几个字段，避免依赖运行时的 Response 实现 */
+/** Implements only the fields the code under test uses, to avoid depending on the runtime's Response implementation */
 function jsonRes(body: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
@@ -16,12 +16,12 @@ function jsonRes(body: unknown, status = 200): Response {
   } as unknown as Response;
 }
 
-/** 让已排队的微任务跑完（fetch 回调、await 链） */
+/** Let queued microtasks finish (fetch callbacks, await chains) */
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 async function load() {
   vi.resetModules();
-  // 三个模块必须在同一次重置后引入：sessionEpoch 有模块级代际，分属两份注册表就对不上
+  // All three modules must be imported after the same reset: sessionEpoch has a module-level epoch, and two separate registries wouldn't match
   const [sync, docStore, epoch] = await Promise.all([
     import("@/lib/sync"),
     import("@/lib/docStore"),
@@ -49,9 +49,9 @@ describe("推送队列", () => {
     await tick();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // 请求还在飞的时候用户又敲了几个字
+    // The user types a few more characters while the request is in flight
     saveMirrorLocal("d1", { content: "v2" });
-    void pushMirrorDoc("d1"); // 同一篇：不开第二个请求，只标记「回来再跑一轮」
+    void pushMirrorDoc("d1"); // Same doc: no second request, just mark "run another round when it returns"
     await tick();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -59,9 +59,9 @@ describe("推送队列", () => {
     await tick();
 
     const midway = getMirrorMeta("d1")!;
-    expect(midway.dirty).toBe(true); // v2 还没上云
+    expect(midway.dirty).toBe(true); // v2 isn't in the cloud yet
     expect(midway.baseUpdatedAt).toBe("2026-01-01T00:00:00.000Z");
-    expect(fetchMock).toHaveBeenCalledTimes(2); // again 轮已发出
+    expect(fetchMock).toHaveBeenCalledTimes(2); // The again round has been sent
 
     const second = JSON.parse(fetchMock.mock.calls[1][1].body) as {
       content: string;
@@ -96,7 +96,7 @@ describe("推送队列", () => {
     pending.get("/api/documents/b")!(jsonRes({ ok: true, updatedAt: "2026-02-02T00:00:00.000Z" }));
     await expect(pb).resolves.toBe(true);
     expect(getMirrorMeta("b")!.dirty).toBe(false);
-    expect(getMirrorMeta("a")!.dirty).toBe(true); // A 还在飞，没被 B 的响应捎带清掉
+    expect(getMirrorMeta("a")!.dirty).toBe(true); // A is still in flight and wasn't cleared along with B's response
     expect(getMirrorMeta("a")!.baseUpdatedAt).toBeUndefined();
 
     pending.get("/api/documents/a")!(jsonRes({ ok: true, updatedAt: "2026-02-02T00:01:00.000Z" }));
@@ -125,7 +125,7 @@ describe("推送队列", () => {
     await expect(push).resolves.toBe(false);
     expect(getMirrorMeta("d1")!.dirty).toBe(true);
 
-    // 下一次触发（同步引擎 / 再次保存）还会接着推
+    // The next trigger (sync engine / another save) will keep pushing
     const again = pushMirrorDoc("d1");
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(4);
@@ -158,7 +158,7 @@ describe("推送队列", () => {
 
     const push = pushMirrorDoc("d1");
     await tick();
-    bumpSessionEpoch(); // 登出 / 换账号
+    bumpSessionEpoch(); // Sign out / switch account
     pending[0](jsonRes({ ok: true, updatedAt: "2026-03-03T00:00:00.000Z" }));
 
     await expect(push).resolves.toBe(false);

@@ -1,14 +1,14 @@
 /**
- * 编辑器此刻真正挂着哪一篇。
+ * Which document the editor actually has mounted right now.
  *
- * 关掉阅读器时 store 里的 docId 并不清空（本地草稿等逻辑依赖它留着），
- * 所以「store.docId === id」不等于「编辑器开着它」：阅读器已卸载时往 store 写内容，
- * 没有自动保存来落盘，改动会丢。待办写回这类编辑器之外的改写要以这里为准。
+ * Closing the reader doesn't clear docId in the store (local drafts and other logic rely on it staying),
+ * so "store.docId === id" doesn't mean "the editor has it open": writing content to the store after the reader unmounts
+ * has no autosave to persist it, and the change is lost. Rewrites from outside the editor, like todo write-back, should go by this.
  */
 
 let mountedDocId: string | null = null;
 
-/** 由 useEditorSave 在挂载 / 切换 / 卸载时登记 */
+/** Registered by useEditorSave on mount / switch / unmount */
 export function setMountedDocId(id: string | null): void {
   mountedDocId = id;
 }

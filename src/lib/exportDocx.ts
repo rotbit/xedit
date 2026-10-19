@@ -11,15 +11,15 @@ import { BODY_FONT, INK, OL_REF } from "./docx/types";
 import type { Build } from "./docx/types";
 import { t } from "@/i18n/t";
 
-// 导出 Word（.docx）：把 Markdown 渲染成语义 HTML 后逐节点映射为 OOXML。
-// 目标是导入飞书/Word 后保留结构（标题层级、列表、表格、图片、代码块、公式），
-// 而非还原公众号主题视觉——导入方会重排样式，语义结构才是可迁移的部分。
-// 视频无法嵌入 docx（Word 只有"联机视频"链接机制），导出为封面图 + 可点击的播放链接。
+// Export to Word (.docx): render Markdown to semantic HTML, then map node by node to OOXML.
+// The goal is to keep structure after importing into Feishu/Word (heading levels, lists, tables, images, code blocks, math),
+// not to reproduce the WeChat theme's look — importers restyle anyway; semantic structure is what carries over.
+// Video can't be embedded in docx (Word only has "online video" links), so it's exported as a cover image + clickable play link.
 //
-// 具体的媒体准备、行内节点转换、块级节点转换分别拆在 lib/docx/{media,inline,block}.ts，
-// 本文件只保留对外入口与最终文档组装（编号/样式定义 + Document 拼装）。
+// Media preparation, inline node conversion, and block node conversion live in lib/docx/{media,inline,block}.ts;
+// this file keeps only the public entry point and final document assembly (numbering/style definitions + Document assembly).
 
-// —— 文档组装 ——
+// —— Document assembly ——
 
 const NUMBERING = {
   config: [
@@ -45,7 +45,7 @@ const STYLES = {
   default: {
     document: {
       run: { size: 22, color: INK, font: BODY_FONT },
-      // 显式左对齐：WPS/飞书在线编辑默认两端对齐，会把段内换行（<w:br/>）前的行拉伸铺满
+      // Explicit left alignment: WPS/Feishu online editing defaults to justified, which stretches lines before in-paragraph breaks (<w:br/>) to full width
       paragraph: { alignment: AlignmentType.LEFT, spacing: { after: 160, line: 300 } },
     },
     heading1: heading(36, 320, 200),
@@ -59,8 +59,8 @@ const STYLES = {
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-/** 返回 false 表示用户取消了「另存为」（不提示）；成功/失败的提示在这里自己弹，
- *  因为「部分图片没嵌进去」只有生成过程知道 */
+/** Returns false if the user canceled "Save As" (no prompt); success/failure toasts are shown here,
+ *  because only the generation step knows that "some images weren't embedded" */
 export async function exportDocx(
   title: string,
   markdown: string
@@ -89,9 +89,9 @@ export async function exportDocx(
 }
 
 async function buildDocx(markdown: string): Promise<{ blob: Blob; failed: number }> {
-  // 公式渲染依赖 MathJax；未加载成功时降级为 TeX 文本
+  // Math rendering depends on MathJax; if it failed to load, fall back to TeX text
   if (markdown.includes("$")) await ensureMathJax().catch(() => undefined);
-  // 磁盘文库的本地图片先内联成 base64，prepareMedia 才拿得到字节
+  // Local images from a disk library are inlined as base64 first so prepareMedia can get their bytes
   const html = sanitizeHtml(renderMarkdown(await inlineAttachments(markdown), {}));
   const body = new DOMParser().parseFromString(html, "text/html").body;
   stripSpaceAfterBreaks(body);

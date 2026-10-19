@@ -1,14 +1,14 @@
 "use client";
 
-// 分享页的批注读写：访客身份、轮询刷新、发表/回复、解决、删除。
-// 与正文渲染、锚点定位无关的那一半，从 SharedArticle 搬出。
+// Annotation reads/writes for the share page: visitor identity, polling refresh, post/reply, resolve, delete.
+// The half unrelated to body rendering and anchor locating, moved out of SharedArticle.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/Toast";
 import { loadIdentity, saveIdentityName, type GuestIdentity } from "../identity";
 import type { AnchorType, ShareCommentJson } from "../types";
 
-/** 待提交批注的锚点：文字选区或媒体 */
+/** Anchor for an annotation about to be posted: a text selection or media */
 export interface CommentAnchor {
   type: AnchorType;
   anchorText: string;
@@ -17,10 +17,10 @@ export interface CommentAnchor {
 }
 
 /**
- * 列表内容指纹：轮询回来的和手上这份一致就别 setState。
- * 换掉 comments 会触发 SharedArticle 重铺高亮（clearHighlights 里有 root.normalize()），
- * 读者正在划的选区当场就塌了 —— 30 秒一次，撞上的概率不低。
- * 服务端的排序是稳定的，所以按顺序拼串比就够；没有 updatedAt，正文/解决态自己入串。
+ * Fingerprint of the list content: if the polled list matches the one in hand, don't setState.
+ * Replacing comments makes SharedArticle re-lay highlights (clearHighlights calls root.normalize()),
+ * which collapses the selection the reader is in the middle of making; at once every 30 seconds, collisions aren't rare.
+ * Server ordering is stable, so concatenating in order is enough; there's no updatedAt, so body/resolved state go into the string themselves.
  */
 function signature(list: ShareCommentJson[]): string {
   return list
@@ -28,7 +28,7 @@ function signature(list: ShareCommentJson[]): string {
     .join("");
 }
 
-/** 读者正在划词，或批注浮层/回复框开着：这一轮先不换列表，留到下一轮 */
+/** Reader is selecting text, or the annotation popover/reply box is open: skip replacing the list this round, leave it for the next */
 function readerBusy(overlayOpen: boolean): boolean {
   if (overlayOpen) return true;
   const sel = window.getSelection();
@@ -40,11 +40,11 @@ export function useShareComments({
   viewerIsOwner,
   initialComments,
   activeId,
-  /** 批注浮层/回复框是否开着：开着时轮询不替换列表，免得把正在写的交互打断 */
+  /** Whether the annotation popover/reply box is open: while open, polling doesn't replace the list so it won't interrupt what's being written */
   overlayOpen,
-  /** 顶级批注发表成功：把新线程点亮 */
+  /** Top-level annotation posted: highlight the new thread */
   onRootPosted,
-  /** 当前线程不该再展开（已解决或已删除） */
+  /** The current thread should no longer be expanded (resolved or deleted) */
   onThreadClosed,
 }: {
   token: string;
@@ -60,9 +60,9 @@ export function useShareComments({
   const [busy, setBusy] = useState(false);
 
   const identityRef = useRef<GuestIdentity | null>(null);
-  // 轮询回调只建一次（deps 只有 token），当下的列表与浮层状态现读现取。
-  // 同步放在 effect 里而不是渲染期：渲染期写 ref 被 react-hooks/refs 禁掉，
-  // 而轮询是提交之后才异步触发的，读到的一定是最近一次提交的值。
+  // The polling callback is created once (deps are just token); the current list and popover state are read live.
+  // Synced in an effect rather than during render: writing refs during render is banned by react-hooks/refs,
+  // and polling fires asynchronously after commit, so it always reads the latest committed values.
   const commentsRef = useRef(comments);
   const overlayOpenRef = useRef(overlayOpen);
   useEffect(() => {
@@ -77,12 +77,12 @@ export function useShareComments({
       });
       if (!res.ok) return;
       const next: ShareCommentJson[] = await res.json();
-      // 没变化就什么都不做：引用不动，正文高亮也就不会白重铺一遍
+      // Do nothing if unchanged: the reference stays the same, so body highlights aren't pointlessly re-laid
       if (signature(next) === signature(commentsRef.current)) return;
       if (readerBusy(overlayOpenRef.current)) return;
       setComments(next);
     } catch {
-      // 网络失败保持现状，下轮再试
+      // On network failure keep things as they are and retry next round
     }
   }, [token]);
 
@@ -95,10 +95,10 @@ export function useShareComments({
   }, [refresh]);
 
   /**
-   * 发表批注（anchor 有值）或回复（parentId 有值）。
-   * 正文由调用方的输入框传进来 —— 新批注卡与回复框各管自己的草稿，
-   * 共用一份 draft 会互相串台（写了一半的回复跑到下一张新批注卡里）。
-   * 返回是否真的发出去了，调用方据此决定要不要清空自己的输入框。
+   * Post an annotation (anchor set) or a reply (parentId set).
+   * The body comes from the caller's input: the new-annotation card and reply box each manage their own draft,
+   * since a shared draft would leak between them (a half-written reply showing up in the next new-annotation card).
+   * Returns whether it actually went out, so the caller can decide whether to clear its input.
    */
   const submit = useCallback(
     async (parentId: string | null, text: string, anchor?: CommentAnchor): Promise<boolean> => {
@@ -151,7 +151,7 @@ export function useShareComments({
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          // 访客身份统一走请求头（删除那条一直是这么发的）
+          // Visitor identity always goes in a request header (delete has always sent it this way)
           ...(identityRef.current ? { "x-guest-key": identityRef.current.key } : {}),
         },
         body: JSON.stringify({ resolved }),

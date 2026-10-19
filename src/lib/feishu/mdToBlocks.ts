@@ -5,10 +5,10 @@ import { CODE_LANG } from "./markdown";
 import { intrawordStarPlugin } from "@/lib/markdown/intrawordStar";
 
 /**
- * Markdown → 飞书 docx 块树（markdown.ts 的反向）。
- * 输出为「创建嵌套块」接口的形状：顶层块 id 列表 + 全量块数组（临时 id 互相引用），
- * 图片先占位（创建后由推送流程上传素材再回填 token）。
- * 覆盖与拉取方向对称的类型：标题/段落/列表/待办/引用/代码块/分割线/图片/表格。
+ * Markdown → Feishu docx block tree (the reverse of markdown.ts).
+ * Output matches the "create nested blocks" API shape: list of top-level block ids + full block array (temporary ids referencing each other);
+ * images start as placeholders (after creation the push flow uploads the asset and fills in the token).
+ * Covers the types symmetric with the pull direction: headings/paragraphs/lists/todos/quotes/code blocks/dividers/images/tables.
  */
 
 export interface OutBlock {
@@ -19,15 +19,15 @@ export interface OutBlock {
 }
 
 export interface MdBuild {
-  /** 页面顶层块 id（有序） */
+  /** Top-level page block ids (ordered) */
   children: string[];
-  /** 全部块（含嵌套），按临时 id 引用 */
+  /** All blocks (including nested), referenced by temporary id */
   blocks: Map<string, OutBlock>;
-  /** 图片占位块 id → 原始 URL 与替代文案（按文档顺序） */
+  /** Image placeholder block id → original URL and alt text (in document order) */
   images: { blockId: string; url: string; alt: string }[];
 }
 
-// 与 markdown.ts 的 B 常量一致的写方向子集
+// Write-direction subset matching the B constants in markdown.ts
 const T = {
   text: 2,
   h1: 3,
@@ -42,7 +42,7 @@ const T = {
   quoteContainer: 34,
 } as const;
 
-/** 语言标记 → 飞书 code 块枚举；补充几个常见别名 */
+/** Language tag → Feishu code block enum; plus a few common aliases */
 const LANG_CODE: Record<string, number> = Object.fromEntries([
   ...Object.entries(CODE_LANG).map(([n, name]) => [name, Number(n)] as const),
   ["js", 30],
@@ -63,7 +63,7 @@ interface ElementStyle {
   italic?: boolean;
   strikethrough?: boolean;
   inline_code?: boolean;
-  /** 飞书字体色枚举（FontColor 1~7） */
+  /** Feishu font color enum (FontColor 1–7) */
   text_color?: number;
   link?: { url: string };
 }
@@ -72,11 +72,11 @@ type TextElement =
   | { text_run: { content: string; text_element_style?: ElementStyle } }
   | { equation: { content: string } };
 
-/** $tex$ 判定为公式的条件：含 TeX 特征字符，避免把「$5 和 $10」这类金额误判 */
+/** Conditions for treating $tex$ as math: contains TeX-ish characters, so amounts like 「$5 和 $10」 aren't misdetected */
 const EQUATION_RE = /\$([^$\n]{1,200}?)\$/g;
 const looksLikeTex = (s: string): boolean => /[\\^_{}]/.test(s);
 
-/** 文本切出行内公式；纯文本原样落 text_run */
+/** Split inline math out of text; plain text goes into text_run as-is */
 function emitText(out: TextElement[], content: string, style: ElementStyle): void {
   if (!content) return;
   let last = 0;
@@ -107,12 +107,12 @@ function run(content: string, style: ElementStyle): TextElement {
   };
 }
 
-/** inline token 的 children → 飞书富文本元素；行内图片降级为链接 */
+/** Inline token children → Feishu rich text elements; inline images degrade to links */
 function inlineElements(children: Token[] | null): TextElement[] {
   const out: TextElement[] = [];
   const style: ElementStyle = {};
-  // 编辑器字体颜色 <span style="color:…">…</span>：开标签入栈生效，闭标签出栈还原。
-  // 所有 span 一律入栈（含无颜色的），保证闭标签配对不错位
+  // Editor font color <span style="color:…">…</span>: opening tags push and take effect, closing tags pop and restore.
+  // Every span is pushed (including ones without color) so closing tags always pair up correctly
   const colorStack: (number | undefined)[] = [];
   let linkUrl = "";
   for (const tk of children ?? []) {
@@ -150,9 +150,9 @@ function inlineElements(children: Token[] | null): TextElement[] {
         linkUrl = "";
         break;
       case "image": {
-        // 行内混排的图片没有块位置，降级为链接（独占一段的图片在块层单独处理）
+        // Images mixed inline have no block position, so degrade to a link (images alone in a paragraph are handled at block level)
         const src = tk.attrGet("src") ?? "";
-        const alt = tk.content || "图片"; // i18n-ignore 导入写进正文的内容（Markdown/飞书块转换），不是界面文案
+        const alt = tk.content || "图片"; // i18n-ignore imported document content (Markdown/Feishu block conversion), not UI copy
         if (src) {
           out.push(run(alt, { ...style, link: { url: encodeURIComponent(src) } }));
         }
@@ -189,7 +189,7 @@ function inlineElements(children: Token[] | null): TextElement[] {
   return out;
 }
 
-/** markdown-it 扁平 token 流 → 按 _open/_close 配对還原的节点树 */
+/** markdown-it flat token stream → node tree rebuilt by pairing _open/_close */
 interface Node {
   token: Token;
   children: Node[];
@@ -217,7 +217,7 @@ class Builder {
   private blocks = new Map<string, OutBlock>();
   private images: MdBuild["images"] = [];
 
-  // 不用 Omit<OutBlock,...>：索引签名会让 Omit 丢掉 block_type 的必填约束
+  // Not using Omit<OutBlock,...>: the index signature makes Omit drop block_type's required constraint
   private add(block: { block_type: number; children?: string[]; [payload: string]: unknown }): string {
     const id = `b${++this.seq}`;
     this.blocks.set(id, { ...block, block_id: id });
@@ -236,7 +236,7 @@ class Builder {
     return { children, blocks: this.blocks, images: this.images };
   }
 
-  /** 渲染兄弟节点序列，返回生成的块 id 列表 */
+  /** Render a sibling node sequence, returning the generated block ids */
   private renderSiblings(nodes: Node[]): string[] {
     const ids: string[] = [];
     for (const node of nodes) ids.push(...this.renderNode(node));
@@ -286,16 +286,16 @@ class Builder {
         return text ? [this.textBlock(T.text, "text", [run(text, {})])] : [];
       }
       case "inline":
-        // 容错：裸 inline（正常都包在 paragraph/heading 里）
+        // Fault tolerance: a bare inline (normally wrapped in paragraph/heading)
         return [this.textBlock(T.text, "text", inlineElements(tk.children))];
       default:
-        // 未覆盖的容器类型：拍平渲染子节点，绝不丢正文
+        // Unhandled container types: flatten and render children, never drop content
         if (node.children.length > 0) return this.renderSiblings(node.children);
         return [];
     }
   }
 
-  /** 段落：独占的图片拆成 image 块，其余走富文本 */
+  /** Paragraph: standalone images become image blocks, the rest goes through rich text */
   private renderParagraph(node: Node): string[] {
     const inline = node.children[0]?.token;
     const kids = inline?.children ?? [];
@@ -320,12 +320,12 @@ class Builder {
     return [this.textBlock(T.text, "text", elements)];
   }
 
-  /** 列表：待办语法（[ ]/[x] 前缀）转 todo 块；子列表挂为列表项的 children */
+  /** List: todo syntax ([ ]/[x] prefix) becomes todo blocks; sublists attach as children of the list item */
   private renderList(node: Node, ordered: boolean): string[] {
     const ids: string[] = [];
     for (const item of node.children) {
       if (item.token.type !== "list_item_open") continue;
-      // 列表项内第一个段落是自身正文，其余子块（含子列表）挂到 children
+      // The first paragraph in a list item is its own text; other child blocks (including sublists) go into children
       let elements: TextElement[] = [];
       let todoDone: boolean | null = null;
       const childIds: string[] = [];
@@ -334,7 +334,7 @@ class Builder {
         if (!ownTextTaken && sub.token.type === "paragraph_open") {
           const kids = sub.children[0]?.token.children ?? [];
           elements = inlineElements(kids);
-          // 任务列表：首个文本以 [ ] / [x] 开头
+          // Task list: first text starts with [ ] / [x]
           const first = elements[0];
           if (first && "text_run" in first) {
             const m = first.text_run.content.match(/^\[([ xX])\]\s+/);
@@ -359,7 +359,7 @@ class Builder {
     return ids;
   }
 
-  /** 表格：cells 行主序；每格一个 table_cell，内容为单个富文本块 */
+  /** Table: cells are row-major; one table_cell per cell, containing a single rich text block */
   private renderTable(node: Node): string[] {
     const rows: TextElement[][][] = [];
     const walkRows = (n: Node) => {
@@ -381,7 +381,7 @@ class Builder {
     const cols = Math.max(...rows.map((r) => r.length), 0);
     if (rows.length === 0 || cols === 0) return [];
 
-    // 表格块数 = 1 + 行×列×2，超过单次创建上限就降级成代码块保内容
+    // Table block count = 1 + rows×cols×2; beyond the per-call creation limit, degrade to a code block to preserve the content
     if (1 + rows.length * cols * 2 > 45) {
       const text = rows
         .map((r) => `| ${r.map(cellPlain).join(" | ")} |`)
@@ -416,7 +416,7 @@ function cellPlain(elements: TextElement[]): string {
     .replaceAll("|", "\\|");
 }
 
-/** 子树块数（含自身），分批时控制单次调用规模 */
+/** Block count of a subtree (including itself), used to cap per-call size when batching */
 export function subtreeSize(build: MdBuild, id: string): number {
   const block = build.blocks.get(id);
   if (!block) return 0;
@@ -425,7 +425,7 @@ export function subtreeSize(build: MdBuild, id: string): number {
   return n;
 }
 
-/** 收集某顶层块子树的全部块（描述给创建接口） */
+/** Collect all blocks of a top-level block's subtree (to describe to the create API) */
 export function collectSubtree(build: MdBuild, id: string, out: OutBlock[]): void {
   const block = build.blocks.get(id);
   if (!block) return;
@@ -435,8 +435,8 @@ export function collectSubtree(build: MdBuild, id: string, out: OutBlock[]): voi
 
 export function markdownToFeishuBlocks(source: string): MdBuild {
   const md = new MarkdownIt({ html: true, linkify: false });
-  md.disable("lheading"); // 与编辑器、预览一致，不认 Setext 下划线标题
-  md.use(intrawordStarPlugin); // 同上：`3*2` 的单个 * 是乘号
+  md.disable("lheading"); // consistent with the editor and preview: no Setext underline headings
+  md.use(intrawordStarPlugin); // same: the single * in `3*2` is multiplication
   const tokens = md.parse(source, {});
   return new Builder().build(buildTree(tokens));
 }

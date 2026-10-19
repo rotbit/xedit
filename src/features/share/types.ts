@@ -1,4 +1,4 @@
-// 分享页与服务端共用的序列化类型（纯类型，无运行时依赖，两端可安全引用）
+// Serialized types shared by the share page and the server (types only, no runtime deps, safe to import on both sides)
 
 export type AnchorType = "text" | "media";
 
@@ -7,9 +7,9 @@ export interface ShareCommentJson {
   parentId: string | null;
   author: string;
   isOwner: boolean;
-  /** 当前访客/登录者是否可操作（自己的批注，或文档作者） */
+  /** Whether the current visitor/user can act on it (their own annotation, or the doc author) */
   mine: boolean;
-  /** text=选中文字；media=图片/视频（anchorText 为 src） */
+  /** text = selected text; media = image/video (anchorText is the src) */
   anchorType: AnchorType;
   anchorText: string;
   anchorPrefix: string;

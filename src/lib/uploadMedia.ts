@@ -4,20 +4,20 @@ import { isVideoMime } from "@/lib/media";
 import { t } from "@/i18n/t";
 
 /**
- * 媒体上传：优先浏览器直传 OSS，文件不经过本服务，省一次上下行带宽、大文件更快。
- * 图片在 Bucket 没配跨域（或直传被网络拦截）时自动回落到 /api/upload 中转，用户无感；
- * 视频体积大、中转会把整个文件读进内存并撞请求体上限，因此只走直传，失败直接报因。
+ * Media upload: prefer direct browser upload to OSS so files skip this server, saving a round of bandwidth and speeding up large files.
+ * Images fall back to the /api/upload relay automatically when the bucket has no CORS configured (or direct upload is blocked), invisible to the user;
+ * videos are large and relaying would read the whole file into memory and hit the request body limit, so they only go direct and failures surface the reason.
  */
 
 type Signed = { key: string; uploadUrl: string };
 
-/** 图片像素尺寸；读不出就是 null，登记时不带这两个字段 */
+/** Image pixel dimensions; null if unreadable, in which case those two fields are left out on registration */
 export type ImageSize = { width: number; height: number } | null;
 
-/** <img> 兜底解码的等待上限：解码卡住不能拖住上传主流程 */
+/** Wait limit for the <img> fallback decode: a stuck decode must not hold up the upload */
 const DECODE_TIMEOUT_MS = 3000;
 
-/** <img> + object URL 兜底解码；超时/失败/无内在尺寸（部分 SVG）都返回 null */
+/** <img> + object URL fallback decode; returns null on timeout / failure / no intrinsic size (some SVGs) */
 function readSizeViaImage(file: File): Promise<ImageSize> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
@@ -43,9 +43,9 @@ function readSizeViaImage(file: File): Promise<ImageSize> {
 }
 
 /**
- * 读出图片的像素尺寸，随上传一起登记，省得图片库为每张历史图再解一次。
- * createImageBitmap 不碰 DOM、最省事；它对 SVG 与老 Safari 不稳，失败退 <img>。
- * 视频不读（要拉首帧，代价远大于收益）；任何异常都吞掉返回 null，绝不影响上传。
+ * Read the image's pixel dimensions and register them with the upload, so the image library doesn't have to decode every past image again.
+ * createImageBitmap doesn't touch the DOM and is simplest; it's flaky for SVG and old Safari, so fall back to <img> on failure.
+ * Videos are skipped (would need the first frame, cost far outweighs benefit); all errors are swallowed and return null, never affecting the upload.
  */
 export async function readImageSize(file: File): Promise<ImageSize> {
   if (isVideoMime(file.type)) return null;
@@ -58,7 +58,7 @@ export async function readImageSize(file: File): Promise<ImageSize> {
     bitmap.close();
     if (size) return size;
   } catch {
-    /* 下面退 <img> */
+    /* fall back to <img> below */
   }
   try {
     return await readSizeViaImage(file);
@@ -67,7 +67,7 @@ export async function readImageSize(file: File): Promise<ImageSize> {
   }
 }
 
-/** 换签名地址；未配置直传返回 null 走中转，其余错误（未登录/超限/类型）直接抛出 */
+/** Get a signed URL; returns null when direct upload isn't configured (use the relay), other errors (not signed in / over limit / type) are thrown */
 async function sign(file: File): Promise<Signed | null> {
   let res: Response;
   try {
@@ -85,7 +85,7 @@ async function sign(file: File): Promise<Signed | null> {
   return data as Signed;
 }
 
-/** 直传并登记；跨域/网络失败返回 null 交给调用方决定兜底 */
+/** Upload directly and register; returns null on CORS / network failure, leaving the fallback to the caller */
 async function putDirect(signed: Signed, file: File, size: ImageSize): Promise<string | null> {
   try {
     const put = await fetch(signed.uploadUrl, {
@@ -100,7 +100,7 @@ async function putDirect(signed: Signed, file: File, size: ImageSize): Promise<s
   const res = await fetch("/api/upload/direct", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    // 尺寸缺失时两个字段会被 JSON.stringify 丢掉，服务端按可空处理
+    // When dimensions are missing, JSON.stringify drops both fields; the server treats them as nullable
     body: JSON.stringify({ key: signed.key, width: size?.width, height: size?.height }),
   });
   const data = await res.json().catch(() => ({}));
@@ -121,10 +121,10 @@ async function viaProxy(file: File, size: ImageSize): Promise<string> {
   return data.url as string;
 }
 
-/** 上传一个图片/视频文件，返回可访问 URL；失败抛出带原因的 Error */
+/** Upload an image/video file and return an accessible URL; throws an Error with the reason on failure */
 export async function uploadMediaFile(file: File): Promise<string> {
   const video = isVideoMime(file.type);
-  // 只读一次，直传与中转两条路都复用
+  // Read once, reused by both direct upload and relay
   const size = await readImageSize(file);
   const signed = await sign(file);
   if (signed) {

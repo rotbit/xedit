@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * 点顶栏「审核」按钮弹出来的那个小面板：先问清楚审什么、用谁审，再开始。
+ * The small panel from the top bar's 「审核」 (Review) button: first settle what to review and with what, then start.
  *
- * 以前点一下就直接开跑，用的是上次（或默认）的设置——用户看见一栏意见才发现
- * 审的不是自己想审的那一类，白等几十秒也白烧一次额度。现在把选择摆在开跑之前。
+ * Clicking used to start right away with the last (or default) settings; users only found out after seeing a column of comments
+ * that it reviewed the wrong type, wasting tens of seconds and a run of quota. Now the choice comes before starting.
  *
- * 站点没给这家配 Key 时「开始审核」是灰的：这条路早先会悄悄给一份本地编的假意见，
- * 那比不给更糟。现在明说缺什么（Key 全在服务端配，这里只能换一家选）。
+ * When the site has no key configured for the provider, 「开始审核」 (Start review) is disabled: this path used to quietly return locally faked comments,
+ * which is worse than nothing. Now it says plainly what's missing (keys are all configured server-side; here you can only pick another provider).
  */
 import { useRef } from "react";
 import { AiIcon } from "@/components/AiIcon";
@@ -26,7 +26,7 @@ export function ReviewLaunchPopover({
   docId: string;
   onClose: () => void;
   onStart: () => void;
-  /** 不重新审，直接翻出历史里的某一趟 */
+  /** Skip re-reviewing and open a past run from history */
   onOpenRecord: (id: string) => void;
 }) {
   const t = useT();
@@ -63,7 +63,7 @@ export function ReviewLaunchPopover({
         <p className="mt-1.5 text-[11px] leading-snug text-[var(--ink-faint)]">{hint}</p>
       ) : null}
 
-      {/* 审过的就别再花一次额度：以前的意见都在这儿，点开就是 */}
+      {/* Already reviewed? Don't spend quota again: past comments are all here, just open one */}
       <div className="mt-3 border-t border-[var(--hairline-soft)] pt-2.5 empty:hidden">
         <ReviewHistoryList
           docId={docId}

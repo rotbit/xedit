@@ -1,23 +1,23 @@
 "use client";
 
-// 飞书同步状态面板：从 FeishuDialog 搬出，展示扫描中/进度条/最近处理/失败列表/中断提示
+// Feishu sync status panel: moved out of FeishuDialog; shows scanning / progress bar / recently processed / failure list / interruption notice
 
 /**
- * 飞书同步的状态卡片：扫描中、进度条、当前文档、自动重试、失败列表、中断提示。
- * 只读 useFeishuSync 暴露的状态，自己不发任何请求；同步循环跑在 hook 里，
- * 所以关掉对话框（本组件卸载）不会影响同步进度。
+ * Feishu sync status card: scanning, progress bar, current document, auto-retry, failure list, interruption notice.
+ * It only reads state exposed by useFeishuSync and makes no requests itself; the sync loop runs in the hook,
+ * so closing the dialog (unmounting this component) doesn't affect sync progress.
  */
 import { Loader2 } from "lucide-react";
 import type { FeishuSyncState } from "@/hooks/useFeishuSync";
 import { useT } from "@/i18n/useT";
 
-/** 同步进行中或已有进度/错误时展示的状态卡片；无内容可展示时不渲染 */
+/** Status card shown while syncing or when there's progress/errors; renders nothing when there's nothing to show */
 export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
   const t = useT();
   const syncing = sync.syncing;
   const progress = sync.progress;
 
-  // 三者都没有说明这个账号从没同步过：整块不渲染，别在对话框里留一张空卡片
+  // None of the three means this account has never synced: render nothing rather than leave an empty card in the dialog
   if (!(syncing || progress || sync.error)) return null;
 
   return (
@@ -29,14 +29,14 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
         </p>
       ) : progress ? (
         <>
-          {/* 进度 = 已核对的文档（未变动的跳过也算），分母是库里全部文档 */}
+          {/* Progress = documents checked (unchanged skips count too); the denominator is every document in the library */}
           <div className="mb-2 flex items-center gap-2.5">
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
               <div
                 className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
                 style={{
                   width: `${
-                    // total 为 0（空知识库）时直接按 100% 画满，否则这里会算出 0/0
+                    // When total is 0 (empty wiki) draw it full at 100%, otherwise this would compute 0/0
                     progress.total > 0
                       ? Math.round(
                           ((progress.total - progress.pending) / progress.total) * 100
@@ -81,7 +81,7 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
           ) : null}
           {sync.recent.length > 0 ? (
             <ul className="mt-1.5 space-y-0.5 text-[var(--ink-faint)]">
-              {/* 最近处理只留 4 条、失败只留 5 条：这块嵌在对话框里，再长会把底部按钮挤出可视区 */}
+              {/* Keep only 4 recent items and 5 failures: this sits inside the dialog, and anything longer pushes the bottom buttons out of view */}
               {sync.recent.slice(0, 4).map((it, i) => (
                 <li key={i} className="truncate">
                   {it.action === "created"
@@ -105,7 +105,7 @@ export function FeishuSyncPanel({ sync }: { sync: FeishuSyncState }) {
           ) : null}
         </>
       ) : null}
-      {/* 中断提示只在停下来之后显示：同步中的网络抖动会自动重试，那时候报错只会吓人 */}
+      {/* Only show the interruption notice once stopped: network blips during sync are retried automatically, so reporting them then would only alarm people */}
       {!syncing && sync.error ? (
         <p className={`text-red-600/90 ${progress ? "mt-1.5" : ""}`}>
           {t("同步已中断：{error}。已同步的内容都已保存，点「继续同步」从断点继续。", {

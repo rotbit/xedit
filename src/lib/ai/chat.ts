@@ -1,13 +1,13 @@
 /**
- * 「给模型一段话，拿回一段话」的服务端传输层。只做这一件事：
- * 拼请求、等结果、把各家五花八门的报错翻成同一套错误码和一句中文。
+ * Server-side transport for "send the model some text, get some text back". It does just this:
+ * build the request, wait for the result, and map every provider's assorted errors to one set of error codes plus a Chinese message.
  *
- * key 只在这里用，不进返回值、不进错误文案（末尾还有一道兜底擦除，
- * 防止上游把 key 回显在报错里——口径与 lib/coverGenerate/replicate 一致）。
+ * The key is only used here, never in return values or error messages (there's also a final scrub at the end
+ * in case upstream echoes the key in an error -- same approach as lib/coverGenerate/replicate).
  *
- * 两条路径：
- * - openai：DeepSeek / OpenAI / Kimi / GLM，一次 POST 就有结果
- * - replicate：先创建 prediction，Prefer: wait 常常一次就回来，没回来就轮询
+ * Two paths:
+ * - openai: DeepSeek / OpenAI / Kimi / GLM, one POST and you have the result
+ * - replicate: create a prediction first; Prefer: wait often returns in one go, otherwise poll
  */
 import { type AiProvider } from "./providers";
 import { tk } from "@/i18n/t";
@@ -16,11 +16,11 @@ const DEFAULT_TIMEOUT_SEC = 180;
 const POLL_MS = 1200;
 const RUNNING = ["starting", "processing"];
 /**
- * 审核一篇长文的正文输出也就几千 token，但这一代模型的「思考」也算在输出上限里，
- * 给少了思考就把额度吃光、正文是空的。给足但别无限：省钱也防止模型停不下来。
+ * Reviewing a long article only outputs a few thousand tokens of body, but this generation's "thinking" counts toward the output cap too,
+ * so too small a cap lets thinking eat the budget and leaves the body empty. Generous but not unlimited: saves money and stops runaway models.
  */
 const DEFAULT_MAX_TOKENS = 16000;
-/** 回复再长也不至于到 1MB；超了多半是上游出了怪事，早点截断别撑爆内存 */
+/** No reply should ever reach 1MB; if it does, upstream has probably gone haywire, so cut it off early instead of blowing up memory */
 const MAX_REPLY_CHARS = 1_000_000;
 
 export type AiErrorCode =
@@ -34,7 +34,7 @@ export type AiErrorCode =
   | "bad_input"
   | "failed";
 
-/** 带错误码的失败。message 是能直接给用户看的一句话，且保证不含 key */
+/** A failure with an error code. message is a sentence safe to show users, guaranteed not to contain the key */
 export class AiError extends Error {
   code: AiErrorCode;
   constructor(code: AiErrorCode, message: string) {
@@ -45,20 +45,20 @@ export class AiError extends Error {
 
 export interface ChatRequest {
   provider: AiProvider;
-  /** 已经洗过的模型名（见 providers.cleanModel） */
+  /** Model name that has already been sanitized (see providers.cleanModel) */
   model: string;
   apiKey: string;
   system: string;
   user: string;
   maxTokens?: number;
-  /** 要不要顺带开供应商的 JSON 模式（只有 jsonMode 的那几家会真的发出去） */
+  /** Whether to also enable the provider's JSON mode (only sent for providers with jsonMode) */
   json?: boolean;
 }
 
 export interface ChatDeps {
-  /** 单测注入用；默认就是全局 fetch */
+  /** For injection in unit tests; defaults to the global fetch */
   fetchImpl?: typeof fetch;
-  /** 网页断开时一路传下去，别让没人要的请求接着烧额度 */
+  /** Passed all the way down when the page disconnects, so abandoned requests don't keep burning quota */
   signal?: AbortSignal | null;
   timeoutSec?: number;
   pollMs?: number;
@@ -71,23 +71,23 @@ const clip = (s: unknown, n: number): string => {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** HTTP 状态 → 统一错误码。各家状态码用法基本一致，差别都在报文里，那部分只做截断 */
+/** HTTP status → unified error code. Providers use status codes mostly the same way; the differences are in the body, which is only truncated */
 function httpError(provider: AiProvider, status: number, detail: string): AiError {
   if (status === 401 || status === 403)
-    return new AiError("bad_key", `${provider.label} 拒绝了这个 API Key，检查一下是不是填错或过期了`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    return new AiError("bad_key", `${provider.label} 拒绝了这个 API Key，检查一下是不是填错或过期了`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   if (status === 402)
-    return new AiError("billing", `${provider.label} 账户余额不足（或没开通这个模型）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    return new AiError("billing", `${provider.label} 账户余额不足（或没开通这个模型）`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   if (status === 404)
-    return new AiError("bad_input", `${provider.label} 没有这个模型，换一个再试：${clip(detail, 120)}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    return new AiError("bad_input", `${provider.label} 没有这个模型，换一个再试：${clip(detail, 120)}`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   if (status === 429)
-    return new AiError("rate_limited", `${provider.label} 限流了（也可能是额度用完），过一会儿再试`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    return new AiError("rate_limited", `${provider.label} 限流了（也可能是额度用完），过一会儿再试`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   if (status === 400 || status === 422)
-    return new AiError("bad_input", `${provider.label} 说请求不对：${clip(detail, 200)}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
-  if (status >= 500) return new AiError("failed", `${provider.label} 服务端出错（HTTP ${status}）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
-  return new AiError("failed", `${provider.label} 返回 HTTP ${status}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    return new AiError("bad_input", `${provider.label} 说请求不对：${clip(detail, 200)}`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
+  if (status >= 500) return new AiError("failed", `${provider.label} 服务端出错（HTTP ${status}）`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
+  return new AiError("failed", `${provider.label} 返回 HTTP ${status}`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
 }
 
-/** 从各家的错误报文里挑一句人能看的。字段名各不相同，挨个试一遍 */
+/** Pick a human-readable sentence from each provider's error body. Field names vary, so try them one by one */
 function detailOf(body: unknown): string {
   if (!body || typeof body !== "object") return "";
   const b = body as Record<string, unknown>;
@@ -105,14 +105,14 @@ function detailOf(body: unknown): string {
 }
 
 /**
- * 发一次对话，拿回纯文本。失败一律抛 AiError。
- * 调用方（路由）负责决定 key 从哪来、要不要限流，这里只管发请求。
+ * Sends one chat request and returns plain text. All failures throw AiError.
+ * The caller (route) decides where the key comes from and whether to rate limit; this only sends the request.
  */
 export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promise<string> {
   const { provider, model, apiKey } = req;
   const { fetchImpl = fetch, signal = null, pollMs = POLL_MS } = deps;
   const key = apiKey.trim();
-  if (!key) throw new AiError("no_key", `还没有配置 ${provider.label} 的 API Key`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+  if (!key) throw new AiError("no_key", `还没有配置 ${provider.label} 的 API Key`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   const timeoutSec = deps.timeoutSec && deps.timeoutSec > 0 ? deps.timeoutSec : DEFAULT_TIMEOUT_SEC;
   const deadline = Date.now() + timeoutSec * 1000;
 
@@ -120,17 +120,17 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     const text =
       provider.transport === "replicate" ? await viaReplicate() : await viaOpenAiCompatible();
     const out = text.trim();
-    if (!out) throw new AiError("failed", `${provider.label} 返回了空回复`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    if (!out) throw new AiError("failed", `${provider.label} 返回了空回复`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
     return out.length > MAX_REPLY_CHARS ? out.slice(0, MAX_REPLY_CHARS) : out;
   } catch (e) {
-    // 兜底：key 绝不能出现在错误文案里
+    // Safety net: the key must never appear in an error message
     if (e instanceof Error && key && e.message.includes(key)) {
       e.message = e.message.split(key).join("***");
     }
     throw e;
   }
 
-  /** OpenAI 兼容：DeepSeek / OpenAI / Kimi / GLM 共用这一条 */
+  /** OpenAI-compatible: DeepSeek / OpenAI / Kimi / GLM all share this path */
   async function viaOpenAiCompatible(): Promise<string> {
     const body: Record<string, unknown> = {
       model,
@@ -138,12 +138,12 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
         { role: "system", content: req.system },
         { role: "user", content: req.user },
       ],
-      // 不传 temperature：这一代强制思考的模型要么不理它，要么直接报错（见 providers.ts）
+      // No temperature: this generation of always-thinking models either ignores it or errors out (see providers.ts)
       [provider.tokensField]: req.maxTokens ?? DEFAULT_MAX_TOKENS,
       stream: false,
       ...provider.extra,
     };
-    // 认 JSON 模式的就顺手开上；不认的那几家靠提示词和解析端兜着
+    // Enable JSON mode where supported; for the rest, the prompt and the parser cover it
     if (req.json && provider.jsonMode) body.response_format = { type: "json_object" };
 
     const res = await request(`${provider.baseUrl}/chat/completions`, {
@@ -158,7 +158,7 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     const first = Array.isArray(choices) ? choices[0] : null;
     const message = (first as { message?: { content?: unknown } } | null)?.message;
     const content = message?.content;
-    // 绝大多数家给的是字符串；少数（含推理过程的那种）给的是分段数组，拼起来
+    // Most providers return a string; a few (those including reasoning) return an array of parts, so join them
     if (typeof content === "string") return content;
     if (Array.isArray(content)) {
       return content
@@ -167,13 +167,13 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
         )
         .join("");
     }
-    throw new AiError("failed", `${provider.label} 的回复解析不出内容`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    throw new AiError("failed", `${provider.label} 的回复解析不出内容`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   }
 
   /**
-   * Replicate：模型名带 ":版本号" 时走 /v1/predictions，否则走「模型最新版」那个接口。
-   * Claude 和 GPT 在 Replicate 上的入参都是 prompt + system_prompt（只有输出上限的字段名不同），
-   * 输出是一串分片，拼起来才是全文。入参表里没有 temperature，所以不传。
+   * Replicate: model names with ":version" go to /v1/predictions, otherwise to the "latest model version" endpoint.
+   * Claude and GPT on Replicate both take prompt + system_prompt (only the output cap field name differs),
+   * and the output is a list of chunks that must be joined for the full text. There's no temperature input, so it isn't sent.
    */
   async function viaReplicate(): Promise<string> {
     const at = model.indexOf(":");
@@ -189,7 +189,7 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     };
     const started = await callReplicate(url, {
       method: "POST",
-      // 快的话这一次请求就把结果带回来了，省掉一轮轮询
+      // If it's fast, this one request brings back the result and saves a polling round
       headers: { "Content-Type": "application/json", Prefer: "wait=60" },
       body: JSON.stringify({ ...(at > 0 ? { version: model.slice(at + 1) } : {}), input }),
     });
@@ -197,26 +197,26 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     let pred = started;
     while (RUNNING.includes(String(pred.status))) {
       if (Date.now() >= deadline) {
-        // 超时了尽力打个取消，省点额度；取消失败无所谓，那边自己会结束
+        // On timeout, make a best-effort cancel to save quota; if cancelling fails it doesn't matter, it'll finish on its own
         try {
           await callReplicate(pred.urls?.cancel, { method: "POST" });
         } catch {}
-        throw new AiError("timeout", `${provider.label} 超时了（超过 ${timeoutSec} 秒）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+        throw new AiError("timeout", `${provider.label} 超时了（超过 ${timeoutSec} 秒）`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
       }
       await sleep(pollMs);
       pred = await callReplicate(pred.urls?.get);
     }
     if (pred.status !== "succeeded") {
       if (pred.status === "canceled") throw new AiError("aborted", tk("已取消"));
-      throw new AiError("failed", `${provider.label} 调用失败：${clip(pred.error, 200) || "未知原因"}`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+      throw new AiError("failed", `${provider.label} 调用失败：${clip(pred.error, 200) || "未知原因"}`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
     }
     const out = pred.output;
     if (typeof out === "string") return out;
     if (Array.isArray(out)) return out.map((chunk) => String(chunk ?? "")).join("");
-    throw new AiError("failed", `${provider.label} 没有返回内容`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+    throw new AiError("failed", `${provider.label} 没有返回内容`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   }
 
-  /** 带 key 的请求只许发给 Replicate：轮询/取消地址是上游给的，先核对前缀再决定带不带 key */
+  /** Keyed requests may only go to Replicate: poll/cancel URLs come from upstream, so check the prefix before attaching the key */
   async function callReplicate(url: string | undefined, init: RequestInit = {}): Promise<Prediction> {
     if (typeof url !== "string" || !url.startsWith(`${provider.baseUrl}/`)) {
       throw new AiError("failed", tk("Replicate 返回了异常的接口地址，已中止"));
@@ -238,7 +238,7 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     }
   }
 
-  /** 网络层异常在这里统一翻译；每次请求都套一道剩余时间的超时，避免上游挂住不返回 */
+  /** Network-level errors are translated here; every request gets a timeout for the remaining time so a hung upstream can't stall us */
   async function request(url: string, init: RequestInit): Promise<Response> {
     const timer = AbortSignal.timeout(Math.max(1000, deadline - Date.now()));
     try {
@@ -249,14 +249,14 @@ export async function chatComplete(req: ChatRequest, deps: ChatDeps = {}): Promi
     } catch (e) {
       const name = e instanceof Error ? e.name : "";
       if (name === "TimeoutError")
-        throw new AiError("timeout", `${provider.label} 超时了（超过 ${timeoutSec} 秒）`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+        throw new AiError("timeout", `${provider.label} 超时了（超过 ${timeoutSec} 秒）`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
       if (name === "AbortError") throw new AiError("aborted", tk("已取消"));
-      throw new AiError("network", `连不上 ${provider.label}，检查下网络或代理`); // i18n-ignore 服务端带变量的错误消息，客户端 t() 命中不了，先保留中文
+      throw new AiError("network", `连不上 ${provider.label}，检查下网络或代理`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
     }
   }
 }
 
-/** Replicate 的 prediction，只挑用得上的字段 */
+/** A Replicate prediction, with only the fields we use */
 interface Prediction {
   status?: string;
   output?: unknown;

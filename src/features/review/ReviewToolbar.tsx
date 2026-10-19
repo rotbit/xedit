@@ -1,8 +1,8 @@
 "use client";
 
-// 审核模式的那条横杠：计数 / 上一条下一条 / 重新审核 / 按类型筛选 / 退出审核。
-// 正文里的标注配色也挂在这里：这条横杠在审核模式下一直在，
-// 挂在它身上，那几条 CSS 的生命周期就跟审核模式严丝合缝。
+// The review mode bar: count / previous-next / re-review / filter by type / exit review.
+// The body's mark colors hang here too: this bar is always present in review mode,
+// so attaching them to it ties those CSS rules' lifetime exactly to review mode.
 
 import { memo, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, History, RefreshCw, Settings2, X } from "lucide-react";
@@ -24,8 +24,8 @@ const chip =
   "shrink-0 cursor-pointer rounded-full border px-2 py-[1px] text-[11px] transition-colors";
 
 /**
- * 这一趟已经跑了几秒。带思考的模型一审就是半分钟起步，光有个转圈看不出是在干活还是卡死了，
- * 秒数在走才让人放心。
+ * Seconds this run has taken. Thinking models take half a minute or more per review; a spinner alone can't tell working from stuck,
+ * a ticking counter is reassuring.
  */
 export function useElapsedSeconds(running: boolean): number {
   const [sec, setSec] = useState(0);
@@ -67,14 +67,14 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   onOpenRecord,
 }: {
   phase: ReviewPhase;
-  /** 出错时服务端那句话：摆在横杠上，别让用户只看见「没能完成」 */
+  /** The server's message on error: show it on the bar so users don't just see "couldn't finish" */
   error: string | null;
-  /** 这一趟一共给了几条 */
+  /** Total comments in this run */
   total: number;
-  /** 其中已处理（采纳 / 忽略 / 知道了）几条 */
+  /** How many have been handled (accepted / ignored / acknowledged) */
   handled: number;
   categories: ReviewCategory[];
-  /** 分类 id → 还待处理的条数 */
+  /** Category id → number still pending */
   counts: Map<string, number>;
   filter: string | null;
   onFilter: (id: string | null) => void;
@@ -84,19 +84,19 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   canNext: boolean;
   onRerun: () => void;
   onExit: () => void;
-  /** 总评全文：点「总评」在这条横杠底下垂一张阅读面板 */
+  /** Full summary text: clicking 「总评」 (Summary) drops a reading panel below this bar */
   summary?: string;
-  /** 面板的开合提到外面：意见栏里那张总评小卡也要能把它打开 */
+  /** Panel open state is lifted out: the summary card in the comment column must be able to open it too */
   summaryOpen: boolean;
   onSummaryOpen: (open: boolean) => void;
-  /** 设置面板的开合提到外面：意见栏出错时那句「去设置」也要能把它打开 */
+  /** Settings panel open state is lifted out: the "go to settings" action when the comment column errors must open it too */
   settingsOpen: boolean;
   onSettingsOpen: (open: boolean) => void;
-  /** 审核历史按文章归档 */
+  /** Review history is filed per document */
   docId: string;
-  /** 眼前这份结果在历史里的那条记录 */
+  /** The history record of the result currently shown */
   record: ReviewRecordMeta | null;
-  /** 眼前这份是从历史里翻出来的（不是刚跑的）：横杠上要说明白，免得当成新意见 */
+  /** The current result was opened from history (not freshly run): the bar must say so, so it isn't mistaken for new comments */
   fromHistory: boolean;
   onOpenRecord: (id: string) => void;
 }) {
@@ -104,19 +104,19 @@ export const ReviewToolbar = memo(function ReviewToolbar({
   const [historyOpen, setHistoryOpen] = useState(false);
   const loading = phase === "loading";
   const elapsed = useElapsedSeconds(loading);
-  // 重跑时把总评面板收掉：那是上一趟的总评，新结果出来时不该自己又弹开
+  // Collapse the summary panel on rerun: it's the previous run's summary and shouldn't pop open again when new results arrive
   const rerun = () => {
     onSummaryOpen(false);
     onRerun();
   };
   const [cfg] = useAiConfig();
-  // 这一趟审的是哪一类，始终摆在明面上（用哪个模型由后台定，这里不显示）。
-  // 翻历史时说的是当时审的那几类，不是现在勾着的
+  // Always show which types this run reviewed (the backend decides the model, so it isn't shown here).
+  // When viewing history, show the types reviewed back then, not the ones currently checked
   const kind = reviewKindsLabel(fromHistory && record ? record.kinds : cfg.kinds, t);
 
   return (
     <div className="@container relative flex h-9 shrink-0 items-center gap-2 border-b border-[var(--hairline-soft)] bg-[var(--panel)] px-4 text-[12px] text-[var(--ink-soft)]">
-      {/* 标注的配色跟着结果走（分类是服务端给的），所以 CSS 在这里现生成 */}
+      {/* Mark colors follow the result (categories come from the server), so the CSS is generated here */}
       <style>{reviewMarkCss(categories)}</style>
 
       {loading ? (
@@ -169,7 +169,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         </button>
       ) : null}
 
-      {/* 按类型筛：胶囊上的数字是「还待处理」的条数，处理掉一条就少一个 */}
+      {/* Filter by type: the number on each pill is the pending count, dropping by one as each is handled */}
       {phase === "done" && total > 0 ? (
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-4 [mask-image:linear-gradient(to_right,black_calc(100%-16px),transparent)] [scrollbar-width:none]">
           <button
@@ -184,7 +184,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
           </button>
           {categories.map((c) => {
             const n = counts.get(c.id) ?? 0;
-            if (n === 0 && filter !== c.id) return null; // 这一类没剩下什么可看的就不占地方
+            if (n === 0 && filter !== c.id) return null; // Don't take up space when nothing is left to see in this category
             const on = filter === c.id;
             return (
               <button
@@ -207,7 +207,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
       )}
 
       <div className="flex shrink-0 items-center gap-0.5">
-        {/* 审的哪一类：点开换审核类型 */}
+        {/* Which types were reviewed: click to change review type */}
         <button
           data-menu-trigger
           className={`mr-1 flex max-w-[260px] shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[2px] text-[11px] transition-colors hover:bg-[var(--accent-wash)] ${
@@ -261,7 +261,7 @@ export const ReviewToolbar = memo(function ReviewToolbar({
         <ReviewSummaryPanel text={summary} onClose={() => onSummaryOpen(false)} />
       ) : null}
 
-      {/* 审核进行中：底边一道流动的细光 */}
+      {/* Review in progress: a thin flowing light along the bottom edge */}
       {loading ? <span className="review-progress" aria-hidden /> : null}
     </div>
   );

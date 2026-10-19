@@ -4,7 +4,7 @@ import { corsJson, corsPreflight } from "@/lib/oauth/http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// RFC 8414 授权服务器元数据。经 next.config rewrites 映射自
+// RFC 8414 authorization server metadata. Mapped via next.config rewrites from
 // /.well-known/oauth-authorization-server。
 export function GET(req: Request): Response {
   const origin = publicOrigin(req);

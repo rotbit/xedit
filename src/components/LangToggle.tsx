@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 中 / 英切换，与 DarkToggle 同尺寸同样式，摆在它旁边。
- * 按钮上写的是「要切到」的那个语言：EN 表示点了变英文——
- * 显示当前语言的话，看不懂当前语言的人恰恰认不出这是切换按钮。
+ * Chinese / English toggle, same size and style as DarkToggle, placed next to it.
+ * The button shows the language you'll "switch to": EN means click for English —
+ * showing the current language would be unrecognizable as a toggle to exactly those who can't read it.
  */
 import { setLocale } from "@/i18n/locale";
 import { useLocale, useT } from "@/i18n/useT";
@@ -17,7 +17,7 @@ export function LangToggle() {
       onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
       title={t("切换界面语言")}
     >
-      {/* i18n-ignore 语言名用它自己的文字写，不翻译 */}
+      {/* i18n-ignore language names are written in their own script, not translated */}
       {locale === "zh" ? "EN" : "中"}
     </button>
   );

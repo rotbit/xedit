@@ -8,9 +8,9 @@ import { tk } from "@/i18n/t";
 
 export const runtime = "nodejs";
 
-/** 用账号自己配置的应用跳飞书授权页；state 存 httpOnly cookie，回调时校验防 CSRF。
- *  ?write=1 额外请求写入权限（推送/写回用）。默认只读——应用没开写入权限时授权必失败，
- *  所以升级只在推送流程里显式引导，不自动保持，避免把用户卡在授权失败循环里。 */
+/** Redirect to Feishu's auth page using the account's own app; state is stored in an httpOnly cookie and checked on callback against CSRF.
+ *  ?write=1 also requests write scope (for push/write-back). Read-only by default: auth always fails if the app lacks write scope,
+ *  so the upgrade is only prompted explicitly in the push flow, never kept automatically, to avoid trapping users in an auth-failure loop. */
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
     maxAge: 600,
   } as const;
   res.cookies.set("feishu_oauth_state", state, cookieOpts);
-  // 回调时兜底记录本次请求过的 scope（token 响应不带 scope 字段时用）
+  // Record the scopes requested this time as a callback fallback (for when the token response has no scope field)
   res.cookies.set("feishu_oauth_scope", scope, cookieOpts);
   return res;
 }

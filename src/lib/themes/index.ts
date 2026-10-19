@@ -21,7 +21,7 @@ export {
 export interface CodeTheme {
   id: string;
   name: string;
-  /** public/code-themes 下的文件名 */
+  /** File name under public/code-themes */
   file: string;
   dark: boolean;
 }
@@ -55,12 +55,12 @@ async function fetchCss(path: string): Promise<string> {
   }
 }
 
-/** 代码主题 CSS 文本（用于预览注入与复制时内联） */
+/** Code theme CSS text (injected into the preview and inlined on copy) */
 export function getCodeThemeCss(id: string): Promise<string> {
   return fetchCss(`/code-themes/${getCodeTheme(id).file}`);
 }
 
-/** 排版微调 CSS 层（叠加在主题之后、自定义 CSS 之前）。等于默认值就不出规则，交给主题自己的排版 */
+/** Typography tuning CSS layer (after the theme, before custom CSS). Emits nothing at default values, leaving typography to the theme */
 export function buildTuneCss(t: TuneValues): string {
   const rules: string[] = [];
   if (

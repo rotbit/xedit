@@ -14,7 +14,7 @@ import {
 
 const at = (h: number, m = 0, day = 8) => new Date(2026, 9, day, h, m).getTime();
 const K = "2026-10-08";
-/** 比较时去掉随机 id */
+/** Strip the random id for comparison */
 const strip = (list: DayEvent[]) =>
   list.map((e) => {
     const rest: Partial<DayEvent> = { ...e };
@@ -113,7 +113,7 @@ describe("readDayEvents 旧数据迁移", () => {
     expect(readDirty()).toEqual({ [first[0].id]: { day: K, rev: 1 } });
     const again = readDayEvents(K);
     expect(again.map((e) => e.id)).toEqual(first.map((e) => e.id));
-    // 第二次读没有新补的，不再加 rev
+    // The second read backfills nothing new, so rev doesn't increase
     expect(readDirty()[first[0].id].rev).toBe(1);
   });
 });

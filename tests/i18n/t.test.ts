@@ -15,7 +15,7 @@ describe("interpolate", () => {
     expect(interpolate(s, { count: 1 })).toBe("1 article");
     expect(interpolate(s, { count: 0 })).toBe("0 articles");
     expect(interpolate(s, { count: 5 })).toBe("5 articles");
-    // 复数段引用的变量缺席时整段保留
+    // If a variable referenced by a plural segment is missing, keep the whole segment
     expect(interpolate("{n, a, b}", {})).toBe("{n, a, b}");
   });
 });
@@ -76,7 +76,7 @@ describe("detectLocale", () => {
     expect(detectLocale(undefined, "zh;q=0.8")).toBe("zh");
     expect(detectLocale(undefined, "en-GB,zh-CN;q=0.9")).toBe("en");
     expect(detectLocale(undefined, "ja-JP")).toBe("en");
-    // zhuang 之类不是中文：只认 zh 和 zh-*
+    // Things like zhuang aren't Chinese: only zh and zh-* count
     expect(detectLocale(undefined, "zha")).toBe("en");
   });
 

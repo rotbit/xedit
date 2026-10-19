@@ -18,26 +18,26 @@ import { SlashMenu } from "./SlashMenu";
 import { WikiLinkMenu } from "./WikiLinkMenu";
 
 interface Props {
-  /** 文档切换时变化，触发编辑器内容重置 */
+  /** Changes on document switch, triggering an editor content reset */
   docKey: string;
   initialContent: string;
-  /** 即时渲染模式（类 Obsidian）：编辑区内直接呈现排版 */
+  /** Live preview mode (Obsidian-like): formatting renders directly in the editor */
   live?: boolean;
   /**
-   * 外层滚动容器。首页文章视图把标题区与正文放进同一个滚动容器一起滚，
-   * 此时 .cm-scroller 不再滚动（overflow:visible），滚动读写都要改指向它。
+   * Outer scroll container. The home article view scrolls the title area and body together in one container,
+   * so .cm-scroller no longer scrolls (overflow:visible) and scroll reads/writes must target this instead.
    */
   scrollParent?: HTMLElement | null;
-  /** 全部文章：输入 `[[` 时按标题补全的候选来源 */
+  /** All articles: candidate source for title completion when typing `[[` */
   docs?: DocMeta[];
   onChange: (content: string) => void;
   onScrollLine?: (line: number, ratio: number) => void;
-  /** 选区/焦点变化时上报（编辑器卸载时上报 null），供浮动工具条订阅 */
+  /** Reports selection/focus changes (null when the editor unmounts) for the floating toolbar to subscribe to */
   onSelectionChange?: (info: SelectionInfo | null) => void;
 }
 
-/** onChange 的节流窗口：合并一次连打的多次变更。太长会让「保存中…」迟迟不亮，
-    120ms 大约是一次快速击键的间隔，既压掉了重渲染又察觉不到延迟 */
+/** Throttle window for onChange: merges a burst of typing into one change. Too long and 「保存中…」 (Saving…) lights up late;
+    120ms is roughly the gap between fast keystrokes, cutting re-renders without noticeable lag */
 const CHANGE_THROTTLE_MS = 120;
 
 export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownEditor(
@@ -59,7 +59,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   const onScrollLineRef = useRef(onScrollLine);
   const onSelectionChangeRef = useRef(onSelectionChange);
   const scrollParentRef = useRef<HTMLElement | null>(null);
-  /** 正在收敛的那次跳转的取消函数（见 settleScrollToLine） */
+  /** Cancel function for the jump currently settling (see settleScrollToLine) */
   const settleScrollRef = useRef<(() => void) | null>(null);
   const docsRef = useRef<DocMeta[] | undefined>(undefined);
   const liveCompartment = useRef(new Compartment());
@@ -71,22 +71,22 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   docsRef.current = docs;
   liveRef.current = live;
 
-  // 两块浮层菜单的状态走订阅下发：真相在 CodeMirror 的 StateField 里，这里只把变化转给
-  // 菜单组件自己 setState。若改成 props 往上抬，每敲一个过滤字符都要重渲染整篇文章视图
+  // State for the two popup menus is pushed via subscription: the truth lives in CodeMirror's StateField, and this only forwards changes to
+  // the menu components' own setState. Lifting it into props would re-render the whole article view on every filter character typed
   const slash = useMenuChannel<SlashState>();
   const wiki = useMenuChannel<WikiMenuState>();
   const emitSlash = slash.emit;
   const emitWiki = wiki.emit;
 
-  // 每次击键都把整篇正文推上去 = 整个文章视图跟着重渲染，合并成 ~120ms 一次
-  // Text 是不可变快照：只在节流窗口结束时转换全文，避免每个按键分配大字符串。
+  // Pushing the whole body up on every keystroke = re-rendering the whole article view, so merge into one ~120ms update
+  // Text is an immutable snapshot: convert the full text only when the throttle window ends, avoiding a large string allocation per keystroke.
   const pushChange = useThrottledCallback<Text>(
     (doc) => onChangeRef.current(doc.toString()),
     CHANGE_THROTTLE_MS
   );
 
-  // ⌘S 走的是 window 事件，保存方读的是 store：先把压着的那一次内容吐出去再让它读。
-  // 编辑器自己发的那一次在 keymap 里已同步 flush 过，这里兜的是别处发来的保存请求
+  // ⌘S goes through a window event and the saver reads the store: flush the pending change first, then let it read.
+  // The editor's own save request already flushed synchronously in the keymap; this covers save requests from elsewhere
   useEffect(() => {
     const onSaveNow = () => pushChange.flush();
     window.addEventListener("xedit:save-now", onSaveNow);
@@ -105,12 +105,12 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         onSlashChange: emitSlash,
         onWikiMenuChange: emitWiki,
         getDocs: () => docsRef.current ?? [],
-        // 命令层（上传图片/视频、存入文库）的提示都从这里弹，lib 自己不碰 UI
+        // Toasts for the command layer (image/video upload, save to library) are shown from here; the lib never touches UI
         notify: toast,
         onChange: pushChange,
         flush: pushChange.flush,
         onSelectionChange: (info) => onSelectionChangeRef.current?.(info),
-        // CodeMirror 已监听所有祖先容器的滚动，这里同时接收外层滚动与内置 scroller 的事件。
+        // CodeMirror already listens for scroll on every ancestor container, so this receives both outer and built-in scroller events.
         onScroll: (view) => {
           if (onScrollLineRef.current) {
             reportScrollLine(view, scrollParentRef.current, onScrollLineRef.current);
@@ -124,23 +124,23 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     view.focus();
 
     return () => {
-      // 切文档/卸载前先把节流窗口里压着的最后一次编辑交出去
+      // Before switching documents/unmounting, hand over the last edit still held in the throttle window
       pushChange.flush();
-      // 收敛中的跳转要在编辑器拆掉之前停，别让它再去量已经销毁的视图
+      // Stop any settling jump before the editor is torn down, so it doesn't measure a destroyed view
       settleScrollRef.current?.();
       settleScrollRef.current = null;
       view.destroy();
       viewRef.current = null;
-      // 切文档/卸载后旧选区已失效，明确清一次，别让工具条/斜杠菜单挂在空中
+      // After switching documents/unmounting the old selection is invalid; clear it explicitly so the toolbar/slash menu isn't left floating
       onSelectionChangeRef.current?.(null);
       emitSlash(null);
       emitWiki(null);
     };
-    // docKey 变化时整体重建编辑器（切换文档）
+    // Rebuild the editor entirely when docKey changes (document switch)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docKey]);
 
-  // 切换视图模式时热插拔即时渲染扩展，保留光标与撤销历史
+  // Hot-swap the live preview extension when switching view modes, keeping the cursor and undo history
   useEffect(() => {
     viewRef.current?.dispatch({
       effects: liveCompartment.current.reconfigure(editorModeExtension(live)),
@@ -155,14 +155,14 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       if (!view) return;
       const n = Math.min(view.state.doc.lines, Math.max(1, line + 1));
       const pos = view.state.doc.line(n).from;
-      settleScrollRef.current?.(); // 连点目录时前一次跳转立刻让位
+      settleScrollRef.current?.(); // When outline items are clicked in quick succession, the previous jump yields immediately
       settleScrollRef.current = null;
       view.focus();
       view.dispatch({ selection: { anchor: pos } });
-      // 平滑滚动到目标行（rAF 等 CodeMirror 量完几何再取坐标；同步滚动会带预览一起跟过去）。
-      // 远处的行只有估算高度，落点得边滚边修，交给 settleScrollToLine 收敛
+      // Smooth-scroll to the target line (rAF waits for CodeMirror to measure geometry before reading coordinates; synced scrolling brings the preview along).
+      // Distant lines only have estimated heights, so the target must be corrected while scrolling; settleScrollToLine converges on it
       requestAnimationFrame(() => {
-        if (viewRef.current !== view) return; // 这一帧里切了文档
+        if (viewRef.current !== view) return; // The document was switched within this frame
         settleScrollRef.current?.();
         settleScrollRef.current = settleScrollToLine(view, scrollParentRef.current, line, 12);
       });
@@ -180,7 +180,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   return (
     <>
       <div ref={containerRef} className="h-full min-h-0" />
-      {/* 菜单 portal 到 body，放在这里只是为了拿到 viewRef，不参与布局 */}
+      {/* Menus are portaled to body; placed here only to get viewRef, not part of layout */}
       <SlashMenu subscribe={slash.subscribe} viewRef={viewRef} scrollEl={scrollParent ?? null} />
       <WikiLinkMenu
         subscribe={wiki.subscribe}

@@ -1,9 +1,9 @@
 /**
- * src/lib 下的文案：编辑器实时预览部件、主题名、本地文件夹、飞书、封面生成、上传与服务端固定报错。
- * 带变量拼出来的服务端报错客户端对不上 key，留在源码里标了 i18n-ignore，这里不收。
+ * Strings under src/lib: editor live-preview widgets, theme names, local folders, Feishu, cover generation, uploads and fixed server errors.
+ * Server errors assembled with variables can't match a key on the client; they stay in source marked i18n-ignore and aren't collected here.
  */
 export const lib: Record<string, string> = {
-  // 实时预览部件
+  // Live-preview widgets
   "⌘ + 点击打开": "⌘ + Click to open",
   "Ctrl + 点击打开": "Ctrl + Click to open",
   "发送到公众号时自动设置；在标题下方的「封面」里更换":
@@ -18,17 +18,17 @@ export const lib: Record<string, string> = {
   代码语言: "Code language",
   点击编辑公式: "Click to edit formula",
 
-  // 斜杠菜单
+  // Slash menu
   提示块: "Callout",
   无序列表: "Bulleted List",
   有序列表: "Numbered List",
 
-  // 相对时间
+  // Relative time
   刚刚: "Just now",
   "{n} 分钟前": "{n} {n, minute, minutes} ago",
   "{n} 小时前": "{n} {n, hour, hours} ago",
 
-  // 导出 / 复制 / 上传
+  // Export / copy / upload
   "已导出，但 {n} 个图片未能嵌入（获取失败）":
     "Exported, but {n} {n, image, images} couldn’t be embedded (fetch failed)",
   "Word 文档已导出": "Word document exported",
@@ -42,13 +42,13 @@ export const lib: Record<string, string> = {
   "视频不能超过 100MB": "Videos can’t exceed 100MB",
   "登录已过期，请重新登录": "Your session has expired. Please sign in again",
 
-  // 云同步冲突
+  // Cloud sync conflicts
   "云端有另一份改动，已存为历史版本，本地内容已覆盖上去":
     "The cloud had other changes. They were saved as a version and replaced with your local content",
   "云端有另一份改动，历史版本没存下来，本地内容已覆盖上去":
     "The cloud had other changes. They couldn’t be saved as a version and were replaced with your local content",
 
-  // 资源与权限
+  // Resources and permissions
   空文件: "Empty file",
   "服务端未配置阿里云 OSS，无法上传": "Alibaba Cloud OSS isn’t configured on the server, so uploads are unavailable",
   "非法的图片 URL": "Invalid image URL",
@@ -62,7 +62,7 @@ export const lib: Record<string, string> = {
   "AI 生成封面": "AI Cover",
   "用 AI 生成公众号封面图，按张计费": "Generate WeChat cover images with AI, billed per image",
 
-  // 本地文件夹
+  // Local folders
   "找不到目录 {path}": "Folder not found: {path}",
   "建不出目录 {path}": "Couldn’t create folder {path}",
   不能把文件夹搬进它自己里: "Can’t move a folder into itself",
@@ -74,7 +74,7 @@ export const lib: Record<string, string> = {
   "打开 IndexedDB 失败": "Couldn’t open IndexedDB",
   "IndexedDB 读写失败": "IndexedDB read/write failed",
 
-  // 飞书
+  // Feishu
   "请先在「飞书知识库导入」里连接飞书": "Connect Feishu in “Feishu Wiki Import” first",
   "飞书侧找不到原文档（可能已被删除或移出知识库）":
     "The original document wasn’t found in Feishu (it may have been deleted or moved out of the wiki)",
@@ -89,7 +89,7 @@ export const lib: Record<string, string> = {
   "节点数超过上限，仅同步前 1000 个": "Too many nodes. Only the first 1,000 were synced",
   未知错误: "Unknown error",
 
-  // AI 服务与封面生成
+  // AI service and cover generation
   已取消: "Canceled",
   "Replicate 返回了异常的接口地址，已中止": "Replicate returned an unexpected API URL. Aborted",
   "DeepSeek（官网）": "DeepSeek (Official)",
@@ -112,7 +112,7 @@ export const lib: Record<string, string> = {
   "生成的图片太大（超过 8MB）": "The generated image is too large (over 8MB)",
   "连不上生图服务，请稍后再试": "Can’t reach the image service. Try again later",
 
-  // 排版主题：名字 + 适用场景标签
+  // Typography themes: name + use-case tags
   经典黑: "Classic Black",
   "技术 · 深度长文": "Tech · Long Reads",
   微信绿: "WeChat Green",
@@ -142,7 +142,7 @@ export const lib: Record<string, string> = {
   "Atom One 亮": "Atom One Light",
   "Atom One 暗": "Atom One Dark",
 
-  // 自定义主题的样式选项
+  // Style options for custom themes
   短下划线: "Short Underline",
   左竖线: "Left Bar",
   色块章节: "Color Block",

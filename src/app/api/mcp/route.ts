@@ -1,8 +1,8 @@
 /**
- * MCP server 入口：把文档与素材的增删改查暴露成 MCP 工具，供 Claude 这类客户端调用。
- * 鉴权走自建 OAuth（/api/oauth/*）签出的 Bearer token，没有 session 也没有 cookie，
- * 所以每个工具都必须自己从 token 里取 userId 做数据隔离，写操作还要单独过 writeBlocked。
- * 工具的 description 是模型唯一的使用说明，改措辞会直接影响调用正确率，不要当普通文案改。
+ * MCP server entry: exposes document and asset CRUD as MCP tools for clients like Claude.
+ * Auth uses Bearer tokens issued by the self-hosted OAuth (/api/oauth/*), with no session or cookie,
+ * so every tool must take userId from the token itself for data isolation, and writes must also pass writeBlocked separately.
+ * A tool's description is the model's only usage guide; rewording it directly affects call accuracy, so don't edit it like ordinary copy.
  */
 import { z } from "zod";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
@@ -29,21 +29,21 @@ import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { touchDailyActive } from "@/lib/active";
 
 export const runtime = "nodejs";
-// 上传类工具要在服务端抓远端文件，默认时限不够；与下面 createMcpHandler 里的 maxDuration 保持一致
+// Upload tools fetch remote files server-side and the default time limit isn't enough; keep in sync with maxDuration in createMcpHandler below
 export const maxDuration = 60;
 
-/** 从已验证的 token 里取 userId；工具全部据此隔离 */
+/** Take userId from the verified token; every tool isolates data by it */
 function requireUserId(extra: { authInfo?: AuthInfo }): string {
   const uid = extra.authInfo?.extra?.userId;
   if (typeof uid !== "string" || !uid) throw new Error("未授权");
   return uid;
 }
 
-/** 统一的成功返回。MCP 只认 content 数组，结构化数据一律序列化成文本塞进去。 */
+/** Shared success response. MCP only understands the content array, so structured data is always serialized to text inside it. */
 function ok(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
-/** 统一的失败返回。isError 让客户端知道这是工具报错，而不是把错误文本当结果读进去。 */
+/** Shared failure response. isError tells the client this is a tool error, rather than reading the error text as a result. */
 function fail(message: string) {
   return { content: [{ type: "text" as const, text: message }], isError: true };
 }
@@ -109,7 +109,7 @@ const handler = createMcpHandler(
       },
       async (args, extra) => {
         const userId = requireUserId(extra);
-        // MCP 的 OAuth token 不查会话，只读封禁要在写工具上单独拦
+        // MCP OAuth tokens don't check the session, so read-only bans must be blocked on write tools separately
         const blocked = await writeBlocked(userId);
         if (blocked) return fail(blocked);
         const doc = await createDocument(userId, args);
@@ -132,9 +132,9 @@ const handler = createMcpHandler(
         const userId = requireUserId(extra);
         const blocked = await writeBlocked(userId);
         if (blocked) return fail(blocked);
-        // 这里不带 baseUpdatedAt：MCP 是显式的外部写入，调用方手里没有「基于哪一版」的概念，
-        // 所以不做版本条件，无条件更新——网页/桌面端下次校新会拉到这一版。
-        // 服务层返回服务端 updatedAt（null = 文档不在/在回收站）；工具对外只报成败
+        // No baseUpdatedAt here: MCP is an explicit external write and the caller has no notion of "which version it's based on",
+        // so there's no version condition and the update is unconditional; web/desktop pick up this version on their next freshness check.
+        // The service layer returns the server updatedAt (null = doc missing/in trash); the tool only reports success or failure
         const updated = await updateDocument(userId, args.id, args);
         return updated ? ok({ ok: true, id: args.id }) : fail("文档不存在");
       }
@@ -158,7 +158,7 @@ const handler = createMcpHandler(
       }
     );
 
-    // ---- 素材（图床 / 阿里云 OSS，图片与视频）----
+    // ---- Assets (image hosting / Alibaba Cloud OSS, images and videos) ----
 
     server.registerTool(
       "list_images",
@@ -200,10 +200,10 @@ const handler = createMcpHandler(
             ),
           },
         ];
-        // 视频没有对应的 MCP 内容类型，只返回 URL 文本
+        // Videos have no matching MCP content type, so return only the URL text
         if (args.include_data && !img.mime.startsWith("video/")) {
           try {
-            // 15 秒超时：图片在对象存储上，取不回来也不能把整次工具调用挂死
+            // 15s timeout: images are in object storage, and failing to fetch one mustn't hang the whole tool call
             const res = await fetch(img.url, { signal: AbortSignal.timeout(15000) });
             if (res.ok) {
               const buf = Buffer.from(await res.arrayBuffer());
@@ -214,7 +214,7 @@ const handler = createMcpHandler(
               });
             }
           } catch {
-            /* 取图失败时仅返回 URL 文本 */
+            /* On image fetch failure, return only the URL text */
           }
         }
         return { content };
@@ -285,17 +285,17 @@ const handler = createMcpHandler(
     );
   },
   { serverInfo: { name: "xedit", version: "1.0.0" } },
-  // disableSse：只保留可流式 HTTP 传输。SSE 要长连接和会话粘性，当前部署形态给不了
+  // disableSse: keep only streamable HTTP transport. SSE needs long-lived connections and session affinity, which the current deployment can't provide
   { basePath: "/api", disableSse: true, maxDuration: 60 }
 );
 
-/** Bearer token 验证：验签 + audience 绑定，取出 userId 挂到 authInfo.extra */
+/** Bearer token verification: signature check + audience binding, attaching userId to authInfo.extra */
 async function verifyToken(req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
   if (!bearerToken) return undefined;
   const origin = publicOrigin(req);
   const verified = await verifyAccessToken(bearerToken, acceptedAudiences(origin));
   if (!verified) return undefined;
-  // MCP 通道的 DAU 打点（进程内已按天去重，不必担心每请求一次）
+  // DAU tracking for the MCP channel (already deduped per day in-process, so no worry about once per request)
   void touchDailyActive(verified.userId);
   return {
     token: bearerToken,
@@ -306,11 +306,11 @@ async function verifyToken(req: Request, bearerToken?: string): Promise<AuthInfo
   };
 }
 
-// required: true 时未带 token 的请求会拿到 401 和 resourceMetadataPath，客户端据此自动发现授权服务器
+// With required: true, requests without a token get a 401 and resourceMetadataPath, from which clients auto-discover the authorization server
 const authHandler = withMcpAuth(handler, verifyToken, {
   required: true,
   resourceMetadataPath: "/.well-known/oauth-protected-resource",
 });
 
-// 三个方法共用一个 handler：MCP 用 POST 发消息、GET 拉流、DELETE 结束会话
+// All three methods share one handler: MCP uses POST to send messages, GET to pull the stream, DELETE to end the session
 export { authHandler as GET, authHandler as POST, authHandler as DELETE };

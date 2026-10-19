@@ -1,6 +1,6 @@
 import { permanentRedirect } from "next/navigation";
 
-/** 双屏编辑器已并入工作台；老链接与桌面端「新建文章」菜单落到工作台并直接建稿 */
+/** The split-screen editor was merged into the workspace; old links and the desktop app's 「新建文章」 (New article) menu land in the workspace and create a draft right away */
 export default function LocalEditPage() {
   permanentRedirect("/?new=1");
 }

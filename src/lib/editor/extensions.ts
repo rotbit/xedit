@@ -1,4 +1,4 @@
-/** 编辑器扩展的组装处：把高亮、光标、按键、即时渲染等扩展拼成 CodeMirror 的扩展数组。 */
+/** Where editor extensions are assembled: highlighting, caret, keys, live preview, etc. combined into CodeMirror's extension array. */
 
 import { type Compartment, type Extension, type Text } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
@@ -37,10 +37,10 @@ interface EditorExtensionOptions {
   onSelectionChange: (info: SelectionInfo) => void;
   onSlashChange: (state: SlashState | null) => void;
   onWikiMenuChange: (state: WikiMenuState | null) => void;
-  /** `[[` 补全的候选来源：编辑器只建一次，文库随时在变，所以现读现取 */
+  /** Candidate source for `[[` completion: the editor is built once while the library keeps changing, so read it on demand */
   getDocs: () => DocMeta[];
   onScroll: (view: EditorView) => void;
-  /** 命令层（上传图片/视频等）要弹的提示：lib 不 import components，由组件传 toast 进来 */
+  /** Messages from the command layer (uploading images/videos, etc.): lib doesn't import components, so the component passes toast in */
   notify: Notify;
 }
 
@@ -48,7 +48,7 @@ export function editorModeExtension(live: boolean): Extension {
   return live ? livePreview : syntaxHighlighting(sourceHeadingHighlight);
 }
 
-/** 只负责组装扩展；实例生命周期与最新 React 回调由 MarkdownEditor 管理。 */
+/** Only assembles extensions; instance lifecycle and latest React callbacks are managed by MarkdownEditor. */
 export function createEditorExtensions(options: EditorExtensionOptions): Extension[] {
   return [
     history(),
@@ -56,40 +56,40 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
     lineSelectionWithoutNewline,
     caretAndActiveLine,
     EditorView.lineWrapping,
-    // 建编辑器那一刻按当前语言取；切换语言后下次重建编辑器（切文章等）生效
+    // Taken from the current language when the editor is built; after switching language it applies on the next rebuild (switching docs, etc.)
     placeholder(t("在这里输入…")),
     markdown({
       base: markdownLanguage,
       codeLanguages: languages,
-      // 关掉 Setext 下划线标题：在一行文字下面刚敲出 "-" 准备列列表时，
-      // CommonMark 会把上一行瞬间判成 H2，看起来像编辑器抽风。公众号写作只用 #。
-      // 预览渲染（renderer.ts）与飞书导出同步关闭，保证三处解析一致。
+    // Disable Setext underline headings: typing "-" under a line to start a list would make
+    // CommonMark instantly treat the previous line as H2, which looks like the editor glitching. WeChat writing only uses #.
+    // Preview rendering (renderer.ts) and Feishu export disable it too, keeping all three parsers consistent.
       extensions: [
         { remove: ["SetextHeading"] },
-        // @lezer/markdown 把围栏里的 CodeText 和行内 InlineCode 一起标成 monospace，
-        // 于是无语言的代码块每一行都套上行内代码的紫字小胶囊。改标成普通内容：
-        // 代码块的底色、等宽字由 livePreview 的行级类负责，行内代码不受影响。
+        // @lezer/markdown tags fenced CodeText and inline InlineCode both as monospace,
+        // so every line of a language-less code block got the inline-code purple pill. Retag as plain content:
+        // code block background and monospace come from livePreview's line classes; inline code is unaffected.
         { props: [styleTags({ CodeText: tags.content })] },
         wikiLinkExtension,
-        // `3*2` 这种字词中间的单个 * 按字面处理，与 renderer.ts 一致
+        // A single * inside a word like `3*2` is treated literally, consistent with renderer.ts
         intrawordStarExtension,
       ],
     }),
     syntaxHighlighting(mdHighlight),
     syntaxHighlighting(codeHighlight),
-    // 标题折叠：折叠范围借 markdown() 自带的 foldService，把手是标题行首的零宽 widget。
-    // 排在即时渲染之前 —— 点三角那一下要抢在 livePreview 的 mousedown（拖选布局冻结）前面
-    // 消费掉，否则会白白进入一次「拖选中」状态，直到下次 mouseup 才解冻。
+    // Heading folding: fold ranges come from markdown()'s built-in foldService; the handle is a zero-width widget at the heading line start.
+    // Placed before live preview: the click on the triangle must be consumed before livePreview's mousedown (freezing layout for drag-select),
+    // otherwise it needlessly enters a "drag-selecting" state that doesn't unfreeze until the next mouseup.
     headingFolding,
     options.liveCompartment.of(editorModeExtension(options.live)),
-    // 斜杠菜单内部通过 Prec.highest 提升按键优先级，只在菜单打开时消费导航按键。
+    // The slash menu raises key priority internally via Prec.highest and only consumes navigation keys while open.
     slashMenu({ onState: options.onSlashChange, notify: options.notify }),
-    // `[[` 文章标题补全：同样只在打开时消费按键，两个菜单的触发条件互不重叠。
+    // `[[` document-title completion: likewise only consumes keys while open; the two menus' triggers never overlap.
     wikiLinkMenu({ getDocs: options.getDocs, onState: options.onWikiMenuChange }),
-    // ⌘F 查找替换：面板本地化 + 停在顶部，样式见 app/editor.css；按键仍走下面的 searchKeymap。
+    // ⌘F find/replace: localized panel pinned to the top, styles in app/editor.css; keys still go through searchKeymap below.
     editorSearch(),
-    // 下面三个都用 Prec.highest：要抢在 markdownKeymap（Prec.high）和 indentWithTab 前面。
-    // 排在两个菜单之后 —— 同优先级按数组顺序先到先得，菜单开着时 Enter/Tab 仍归菜单。
+    // The three below all use Prec.highest: they must run before markdownKeymap (Prec.high) and indentWithTab.
+    // Placed after the two menus: at equal priority array order wins, so Enter/Tab still go to an open menu.
     tableKeymap,
     listKeymap,
     autoPairs,
@@ -98,7 +98,7 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
       {
         key: "Mod-s",
         run: () => {
-          // 保存方读取 store，必须先同步节流窗口里的最后一次输入。
+          // The saver reads the store, so the last input in the throttle window must be synced first.
           options.flush();
           window.dispatchEvent(new CustomEvent("xedit:save-now"));
           return true;
@@ -117,7 +117,7 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
       }
     }),
     EditorView.domEventHandlers({
-      // 切文档、保存和分享可能紧接着发生，失焦时先交出待同步内容。
+      // Switching docs, saving, and sharing may happen right after, so flush pending content on blur.
       blur: () => {
         options.flush();
         return false;
@@ -128,7 +128,7 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
       },
     }),
     editorClipboard(options.notify),
-    // 媒体上传期间在落点挂「上传中」小牌子，传完再落笔（粘贴、拖放、选文件三条路共用）
+    // While media uploads, an "uploading" pill sits at the insertion point and the content lands when done (shared by paste, drop, and file picker)
     uploadPlaceholders,
   ];
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-// 同 eachLine.test.ts：@codemirror/view 加载时要读 document.documentElement.style
+// Same as eachLine.test.ts: @codemirror/view reads document.documentElement.style on load
 vi.hoisted(() => {
   const doc = (globalThis as { document?: { documentElement?: unknown } }).document;
   if (doc && !doc.documentElement) doc.documentElement = { style: {} };
@@ -14,14 +14,14 @@ import { buildDecorations } from "@/lib/livePreview";
 import { createLpContext, visibleLineRanges, type CodeRange } from "@/lib/livePreview/context";
 
 /**
- * 整条 buildDecorations 的裁剪验收。
+ * End-to-end clipping check for buildDecorations.
  *
- * buildDecorations 只用到 view 的 state 与 visibleRanges，node 环境里拿一个最小假 view
- * 就能驱动（部件的 toDOM 不会被调用，所以不需要 DOM）。块级字段（表格/公式）没装进来，
- * renderedBlockRanges 返回空数组，与线上「块里没有表格」的情形等价。
+ * buildDecorations only uses the view's state and visibleRanges, so a minimal fake view in node
+ * can drive it (widgets' toDOM is never called, so no DOM is needed). Block-level fields (tables/math) aren't installed,
+ * so renderedBlockRanges returns an empty array, equivalent to "no tables in the block" in production.
  */
 
-/** 引用块套嵌套列表 + 一段普通嵌套列表，行数够多才看得出裁剪 */
+/** A blockquote wrapping a nested list + a plain nested list; needs enough lines for clipping to show */
 function nestedDoc(items = 200): string {
   const lines: string[] = ["# 标题", ""];
   for (let i = 1; i <= items; i++) {
@@ -39,8 +39,8 @@ function nestedDoc(items = 200): string {
 
 function makeState(doc: string): EditorState {
   let state = EditorState.create({ doc, extensions: [markdown()] });
-  // 语法树字段初始只解析前 3000 个字符。ensureSyntaxTree 把剩下的活干完，
-  // 但字段里挂着的仍是那棵半截树，还得过一道空事务才接上（syntaxTree(state) 这才是完整树）
+  // The syntax tree field initially parses only the first 3000 characters. ensureSyntaxTree finishes the rest,
+  // but the field still holds the partial tree, and it takes an empty transaction to pick it up (only then is syntaxTree(state) complete)
   ensureSyntaxTree(state, state.doc.length, 20_000);
   state = state.update({}).state;
   return state;
@@ -50,12 +50,12 @@ function lineSpan(state: EditorState, first: number, last: number): CodeRange {
   return { from: state.doc.line(first).from, to: state.doc.line(last).to };
 }
 
-/** 最小假 view：buildDecorations 只认这两样 */
+/** Minimal fake view: buildDecorations only looks at these two */
 function fakeView(state: EditorState, visible: CodeRange[]): EditorView {
   return { state, visibleRanges: visible } as unknown as EditorView;
 }
 
-/** 窗口内的装饰：位置 + 类名（replace 类没有 class，记成 (replace)） */
+/** Decorations in the window: position + class name (replace decorations have no class, recorded as (replace)) */
 function entries(set: DecorationSet, from: number, to: number): string[] {
   const out: string[] = [];
   set.between(from, to, (f, t, deco) => {
@@ -64,7 +64,7 @@ function entries(set: DecorationSet, from: number, to: number): string[] {
   return out;
 }
 
-/** 视口里那批引用/列表节点各自 eachLine 一趟，统计总共访问了多少行 */
+/** Run eachLine once for each quote/list node in the viewport and count the total lines visited */
 function visitedLines(
   state: EditorState,
   window: CodeRange,
@@ -117,8 +117,8 @@ describe("buildDecorations 可见区裁剪", () => {
   });
 
   it("两段可见区都落在同一个引用块里：每行只装饰一次，各段的结果与单独算一样", () => {
-    // 两段各向外扩 2 行后正好首尾相接（322 / 323），context 里会并成一段——
-    // 不并的话整块的行级类要在接缝处走两遍
+    // After each expands by 2 lines the two ranges touch exactly (322 / 323), and context merges them into one —
+    // otherwise the block's line classes would be walked twice at the seam
     const a = lineSpan(state, 300, 320);
     const b = lineSpan(state, 325, 340);
     const built = buildDecorations(fakeView(state, [a, b]), []);
@@ -137,9 +137,9 @@ describe("buildDecorations 可见区裁剪", () => {
 
   it("同一个视口、同一批节点：旧行为要走整块，裁剪后只走视口那几十行", () => {
     const window = lineSpan(state, 300, 320);
-    // 不传 visible 就是改动前的行为：视口里随便一个引用/列表节点都把整块逐行铺一遍
+    // Without visible it's the old behavior: any quote/list node in the viewport walks its whole block line by line
     expect(visitedLines(state, window, undefined)).toBe(635);
-    // 25 行可见区（21 行视口 + 各外扩 2 行）× 引用块一趟 + 窗口内各列表项一趟
+    // 25 visible lines (21-line viewport + 2 extra each side) × one pass for the quote + one pass per list item in the window
     expect(visitedLines(state, window, visibleLineRanges(state, [window]))).toBe(60);
   });
 
@@ -148,7 +148,7 @@ describe("buildDecorations 可见区裁剪", () => {
     const clipped = count(
       buildDecorations(fakeView(state, [lineSpan(state, 300, 320)]), []).decorations
     );
-    // 实测：整篇 5205 条，只看 21 行视口 116 条
+    // Measured: 5205 for the whole doc, 116 for just the 21-line viewport
     expect(full).toBeGreaterThan(5000);
     expect(clipped).toBeLessThan(150);
   });

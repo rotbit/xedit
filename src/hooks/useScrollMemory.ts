@@ -7,30 +7,30 @@ import { useThrottledCallback } from "@/hooks/useThrottledCallback";
 import type { EditorHandle } from "@/lib/editor/types";
 
 /**
- * 每篇文章各自记住「读到哪」：切走再切回、或刷新页面后回到原处，而不是一律弹回开头。
+ * Each article remembers "where you were reading": switching away and back, or refreshing, returns there instead of jumping to the top.
  *
- * 记的是 reportScrollLine 报上来的 (行号, 行内比例) 而不是 scrollTop 像素值：
- * 窗口宽度、双屏开合、字号、即时渲染的图片高度都会改变像素坐标，行号不会。
+ * Stores the (line, ratio within line) from reportScrollLine rather than scrollTop pixels:
+ * window width, split view toggling, font size and live-rendered image heights all change pixel offsets, but not line numbers.
  *
- * 内存 Map 为主（同一次会话里切来切去零开销），同时镜像一份到 sessionStorage 供刷新后读；
- * 会话级足够：跨天再打开还跳到半截反而突兀，标签页一关就该忘掉。
+ * Primarily an in-memory Map (zero cost when switching within a session), mirrored to sessionStorage so it survives a refresh;
+ * session scope is enough: jumping halfway into a doc reopened days later feels odd, and it should be forgotten when the tab closes.
  */
 
-/** sessionStorage 的键前缀，值是 JSON 的 {line, ratio} */
+/** sessionStorage key prefix; values are JSON {line, ratio} */
 const KEY_PREFIX = "xedit:scroll:";
-/** 最多记最近多少篇：翻过几百篇之后不该把 sessionStorage 一直撑着 */
+/** How many recent docs to remember at most: browsing hundreds of docs shouldn't keep bloating sessionStorage */
 const MAX_DOCS = 50;
-/** 落盘节流窗口：滚动事件一秒能来几十个，合并成 ~4 次/秒足够 */
+/** Write throttle window: scroll events fire dozens of times a second, ~4 writes/sec is plenty */
 const WRITE_THROTTLE_MS = 250;
 
 interface ScrollPos {
-  /** 视口顶端是第几行（0 基，与 reportScrollLine / 大纲行号同一口径） */
+  /** Which line is at the top of the viewport (0-based, same convention as reportScrollLine / outline line numbers) */
   line: number;
-  /** 该行内部的偏移比例，长段落、大图占一行时少了它会往回跳一大截 */
+  /** Offset ratio within that line; without it, long paragraphs or big images occupying one line would jump back a lot */
   ratio: number;
 }
 
-/** 内存缓存兼 LRU 顺序表：Map 按插入序迭代，写入时先删后插就是「最近用过的排最后」 */
+/** In-memory cache doubling as the LRU order: a Map iterates in insertion order, so delete-then-insert means "most recently used goes last" */
 const memory = new Map<string, ScrollPos>();
 let hydrated = false;
 
@@ -38,7 +38,7 @@ function parsePos(raw: string | null): ScrollPos | null {
   if (!raw) return null;
   try {
     const v = JSON.parse(raw) as Partial<ScrollPos>;
-    // 存储里的东西一律当外来数据核一遍：非有限数往下传会让行号换算出 NaN
+    // Treat anything from storage as untrusted: passing along a non-finite number would turn line math into NaN
     if (!Number.isFinite(v?.line) || !Number.isFinite(v?.ratio)) return null;
     return { line: v.line as number, ratio: v.ratio as number };
   } catch {
@@ -47,8 +47,8 @@ function parsePos(raw: string | null): ScrollPos | null {
 }
 
 /**
- * 首次读写前把 sessionStorage 里的记录捞进内存。
- * 刷新后内存是空的，不捞就既读不到旧记录，也没法按 MAX_DOCS 淘汰它们（Map 不知道它们存在）。
+ * Load sessionStorage records into memory before the first read/write.
+ * Memory is empty after a refresh; without loading, old records can't be read or evicted by MAX_DOCS (the Map doesn't know they exist).
  */
 function hydrate() {
   if (hydrated) return;
@@ -61,7 +61,7 @@ function hydrate() {
       if (pos) memory.set(key.slice(KEY_PREFIX.length), pos);
     }
   } catch {
-    // 无痕模式 / 禁用存储：退化成纯内存记忆，不影响功能
+    // Private mode / storage disabled: fall back to memory-only, functionality unaffected
   }
 }
 
@@ -72,12 +72,12 @@ function readPos(docId: string): ScrollPos | null {
 
 function writePos(docId: string, pos: ScrollPos) {
   hydrate();
-  memory.delete(docId); // 先删后插，把这篇挪到 LRU 末尾
+  memory.delete(docId); // Delete then insert to move this doc to the end of the LRU
   memory.set(docId, pos);
   try {
     sessionStorage.setItem(KEY_PREFIX + docId, JSON.stringify(pos));
   } catch {
-    // 存储写满或被禁用：内存那份仍然有效
+    // Storage full or disabled: the in-memory copy still works
   }
   while (memory.size > MAX_DOCS) {
     const oldest = memory.keys().next().value;
@@ -86,17 +86,17 @@ function writePos(docId: string, pos: ScrollPos) {
     try {
       sessionStorage.removeItem(KEY_PREFIX + oldest);
     } catch {
-      // 同上，删不掉就算了
+      // Same as above; if removal fails, never mind
     }
   }
 }
 
 /**
- * @param docId 记忆的键
- * @param docKey 编辑器的重建标识（`docId:docVersion`）：它一变就意味着编辑器里换了新内容
- * @param editorRef 取 EditorView 换算行坐标
- * @param scrollEl 真正滚动的外层容器（就是喂给 MarkdownEditor 的 scrollParent）
- * @returns 接到编辑器 onScrollLine 上的记录函数
+ * @param docId Key for the memory
+ * @param docKey Editor rebuild key (`docId:docVersion`): a change means the editor now holds new content
+ * @param editorRef Gets the EditorView to convert line coordinates
+ * @param scrollEl The outer container that actually scrolls (the scrollParent passed to MarkdownEditor)
+ * @returns Recorder function to wire into the editor's onScrollLine
  */
 export function useScrollMemory(
   docId: string,
@@ -104,52 +104,52 @@ export function useScrollMemory(
   editorRef: RefObject<EditorHandle | null>,
   scrollEl: HTMLElement | null
 ) {
-  /** 已恢复到位、可以开始记录的文档；与当前 docKey 不等时一概不记 */
+  /** Doc that has been restored and can start recording; nothing is recorded while it differs from the current docKey */
   const liveKeyRef = useRef<string | null>(null);
 
-  // 待写值自带 docId：切文档时压在节流窗口里的那一次仍会落到它自己名下
+  // Pending writes carry their own docId: a write still in the throttle window when switching docs goes to the right doc
   const write = useThrottledCallback<{ id: string; pos: ScrollPos }>(
     ({ id, pos }) => writePos(id, pos),
     WRITE_THROTTLE_MS
   );
 
-  // 引用会随文档变，但编辑器把 onScrollLine 存在 ref 里、每次渲染刷新，换引用不触发重建
+  // The reference changes per doc, but the editor stores onScrollLine in a ref refreshed every render, so a new reference doesn't trigger a rebuild
   const record = useCallback(
     (line: number, ratio: number) => {
-      // 切档途中（新 docKey 还没恢复到位）和恢复自己引起的滚动都不回写，
-      // 否则刚装载时那一下「停在顶部」会把真正的记录抹成 0
+      // Don't write back mid-switch (new docKey not restored yet) or for scrolls caused by restoring itself,
+      // otherwise the initial "sitting at the top" right after loading would wipe the real record to 0
       if (liveKeyRef.current !== docKey) return;
       write({ id: docId, pos: { line, ratio } });
     },
     [docId, docKey, write]
   );
 
-  // 恢复：内容换成新文档之后跑一次。
-  // 依赖里带 scrollEl 是因为它由 callback ref 落成 state，编辑器挂载那一轮它还是 null，
-  // 得等它就位的下一轮才真正开工；依赖没变就不会重跑，不存在恢复反过来打断用户滚动。
-  // 本 effect 排在 MarkdownEditor 的挂载 effect 之后（子先父后），此时 EditorView 已建好
+  // Restore: runs once after the content switches to a new doc.
+  // scrollEl is a dependency because it becomes state via a callback ref and is still null in the editor's mount pass,
+  // so the real work happens on the next pass once it's there; with unchanged deps it won't rerun, so restoring never interrupts the user's scrolling.
+  // This effect runs after MarkdownEditor's mount effect (children before parents), so the EditorView already exists
   useEffect(() => {
     const view = editorRef.current?.view();
     if (!scrollEl || !view) return;
 
-    // 后台校新会在原地重建编辑器（docKey 变、文档没换），这时刚滚到的位置可能还压在
-    // 节流窗口里，先吐出去再读，免得拿到上一次的旧坐标
+    // A background revalidation can rebuild the editor in place (docKey changes, same doc); the position just scrolled to may still be
+    // in the throttle window, so flush it before reading to avoid picking up the previous coordinates
     write.flush();
     const saved = readPos(docId);
     const apply = () => {
       const v = editorRef.current?.view();
       if (!v) return;
       if (saved) scrollToLineRatio(v, scrollEl, saved.line, saved.ratio);
-      // 没记录过的（新建、第一次打开）从头读起：容器是跨文档复用的，
-      // 不显式归零就会留着上一篇的滚动量
+      // Docs with no record (new, first open) start from the top: the container is reused across docs,
+      // so without an explicit reset it would keep the previous doc's scroll offset
       else scrollEl.scrollTo({ top: 0, behavior: "auto" });
     };
     apply();
 
     let correct = 0;
-    // 此刻 CodeMirror 还没量完行高（即时渲染的图片、代码块 widget 尤其），
-    // 下一帧按量准的高度再定位一次；再下一帧才解禁记录 —— 滚动事件在同一帧的
-    // rAF 回调之前派发，所以校正引起的那次滚动落在解禁之前，不会被写回去
+    // CodeMirror hasn't measured line heights yet at this point (especially live-rendered images and code block widgets),
+    // so position again next frame with accurate heights; recording is re-enabled the frame after -- scroll events are dispatched
+    // before rAF callbacks in the same frame, so the scroll from the correction lands before recording resumes and isn't written back
     const first = requestAnimationFrame(() => {
       apply();
       correct = requestAnimationFrame(() => {

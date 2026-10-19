@@ -10,7 +10,7 @@ const failed = (what: string, e: unknown) => {
   return NextResponse.json({ error: "failed", message: tk("操作失败，稍后再试") }, { status: 500 });
 };
 
-/** 取一条记录的整份结果 */
+/** Fetch the full result of one record */
 export async function GET(_req: Request, { params }: Ctx) {
   const who = await historyUser();
   if ("response" in who) return who.response;
@@ -22,7 +22,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   }
 }
 
-/** 记下「忽略 / 知道了」：请求体 { actions: { 意见 id: "ignored" | "acked" } }，整份覆盖 */
+/** Record 「忽略 / 知道了」 (Ignore / Got it): body { actions: { [suggestionId]: "ignored" | "acked" } }, replaced wholesale */
 export async function PATCH(req: Request, { params }: Ctx) {
   const who = await historyUser();
   if ("response" in who) return who.response;

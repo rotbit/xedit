@@ -1,18 +1,18 @@
 /**
- * AI 审核的历史记录（表 ReviewRecord）：每跑成一趟存一条，随时翻回来看。
+ * AI review history (ReviewRecord table): one record per successful run, available to look back at anytime.
  *
- * 存的只有审核结果和「忽略 / 知道了」这两种按钮动作。采纳不存——它从正文里现推（见
- * features/review/status.ts），所以翻出一份旧记录，已经改掉的那几条自己就是「已采纳 / 原文已修改」。
- * 每条记录都按 userId 过一遍：别人的记录，知道 id 也读不到、改不了。
+ * Only the review result and the two button actions "ignore / got it" are stored. Accepted isn't stored -- it's derived from the body (see
+ * features/review/status.ts), so when an old record is opened, items already changed show up as "accepted / original modified" on their own.
+ * Every record is filtered by userId: other people's records can't be read or modified even with the id.
  */
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { cleanReviewKinds, type ReviewKind } from "./reviewKinds";
 
-/** 每篇文章留最近这么多条，再多就把最老的挤掉 */
+/** Keep this many recent records per article; beyond that the oldest are pushed out */
 export const MAX_RECORDS_PER_DOC = 20;
 const MAX_DOC_ID_CHARS = 100;
-/** 一趟审核给不出这么多条意见；超了就是有人在灌 */
+/** One review run can't produce this many comments; more than this means someone is flooding */
 const MAX_ACTIONS = 500;
 
 export type ReviewActions = Record<string, "ignored" | "acked">;
@@ -23,13 +23,13 @@ interface StoredResult {
   items: unknown[];
 }
 
-/** 列表里的一行：够认出是哪一趟就行，整份结果点开再取 */
+/** One row in the list: just enough to identify the run; the full result is fetched when opened */
 export interface ReviewRecordMeta {
   id: string;
   createdAt: string;
   kinds: ReviewKind[];
   model: string;
-  /** 这一趟一共给了几条意见 */
+  /** Total number of comments in this run */
   total: number;
 }
 
@@ -38,14 +38,14 @@ export interface ReviewRecordFull extends ReviewRecordMeta {
   actions: ReviewActions;
 }
 
-/** 客户端报上来的文章 id：只当个标签用，不连外键，但也不能什么都收 */
+/** Article id reported by the client: just a label, no foreign key, but we can't accept anything either */
 export function cleanDocId(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const id = value.trim();
   return id !== "" && id.length <= MAX_DOC_ID_CHARS ? id : null;
 }
 
-/** 只认两种动作、只认字符串 id；其余的丢掉而不是报错——这只是几个按钮的记忆 */
+/** Only the two known actions and string ids; anything else is dropped rather than erroring -- it's just memory for a few buttons */
 export function cleanActions(value: unknown): ReviewActions {
   const out: ReviewActions = {};
   if (!value || typeof value !== "object" || Array.isArray(value)) return out;
@@ -83,7 +83,7 @@ function toMeta(row: Row): ReviewRecordMeta {
   };
 }
 
-/** 存一条，顺手把这篇文章超出上限的老记录清掉 */
+/** Save one record, and prune this article's old records beyond the cap */
 export async function saveReviewRecord(input: {
   userId: string;
   docId: string;
@@ -112,7 +112,7 @@ export async function saveReviewRecord(input: {
   return toMeta(row);
 }
 
-/** 这篇文章的历史，新的在前 */
+/** History for this article, newest first */
 export async function listReviewRecords(userId: string, docId: string): Promise<ReviewRecordMeta[]> {
   const rows = await prisma.reviewRecord.findMany({
     where: { userId, docId },
@@ -128,7 +128,7 @@ export async function getReviewRecord(userId: string, id: string): Promise<Revie
   return { ...toMeta(row), result: asResult(row.result), actions: cleanActions(row.actions) };
 }
 
-/** 整份覆盖：界面上那份动作表本来就是完整的，不必做合并 */
+/** Overwrite the whole thing: the action table from the UI is already complete, no merge needed */
 export async function setReviewActions(userId: string, id: string, actions: unknown): Promise<boolean> {
   const done = await prisma.reviewRecord.updateMany({
     where: { id, userId },

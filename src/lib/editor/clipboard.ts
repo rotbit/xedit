@@ -6,8 +6,8 @@ import type TurndownService from "turndown";
 import { caretInFencedCode } from "@/lib/livePreview/context";
 import { handleMediaFiles, type Notify } from "@/lib/editor/commands";
 
-// 富文本粘贴 → Markdown。turndown 不小且只有粘贴用得到，不进编辑器主包：
-// 编辑器挂载后异步预载，粘贴时同步取用；加载完成前粘贴则退化为纯文本粘贴。
+// Rich text paste → Markdown. turndown isn't small and only paste needs it, so it stays out of the editor's main bundle:
+// preloaded asynchronously after the editor mounts, used synchronously on paste; pasting before it loads degrades to plain-text paste.
 let turndown: TurndownService | null = null;
 let turndownLoading: Promise<void> | null = null;
 export function preloadClipboardConverter(): Promise<void> {
@@ -15,7 +15,7 @@ export function preloadClipboardConverter(): Promise<void> {
     turndownLoading = Promise.all([import("turndown"), import("turndown-plugin-gfm")]).then(
       ([{ default: Turndown }, { gfm }]) => {
         const td = new Turndown({
-          // 与编辑器自己产出的 Markdown 保持同一套写法：# 标题、``` 围栏、**加粗**、- 列表、--- 分隔线
+          // Match the Markdown the editor produces itself: # headings, ``` fences, **bold**, - lists, --- rules
           headingStyle: "atx",
           codeBlockStyle: "fenced",
           fence: "```",
@@ -35,9 +35,9 @@ export function preloadClipboardConverter(): Promise<void> {
 }
 
 /**
- * turndown 默认把列表项写成 `-   x`（标记后三个空格）、`1.  x`（两个空格），
- * 续行还按这个宽度缩进——四格缩进在 Markdown 里就是代码块，粘完的列表一嵌套就散架。
- * 这里换成标准的 `- ` / `1. `，续行缩进同步收窄。规则用 addRule 覆盖内置的 listItem。
+ * turndown writes list items as `-   x` (three spaces after the marker) and `1.  x` (two spaces) by default,
+ * and indents continuation lines to that width; a four-space indent is a code block in Markdown, so pasted lists fall apart once nested.
+ * Switch to standard `- ` / `1. ` and narrow continuation indents accordingly. addRule overrides the built-in listItem.
  */
 function compactListItems(td: TurndownService) {
   td.addRule("listItem", {
@@ -71,8 +71,8 @@ function htmlToMd(html: string): string {
   }
 }
 
-/** 光标是否在行内代码 `…` 内部。只认严格内部：贴在反引号外侧不算，
- *  否则「代码后面紧跟着粘一段富文本」会莫名其妙退化成纯文本 */
+/** Whether the cursor is strictly inside inline code `…`. Touching a backtick from outside doesn't count,
+ *  otherwise "pasting rich text right after code" would mysteriously degrade to plain text */
 function caretInInlineCode(state: EditorState): boolean {
   const pos = state.selection.main.head;
   for (const side of [-1, 1] as const) {
@@ -83,17 +83,17 @@ function caretInInlineCode(state: EditorState): boolean {
   return false;
 }
 
-/** 代码里粘贴一律原样进：URL 不自动变链接，富文本也不转 Markdown。
- *  代码块里出现 ** 和 # 只会把代码毁掉，而且转换是不可逆的 */
+/** Pasting inside code always goes in verbatim: URLs aren't auto-linked and rich text isn't converted to Markdown.
+ *  ** and # in a code block would only wreck the code, and the conversion is irreversible */
 const caretInCode = (state: EditorState): boolean =>
   caretInFencedCode(state) || caretInInlineCode(state);
 
-/** 粘贴与拖放只转换输入内容；默认文本输入继续交给 CodeMirror。
- *  notify：粘贴/拖入媒体会走上传，提示由调用方给（见 commands.ts 的 Notify）。
- *  dropCursor 一并挂在这里：拖文件进来时得先看得见落点在哪一格。 */
+/** Paste and drop only convert the incoming content; default text input stays with CodeMirror.
+ *  notify: pasting/dropping media triggers uploads, and the caller provides the messages (see Notify in commands.ts).
+ *  dropCursor is attached here too: when dragging a file in, you need to see where it will land. */
 export const editorClipboard = (notify: Notify): Extension => [
   dropCursor(),
-  // 内置落点光标在深色模式下是黑的（core 只给 .cm-cursor 配了深色），跟着正文色走
+  // The built-in drop cursor is black in dark mode (core only styles .cm-cursor for dark), so follow the text color
   EditorView.baseTheme({ ".cm-dropCursor": { borderLeftColor: "var(--accent)" } }),
   EditorView.domEventHandlers({
     paste: (event, view) => {
@@ -102,11 +102,11 @@ export const editorClipboard = (notify: Notify): Extension => [
         event.preventDefault();
         return true;
       }
-      // 代码里粘贴：交回 CodeMirror 原样插 text/plain（Cmd+Shift+V 走的也是这条路）
+      // Pasting in code: hand back to CodeMirror to insert text/plain as-is (Cmd+Shift+V takes this path too)
       if (caretInCode(view.state)) return false;
       const plain = event.clipboardData?.getData("text/plain") ?? "";
       const sel = view.state.selection.main;
-      // 选中文字时粘贴 URL → 自动变链接
+      // Pasting a URL with text selected → auto-link
       if (/^https?:\/\/\S+$/.test(plain.trim()) && sel.from !== sel.to) {
         const text = view.state.sliceDoc(sel.from, sel.to);
         view.dispatch({
@@ -115,7 +115,7 @@ export const editorClipboard = (notify: Notify): Extension => [
         event.preventDefault();
         return true;
       }
-      // 富文本 → Markdown（纯文本粘贴可用 Cmd+Shift+V）
+      // Rich text → Markdown (plain-text paste via Cmd+Shift+V)
       const html = event.clipboardData?.getData("text/html") ?? "";
       if (html) {
         const md = htmlToMd(html).trim();
@@ -131,7 +131,7 @@ export const editorClipboard = (notify: Notify): Extension => [
     drop: (event, view) => {
       const files = event.dataTransfer?.files;
       if (!files || files.length === 0) return false;
-      // 落点按鼠标位置算：拖进来的时候光标多半还停在别处，插到光标处就是插错地方
+      // Drop position follows the mouse: when dragging in, the cursor is usually elsewhere, so inserting at the cursor would be wrong
       const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
       if (!handleMediaFiles(view, files, notify, pos ?? undefined)) return false;
       event.preventDefault();

@@ -1,9 +1,9 @@
 /**
- * 审核类型目录：这一趟审的是「文章表述」还是「公众号规则」。
+ * Review kind catalog: whether this run reviews "writing" or "WeChat Official Account rules".
  *
- * 纯数据，没有提示词也没有服务端的东西——网页那边（启动面板、审核条上的胶囊）
- * 要拿它列选项，服务端要拿它挑提示词与分类。提示词本身长在 reviewPrompt.ts，
- * 网页不 import 那一份，免得把几千字的系统提示打进前端包里。
+ * Pure data, no prompts or server code -- the web side (launch panel, pill on the review bar)
+ * lists options from it, and the server picks prompts and categories from it. The prompts themselves live in reviewPrompt.ts,
+ * which the web doesn't import, so thousands of characters of system prompt stay out of the frontend bundle.
  */
 import { tk } from "@/i18n/t";
 
@@ -11,9 +11,9 @@ export type ReviewKind = "expression" | "wechat_rules";
 
 export interface ReviewKindSpec {
   id: ReviewKind;
-  /** 面板上显示的名字 */
+  /** Name shown in the panel */
   label: string;
-  /** 一句话说这一类看的是什么，让人不必猜 */
+  /** One sentence on what this kind looks at, so nobody has to guess */
   description: string;
 }
 
@@ -30,24 +30,24 @@ export const REVIEW_KINDS: ReviewKindSpec[] = [
   },
 ];
 
-/** 没选过的时候审哪一类：绝大多数人点「审核」是想让人给文章挑毛病 */
+/** Which kind to review when nothing has been chosen: most people clicking "review" want their writing critiqued */
 export const DEFAULT_REVIEW_KIND: ReviewKind = "expression";
 
 const BY_ID = new Map(REVIEW_KINDS.map((k) => [k.id, k]));
 
-/** 认不认这个审核类型 id（本机设置与接口入参都要过这一关） */
+/** Whether this review kind id is recognized (both local settings and API inputs go through this check) */
 export function isReviewKind(value: unknown): value is ReviewKind {
   return typeof value === "string" && BY_ID.has(value as ReviewKind);
 }
 
-/** 取一类；认不出一律 null，由调用方决定报错还是落回默认 */
+/** Gets a kind; unknown ids return null, and the caller decides whether to error or fall back to the default */
 export function reviewKind(value: unknown): ReviewKindSpec | null {
   return isReviewKind(value) ? (BY_ID.get(value) ?? null) : null;
 }
 
 /**
- * 一趟可以同时审几类（多选）。把随便什么输入洗成一份干净的清单：
- * 只留认识的、去重、按目录顺序排；一个都不剩就落回默认那一类——永远不会是空的。
+ * A run can review several kinds at once (multi-select). Sanitizes any input into a clean list:
+ * known ids only, deduped, in catalog order; if none remain, fall back to the default kind -- it's never empty.
  */
 export function cleanReviewKinds(value: unknown): ReviewKind[] {
   const picked = new Set(Array.isArray(value) ? value.filter(isReviewKind) : []);
@@ -56,14 +56,14 @@ export function cleanReviewKinds(value: unknown): ReviewKind[] {
 }
 
 /**
- * 几类一起审时的名字：「表述审核 + 公众号合规审核」。
- * 界面上调用时传组件里的 t 翻成当前语言；不传就是中文原文（服务端拼提示词要的就是原文）。
+ * Name for several kinds reviewed together, e.g. 「表述审核 + 公众号合规审核」 (writing review + WeChat compliance review).
+ * UI callers pass the component's t to translate into the current language; without it you get the Chinese original (which the server needs for prompts).
  */
 export function reviewKindsLabel(kinds: readonly ReviewKind[], tr: (zh: string) => string = (s) => s): string {
   return kinds.map((k) => tr(reviewKindLabel(k))).join(" + ");
 }
 
-/** 一类的中文名（label 存的是原文；提示词直接用，界面上显示时再 t()） */
+/** Chinese name of a kind (label stores the original; prompts use it directly, the UI runs it through t()) */
 export function reviewKindLabel(value: unknown): string {
   return reviewKind(value)?.label ?? reviewKind(DEFAULT_REVIEW_KIND)!.label;
 }

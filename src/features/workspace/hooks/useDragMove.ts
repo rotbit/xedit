@@ -7,7 +7,7 @@ import { allCategories, canNestCategory } from "../lib/catTree";
 import { catKey, docKey } from "../lib/sidebarOrder";
 import type { DocMeta, DragItem } from "../types";
 
-/** 拖拽悬停自动展开折叠分类的计时器；同一时刻只有一个拖拽，模块级即可 */
+/** Timer for auto-expanding a collapsed category while hovering a drag; there's only one drag at a time, so module level is fine */
 let dragExpandTimer: number | null = null;
 
 function cancelDragExpand() {
@@ -22,10 +22,10 @@ function scheduleDragExpand(fn: () => void) {
   dragExpandTimer = window.setTimeout(fn, 600);
 }
 
-/** 落点：中间=放入（成为子级/移入分类），上下边缘=插到该行前/后（手动排序） */
+/** Drop zone: middle = drop into (become a child / move into the category), top/bottom edge = insert before/after this row (manual ordering) */
 export interface DropSpot {
   kind: "cat" | "doc";
-  /** 分类路径（或 ALL 根）/ 文档 id */
+  /** Category path (or the ALL root) / doc id */
   key: string;
   zone: "into" | "before" | "after";
 }
@@ -37,7 +37,7 @@ interface Params {
   expandOne: (path: string) => void;
   moveDoc: (doc: DocMeta, category: string) => void;
   moveCategory: (path: string, parent: string) => void;
-  /** 把拖拽项插到 host 父级序列里 targetKey 的前/后（跨父级/跨分类时连带迁移） */
+  /** Insert the dragged item before/after targetKey in host's parent sequence (moving it along when crossing parents/categories) */
   reorderItem: (
     item: DragItem,
     host: string,
@@ -46,7 +46,7 @@ interface Params {
   ) => void;
 }
 
-/** 指针在行内的纵向位置 → 落区。edge 是上下边缘占比 */
+/** Pointer's vertical position within the row → drop zone. edge is the fraction taken by the top/bottom edges */
 function zoneOf(e: React.DragEvent, edge: number): "before" | "after" | "into" {
   const rect = e.currentTarget.getBoundingClientRect();
   const y = (e.clientY - rect.top) / Math.max(rect.height, 1);
@@ -56,11 +56,11 @@ function zoneOf(e: React.DragEvent, edge: number): "before" | "after" | "into" {
 }
 
 /**
- * 鼠标拖拽：文章/分类拖到侧栏行上。
- * 行中部=移入该分类；行边缘=插到该行前后调整先后顺序（跨父级/跨分类时连带迁移）。
- * 同一父级下文件夹与文章共用一条显示序列，可以自由混排——两种落点对两者一视同仁：
- * 文件夹行边缘=插到该文件夹前/后，文章行边缘=插到该文章前/后。
- * 文章拖到文件夹行只有中段才「移入」——边缘窄一些留缓冲，避免瞄准排序时被文件夹吞掉。
+ * Mouse drag: docs/categories dragged onto sidebar rows.
+ * Middle of a row = move into that category; row edge = insert before/after it to change order (moving along when crossing parents/categories).
+ * Folders and docs under the same parent share one display sequence and can be freely interleaved — both drop kinds treat them the same:
+ * folder row edge = insert before/after that folder, doc row edge = insert before/after that doc.
+ * Dropping a doc on a folder row only "moves in" in the middle band — the edges are a bit narrower as a buffer so aiming to reorder doesn't get swallowed by the folder.
  */
 export function useDragMove({
   docs,
@@ -80,56 +80,56 @@ export function useDragMove({
     setDropSpot(null);
   };
 
-  /** 分类拖拽能否「放入」parent（空串=顶级）或在其下插排 */
+  /** Whether a category drag can "drop into" parent (empty = top level) or be reordered beneath it */
   const catCanGo = (path: string, parent: string, sameParentOk: boolean): boolean => {
     if (sameParentOk && parentOf(path) === parent) return true;
     return canNestCategory(path, parent, allCategories(customCats, docs));
   };
 
-  /** 文章能否移入分类 target（ALL = 未分类） */
+  /** Whether a doc can move into category target (ALL = uncategorized) */
   const docCanMoveTo = (id: string, target: string): boolean => {
     const doc = (docs ?? []).find((d) => d.id === id);
     if (!doc) return false;
     return (doc.category || UNCATEGORIZED) !== (target === ALL ? UNCATEGORIZED : target);
   };
 
-  /** 判定分类行上的落点；null = 不可落 */
+  /** Determine the drop zone on a category row; null = not droppable */
   const spotOnCat = (e: React.DragEvent, target: string): DropSpot | null => {
     if (!dragItem) return null;
     if (dragItem.kind === "doc") {
-      // 根级空白区没有前后可插，整块都算「移入未分类」
+      // The root-level blank area has no before/after, so the whole block counts as "move to uncategorized"
       if (target === ALL) {
         return docCanMoveTo(dragItem.id, ALL) ? { kind: "cat", key: ALL, zone: "into" } : null;
       }
-      // 文章拖到分类行：中段算「移入」，上下边缘窄——瞄准前后插排时手抖压到文件夹行，
-      // 本不该把文件吞进那个文件夹。
+      // Doc dragged onto a category row: the middle band is "move in", the top/bottom edges are narrow — when aiming to reorder and the hand slips onto a folder row,
+      // the file shouldn't get swallowed into that folder.
       const zone = zoneOf(e, 0.25);
       if (zone === "into") {
         return docCanMoveTo(dragItem.id, target) ? { kind: "cat", key: target, zone: "into" } : null;
       }
-      // 边缘=把文章插到这个文件夹的前/后（落点归属是文件夹所在的父分类）。
-      // 文章与文件夹混排，所以跨分类也接——drop 时连带 moveDoc。
+      // Edge = insert the doc before/after this folder (the drop belongs to the folder's parent category).
+      // Docs and folders are interleaved, so cross-category drops are accepted too — moveDoc runs along with the drop.
       const host = parentOf(target);
-      return host ? { kind: "cat", key: target, zone } : null; // 顶级文件夹旁排不了文章
+      return host ? { kind: "cat", key: target, zone } : null; // Docs can't be placed next to top-level folders
     }
     const path = dragItem.path;
     if (path === UNCATEGORIZED) return null;
     if (target === ALL) {
-      // 根节点：提升为顶级
+      // Root node: promote to top level
       return catCanGo(path, "", false) ? { kind: "cat", key: ALL, zone: "into" } : null;
     }
-    if (target === path || target.startsWith(`${path}/`)) return null; // 自己或子孙
+    if (target === path || target.startsWith(`${path}/`)) return null; // Itself or a descendant
     const zone = zoneOf(e, 0.28);
     if (zone === "into") {
       return catCanGo(path, target, false) ? { kind: "cat", key: target, zone } : null;
     }
-    // 边缘：插到 target 的前/后（同父=纯排序，跨父=迁移+排序）
+    // Edge: insert before/after target (same parent = pure reorder, different parent = move + reorder)
     return catCanGo(path, parentOf(target), true)
       ? { kind: "cat", key: target, zone }
       : null;
   };
 
-  /** 判定文章行上的落点；文章与文件夹都能插到这篇文章的前/后。null = 不可落 */
+  /** Determine the drop zone on a doc row; both docs and folders can be inserted before/after this doc. null = not droppable */
   const spotOnDoc = (e: React.DragEvent, target: DocMeta): DropSpot | null => {
     if (!dragItem) return null;
     if (dragItem.kind === "doc") {
@@ -138,20 +138,20 @@ export function useDragMove({
       const path = dragItem.path;
       if (path === UNCATEGORIZED) return null;
       const host = target.category || UNCATEGORIZED;
-      if (host === UNCATEGORIZED) return null; // 未分类不收子文件夹
-      if (host === path || host.startsWith(`${path}/`)) return null; // 自己或子孙
+      if (host === UNCATEGORIZED) return null; // Uncategorized doesn't take subfolders
+      if (host === path || host.startsWith(`${path}/`)) return null; // Itself or a descendant
       if (!catCanGo(path, host, true)) return null;
     }
     const zone = zoneOf(e, 0.5);
     return { kind: "doc", key: target.id, zone: zone === "into" ? "after" : zone };
   };
 
-  /** 拖拽源通用属性（文章卡片 / 列表行 / 侧栏文章行 / 分类行） */
+  /** Common drag-source props (doc cards / list rows / sidebar doc rows / category rows) */
   const dragSrcProps = (item: DragItem) => ({
     draggable: true,
     onDragStart: (e: React.DragEvent) => {
       e.stopPropagation();
-      // Firefox 必须 setData 才会启动拖拽
+      // Firefox only starts a drag after setData
       e.dataTransfer.setData("text/plain", item.kind === "doc" ? item.id : item.path);
       e.dataTransfer.effectAllowed = "move";
       setDragItem(item);
@@ -166,7 +166,7 @@ export function useDragMove({
     rowKey: string
   ) => {
     if (!spot) {
-      // 同一行内从可落区滑进不可落区（如边缘→中间）时清掉残留高亮
+      // Clear leftover highlight when sliding from a droppable to a non-droppable zone within the same row (e.g. edge → middle)
       setDropSpot((prev) => (prev && prev.kind === rowKind && prev.key === rowKey ? null : prev));
       cancelDragExpand();
       return;
@@ -179,7 +179,7 @@ export function useDragMove({
         ? prev
         : spot
     );
-    // 悬停「放入」折叠分类片刻自动展开，便于往更深层拖放
+    // Hovering "drop into" over a collapsed category auto-expands it after a moment, for dropping deeper
     cancelDragExpand();
     if (spot.zone === "into" && rowKind === "cat" && rowKey !== ALL && !expanded.has(rowKey)) {
       scheduleDragExpand(() => expandOne(rowKey));
@@ -192,7 +192,7 @@ export function useDragMove({
     cancelDragExpand();
   };
 
-  /** 分类行（及根节点）的落点属性 */
+  /** Drop-target props for category rows (and the root node) */
   const dropProps = (target: string) => ({
     onDragOver: (e: React.DragEvent) => acceptSpot(e, spotOnCat(e, target), "cat", target),
     onDragLeave: (e: React.DragEvent) => clearSpot(e, "cat", target),
@@ -203,7 +203,7 @@ export function useDragMove({
       if (!spot || !item) return;
       e.preventDefault();
       e.stopPropagation();
-      // 中段=移入该分类；边缘=插到这个文件夹的前/后（文章、文件夹同一套序列）
+      // Middle = move into this category; edge = insert before/after this folder (docs and folders share one sequence)
       if (item.kind === "doc") {
         const doc = (docs ?? []).find((d) => d.id === item.id);
         if (!doc) return;
@@ -219,7 +219,7 @@ export function useDragMove({
     },
   });
 
-  /** 侧栏文章行的落点属性：上/下半区插到该文章前/后（文章与文件夹都收） */
+  /** Drop-target props for sidebar doc rows: top/bottom half inserts before/after this doc (accepts both docs and folders) */
   const docDropProps = (target: DocMeta) => ({
     onDragOver: (e: React.DragEvent) => acceptSpot(e, spotOnDoc(e, target), "doc", target.id),
     onDragLeave: (e: React.DragEvent) => clearSpot(e, "doc", target.id),
@@ -234,7 +234,7 @@ export function useDragMove({
     },
   });
 
-  /** 正在被拖动的行/卡片降透明度 */
+  /** Lower opacity for the row/card being dragged */
   const isDragging = (item: DragItem): boolean =>
     dragItem?.kind === item.kind &&
     (item.kind === "doc"

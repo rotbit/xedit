@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 自定义主题编辑器：左侧调参数，右侧用正式渲染那套 CSS 实时出样张，保存后写进 store 并立刻应用。
- * 用户只需要选一个主色，深浅底色、边框、强调色都由 buildCustomThemeCss 派生，所以这里没有多个颜色输入。
- * 预览时把主题 CSS 里的 #nice 换成 PREVIEW_SCOPE，否则编辑器自身的界面也会被主题样式染到。
+ * Custom theme editor: tweak parameters on the left, see a live sample on the right using the real rendering CSS; saving writes to the store and applies immediately.
+ * The user picks just one primary color; light/dark backgrounds, borders and accents are derived by buildCustomThemeCss, so there are no multiple color inputs here.
+ * The preview replaces #nice in the theme CSS with PREVIEW_SCOPE, otherwise the editor's own UI would be styled by the theme too.
  */
 import { useMemo, useState } from "react";
 import { X, Trash2 } from "lucide-react";
@@ -24,7 +24,7 @@ import {
   type CustomThemeSpec,
 } from "@/lib/themes";
 
-/** 常用主色快捷色板 */
+/** Quick swatches of common primary colors */
 const SWATCHES = [
   "#1e6bb8",
   "#07c160",
@@ -40,10 +40,10 @@ const SWATCHES = [
   "#333333",
 ];
 
-// 预览容器的专属作用域类。主题 CSS 都是以 #nice 为根写的，替换成这个 class 才能把影响限制在右侧样张里
+// Dedicated scope class for the preview container. Theme CSS is all rooted at #nice; swapping in this class confines its effect to the sample on the right
 const PREVIEW_SCOPE = "ts-pv";
 
-/** 分组小标题的样式；first:mt-0 让第一组不带顶部间距 */
+/** Group subheading style; first:mt-0 drops the top margin on the first group */
 const LABEL_CLS = "mb-1.5 mt-4 block text-[11.5px] tracking-wider text-[var(--ink-faint)] first:mt-0";
 
 function SegBtn({
@@ -69,11 +69,11 @@ function SegBtn({
   );
 }
 
-/** 只判断要不要开；真正的编辑逻辑在 ThemeStudioInner。 */
+/** Only decides whether to open; the real editing logic is in ThemeStudioInner. */
 export function ThemeStudio() {
   const mode = useStore((s) => s.themeStudio);
   if (mode === "closed") return null;
-  // key 绑在 mode 上：从「编辑 A」切到「编辑 B」或「新建」时强制重建组件，否则 draft 的初始值不会重新取
+  // key is bound to mode: switching from "edit A" to "edit B" or "new" forces a remount, otherwise the draft's initial value isn't re-read
   return <ThemeStudioInner key={mode} />;
 }
 
@@ -85,7 +85,7 @@ function ThemeStudioInner() {
   const setThemeId = useStore((s) => s.setThemeId);
   const t = useT();
 
-  // 用 getState() 取一次而不是订阅：草稿只需要挂载时的初始值，保存过程中 store 的变动不该回灌到正在填的表单
+  // Read once via getState() instead of subscribing: the draft only needs the initial value at mount, and store changes during saving shouldn't flow back into the form being filled in
   const editing = useStore.getState().customThemes.find((th) => th.id === mode) ?? null;
   const [draft, setDraft] = useState<Omit<CustomThemeSpec, "id">>(() => {
     if (editing) {
@@ -102,18 +102,18 @@ function ThemeStudioInner() {
   const patch = (p: Partial<Omit<CustomThemeSpec, "id">>) => setDraft((d) => ({ ...d, ...p }));
   const setAccent = (accent: string) => {
     setHexDraft(accent);
-    // hex 输入框允许中间态（用户正打到一半），只有合法的六位色值才推进草稿，否则预览会一直闪
+    // The hex input allows intermediate states (the user is mid-typing); only a valid six-digit color advances the draft, otherwise the preview would keep flickering
     if (/^#[0-9a-f]{6}$/i.test(accent)) patch({ accent });
   };
 
   const previewCss = useMemo(() => {
-    // 预览和正式渲染共用同一套 BASE_CSS + 生成 CSS，样张才不会和实际发出去的效果有偏差
+    // The preview and real rendering share the same BASE_CSS + generated CSS, so the sample never deviates from what's actually published
     const css = BASE_CSS + buildCustomThemeCss({ ...draft, id: "preview" });
     return css.replaceAll("#nice", `.${PREVIEW_SCOPE}`);
   }, [draft]);
 
   const save = () => {
-    // 编辑时保留原 id（别的设备还在引用它），只有新建才生成；保存完顺手切到这套主题
+    // Editing keeps the original id (other devices still reference it); only new themes get one. After saving, switch to this theme
     const id = editing?.id ?? crypto.randomUUID();
     saveCustomTheme({ ...draft, id, name: draft.name.trim() || t("我的主题") });
     setThemeId(CUSTOM_THEME_PREFIX + id);
@@ -138,7 +138,7 @@ function ThemeStudioInner() {
   return (
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
-      // 点遮罩关闭；下面的面板自己 stopPropagation，所以点内容不会误关
+      // Click the backdrop to close; the panel below stops propagation itself, so clicking content won't close it by mistake
       onClick={() => setThemeStudio("closed")}
     >
       <div
@@ -158,7 +158,7 @@ function ThemeStudioInner() {
         </div>
 
         <div className="flex min-h-0 flex-1">
-          {/* 左：参数控件 */}
+          {/* Left: parameter controls */}
           <div className="w-[300px] shrink-0 overflow-y-auto border-r border-[var(--hairline)] p-4">
             <label className={LABEL_CLS}>{t("主题名称")}</label>
             <input
@@ -290,8 +290,8 @@ function ThemeStudioInner() {
             </div>
           </div>
 
-          {/* 右：实时预览（与正式渲染同一套 base + 生成 CSS） */}
-          {/* light-lock：样张永远按浅色底渲染——公众号里没有深色模式，深色下预览会骗人 */}
+          {/* Right: live preview (same base + generated CSS as the real render) */}
+          {/* light-lock: the sample always renders on a light background — WeChat has no dark mode, so a dark preview would mislead */}
           <div className="light-lock min-w-0 flex-1 overflow-y-auto bg-white">
             <style>{previewCss}</style>
             <div className={PREVIEW_SCOPE} style={{ maxWidth: 420, margin: "0 auto" }}>

@@ -39,7 +39,7 @@ describe("dates", () => {
   it("不带年份：早于今天超过 180 天算明年，否则算今年（逾期）", () => {
     expect(parseDueTag("年会 @1/3", T).due).toBe("2027-01-03");
     expect(parseDueTag("复盘 @9/1", T).due).toBe("2026-09-01");
-    // 4/12 距 10/8 正好 179 天，仍算今年
+    // 4/12 is exactly 179 days from 10/8, so it's still this year
     expect(parseDueTag("x @4/12", T).due).toBe("2026-04-12");
     expect(parseDueTag("x @4/10", T).due).toBe("2027-04-10");
   });
@@ -69,7 +69,7 @@ describe("dates", () => {
     expect(parseDueTag("Submit draft @Tomorrow", T)).toEqual({ text: "Submit draft", due: "2026-10-09", end: null });
     expect(parseDueTag("Submit draft @YESTERDAY", T)).toEqual({ text: "Submit draft", due: "2026-10-07", end: null });
     expect(parseDueTag("交稿 @today", T)).toEqual({ text: "交稿", due: T, end: null });
-    // 原型链上的名字不是日期标签
+    // Names on the prototype chain aren't date tags
     expect(parseDueTag("x @constructor", T)).toEqual({ text: "x @constructor", due: null, end: null });
     expect(parseDueTag("x @todays", T).due).toBeNull();
   });
@@ -78,7 +78,7 @@ describe("dates", () => {
     expect(parseDueTag("写书 @2026-10-09~2026-10-12", T)).toEqual({ text: "写书", due: "2026-10-09", end: "2026-10-12" });
     expect(parseDueTag("写书 @今天~10/12", T)).toEqual({ text: "写书", due: T, end: "2026-10-12" });
     expect(parseDueTag("写书 @tomorrow~10月20日", T)).toEqual({ text: "写书", due: "2026-10-09", end: "2026-10-20" });
-    // 开始结束同一天也认
+    // Start and end on the same day is accepted too
     expect(parseDueTag("写书 @10/9~10/9", T)).toEqual({ text: "写书", due: "2026-10-09", end: "2026-10-09" });
     expect(isDueTag("2026-10-09~2026-10-12", T)).toBe(true);
   });

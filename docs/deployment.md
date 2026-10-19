@@ -1,25 +1,25 @@
-# 部署教程
+# Deployment guide
 
-xEdit 是一个标准的 Next.js（standalone 产物）+ PostgreSQL 应用，任何能跑 Docker 的机器都能自托管。本文按由简到繁排：
+xEdit is a standard Next.js (standalone output) + PostgreSQL app, so it can be self-hosted on any machine that runs Docker. Options are ordered from simplest to most involved:
 
-- [一、Docker Compose（推荐，最省事）](#一docker-compose推荐最省事)
-- [二、Dokploy 面板部署](#二dokploy-面板部署)
-- [三、裸机 / PM2 部署](#三裸机--pm2-部署)
-- [四、配置第三方登录（GitHub / Google / 微信）](#四配置第三方登录github--google--微信)
-- [五、配置图床（阿里云 OSS）](#五配置图床阿里云-oss)
-- [六、域名与 HTTPS](#六域名与-https)
-- [七、升级、备份与回滚](#七升级备份与回滚)
-- [八、常见问题](#八常见问题)
+- [1. Docker Compose (recommended, simplest)](#1-docker-compose-recommended-simplest)
+- [2. Dokploy](#2-dokploy)
+- [3. Bare metal / PM2](#3-bare-metal--pm2)
+- [4. Third-party login (GitHub / Google / WeChat)](#4-third-party-login-github--google--wechat)
+- [5. Image hosting (Alibaba Cloud OSS)](#5-image-hosting-alibaba-cloud-oss)
+- [6. Domain and HTTPS](#6-domain-and-https)
+- [7. Upgrades, backups and rollback](#7-upgrades-backups-and-rollback)
+- [8. FAQ](#8-faq)
 
-> 关于 Vercel：应用本身跑得起来，但**图床上传会失败**——`ali-oss` 依赖 Node 运行时的动态 `require`，且 Vercel 无持久盘。要用完整功能请选自托管。
+> About Vercel: the app itself runs, but **image uploads fail** — `ali-oss` relies on dynamic `require` in the Node runtime, and Vercel has no persistent disk. Self-host for the full feature set.
 
 ---
 
-## 一、Docker Compose（推荐，最省事）
+## 1. Docker Compose (recommended, simplest)
 
-一条命令起数据库 + 应用，容器启动时自动建表。
+One command brings up the database and the app; tables are created automatically when the container starts.
 
-**前置**：一台装了 Docker（含 Compose v2）的机器，1 核 1G 起步，建议 2G。
+**Prerequisites**: a machine with Docker (including Compose v2), at least 1 CPU and 1 GB RAM, 2 GB recommended.
 
 ```bash
 git clone https://github.com/rotbit/xedit.git
@@ -27,106 +27,106 @@ cd xedit
 cp .env.example .env
 ```
 
-编辑 `.env`，**至少**填这三项：
+Edit `.env` and fill in **at least** these:
 
 ```env
-# 数据库密码，自己起一个
-POSTGRES_PASSWORD=换成你的强密码
+# Database password — pick your own
+POSTGRES_PASSWORD=your-strong-password
 
-# 会话与 MCP 令牌签名密钥，用 openssl rand -base64 32 生成
-AUTH_SECRET=换成生成出来的随机串
+# Signing key for sessions and MCP tokens; generate with openssl rand -base64 32
+AUTH_SECRET=your-generated-random-string
 
-# 你的公网地址，没有域名就写 http://服务器IP:3000
+# Your public URL; without a domain, use http://SERVER_IP:3000
 AUTH_URL=https://example.com
 NEXT_PUBLIC_SITE_URL=https://example.com
 ```
 
-然后启动：
+Then start it:
 
 ```bash
 docker compose up -d --build
 ```
 
-打开 `http://服务器IP:3000`，用邮箱密码注册一个账号即可开始用。
+Open `http://SERVER_IP:3000` and sign up with an email and password to get started.
 
-查看日志、停止、重启：
+Logs, stop, restart:
 
 ```bash
 docker compose logs -f app
-docker compose down          # 停止（数据保留在 pgdata 卷里）
+docker compose down          # Stop (data stays in the pgdata volume)
 docker compose restart app
 ```
 
-> ⚠️ `NEXT_PUBLIC_SITE_URL` 是**构建期**内联进产物的，改了它必须重新构建（`docker compose up -d --build`），只重启容器不生效。其余变量都是运行时读取，重启即可。
+> ⚠️ `NEXT_PUBLIC_SITE_URL` is inlined into the bundle at **build time**, so changing it requires a rebuild (`docker compose up -d --build`); restarting the container isn't enough. All other variables are read at runtime and only need a restart.
 
 ---
 
-## 二、Dokploy 面板部署
+## 2. Dokploy
 
-如果你已经在用 [Dokploy](https://dokploy.com)，图形化点几下就行。
+If you already use [Dokploy](https://dokploy.com), it's a few clicks in the UI.
 
-### 1. 创建 PostgreSQL 服务
+### 1. Create a PostgreSQL service
 
-Project → **Create Service → Database → PostgreSQL**：
+Project → **Create Service → Database → PostgreSQL**:
 
-- Database Name 填 `xedit`，记下用户名/密码
-- 不用暴露外部端口，应用走 Docker 内网连接
-- 在服务详情页记下 **Internal Host**（形如 `项目名-postgres-xxxxx`）
+- Set Database Name to `xedit` and note the username/password
+- No need to expose an external port; the app connects over the internal Docker network
+- Note the **Internal Host** on the service details page (looks like `projectname-postgres-xxxxx`)
 
-### 2. 创建应用
+### 2. Create the application
 
-**Create Service → Application**：
+**Create Service → Application**:
 
-- **Source**：选 GitHub 仓库 `rotbit/xedit`、分支 `main`（首次需在 Dokploy 里安装 GitHub App 授权）
-- **Build Type**：选 **Dockerfile**，路径默认 `./Dockerfile`
+- **Source**: choose the GitHub repo `rotbit/xedit`, branch `main` (the first time, install the GitHub App in Dokploy to authorize it)
+- **Build Type**: choose **Dockerfile**, path defaults to `./Dockerfile`
 
-### 3. 填环境变量
+### 3. Set environment variables
 
-应用 → **Environment**：
+Application → **Environment**:
 
 ```env
-DATABASE_URL=postgresql://<用户名>:<密码>@<Internal Host>:5432/xedit
-AUTH_SECRET=<openssl rand -base64 32 生成>
-AUTH_URL=https://你的域名
-AUTH_GITHUB_ID=<可选>
-AUTH_GITHUB_SECRET=<可选>
-OSS_REGION=<可选>
-OSS_ACCESS_KEY_ID=<可选>
-OSS_ACCESS_KEY_SECRET=<可选>
-OSS_BUCKET=<可选>
+DATABASE_URL=postgresql://<username>:<password>@<Internal Host>:5432/xedit
+AUTH_SECRET=<generated with openssl rand -base64 32>
+AUTH_URL=https://your-domain
+AUTH_GITHUB_ID=<optional>
+AUTH_GITHUB_SECRET=<optional>
+OSS_REGION=<optional>
+OSS_ACCESS_KEY_ID=<optional>
+OSS_ACCESS_KEY_SECRET=<optional>
+OSS_BUCKET=<optional>
 ```
 
-`NEXT_PUBLIC_SITE_URL` 要在 **Build → Build Args** 里加（构建期变量，填在 Environment 里不生效）：
+Add `NEXT_PUBLIC_SITE_URL` under **Build → Build Args** (it's a build-time variable; setting it in Environment has no effect):
 
 ```
-NEXT_PUBLIC_SITE_URL=https://你的域名
+NEXT_PUBLIC_SITE_URL=https://your-domain
 ```
 
-### 4. 域名与部署
+### 4. Domain and deploy
 
-应用 → **Domains → Add Domain**：填域名、Container Port 填 `3000`、开启 HTTPS（Let's Encrypt 自动签发）。域名 DNS 先解析到服务器 IP。
+Application → **Domains → Add Domain**: enter the domain, set Container Port to `3000`, and enable HTTPS (Let's Encrypt issues the certificate automatically). Point the domain's DNS at the server IP first.
 
-点 **Deploy**。容器启动时自动跑数据库迁移。之后在应用设置里打开 **Auto Deploy / Webhook**，`git push` 到 `main` 即自动发布。
+Click **Deploy**. Database migrations run automatically when the container starts. Then turn on **Auto Deploy / Webhook** in the app settings so every `git push` to `main` deploys automatically.
 
 ---
 
-## 三、裸机 / PM2 部署
+## 3. Bare metal / PM2
 
-不想用 Docker 时：
+If you'd rather not use Docker:
 
 ```bash
-# 前置：Node.js 20+、PostgreSQL 14+
+# Prerequisites: Node.js 20+, PostgreSQL 14+
 git clone https://github.com/rotbit/xedit.git && cd xedit
 npm ci
 
-cp .env.example .env   # 填好 DATABASE_URL、AUTH_SECRET 等
+cp .env.example .env   # Fill in DATABASE_URL, AUTH_SECRET, etc.
 
-npx prisma migrate deploy   # 建表
+npx prisma migrate deploy   # Create tables
 npm run build
-npm run start               # 默认监听 3000
+npm run start               # Listens on 3000 by default
 ```
 
-用 PM2 常驻：
+Keep it running with PM2:
 
 ```bash
 npm i -g pm2
@@ -134,7 +134,7 @@ pm2 start npm --name xedit -- start
 pm2 save && pm2 startup
 ```
 
-前面再挂一层 Nginx 反代到 `127.0.0.1:3000`，注意透传 `X-Forwarded-Host` 与 `X-Forwarded-Proto`——MCP 的 OAuth 发现文档要靠它们算出公网 origin：
+Put Nginx in front as a reverse proxy to `127.0.0.1:3000`, and make sure to forward `X-Forwarded-Host` and `X-Forwarded-Proto` — the MCP OAuth discovery documents rely on them to compute the public origin:
 
 ```nginx
 location / {
@@ -151,54 +151,54 @@ location / {
 
 ---
 
-## 四、配置第三方登录（GitHub / Google / 微信）
+## 4. Third-party login (GitHub / Google / WeChat)
 
-不配也能用——**邮箱 + 密码注册登录始终可用**，第三方登录填了对应变量才会出现在登录框里。
+This is optional — **email + password sign-up and login always work**. Each third-party login only appears on the login screen once its variables are set.
 
 ### GitHub
 
-1. 打开 <https://github.com/settings/developers> → **New OAuth App**
-2. Homepage URL：`https://你的域名`
-3. **Authorization callback URL：`https://你的域名/api/auth/callback/github`**
-4. 生成 Client Secret，把 ID / Secret 填入 `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`，重启应用
+1. Go to <https://github.com/settings/developers> → **New OAuth App**
+2. Homepage URL: `https://your-domain`
+3. **Authorization callback URL: `https://your-domain/api/auth/callback/github`**
+4. Generate a Client Secret, put the ID / Secret into `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`, and restart the app
 
 ### Google
 
-1. 打开 <https://console.cloud.google.com> → APIs & Services → 凭据 → 创建 OAuth 客户端 ID（类型选「Web 应用」）
-2. 已获授权的重定向 URI：`https://你的域名/api/auth/callback/google`
-3. 填入 `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`，重启应用
+1. Go to <https://console.cloud.google.com> → APIs & Services → Credentials → Create OAuth client ID (type "Web application")
+2. Authorized redirect URI: `https://your-domain/api/auth/callback/google`
+3. Fill in `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` and restart the app
 
-### 微信
+### WeChat
 
-1. 打开 <https://open.weixin.qq.com> → 完成**企业主体认证**（个人开发者申请不了）→ 创建**网站应用**，等待审核通过
-2. 应用详情里的**授权回调域**填你的域名，如 `example.com`（只填域名，不带协议和路径；实际回调地址是 `https://你的域名/api/auth/callback/wechat`）
-3. 填入 `AUTH_WECHAT_ID` / `AUTH_WECHAT_SECRET`，并设 `AUTH_WECHAT_ENABLED=1`，重启应用
-4. 公众号内网页授权把 `AUTH_WECHAT_PLATFORM` 设成 `official`，默认的 `website` 是 PC 扫码登录
+1. Go to <https://open.weixin.qq.com> → complete **business verification** (individual developers can't apply) → create a **Website App** and wait for approval
+2. In the app details, set the **authorization callback domain** to your domain, e.g. `example.com` (domain only, no protocol or path; the actual callback is `https://your-domain/api/auth/callback/wechat`)
+3. Fill in `AUTH_WECHAT_ID` / `AUTH_WECHAT_SECRET`, set `AUTH_WECHAT_ENABLED=1`, and restart the app
+4. For web authorization inside WeChat Official Accounts, set `AUTH_WECHAT_PLATFORM` to `official`; the default `website` is PC QR-code login
 
-> **注意**：微信不返回邮箱，所以微信登录会新建一个没有邮箱的账号——同一个人的微信账号与邮箱账号是两个彼此独立的账号，文章不互通。
+> **Note**: WeChat doesn't return an email address, so WeChat login creates an account without one — the same person's WeChat account and email account are two separate accounts that don't share documents.
 
-> 本地开发和线上建议各建一个 OAuth App，回调分别填 `http://localhost:3000/...` 和线上域名，互不干扰。
-
----
-
-## 五、配置图床（阿里云 OSS）
-
-不配也能用，只是编辑器里粘贴图片不会上传。
-
-1. 创建 Bucket，读写权限选**公共读**
-2. RAM 控制台创建子用户，**只授予该 Bucket 的 `PutObject` / `DeleteObject` 权限**，生成 AccessKey
-3. 填入 `OSS_REGION`（如 `oss-cn-hangzhou`）、`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`、`OSS_BUCKET`
-4. 有 CDN/自定义域名再填 `OSS_CDN_DOMAIN`（如 `https://img.example.com`）
-5. 在 Bucket 的**跨域设置**里放行你的域名（来源填 `https://你的域名`，方法勾 `PUT`/`POST`/`GET`），否则前端直传会被浏览器拦
-
-AccessKey 只存在服务端，上传经 `/api/upload` 中转，不会下发到浏览器。
+> Use separate OAuth apps for local development and production, with callbacks pointing to `http://localhost:3000/...` and your production domain respectively, so they don't interfere.
 
 ---
 
-## 六、域名与 HTTPS
+## 5. Image hosting (Alibaba Cloud OSS)
 
-- Docker Compose 部署建议前面挂 [Caddy](https://caddyserver.com) 或 Nginx + certbot 做 TLS 终止，反代到 `127.0.0.1:3000`
-- Caddy 的话一行搞定自动证书：
+This is optional; without it, images pasted into the editor just won't be uploaded.
+
+1. Create a bucket with **public read** access
+2. In the RAM console, create a sub-user, **grant it only `PutObject` / `DeleteObject` on that bucket**, and generate an AccessKey
+3. Fill in `OSS_REGION` (e.g. `oss-cn-hangzhou`), `OSS_ACCESS_KEY_ID`, `OSS_ACCESS_KEY_SECRET` and `OSS_BUCKET`
+4. If you have a CDN / custom domain, also set `OSS_CDN_DOMAIN` (e.g. `https://img.example.com`)
+5. In the bucket's **CORS settings**, allow your domain (origin `https://your-domain`, methods `PUT`/`POST`/`GET`), or the browser will block direct uploads from the front end
+
+The AccessKey stays on the server; uploads are proxied through `/api/upload` and it is never sent to the browser.
+
+---
+
+## 6. Domain and HTTPS
+
+- For Docker Compose, put [Caddy](https://caddyserver.com) or Nginx + certbot in front for TLS termination, proxying to `127.0.0.1:3000`
+- With Caddy, automatic certificates take one block:
 
   ```
   example.com {
@@ -206,69 +206,69 @@ AccessKey 只存在服务端，上传经 `/api/upload` 中转，不会下发到�
   }
   ```
 
-- Dokploy 用户直接在 Domains 里开 HTTPS 即可
-- 上了域名后记得同步更新 `AUTH_URL`、`NEXT_PUBLIC_SITE_URL`（后者要重新构建）和 OAuth App 的回调地址
+- Dokploy users can just enable HTTPS under Domains
+- Once you have a domain, remember to update `AUTH_URL`, `NEXT_PUBLIC_SITE_URL` (which requires a rebuild) and your OAuth apps' callback URLs
 
-**MCP 需要 HTTPS**：Claude Desktop、Cursor 等客户端只接受 `https://` 的 MCP 服务器地址（`localhost` 除外）。
+**MCP requires HTTPS**: Claude Desktop, Cursor and similar clients only accept `https://` MCP server URLs (except `localhost`).
 
 ---
 
-## 七、升级、备份与回滚
+## 7. Upgrades, backups and rollback
 
-### 升级
+### Upgrade
 
 ```bash
 cd xedit
 git pull
-docker compose up -d --build     # 启动时自动跑 prisma migrate deploy
+docker compose up -d --build     # prisma migrate deploy runs automatically on startup
 ```
 
-数据库迁移由 `docker-entrypoint.sh` 在容器启动时执行，无需手动操作。裸机部署则是 `npm ci && npx prisma migrate deploy && npm run build && pm2 restart xedit`。
+Database migrations are run by `docker-entrypoint.sh` when the container starts, so there's nothing to do by hand. For bare-metal deployments, run `npm ci && npx prisma migrate deploy && npm run build && pm2 restart xedit`.
 
-### 备份
+### Backup
 
-数据全在 PostgreSQL 里（图片在你自己的 OSS）。定期备份：
+All data lives in PostgreSQL (images are in your own OSS). Back it up regularly:
 
 ```bash
 # Docker Compose
 docker compose exec -T db pg_dump -U xedit xedit | gzip > xedit-$(date +%F).sql.gz
 
-# 恢复
+# Restore
 gunzip -c xedit-2026-07-25.sql.gz | docker compose exec -T db psql -U xedit xedit
 ```
 
-建议加进 crontab 每日跑一次，并把备份文件同步到异地。
+Add this to crontab to run daily, and copy the backups off-site.
 
-### 回滚
+### Rollback
 
 ```bash
-git checkout <上一个可用的 commit>
+git checkout <last-known-good-commit>
 docker compose up -d --build
 ```
 
-⚠️ 迁移是**向前**的：如果新版本改了表结构，回滚代码不会自动回滚数据库。跨版本回滚前先恢复对应时间点的数据库备份。
+⚠️ Migrations only go **forward**: if a new version changed the schema, rolling back the code won't roll back the database. Before rolling back across versions, restore a database backup from the matching point in time.
 
 ---
 
-## 八、常见问题
+## 8. FAQ
 
-**启动报 `缺少 AUTH_SECRET`**
-没设 `AUTH_SECRET`。用 `openssl rand -base64 32` 生成一个填进去。注意：改了它会导致所有用户登录失效，且已存的 AI 平台密钥无法解密（除非单独设了 `AI_ENCRYPTION_KEY`）——生产环境定好就别再动。
+**Startup fails with `缺少 AUTH_SECRET` (missing AUTH_SECRET)**
+`AUTH_SECRET` isn't set. Generate one with `openssl rand -base64 32` and fill it in. Note: changing it logs out every user and makes stored AI provider keys undecryptable (unless `AI_ENCRYPTION_KEY` is set separately) — once production is set up, leave it alone.
 
-**登录后一直跳回登录页 / 回调地址报错**
-检查 `AUTH_URL` 是否等于实际访问的公网地址（含协议，不带结尾斜杠），以及 OAuth App 的回调地址是否是 `https://你的域名/api/auth/callback/github`。反代记得透传 `X-Forwarded-Proto`，否则会被当成 http。
+**Login keeps redirecting back to the login page / callback URL errors**
+Check that `AUTH_URL` matches the public URL you actually visit (with protocol, no trailing slash), and that the OAuth app's callback URL is `https://your-domain/api/auth/callback/github`. Make sure the reverse proxy forwards `X-Forwarded-Proto`, or requests will be treated as http.
 
-**页面能开但数据库连不上**
-Compose 里应用连的是服务名 `db` 而不是 `localhost`；Dokploy 里要用数据库服务的 **Internal Host**。检查 `DATABASE_URL` 里的密码有没有特殊字符需要 URL 编码（`@`、`/`、`#` 等要转义）。
+**The page loads but the database won't connect**
+In Compose, the app connects to the service name `db`, not `localhost`; in Dokploy, use the database service's **Internal Host**. Check whether the password in `DATABASE_URL` contains special characters that need URL encoding (`@`, `/`, `#`, etc.).
 
-**站点地图 / 分享卡片里还是 xedit.me 的域名**
-`NEXT_PUBLIC_SITE_URL` 没在**构建期**传进去。Compose 用户执行 `docker compose up -d --build`，Dokploy 用户填在 Build Args 而非 Environment。
+**The sitemap / share cards still show the xedit.me domain**
+`NEXT_PUBLIC_SITE_URL` wasn't passed in at **build time**. Compose users should run `docker compose up -d --build`; Dokploy users should set it under Build Args, not Environment.
 
-**MCP 客户端连不上**
-见 [MCP 接入文档](./mcp.md) 的「排查」一节。多数是 HTTPS 没配好，或反代吃掉了 `X-Forwarded-Host`。
+**MCP clients can't connect**
+See the "Troubleshooting" section of the [MCP setup guide](./mcp.md#troubleshooting). Most often HTTPS isn't set up correctly, or the reverse proxy is dropping `X-Forwarded-Host`.
 
-**粘贴图片没反应**
-OSS 四个必填变量没配齐，或 Bucket 没开公共读、没配跨域。看应用日志里 `/api/upload` 的报错。
+**Pasting images does nothing**
+The four required OSS variables aren't all set, or the bucket isn't public-read or lacks CORS rules. Check the app logs for `/api/upload` errors.
 
-**想改默认排版主题**
-`src/lib/themes/presets.ts` 里调整顺序，或改 `prisma/schema.prisma` 中 `UserSettings.themeId` 的 `@default`。
+**Changing the default theme**
+Reorder `src/lib/themes/presets.ts`, or change the `@default` of `UserSettings.themeId` in `prisma/schema.prisma`.

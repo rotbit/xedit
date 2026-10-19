@@ -6,9 +6,9 @@ import type { Asset } from "./types";
 import { formatSize, isVideo } from "./utils";
 import { useT } from "@/i18n/useT";
 
-/** 图片库网格：分列瀑布流，单击选中、双击开大图 */
+/** Image library grid: column-based masonry, click to select, double-click for the lightbox */
 
-/** 缩略图：加载完成前透明，避免图片逐张「啪」地拍上来；顺手把历史图片的尺寸量出来 */
+/** Thumbnail: transparent until loaded so images don't "pop" in one by one; also measures dimensions for older images */
 function Thumb({
   asset,
   onMeasured,
@@ -17,7 +17,7 @@ function Thumb({
   onMeasured: (id: string, width: number, height: number) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
-  /** 入库时没记尺寸的老图片，用浏览器解码出来的固有尺寸回填 */
+  /** For older images with no recorded dimensions, backfill the intrinsic size decoded by the browser */
   const report = (el: HTMLImageElement) => {
     if (asset.width == null && el.naturalWidth > 0) {
       onMeasured(asset.id, el.naturalWidth, el.naturalHeight);
@@ -31,7 +31,7 @@ function Thumb({
       loading="lazy"
       className={`w-full transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
       ref={(el) => {
-        // 命中浏览器缓存时不会触发 onLoad，这里补一次
+        // A browser cache hit doesn't fire onLoad, so handle it once here
         if (el?.complete) {
           setLoaded(true);
           report(el);
@@ -45,7 +45,7 @@ function Thumb({
   );
 }
 
-/** 卡片第二行：图片优先显示像素尺寸，没量到尺寸的和视频一律显示体积 */
+/** Card second line: images show pixel dimensions; unmeasured images and videos show file size */
 function metaLine(asset: Asset): string {
   if (!isVideo(asset) && asset.width && asset.height) {
     return `${asset.width} × ${asset.height}`;
@@ -67,7 +67,7 @@ export function AssetsGrid({
   colCount: number;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  /** 双击开大图：传的是在 assets 里的下标 */
+  /** Double-click opens the lightbox: passes the index within assets */
   onOpen: (index: number) => void;
   onMeasured: (id: string, width: number, height: number) => void;
   hasMore: boolean;
@@ -76,8 +76,8 @@ export function AssetsGrid({
   const t = useT();
   return (
     <>
-      {/* 分列用固定的「序号 % 列数」轮转而不是 CSS columns：追加下一页时已有图片不换列不跳动，
-          且顺序是横向的——最新的图排第一行，而不是全部竖着堆在左列 */}
+      {/* Columns use a fixed "index % columns" rotation instead of CSS columns: appending the next page doesn't shift existing images between columns,
+          and the order runs horizontally — the newest images fill the first row instead of all stacking down the left column */}
       <div className="flex items-start gap-3">
         {Array.from({ length: colCount }, (_, col) => (
           <div key={col} className="flex min-w-0 flex-1 flex-col gap-4">

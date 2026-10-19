@@ -1,8 +1,8 @@
 import { PERMISSIONS, type Permission } from "@/lib/permissionKeys";
 
-/** 账号列表里昵称旁的「AI」小标：开通了任一 AI 功能才显示，悬停列出开了哪几项 */
+/** The small 「AI」 badge beside the nickname in the account list: shown only if any AI feature is enabled; hover lists which */
 export function PermissionBadge({ permissions }: { permissions: Permission[] | undefined }) {
-  // 接口还没带上这个字段（前后端错开发布）时按没开通处理，不显示
+  // If the API doesn't include this field yet (frontend and backend released out of step), treat it as not enabled and hide it
   if (!permissions?.length) return null;
   const labels = PERMISSIONS.filter((p) => permissions.includes(p.key)).map((p) => p.label);
   return (

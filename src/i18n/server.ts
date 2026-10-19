@@ -1,17 +1,17 @@
 /**
- * 服务端取本次请求的界面语言：和根布局同一套判定，cookie 优先、再看 Accept-Language。
- * 服务端不能用模块级 t()——那个变量是所有请求共享的；拿到 locale 后配合 translate(zh, locale) 用。
+ * Gets the UI language for the current request on the server: same logic as the root layout, cookie first, then Accept-Language.
+ * The server can't use module-level t() -- that variable is shared by all requests; use translate(zh, locale) with the locale instead.
  */
 import { cookies, headers } from "next/headers";
 import { detectLocale, LANG_COOKIE, type Locale } from "./locale";
 
-/** RSC 页面用：读 next/headers */
+/** For RSC pages: reads next/headers */
 export async function requestLocale(): Promise<Locale> {
   const [cookieStore, headerList] = await Promise.all([cookies(), headers()]);
   return detectLocale(cookieStore.get(LANG_COOKIE)?.value, headerList.get("accept-language"));
 }
 
-/** route handler 用：直接看传进来的 Request，不依赖请求上下文，单测里直接构造 Request 也能跑 */
+/** For route handlers: inspects the passed-in Request without relying on request context, so unit tests can just construct a Request */
 export function localeOfRequest(req: Request): Locale {
   const cookie = req.headers.get("cookie") ?? "";
   const value = cookie

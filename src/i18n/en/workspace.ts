@@ -1,6 +1,6 @@
-/** 工作区：侧栏、顶栏面包屑、账户菜单、今天页、文章列表与各类文章/分类操作 */
+/** Workspace: sidebar, top-bar breadcrumbs, account menu, Today page, article list and article/category actions */
 export const workspace: Record<string, string> = {
-  // 侧栏
+  // Sidebar
   产品介绍: "About xEdit",
   "查看 xEdit 产品介绍": "Learn about xEdit",
   收起侧栏: "Collapse sidebar",
@@ -20,7 +20,7 @@ export const workspace: Record<string, string> = {
   登录同步到云端: "Sign In to Sync",
   切换界面语言: "Switch language",
 
-  // 本地文库（磁盘文件夹）
+  // Local library (disk folder)
   "关闭文件夹，回到浏览器存储": "Close folder and switch back to browser storage",
   "已关闭文件夹，回到浏览器存储": "Folder closed. Using browser storage",
   "正在打开…": "Opening…",
@@ -36,18 +36,18 @@ export const workspace: Record<string, string> = {
   迁移: "Move",
   "已迁入 {n} 篇文章": "Moved {n} {n, article, articles}",
 
-  // 顶栏
+  // Top bar
   关闭文章: "Close article",
   时间流: "Timeline",
   列表视图: "List view",
   清空回收站: "Empty Trash",
 
-  // 账户菜单
+  // Account menu
   管理后台: "Admin",
   退出登录: "Sign Out",
   "有未同步草稿，本次未清理本地缓存": "Some drafts haven't synced, so local data was kept",
 
-  // 今天页
+  // Today page
   "添加待办…": "Add a to-do…",
   添加待办: "Add a to-do",
   "要做什么…": "What needs doing?",
@@ -79,7 +79,7 @@ export const workspace: Record<string, string> = {
   "持续到…": "Until…",
   "第 {n} 天": "Day {n}",
   删除这条: "Delete",
-  // 每日任务
+  // Daily tasks
   每天: "Daily",
   每天重复: "Repeat daily",
   不再重复: "Stop repeating",
@@ -99,7 +99,7 @@ export const workspace: Record<string, string> = {
   "{n} 天": "{n} {abs, day, days}",
   "{date} · {chars} 字 · 完成 {n} 件": "{date} · {chars} {abs, char, chars} · {n} {n, to-do, to-dos} done",
 
-  // 工作台外壳（Home）
+  // Workspace shell (Home)
   "浏览器本地存储不可用，无法离线写作，请登录后使用": "Browser storage is unavailable, so offline writing won't work. Please sign in",
   "已离线 · 改动保存在本地，联网后自动同步": "Offline · Changes are saved locally and sync when you're back online",
   飞书同步重试中: "Retrying Feishu sync",
@@ -109,13 +109,13 @@ export const workspace: Record<string, string> = {
   开始写作: "Start Writing",
   "登录 / 注册": "Sign In / Sign Up",
 
-  // 本地文库授权页
+  // Local library permission page
   "上次打开的文件夹「{name}」": "Last opened folder “{name}”",
   浏览器需要你再次授权才能读写这个文件夹: "Your browser needs permission again to read and write this folder",
   恢复访问: "Reconnect",
   改用浏览器存储: "Use Browser Storage Instead",
 
-  // 文章列表与菜单
+  // Article list and menus
   新建文章: "New Article",
   导入文件: "Import Files",
   导入文件夹: "Import Folder",
@@ -138,10 +138,10 @@ export const workspace: Record<string, string> = {
   "还没有文章，点「新建文章」开始": "No articles yet. Click “New Article” to get started",
   "「{name}」还没有文章": "No articles in “{name}” yet",
   尚无内容: "No content yet",
-  // 「模板」既是保留分类名（存储保持中文、显示时翻译），也是命令面板分组
+  // 「模板」 (Templates) is both a reserved category name (stored in Chinese, translated for display) and a command palette group
   模板: "Templates",
 
-  // 命令面板
+  // Command palette
   "用「{name}」新建": "New from “{name}”",
   文章: "Articles",
   导航: "Navigate",
@@ -153,23 +153,23 @@ export const workspace: Record<string, string> = {
   视图: "View",
   "折叠 / 展开侧栏": "Toggle Sidebar",
 
-  // 账号与同步
+  // Account and sync
   "上一账号有未同步草稿，本次未清理本地缓存": "The previous account has unsynced drafts, so local data was kept",
   "找回 {n} 篇上次未同步的草稿，将自动同步": "Recovered {n} unsynced {n, draft, drafts}. Syncing now",
   本地文稿已同步到云端: "Local drafts synced to the cloud",
   "本地文章还没上云，登录并同步后才能推送到飞书": "This article is only stored locally. Sign in and sync before pushing to Feishu",
 
-  // 导入
+  // Import
   "登录已失效，请重新登录": "Your session has expired. Please sign in again",
   "保存失败（{status}）": "Couldn't save ({status})",
   浏览器存储空间不足: "Browser storage is full",
   导入失败: "Import failed",
 
-  // 本地文库监听
+  // Local library watching
   文件已在外部删除: "The file was deleted outside xEdit",
   "文件在外部被修改，已保留你当前的编辑": "The file changed outside xEdit. Your current edits were kept",
 
-  // 分类操作
+  // Category actions
   "离线时文件夹操作暂不可用，联网后再试": "Folders can't be changed while offline. Try again when you're online",
   "文件夹名不能为空": "Folder name can't be empty",
   "最多支持 {n} 级文件夹": "Folders can be nested up to {n} levels",
@@ -189,7 +189,7 @@ export const workspace: Record<string, string> = {
   删除失败: "Couldn't delete",
   已删除文件夹: "Folder deleted",
 
-  // 文章操作
+  // Article actions
   已刷新: "Refreshed",
   "新建失败：浏览器存储空间不足": "Couldn't create: browser storage is full",
   新建失败: "Couldn't create article",
@@ -216,7 +216,7 @@ export const workspace: Record<string, string> = {
   重命名文章: "Rename Article",
   新建文件夹并移入: "Move to New Folder",
 
-  // 推送到飞书
+  // Push to Feishu
   "离线时无法推送，联网后再试": "Can't push while offline. Try again when you're online",
   "正在推送到飞书，篇幅长或图片多时需要一点时间…": "Pushing to Feishu. Long articles or many images may take a moment…",
   飞书侧有更新: "Changed in Feishu",
@@ -233,13 +233,13 @@ export const workspace: Record<string, string> = {
   "已推送到飞书知识库{extra}": "Pushed to Feishu Wiki{extra}",
   "已写回飞书原文档{extra}": "Updated the original Feishu doc{extra}",
   "推送失败：网络异常": "Push failed: network error",
-  // 「最近打开」时间流底部的展开按钮
+  // Expand button at the bottom of the 「最近打开」 (Recently opened) timeline
   "更早的文章 · 还有 {n} 篇": "Older articles · {n} more",
-  // 今天页关联文章选择器：常驻的新建入口与选文件夹弹窗
+  // Today page linked-article picker: the always-visible "new" entry and the folder picker dialog
   "新建文章…": "New article…",
   新建文章到哪个文件夹: "Which folder for the new article",
 
-  // 历史已完成
+  // Completed history
   上个月: "Previous month",
   下个月: "Next month",
   本周: "This week",
@@ -252,7 +252,7 @@ export const workspace: Record<string, string> = {
   "只有最近 {n} 天的记录": "only the last {n} days are kept",
   逾期: "Overdue",
 
-  // 设置页
+  // Settings page
   账号: "Account",
   邮箱: "Email",
   通用: "General",

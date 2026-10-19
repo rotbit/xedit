@@ -1,11 +1,11 @@
 "use client";
 
-// 文章视图顶栏右侧的操作簇：插入 / 一键复制 / 审核 / 阅读 / 更多。
-// 双屏也是「换个视图看」的开关，和源码模式同类，于是跟它并排收进 ⋯ 菜单，顶栏不再单占一个图标。
-// 排版主题只影响渲染后的预览，切换入口放在预览顶栏（见 ThemeTrigger），编辑态不再露出。
-// 由 ArticleReader portal 到面包屑顶栏，与面包屑共用一行（从 ArticleReader 搬出）。
-// 常驻工具栏改成浮动工具条后，插入类操作没了去处，一并收进这里。
-// 低频项（分享 / 导出 / 三个开关 / 删除）统一收进 ⋯ 菜单，顶栏只留常用动作。
+// Action cluster on the right of the article view's top bar: insert / one-click copy / review / reading / more.
+// Split view is also a "view it differently" toggle, like source mode, so it sits beside it in the ⋯ menu instead of taking its own top bar icon.
+// Typography themes only affect the rendered preview, so the switcher lives in the preview top bar (see ThemeTrigger) and no longer appears while editing.
+// Portaled by ArticleReader into the breadcrumb top bar, sharing a row with the breadcrumb (moved out of ArticleReader).
+// Once the always-on toolbar became a floating one, insert actions had nowhere to go, so they moved in here too.
+// Low-frequency items (share / export / three toggles / delete) all go in the ⋯ menu; the top bar keeps only common actions.
 
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useEscape } from "@/hooks/useEscape";
@@ -55,7 +55,7 @@ const menuCard =
 const menuCaption = "px-3.5 pb-0.5 pt-0.5 text-[11px] tracking-widest text-[var(--ink-faint)]";
 const menuDivider = "my-1 border-t border-[var(--hairline)]";
 
-/** 插入类操作：不依赖选区，放在浮动工具条里既占地方又难点，收进 + 菜单 */
+/** Insert actions: they don't depend on the selection, and in the floating toolbar they'd take space and be hard to hit, so they live in the + menu */
 const INSERT_ITEMS: { cmd: FormatCommand; icon: React.ReactNode; label: string }[] = [
   { cmd: "image", icon: <ImageIcon size={14} />, label: tk("图片") },
   { cmd: "video", icon: <Film size={14} />, label: tk("视频（上传）") },
@@ -65,9 +65,9 @@ const INSERT_ITEMS: { cmd: FormatCommand; icon: React.ReactNode; label: string }
   { cmd: "hr", icon: <Minus size={14} />, label: tk("分割线") },
 ];
 
-// memo：这一簇按钮跟正文无关，却和编辑区共处同一棵树，打字时不该跟着重渲染。
-// 前提是父级把回调都 useCallback 住了（见 ArticleReader），且不再接收逐字变化的字数——
-// 它只需要知道「有没有内容」来决定复制按钮的可用态，于是收成一个布尔量
+// memo: these buttons have nothing to do with the body but share a tree with the editor, so they shouldn't re-render while typing.
+// This relies on the parent wrapping all callbacks in useCallback (see ArticleReader) and no longer passing the per-keystroke word count —
+// it only needs to know "is there content" to set the copy button's enabled state, so that's collapsed into a boolean
 export const ReaderActions = memo(function ReaderActions({
   empty,
   split,
@@ -84,21 +84,21 @@ export const ReaderActions = memo(function ReaderActions({
   onOpenShare,
   onDelete,
 }: {
-  /** 正文是否为空：为空时禁用一键复制 */
+  /** Whether the body is empty: one-click copy is disabled when it is */
   empty: boolean;
   split: boolean;
   onToggleSplit: () => void;
-  /** AI 审核模式开着没有（标注直接画在编辑器里，开启会先从双屏 / 阅读退回普通编辑视图） */
+  /** Whether AI review mode is on (annotations draw directly in the editor; enabling it first drops out of split / reading back to the normal editor view) */
   review: boolean;
-  /** 按启动面板里选好的类型与模型开跑 */
+  /** Start running with the type and model chosen in the launch panel */
   onStartReview: () => void;
-  /** 审核历史按文章归档；点历史里的一趟就直接翻出来看，不重新审 */
+  /** Review history is archived per article; clicking a past run opens it directly without re-reviewing */
   docId: string;
   onOpenReviewRecord: (id: string) => void;
   onExitReview: () => void;
   reading: boolean;
   onToggleReading: () => void;
-  /** 插入类命令直通编辑器的 applyFormat */
+  /** Insert commands go straight to the editor's applyFormat */
   onInsert: (cmd: FormatCommand) => void;
   onOpenVersions: () => void;
   onOpenShare: () => void;
@@ -116,31 +116,31 @@ export const ReaderActions = memo(function ReaderActions({
 
   const [copying, setCopying] = useState<CopyTarget | null>(null);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
-  /** 发送到公众号草稿的进行中状态（本机草稿服务回报的一句话）；null = 没在发 */
+  /** In-progress status of sending to the WeChat draft (a line reported by the local draft service); null = not sending */
   const [draftStatus, setDraftStatus] = useState<string | null>(null);
-  /** 从复制菜单跳过来的主题面板：复制前顺手换主题，不必先切到预览 */
+  /** Theme panel reached from the copy menu: switch themes right before copying without going to the preview first */
   const [themeOpen, setThemeOpen] = useState(false);
-  // Esc 收起复制菜单 / 主题面板，与其他浮层一致
+  // Esc closes the copy menu / theme panel, consistent with other overlays
   useEscape(() => {
     setCopyMenuOpen(false);
     setThemeOpen(false);
   }, copyMenuOpen || themeOpen);
   const [insertOpen, setInsertOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  /** 「审核」的启动面板：先选审核类型与模型，再开跑（Esc / 点外面收起由面板自己管） */
+  /** Launch panel for 「审核」 (Review): pick the review type and model first, then run (the panel handles Esc / outside clicks itself) */
   const [launchOpen, setLaunchOpen] = useState(false);
   const reviewBtnRef = useRef<HTMLButtonElement>(null);
   const canReview = useCan("ai_review");
   const closeLaunch = useCallback(() => {
     setLaunchOpen(false);
-    // 焦点还回按钮：键盘用户收起面板后不该被扔回页面开头
+    // Return focus to the button: keyboard users shouldn't be dumped back at the top of the page after closing the panel
     reviewBtnRef.current?.focus();
   }, []);
 
-  // 只为菜单里那行说明取主题名：resolveTheme 遇到自定义主题会全量重建 CSS，别每次渲染都跑
+  // Only to get the theme name for that line in the menu: resolveTheme fully rebuilds CSS for custom themes, so don't run it every render
   const themeName = useMemo(() => resolveTheme(themeId, customThemes).name, [themeId, customThemes]);
 
-  /** 复制逻辑在 lib/copyDoc（命令面板也调它），这里只负责「复制中」的按钮态 */
+  /** Copy logic is in lib/copyDoc (the command palette calls it too); this only handles the "copying" button state */
   const copy = async (target: CopyTarget) => {
     if (copying) return;
     setCopying(target);
@@ -153,7 +153,7 @@ export const ReaderActions = memo(function ReaderActions({
 
   return (
     <>
-      {/* 插入：图片 / 视频 / 表格 / 代码块 / 任务列表 / 分割线 */}
+      {/* Insert: image / video / table / code block / task list / divider */}
       <div className="relative">
         <button
           className={insertOpen ? iconBtnOn : iconBtnIdle}
@@ -184,7 +184,7 @@ export const ReaderActions = memo(function ReaderActions({
         ) : null}
       </div>
       <span className="mx-1 h-5 w-px shrink-0 bg-[var(--hairline)]" />
-      {/* 一键复制：点开选择平台（纯图标） */}
+      {/* One-click copy: opens a platform picker (icon only) */}
       <div className="relative">
         <button
           className="flex h-8 cursor-pointer items-center gap-0.5 rounded-lg pl-2 pr-1.5 text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-45"
@@ -203,7 +203,7 @@ export const ReaderActions = memo(function ReaderActions({
           <>
             <div className="fixed inset-0 z-10" onClick={() => setCopyMenuOpen(false)} />
             <div className={`${menuCard} w-48`}>
-              {/* 复制出去的排版由主题决定，编辑态看不到；在这里点一下就能换，不必先切到预览 */}
+              {/* The copied formatting depends on the theme, which isn't visible while editing; one click here switches it, no need to go to the preview first */}
               <div className="flex items-center gap-1 px-3.5 pb-1.5 pt-0.5 text-[11px] text-[var(--ink-faint)]">
                 <Palette size={12} className="shrink-0" />
                 <span className="min-w-0 truncate">{t("排版主题：{name}", { name: t(themeName) })}</span>
@@ -236,11 +236,11 @@ export const ReaderActions = memo(function ReaderActions({
               >
                 {t("复制到知乎")}
               </button>
-              {/* 「发送到公众号」靠桌面壳内置的草稿服务填公众号后台，网页版没有这个服务，
-                  所以只放一条置灰的引导去拿客户端，免得用户以为没这功能；
-                  旧版壳（0.1.1 之前）同样没有服务，点了只会报「没连上」，改成提示更新。
-                  菜单点开后才渲染（copyMenuOpen 初值 false，只有点击能翻开），
-                  所以这里读 window 不会造成水合不一致。 */}
+              {/* 「发送到公众号」 (Send to WeChat) relies on the desktop shell's built-in draft service to fill the WeChat backend; the web version has no such service,
+                  so it only shows a greyed-out hint pointing to the desktop app, so users don't think the feature is missing;
+                  older shells (before 0.1.1) lack the service too and clicking would only report 「没连上」 (Not connected), so they get an update prompt instead.
+                  The menu renders only after opening (copyMenuOpen starts false and only a click opens it),
+                  so reading window here can't cause a hydration mismatch. */}
               <div className={menuDivider} />
               {desktopVersionAtLeast(WECHAT_DRAFT_MIN_VERSION) ? (
                 <button
@@ -277,7 +277,7 @@ export const ReaderActions = memo(function ReaderActions({
         {themeOpen ? (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setThemeOpen(false)} />
-            {/* 与预览顶栏的主题入口同一块面板；选中主题即收起，和 Dropdown 的行为一致 */}
+            {/* The same panel as the preview top bar's theme entry; picking a theme closes it, consistent with Dropdown */}
             <div
               className={`${menuCard} w-[430px] max-w-[calc(100vw-16px)] overflow-y-auto`}
               style={{ maxHeight: "calc(100vh - 64px)" }}
@@ -288,10 +288,10 @@ export const ReaderActions = memo(function ReaderActions({
           </>
         ) : null}
       </div>
-      {/* AI 审核：直接在编辑区的正文上标出可以再改的地方，右侧逐条给意见。
-          点它不立刻开跑——先弹面板问清楚审哪一类、用谁审（审核开着时它就是退出键）。
-          只给开通了「AI 审核」的账号看（口径同封面的「AI 生成」页签，后台按账号开）：花的是站点的 key，
-          真正的闸在服务端，这里只是不让用不了的人看见一颗点了就 403 的按钮 */}
+      {/* AI review: marks spots worth revising directly on the body in the editor, with item-by-item comments on the right.
+          Clicking doesn't start immediately — a panel first asks which kind of review and which model (while review is on, it's the exit button).
+          Only shown to accounts with 「AI 审核」 (AI review) enabled (same rule as the cover's 「AI 生成」 tab, enabled per account in admin): it spends the site's key,
+          the real gate is server-side, and this just keeps a button that would 403 away from people who can't use it */}
       <div className={canReview ? "relative" : "hidden"}>
         <button
           ref={reviewBtnRef}
@@ -323,8 +323,8 @@ export const ReaderActions = memo(function ReaderActions({
           />
         ) : null}
       </div>
-      {/* 阅读模式：整块编辑区换成渲染后的成品，宽栏通读。
-          进出同一个按钮，图标自己说明当前该往哪走，不再另加高亮态 */}
+      {/* Reading mode: the whole editing area becomes the rendered result, a wide column for reading through.
+          The same button enters and exits; the icon itself shows which way to go, with no extra active state */}
       <button
         className={iconBtnIdle}
         title={reading ? t("返回编辑（⌘⇧E）") : t("阅读模式：全屏只看渲染后的成品（⌘⇧E）")}
@@ -344,7 +344,7 @@ export const ReaderActions = memo(function ReaderActions({
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
             <div className={`${menuCard} w-52`}>
-              {/* 分享：公开链接（永久）+ 访客批注 */}
+              {/* Share: public link (permanent) + visitor annotations */}
               <button
                 className={menuItem}
                 onClick={() => {
@@ -355,7 +355,7 @@ export const ReaderActions = memo(function ReaderActions({
                 <Share2 size={14} />
                 {t("分享给他人查看与批注…")}
               </button>
-              {/* 版本历史低频，收进菜单；顶栏只留复制这个核心动作 */}
+              {/* Version history is low-frequency, so it lives in the menu; the top bar keeps only the core copy action */}
               <button
                 className={menuItem}
                 onClick={() => {
@@ -381,12 +381,12 @@ export const ReaderActions = memo(function ReaderActions({
                 </button>
               ))}
               <div className={menuDivider} />
-              {/* 开关行自带 stopPropagation，连续切换时菜单不收 */}
+              {/* Toggle rows stopPropagation themselves, so the menu stays open while toggling repeatedly */}
               <ToggleRow label={t("外链转文末引用")} value={linkFootnote} onChange={setLinkFootnote} />
               <ToggleRow label={t("同步滚动")} value={syncScroll} onChange={setSyncScroll} />
               <ToggleRow label={t("源码模式（⌘/）")} value={sourceMode} onChange={setSourceMode} />
-              {/* 双屏的开合逻辑（含「开着审核时切过去要先退出审核」）都在父级的 onToggleSplit 里，
-                  这里只是换了个入口，开关状态仍由父级的 split 说了算 */}
+              {/* Split view's toggle logic (including "exit review first when switching while review is on") is all in the parent's onToggleSplit;
+                  this is just another entry point, and the toggle state is still owned by the parent's split */}
               <ToggleRow label={t("双屏预览（⌘E）")} value={split} onChange={onToggleSplit} />
               {onDelete ? (
                 <>

@@ -1,9 +1,9 @@
 import type { Session } from "next-auth";
 
 /**
- * 超级管理员：ADMIN_EMAILS 环境变量白名单（逗号分隔，不区分大小写）。
- * 不落库——与 githubConfigured / ossConfigured 一样走「能力开关在 env」的既有约定，
- * 改名单只需改环境变量重启。此文件不 import "@/auth"，auth.ts 的回调也要用它。
+ * Super admins: whitelist from the ADMIN_EMAILS env var (comma-separated, case-insensitive).
+ * Not stored in the DB -- like githubConfigured / ossConfigured it follows the existing "feature switches live in env" convention,
+ * so changing the list just means editing the env var and restarting. This file doesn't import "@/auth" because auth.ts callbacks use it too.
  */
 
 export function isAdminEmail(email: string | null | undefined): boolean {
@@ -16,7 +16,7 @@ export function isAdminEmail(email: string | null | undefined): boolean {
     .includes(lower);
 }
 
-/** 管理接口守卫：会话属于白名单管理员时返回其 userId，否则 null */
+/** Admin API guard: returns the userId if the session belongs to a whitelisted admin, otherwise null */
 export function adminSessionUserId(session: Session | null): string | null {
   if (!session?.user?.id || !isAdminEmail(session.user.email)) return null;
   return session.user.id;

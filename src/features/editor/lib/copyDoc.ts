@@ -14,14 +14,14 @@ const DONE: Record<CopyTarget, string> = {
 };
 
 /**
- * 按当前排版主题把全文复制成富文本。
- * 顶栏的复制菜单（ReaderActions）与命令面板都调这里，逻辑只此一份；
- * 「复制中」的按钮态属于菜单自己的 UI，留在 ReaderActions。
+ * Copy the full text as rich text using the current typography theme.
+ * Both the top bar's copy menu (ReaderActions) and the command palette call this, so there's a single implementation;
+ * the "copying" button state belongs to the menu's own UI and stays in ReaderActions.
  */
 export async function copyDoc(target: CopyTarget): Promise<void> {
   try {
     const s = useStore.getState();
-    // 知乎那边不吃自定义主题（粘贴后由知乎重排），所以不必备渲染选项
+    // Zhihu ignores custom themes (it re-lays out pasted content), so no render options are needed
     const html =
       target === "wechat"
         ? await buildWechatHtml(s.content, await buildRenderOptions())

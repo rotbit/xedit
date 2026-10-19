@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 历史页左栏：月份标题 + 翻月、月历。
- * 每个日格先列当天做完的事、再列还没做完的待办（合计最多三行），点日格在右栏看明细；
- * 今天之后有安排的日子也能点，月份也能往后翻到最远有安排的那个月。
+ * History page left column: month title + month navigation, and the calendar.
+ * Each day cell lists that day's completed items, then unfinished todos (up to three lines total); clicking a cell shows details on the right.
+ * Upcoming scheduled days are clickable too, and you can page forward to the furthest month with something scheduled.
  */
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { TodoItem } from "@/lib/todos/collect";
@@ -16,7 +16,7 @@ import type { HistorySel } from "./HistoryView";
 const navBtn =
   "flex h-7 w-7 cursor-pointer items-center justify-center rounded-[6px] text-[var(--ink-faint)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--ink-faint)]";
 
-/** 每格最多几行任务：再多就把最后一行换成 +N */
+/** Max task lines per cell: beyond that the last line becomes +N */
 const MAX_LINES = 3;
 
 export function MonthCalendar({
@@ -37,17 +37,17 @@ export function MonthCalendar({
   const t = useT();
   const locale = useLocale();
   const current = today.slice(0, 7);
-  // 本地日志只留 60 天：翻到最早有记录的那个月为止，没有记录就只看本月
+  // Local logs only keep 60 days: page back as far as the earliest month with records; with no records, only this month
   const earliest = earliestLogMonth() ?? current;
-  // 往后翻到最远有安排的那个月为止：下个月排了事也要看得到
+  // Page forward as far as the furthest month with something scheduled: things planned next month should be visible too
   let latest = current;
   for (const k of pending.keys()) if (k.slice(0, 7) > latest) latest = k.slice(0, 7);
   const grid = monthGrid(month);
   const mon = mondayOf(today);
-  // zh 表头只要「一 二 三」，去掉 formatWeekday 的「周」字；en 用 Intl 短名
+  // zh headers only need 「一 二 三」, so drop the 「周」 from formatWeekday; en uses Intl short names
   const heads = Array.from({ length: 7 }, (_, i) => {
     const w = formatWeekday(shiftDay(mon, i), locale);
-    return locale === "en" ? w : w.replace("周", ""); // i18n-ignore 去前缀
+    return locale === "en" ? w : w.replace("周", ""); // i18n-ignore strip the prefix
   });
 
   return (
@@ -139,7 +139,7 @@ function DayCell({
   const future = day > today;
   const isToday = day === today;
   const tasks = future ? [] : dayDigest(day).tasks;
-  // 先做完的（ink-soft）再没做完的（ink-faint），合计超过三条时第三行换成 +N：N 是没列出来的条数
+  // Completed (ink-soft) first, then unfinished (ink-faint); when there are more than three, the third line becomes +N, where N is the number not shown
   const lines = [
     ...tasks.map((e) => ({ id: e.id, label: eventLabel(e.text ?? "", e.title, t), done: true })),
     ...pending.map((item) => ({ id: `p:${rowId(item)}`, label: itemLabel(item, t), done: false })),

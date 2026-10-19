@@ -16,10 +16,10 @@ import {
 import { tk } from "@/i18n/t";
 
 /**
- * 管理后台的「AI 设置」：全站 AI 审核用哪个模型、各家上游的 token、各类审核的提示词。
+ * Admin 「AI 设置」 (AI settings): which model site-wide AI review uses, each upstream provider's token, and each review type's prompt.
  *
- * token 只进不出：PUT 收明文、加密入库；GET 只回「来源 + 末四位」，
- * 任何情况下都不把完整 token 发回浏览器，也不打进日志。
+ * Tokens are write-only: PUT takes plaintext and stores it encrypted; GET returns only "source + last four",
+ * and the full token is never sent back to the browser or logged under any circumstances.
  */
 
 async function guard() {
@@ -42,7 +42,7 @@ async function snapshot() {
       slot: p.envKey,
     })),
     keys,
-    // 提示词：能改的「审核要求」+ 只读的「输出格式」（服务端永远接在后面）
+    // Prompts: the editable 「审核要求」 (review requirements) + the read-only 「输出格式」 (output format), which the server always appends
     prompts: guides.map((g) => ({ ...g, formatRules: reviewFormatRules(g.kind) })),
     promptMaxChars: MAX_GUIDE_CHARS,
   };
@@ -56,9 +56,9 @@ export async function GET() {
 interface Body {
   provider?: unknown;
   model?: unknown;
-  /** 槽位 → 明文 token；空串 = 清掉后台填的那份；没出现的槽位不动 */
+  /** Slot → plaintext token; empty string = clear the admin-entered one; absent slots are untouched */
   keys?: unknown;
-  /** 审核类型 → 「审核要求」全文；空串 = 恢复默认；没出现的类型不动 */
+  /** Review type → full 「审核要求」 text; empty string = restore default; absent types are untouched */
   prompts?: unknown;
 }
 
@@ -92,7 +92,7 @@ export async function PUT(req: Request) {
     if (e instanceof AiSettingError) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }
-    // 库的报错里可能带着整条写入语句，只报个名字进日志，不往浏览器吐
+    // DB errors may contain the entire write statement; log only the name, never send it to the browser
     console.error("保存 AI 设置失败", e instanceof Error ? e.name : "unknown");
     return NextResponse.json({ error: tk("保存失败，稍后再试") }, { status: 500 });
   }

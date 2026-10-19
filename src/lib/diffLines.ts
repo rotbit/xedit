@@ -1,6 +1,6 @@
 /**
- * 行级文本 diff（LCS 回溯）：用于版本历史预览的改动标注。
- * 先掐掉公共前后缀行，只对中间段做 DP；规模超限时退化为整段替换，保证不卡界面。
+ * Line-level text diff (LCS backtracking), used to mark changes in version history previews.
+ * Common prefix/suffix lines are trimmed first and DP runs only on the middle; past the size limit it degrades to a whole-block replace so the UI never hangs.
  */
 
 export interface DiffLine {
@@ -8,7 +8,7 @@ export interface DiffLine {
   text: string;
 }
 
-/** DP 矩阵上限（约 8MB Int32）：版本 diff 掐头去尾后极少触顶 */
+/** DP matrix cap (~8MB of Int32); after trimming head and tail, version diffs rarely hit it */
 const MAX_DP_CELLS = 2_000_000;
 
 export function diffLines(oldText: string, newText: string): DiffLine[] {
@@ -33,7 +33,7 @@ export function diffLines(oldText: string, newText: string): DiffLine[] {
   return [...a.slice(0, start).map(same), ...mid, ...a.slice(endA).map(same)];
 }
 
-/** 标准 LCS 动态规划 + 回溯；矩阵过大时返回 null，由调用方整段替换兜底 */
+/** Standard LCS DP + backtracking; returns null when the matrix is too large, and the caller falls back to a whole-block replace */
 function lcsDiff(a: string[], b: string[]): DiffLine[] | null {
   const n = a.length;
   const m = b.length;

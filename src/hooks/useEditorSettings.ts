@@ -5,18 +5,18 @@ import { useStore } from "@/store/useStore";
 import { sanitizeCustomThemes } from "@/lib/themes/custom";
 import { queueSettingsWrite, useCloudSettings, type UserSettingsRow } from "@/hooks/useSettings";
 
-/** 排版偏好在 store 里的那四个字段，拼成一个可比较的指纹 */
+/** The four typography preference fields in the store, combined into a comparable fingerprint */
 function fingerprint(): string {
   const s = useStore.getState();
   return JSON.stringify([s.themeId, s.customCss, s.linkFootnote, s.customThemes]);
 }
 
-/** 登录后装载排版偏好，并独立同步后续设置变更。 */
+/** Loads typography preferences after login and syncs later setting changes independently. */
 export function useEditorSettings(loggedIn: boolean) {
-  /** GET 落地那一刻的指纹；null = 云端那份还没到，这时一律不回写 */
+  /** Fingerprint at the moment the GET landed; null = the cloud copy hasn't arrived yet, so never write back */
   const baselineRef = useRef<string | null>(null);
-  /** 本会话确实发生过用户修改（与基线出现过差异就永久置位）：
-   *  改 A→B→A 也要推 B 之后的那次 A，所以不能只比当前值与基线 */
+  /** Whether the user actually changed something this session (set permanently once it ever differs from the baseline):
+   *  A→B→A must still push the final A after B, so comparing the current value to the baseline isn't enough */
   const touchedRef = useRef(false);
 
   const apply = useCallback((settings: UserSettingsRow) => {
@@ -27,19 +27,19 @@ export function useEditorSettings(loggedIn: boolean) {
     try {
       s.setCustomThemes(sanitizeCustomThemes(JSON.parse(settings.customThemes ?? "[]")));
     } catch {
-      /* 历史数据损坏时保留本地值 */
+      /* Keep local values if the stored data is corrupt */
     }
   }, []);
 
-  // 基线必须在云端那份应用完之后才取：先置位再发请求的话，1s 内用户随手改一下设置，
-  // 防抖那一枪就会带着本地默认值把服务端覆盖掉（新设备登录后尤其明显）
+  // Take the baseline only after the cloud copy is applied: if it's set before the request and the user tweaks a setting within 1s,
+  // the debounced write would overwrite the server with local defaults (especially noticeable when logging in on a new device)
   const settled = useCallback(() => {
     baselineRef.current = fingerprint();
   }, []);
 
   useCloudSettings(loggedIn, apply, settled);
 
-  // —— 偏好设置自动同步（防抖 1s，与侧栏排序合并进同一个 PUT） ——
+  // -- Auto-sync preferences (1s debounce, merged into the same PUT as sidebar ordering) --
   const themeId = useStore((s) => s.themeId);
   const customCss = useStore((s) => s.customCss);
   const linkFootnote = useStore((s) => s.linkFootnote);
@@ -48,7 +48,7 @@ export function useEditorSettings(loggedIn: boolean) {
   useEffect(() => {
     if (!loggedIn || baselineRef.current === null) return;
     if (!touchedRef.current) {
-      // 还是云端给的那份（装载引起的这一轮渲染）：没人改过，不必回写
+      // Still the cloud copy (this render was caused by loading): nobody changed it, so no need to write back
       if (JSON.stringify([themeId, customCss, linkFootnote, customThemes]) === baselineRef.current) {
         return;
       }

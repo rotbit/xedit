@@ -13,13 +13,13 @@ import { ALL } from "../constants";
 import type { WorkspaceNav } from "./useWorkspaceNav";
 
 export interface VaultBoot extends VaultState {
-  /** 正在异步恢复上次的库：这段时间别急着按浏览器存储渲染，否则会闪一帧落地页 */
+  /** Restoring the last library asynchronously: don't rush to render from browser storage meanwhile, or the landing page flashes for a frame */
   booting: boolean;
 }
 
 /**
- * Vault 的启动与切库善后：进本地模式就试着恢复上次打开的文件夹，
- * 后端一换（开库/关库）就把导航复位——正在读的那篇属于旧库，id 在新库里不存在。
+ * Vault startup and library-switch cleanup: on entering local mode, try to restore the last opened folder;
+ * whenever the backend changes (open/close a library), reset navigation — the doc being read belongs to the old library and its id doesn't exist in the new one.
  */
 export function useVaultBoot({
   localMode,
@@ -29,13 +29,13 @@ export function useVaultBoot({
   nav: WorkspaceNav;
 }): VaultBoot {
   const vault = useVaultSession();
-  // 句柄在 IndexedDB，读它要等一轮异步。首次进本地模式时先按同步标记判断要不要等
+  // The handle is in IndexedDB, so reading it takes an async round. On first entering local mode, use the sync flag to decide whether to wait
   const [boot, setBoot] = useState<"idle" | "waiting" | "done">("idle");
   if (localMode && boot === "idle") setBoot(hasStoredVault() ? "waiting" : "done");
-  // 登录后离开本地模式：回到 idle，下次退出登录再进来重新判断
+  // Leaving local mode after login: back to idle, and decide again the next time we log out and come back
   if (!localMode && boot !== "idle") setBoot("idle");
 
-  // 登录后把库挂起（句柄保留），退出登录回到本地模式再恢复
+  // After login the library is suspended (handle kept); restore it when logging out back into local mode
   useEffect(() => {
     if (!localMode) {
       void suspendVault();
@@ -44,7 +44,7 @@ export function useVaultBoot({
     void restoreVaultOnStartup().finally(() => setBoot("done"));
   }, [localMode]);
 
-  // 换库回调在用户点下那一刻才执行（必然晚于本次渲染的 effect），effect 里同步 ref 足够新鲜
+  // The library-switch callback only runs when the user clicks (necessarily after this render's effect), so syncing the ref in the effect is fresh enough
   const navRef = useRef(nav);
   useEffect(() => {
     navRef.current = nav;

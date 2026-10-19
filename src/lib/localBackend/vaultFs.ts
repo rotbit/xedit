@@ -1,15 +1,15 @@
 /**
- * Vault 的文件系统原语：只包 File System Access API，不掺文档语义。
- * 目录布局是 <vault>/<分类路径>/<标题>.md —— 文件名即标题、目录即分类，不写 frontmatter；
- * 点号开头的条目（.obsidian/.xedit/.trash/.DS_Store…）一概跳过，顶层的 attachments 也跳过。
+ * Vault filesystem primitives: wraps only the File System Access API, no document semantics.
+ * Layout is <vault>/<category path>/<title>.md: filename is the title, folder is the category, no frontmatter;
+ * dot-prefixed entries (.obsidian/.xedit/.trash/.DS_Store...) are always skipped, as is the top-level attachments.
  */
 
 import { MAX_DEPTH } from "@/features/workspace/constants";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { t } from "@/i18n/t";
 
-// TS 5.9 的 lib.dom 里还缺目录选择器、句柄权限查询、handle.move，
-// 目录异步迭代在 dom.asynciterable（未进 tsconfig.lib），这里按 Chromium 实际行为补最小声明
+// TS 5.9's lib.dom still lacks the directory picker, handle permission queries and handle.move,
+// and async directory iteration is in dom.asynciterable (not in tsconfig.lib), so add minimal declarations matching Chromium
 declare global {
   interface Window {
     showDirectoryPicker?: (options?: {
@@ -20,7 +20,7 @@ declare global {
   interface FileSystemHandle {
     queryPermission?: (desc?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
     requestPermission?: (desc?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
-    /** Chrome 111+ 才有；缺了就退回「读→写→删」三步 */
+    /** Chrome 111+ only; without it fall back to read → write → delete */
     move?: (parent: FileSystemDirectoryHandle, name?: string) => Promise<void>;
   }
   interface FileSystemDirectoryHandle {
@@ -28,17 +28,17 @@ declare global {
   }
 }
 
-/** 文件名上限：给 255 字节的文件系统留足余量（中文 3 字节/字） */
+/** Filename limit: leaves headroom under 255-byte filesystems (CJK is 3 bytes per char) */
 const MAX_NAME = 120;
 
-/** 附件目录：固定在库根下叫 attachments。它既不是分类也不装文章，
- *  里面是图片等二进制，所以扫库时在顶层整个跳过（更深层的同名目录仍按普通分类算） */
+/** Attachment folder: fixed as attachments under the library root. It's neither a category nor holds articles,
+ *  just images and other binaries, so the scan skips it entirely at the top level (same-named folders deeper still count as categories) */
 export const ATTACHMENTS_DIR = "attachments";
 
-/** 一次并发读 16 个文件：再多也就是把文件句柄堆着 */
+/** Read 16 files concurrently: more just piles up file handles */
 const READ_CHUNK = 16;
 
-/** 文件名里非法或不安全的字符：控制字符、路径分隔符与 Windows 保留符号 */
+/** Illegal or unsafe filename characters: control chars, path separators and Windows reserved symbols */
 const ILLEGAL = /[\x00-\x1f\x7f/\\:*?"<>|]/g;
 
 export const baseName = (p: string): string => p.slice(p.lastIndexOf("/") + 1);
@@ -49,7 +49,7 @@ export function isVaultSupported(): boolean {
   return typeof window !== "undefined" && "showDirectoryPicker" in window;
 }
 
-/** 用户取消返回 null，其它错误（如非安全上下文）抛出去 */
+/** Returns null if the user cancels; other errors (e.g. insecure context) are thrown */
 export async function pickVaultDirectory(): Promise<FileSystemDirectoryHandle | null> {
   if (typeof window === "undefined" || !window.showDirectoryPicker) return null;
   try {
@@ -63,18 +63,18 @@ export async function pickVaultDirectory(): Promise<FileSystemDirectoryHandle | 
 export async function queryVaultPermission(
   handle: FileSystemDirectoryHandle
 ): Promise<PermissionState> {
-  // 查不了权限就当有，真写不进去时自然会报错
+  // If permissions can't be queried assume granted; a real write failure will surface anyway
   if (!handle.queryPermission) return "granted";
   return await handle.queryPermission({ mode: "readwrite" });
 }
 
-/** 必须在用户手势里调用，否则浏览器直接拒 */
+/** Must be called within a user gesture, or the browser refuses outright */
 export async function requestVaultPermission(handle: FileSystemDirectoryHandle): Promise<boolean> {
   if (!handle.requestPermission) return true;
   return (await handle.requestPermission({ mode: "readwrite" })) === "granted";
 }
 
-/** 标题 → 合法文件名（不含扩展名）：非法字符换成 -，尾部的点和空格要去掉（Windows 不认） */
+/** Title → valid filename (no extension): illegal chars become -, trailing dots and spaces are stripped (Windows rejects them) */
 export function sanitizeFileName(title: string): string {
   let name = title.trim().replace(ILLEGAL, "-").replace(/\s+/g, " ").replace(/[.\s]+$/, "");
   if (name.length > MAX_NAME) name = name.slice(0, MAX_NAME).replace(/[.\s]+$/, "");
@@ -82,19 +82,19 @@ export function sanitizeFileName(title: string): string {
 }
 
 export interface VaultFileEntry {
-  /** 相对 vault 根的 / 连接路径 */
+  /** /-joined path relative to the vault root */
   path: string;
   handle: FileSystemFileHandle;
 }
 
 export interface WalkOptions {
-  /** 顶层的点号条目与 attachments 也一并扫进来：扫 .trash 内部时用它
-   *  （回收站里就是普通的分类目录与文章），扫正库不要开 */
+  /** Also include top-level dot entries and attachments: used when scanning inside .trash
+   *  (the trash holds ordinary category folders and articles); leave off for the main library */
   includeDotRoot?: boolean;
 }
 
-/** 递归扫一个目录：只有 .md 算文章，但每个非点号目录（哪怕空的）都算一个分类。
- *  返回的 path 相对传进来的这个目录，不是相对库根 */
+/** Recursively scan a folder: only .md files are articles, but every non-dot folder (even empty) is a category.
+ *  Returned paths are relative to the folder passed in, not the library root */
 export async function walkDirectory(
   dir: FileSystemDirectoryHandle,
   opts: WalkOptions = {}
@@ -102,7 +102,7 @@ export async function walkDirectory(
   const files: VaultFileEntry[] = [];
   const dirs: string[] = [];
   const walk = async (d: FileSystemDirectoryHandle, prefix: string, depth: number) => {
-    // 顶层那两条过滤（点号条目、附件目录）在扫 .trash 内部时要关掉
+    // The two top-level filters (dot entries, attachment folder) are turned off when scanning inside .trash
     const filterTop = depth > 0 || !opts.includeDotRoot;
     for await (const [name, handle] of d.entries()) {
       if (name.startsWith(".") && filterTop) continue;
@@ -122,15 +122,15 @@ export async function walkDirectory(
   return { files, dirs };
 }
 
-/** 扫整个库：顶层跳过点号目录（.obsidian/.xedit/.trash…）与 attachments */
+/** Scan the whole library: skip top-level dot folders (.obsidian/.xedit/.trash...) and attachments */
 export async function walkVault(
   root: FileSystemDirectoryHandle
 ): Promise<{ files: VaultFileEntry[]; dirs: string[] }> {
   return await walkDirectory(root);
 }
 
-/** 分批读内容：一次并发 16 个，够快又不至于把整库句柄全开着。
- *  needText 判 false 的文件只取 mtime 不读正文（对账时没变的跳过），对应 text = null */
+/** Read contents in batches of 16 concurrent reads: fast enough without opening every handle in the library at once.
+ *  Files where needText returns false get only mtime, not the body (unchanged files during rescan), with text = null */
 export async function readVaultFiles(
   files: readonly VaultFileEntry[],
   onFile: (path: string, mtime: number, text: string | null) => void,
@@ -152,7 +152,7 @@ export async function readVaultFiles(
   }
 }
 
-/** relPath 为空即根目录；create 时建不出来直接抛，只读时找不到返回 null */
+/** Empty relPath means the root; with create, failure to create throws; read-only lookups return null if missing */
 export async function getDirectory(
   root: FileSystemDirectoryHandle,
   relPath: string,
@@ -170,8 +170,8 @@ export async function getDirectory(
   return dir;
 }
 
-/** 写完回读 file.lastModified 并返回：调用方把它记回 entry.mtime，
- *  对账时才不会把自己刚写的文件当成外部改动 */
+/** Re-read file.lastModified after writing and return it: callers store it in entry.mtime
+ *  so rescans don't mistake our own fresh writes for external changes */
 async function writeData(
   dir: FileSystemDirectoryHandle,
   name: string,
@@ -183,14 +183,14 @@ async function writeData(
     await w.write(data);
     await w.close();
   } catch (e) {
-    // 中途失败就放弃这次写入，别留个被截断的半截文件
+    // On mid-write failure abort this write rather than leave a truncated file
     await w.abort().catch(() => undefined);
     throw e;
   }
   return (await fh.getFile()).lastModified;
 }
 
-/** 返回写完之后的文件 mtime */
+/** Returns the file mtime after writing */
 export async function writeTextFile(
   dir: FileSystemDirectoryHandle,
   name: string,
@@ -199,7 +199,7 @@ export async function writeTextFile(
   return await writeData(dir, name, text);
 }
 
-/** 图片等二进制按 Blob 原样写，别经手字符串 */
+/** Write binaries like images as raw Blobs, never through a string */
 export async function writeBlobFile(
   dir: FileSystemDirectoryHandle,
   name: string,
@@ -220,7 +220,7 @@ export async function removeEntry(
   await dir.removeEntry(name, { recursive });
 }
 
-/** 读某个相对路径的文件 mtime；不在磁盘上返回 0 */
+/** Read the mtime of the file at a relative path; 0 if not on disk */
 export async function fileMtime(
   root: FileSystemDirectoryHandle,
   relPath: string
@@ -234,7 +234,7 @@ export async function fileMtime(
   }
 }
 
-/** 改名/换目录：有原生 move 就用，没有就读+写+删。返回新位置的文件 mtime */
+/** Rename/move: use native move if available, else read + write + delete. Returns the file mtime at the new location */
 export async function moveFile(
   root: FileSystemDirectoryHandle,
   fromRel: string,
@@ -250,7 +250,7 @@ export async function moveFile(
   const fh = await fromDir.getFileHandle(fromName);
   if (typeof fh.move === "function") {
     await fh.move(toDir, toName);
-    // 原生 move 之后句柄已指向新位置
+    // After native move the handle already points to the new location
     return (await fh.getFile()).lastModified;
   }
   const mtime = await copyFile(fh, toDir, toName);
@@ -258,7 +258,7 @@ export async function moveFile(
   return mtime;
 }
 
-/** 目录改名/搬家：原生 move 只管文件，目录只能整棵复制再删原处 */
+/** Rename/move a folder: native move only handles files, so folders are copied as a whole tree then the source removed */
 export async function moveDirectory(
   root: FileSystemDirectoryHandle,
   fromRel: string,
@@ -267,7 +267,7 @@ export async function moveDirectory(
   if (fromRel === toRel) return;
   if (toRel.startsWith(`${fromRel}/`)) throw new Error(t("不能把文件夹搬进它自己里"));
   const from = await getDirectory(root, fromRel, false);
-  if (!from) return; // 源目录压根不在磁盘上（只存在于索引里），不用搬
+  if (!from) return; // Source folder isn't on disk at all (only in the index); nothing to move
   const to = await getDirectory(root, toRel, true);
   if (!to) throw new Error(t("建不出目录 {path}", { path: toRel }));
   await copyDir(from, to);
@@ -275,7 +275,7 @@ export async function moveDirectory(
   await fromParent?.removeEntry(baseName(fromRel), { recursive: true });
 }
 
-/** 按 Blob 原样复制，图片等二进制附件走这条路才不会被当文本弄坏 */
+/** Copy as a raw Blob so binary attachments like images aren't mangled as text */
 async function copyFile(
   fh: FileSystemFileHandle,
   toDir: FileSystemDirectoryHandle,
@@ -284,7 +284,7 @@ async function copyFile(
   return await writeData(toDir, name, await fh.getFile());
 }
 
-/** 整棵复制，包括点号条目——搬文件夹得连里面的附件一起带走 */
+/** Copy the whole tree, dot entries included: moving a folder must bring its attachments along */
 async function copyDir(
   from: FileSystemDirectoryHandle,
   to: FileSystemDirectoryHandle

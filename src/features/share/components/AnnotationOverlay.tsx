@@ -1,12 +1,12 @@
 "use client";
 
-// 正文上浮动的批注交互层：选区/媒体的「批注」按钮、新批注编辑卡、线程面板（从 SharedArticle 搬出）
+// Floating annotation layer over the body: the 「批注」 (Annotate) button for selections/media, the new-annotation card, the thread panel (moved out of SharedArticle)
 
 /**
- * 所有落点（x/y）都是相对 SharedArticle 里那层 relative 包裹框的像素值，由那边用
- * getBoundingClientRect 算好再传进来，这里一律 absolute 定位，渲染期不读 DOM。
- * 本层不持有业务状态：批注列表、访客身份、轮询都在 SharedArticle / useShareComments，
- * 这里只留输入框草稿，卡片一卸载草稿就跟着没了。
+ * All positions (x/y) are pixels relative to the `relative` wrapper in SharedArticle, computed there with
+ * getBoundingClientRect and passed in; everything here is absolutely positioned and never reads the DOM during render.
+ * This layer holds no business state: the annotation list, visitor identity and polling live in SharedArticle / useShareComments;
+ * only input drafts live here, and they disappear when the card unmounts.
  */
 import { useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { Check, MessageSquarePlus, Trash2, X } from "lucide-react";
@@ -22,27 +22,27 @@ import type {
 } from "../SharedArticle";
 import { AnchorQuote } from "./AnchorQuote";
 
-/** 发表批注/回复；返回是否真的发出去了，输入框据此决定清不清 */
+/** Post an annotation/reply; returns whether it actually went out, so the input knows whether to clear */
 type Submit = (
   parentId: string | null,
   body: string,
   anchor?: PendingAnchor
 ) => Promise<boolean>;
 
-/** 选区与媒体的批注入口，以及新批注编辑卡的落点 */
+/** Annotation entry points for selections and media, plus where the new-annotation card lands */
 export interface OverlaySelection {
   selBtn: SelBtnState;
   mediaBtn: MediaBtnState;
   composer: ComposerState;
 }
 
-/** 当前展开的线程与它的浮层落点 */
+/** The currently open thread and where its popover lands */
 export interface OverlayThread {
   active: Thread | null;
   pos: PanelPos;
 }
 
-/** 浮层要回写的状态与要发出的请求 */
+/** State the popover writes back and requests it sends */
 export interface OverlayHandlers {
   setComposer: Dispatch<SetStateAction<ComposerState>>;
   setMediaBtn: Dispatch<SetStateAction<MediaBtnState>>;
@@ -55,7 +55,7 @@ export interface OverlayHandlers {
   removeComment: (c: ShareCommentJson) => Promise<void>;
 }
 
-/** 署名与提交态：新批注卡和回复框共用的那几项 */
+/** Signature and submit state: the fields shared by the new-annotation card and the reply box */
 interface ComposeCommon {
   guestName: string;
   busy: boolean;
@@ -63,7 +63,7 @@ interface ComposeCommon {
   nameInput: ReactNode;
 }
 
-/** 批注浮层总装：选区按钮、媒体浮标、新批注卡、线程面板，按当前交互状态只显示其中一两个 */
+/** Annotation overlay assembly: selection button, media badge, new-annotation card, thread panel; only one or two show depending on the interaction state */
 export function AnnotationOverlay({
   wrapRef,
   selection,
@@ -82,15 +82,15 @@ export function AnnotationOverlay({
   const { selBtn, mediaBtn, composer } = selection;
   return (
     <>
-      {/* 选中后的「批注」浮动按钮 */}
+      {/* Floating 「批注」 (Annotate) button after selecting text */}
       {selBtn && !composer ? (
         <button
           className="absolute z-30 flex -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full bg-[var(--ink)] py-1.5 pl-2.5 pr-3 text-[12px] font-medium text-[var(--panel)] shadow-lg hover:opacity-90"
           style={{ left: selBtn.x, top: selBtn.y }}
-          onPointerDown={(e) => e.preventDefault() /* 保住选区 */}
+          onPointerDown={(e) => e.preventDefault() /* keep the selection */}
           onClick={() => {
-            // 位置在这里就钳好（渲染期不许读 ref）
-            // 308 = 卡片 300 宽加 8 的边距，减 150 是把卡片横向对准选区中点；取不到容器宽度时按 440 兜一个手机宽
+            // Clamp the position right here (reading refs during render isn't allowed)
+            // 308 = 300px card width plus 8px margin; minus 150 centers the card horizontally on the selection; without a container width, fall back to 440 (a phone width)
             const width = wrapRef.current?.clientWidth ?? 440;
             handlers.setComposer({
               y: selBtn.y,
@@ -106,16 +106,16 @@ export function AnnotationOverlay({
         </button>
       ) : null}
 
-      {/* 悬停/点按图片视频出现的「批注」浮标 */}
+      {/* 「批注」 (Annotate) badge shown when hovering/tapping an image or video */}
       {mediaBtn && !composer ? (
         <button
           className="absolute z-30 flex -translate-x-full cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--ink)] py-1.5 pl-2.5 pr-3 text-[12px] font-medium text-[var(--panel)] shadow-lg hover:opacity-90"
           style={{ left: mediaBtn.x, top: mediaBtn.y }}
-          // 指针从图片移到这个浮标上时要取消那边安排的延迟隐藏（SharedArticle 里 250ms），否则走到一半按钮就没了
+          // When the pointer moves from the image onto this badge, cancel the delayed hide scheduled there (250ms in SharedArticle), or the button vanishes halfway
           onPointerEnter={handlers.cancelMediaHide}
           onPointerLeave={handlers.scheduleMediaHide}
           onClick={() => {
-            // 媒体浮标是右对齐贴在图片右上角的（-translate-x-full），所以卡片要从它左边 300（卡片宽）起画，y 再下移 34 让开浮标自己
+            // The media badge is right-aligned at the image's top-right (-translate-x-full), so the card is drawn from 300 (card width) to its left, with y moved down 34 to clear the badge
             const width = wrapRef.current?.clientWidth ?? 440;
             handlers.setComposer({
               x: Math.min(Math.max(8, mediaBtn.x - 300), width - 308),
@@ -132,7 +132,7 @@ export function AnnotationOverlay({
         </button>
       ) : null}
 
-      {/* 新批注编辑卡：composer 为 null 时整块卸载，草稿随之清干净 */}
+      {/* New-annotation card: unmounts entirely when composer is null, so the draft is cleared with it */}
       {composer ? (
         <ComposerCard
           composer={composer}
@@ -142,8 +142,8 @@ export function AnnotationOverlay({
         />
       ) : null}
 
-      {/* 线程面板：点高亮弹出。按 root id 做 key —— 直接从一条批注跳到另一条时
-          也会重建，上一条写了一半的回复不会跟过去 */}
+      {/* Thread panel: opens on clicking a highlight. Keyed by root id, so jumping straight from one annotation to another
+          rebuilds it too, and a half-written reply doesn't carry over */}
       {thread.active && thread.pos ? (
         <ThreadPanel
           key={thread.active.root.id}
@@ -158,7 +158,7 @@ export function AnnotationOverlay({
   );
 }
 
-/** 新批注编辑卡：自己持有草稿，发表成功后由父层卸载 */
+/** New-annotation card: owns its draft; the parent unmounts it after a successful post */
 function ComposerCard({
   composer,
   compose,
@@ -171,9 +171,9 @@ function ComposerCard({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
-  // 不看返回值：发成功后 SharedArticle 会把 composer 置空，整张卡连草稿一起卸载；失败时卡还在，草稿也还在
+  // Ignore the return value: on success SharedArticle nulls composer and the whole card unmounts with its draft; on failure the card and draft remain
   const post = () => void submit(null, draft, composer.anchor);
-  // 服务端拿不到 author 会兜成「访客」而不是报错，这里挡一道纯是前端的规矩：每条批注都该有个能分辨的署名
+  // The server falls back to 「访客」 (Guest) rather than erroring without an author; this check is purely a frontend rule that every annotation should have a recognizable signature
   const blocked = !draft.trim() || (compose.needName && !compose.guestName.trim()) || compose.busy;
 
   return (
@@ -195,14 +195,14 @@ function ComposerCard({
           <X size={14} />
         </button>
       </div>
-      {/* 昵称输入框由 SharedArticle 造好传下来：已署名或本人就是作者时它是 null，这里自然什么都不画 */}
+      {/* The nickname input is built and passed down by SharedArticle: it's null when already signed or when you're the author, so nothing is drawn here */}
       {compose.nameInput}
       <textarea
         autoFocus
         className="h-20 w-full resize-none rounded-md border border-[var(--hairline)] bg-[var(--paper)] px-2.5 py-1.5 text-[13px] leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
         placeholder="写下批注…（⌘/Ctrl+Enter 提交）"
         value={draft}
-        // 2000 与服务端一致（comments 路由对 body 做 slice(0, 2000)）：超长不会报错，会被悄悄截掉
+        // 2000 matches the server (the comments route does body.slice(0, 2000)): overlong text isn't an error, it's silently truncated
         maxLength={2000}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -228,7 +228,7 @@ function ComposerCard({
   );
 }
 
-/** 线程面板：自己持有回复草稿，发出去后就地清空 */
+/** Thread panel: owns its reply draft and clears it in place after sending */
 function ThreadPanel({
   thread,
   pos,
@@ -245,7 +245,7 @@ function ThreadPanel({
   const [draft, setDraft] = useState("");
   const reply = () => {
     void handlers.submit(thread.root.id, draft).then((ok) => {
-      // 只有真发出去了才清草稿：失败（网络或被拒）时留着，用户不用重打一遍
+      // Only clear the draft if it actually went out: on failure (network or rejected) keep it so the user doesn't retype
       if (ok) setDraft("");
     });
   };
@@ -264,7 +264,7 @@ function ThreadPanel({
           />
         </div>
         <div className="ml-2 flex items-center gap-1">
-          {/* 「解决」只画给 mine（自己发的批注，或文档作者），服务端同样卡 403；回复单独销记会被 400 拒，所以按钮只挂在 root 上 */}
+          {/* 「解决」 (Resolve) is only drawn for mine (your own annotations, or the doc author); the server also returns 403. Resolving a reply alone is rejected with 400, so the button only goes on the root */}
           {thread.root.mine && !thread.root.resolvedAt ? (
             <button
               className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[12px] text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"

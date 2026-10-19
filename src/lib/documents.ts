@@ -7,8 +7,8 @@ import { autoSnapshot, AUTOSAVE_RULE } from "@/lib/versions";
 import { wordCount } from "@/lib/wordCount";
 
 /**
- * 文档增删改查的共享服务层：REST 路由与 MCP 工具共用同一套逻辑，避免行为漂移。
- * 所有操作都以 userId 隔离，跨用户不可见、不可改。
+ * Shared service layer for document CRUD: REST routes and MCP tools use the same logic to avoid behavior drift.
+ * Every operation is scoped by userId; nothing is visible or editable across users.
  */
 
 function clampLimit(v: number | undefined, def: number, max: number): number {
@@ -35,7 +35,7 @@ export interface DocFull {
   updatedAt: Date;
 }
 
-/** 整行 → 对外的 DocFull 形状（正文之外的内部字段不外泄） */
+/** Full row → the public DocFull shape (internal fields beyond the body don't leak) */
 function toDocFull(doc: Document): DocFull {
   return {
     id: doc.id,
@@ -48,11 +48,11 @@ function toDocFull(doc: Document): DocFull {
 }
 
 /**
- * 文库列表。limit="all" 不限条数——REST 列表接口要把整份文库下发给前端，
- * MCP 那边则始终带上限（默认 50），别让工具一次吐出几百篇。
+ * Library listing. limit="all" means no cap: the REST list API sends the whole library to the frontend,
+ * while MCP always applies a cap (default 50) so a tool call doesn't dump hundreds of docs.
  *
- * 正文仍要整份取：字数是全篇口径，截断了就不准；
- * 但摘要只扫开头（见 excerpt.ts 的预切），长文不会被整篇跑五遍正则。
+ * The full body is still fetched: char count covers the whole doc and would be wrong if truncated;
+ * but the excerpt only scans the beginning (see the pre-slice in excerpt.ts), so long docs don't run five regexes over the whole body.
  */
 export async function listDocuments(
   userId: string,
@@ -86,13 +86,13 @@ export async function listDocuments(
   }));
 }
 
-/** 命中片段的取景窗：命中处往前留 40 字，整段 120 字。
- *  这是检索上下文、不是列表摘要，所以不跟 EXCERPT_MAX 走同一个数。 */
+/** Snippet window for matches: keep 40 chars before the match, 120 total.
+ *  This is search context, not a list excerpt, so it doesn't share EXCERPT_MAX. */
 const SNIPPET_BEFORE = 40;
 const SNIPPET_WIDTH = 120;
 
-/** 在匹配位置附近截取一小段上下文，帮助定位命中。
- *  plain 由调用方传入：同一篇正文的纯文本化只做一次，别在这里重跑一遍。 */
+/** Extract a short context around the match position to help locate hits.
+ *  plain is passed in by the caller: plain-text conversion of a body happens once, don't redo it here. */
 function snippetAround(plain: string, query: string): string {
   const idx = plain.toLowerCase().indexOf(query.toLowerCase());
   if (idx < 0) return plain.slice(0, SNIPPET_WIDTH);
@@ -147,7 +147,7 @@ export async function getDocument(userId: string, id: string): Promise<DocFull |
   return toDocFull(doc);
 }
 
-/** 客户端去重键的长度上限；跟标题一样在服务端截断，不信客户端给的长度 */
+/** Max length of the client dedup key; truncated on the server like the title, without trusting the client's length */
 const CLIENT_KEY_MAX = 100;
 
 export interface CreateDocInput {
@@ -155,30 +155,30 @@ export interface CreateDocInput {
   content?: string;
   category?: string;
   /**
-   * 客户端去重键（可选），同一账号下唯一。离线新建与弱网重试会把同一条「新建」
-   * 发好几遍，带上同一个 key 就只落一篇，后到的那几次直接拿回先落的那篇。
+   * Client dedup key (optional), unique per account. Offline creation and flaky-network retries can send the same "create"
+   * several times; with the same key only one doc is created, and later attempts get back the one created first.
    */
   clientKey?: string;
 }
 
-/** 去重键规范化：空白串当没传，超长截断 */
+/** Normalize the dedup key: blank strings count as absent, overly long ones are truncated */
 function normalizeClientKey(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim().slice(0, CLIENT_KEY_MAX) : null;
 }
 
-/** 唯一约束冲突。不 import Prisma 的错误类，只认错误码，纯逻辑单测里也好构造 */
+/** Unique constraint violation. Checks only the error code rather than importing Prisma's error class, so pure logic tests can construct it easily */
 function isUniqueViolation(e: unknown): boolean {
   return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "P2002";
 }
 
 /**
- * 新建文档并返回整行：REST 的新建接口要整行落本地镜像，MCP 与飞书同步只要三个字段，
- * 去重与字段裁剪收在这里一份，两条通道不会漂。
+ * Create a document and return the full row: the REST create API needs the full row for the local mirror, while MCP and Feishu sync only need three fields;
+ * dedup and field trimming live here in one place so the two channels don't drift.
  *
- * 带 clientKey 时是幂等的：先按 (userId, clientKey) 找，找到就原样返回已有那篇（不改写它），
- * 没有才建；两个重试同时走到 create 时靠唯一约束兜底，撞了（P2002）再查一次拿回赢的那篇。
- * 查找不排除回收站——唯一约束本身不看 deletedAt，这里跟它保持同一口径，
- * 否则用户删掉后同 key 重试会直接撞约束报错。
+ * Idempotent with clientKey: first look up by (userId, clientKey); if found, return the existing doc as-is (without rewriting it),
+ * otherwise create; if two retries reach create at once, the unique constraint catches it, and on a clash (P2002) we look up again to get the winner.
+ * The lookup doesn't exclude trash: the unique constraint itself ignores deletedAt, so this matches it;
+ * otherwise a retry with the same key after the user deleted the doc would hit the constraint and error.
  */
 export async function createDocumentRow(
   userId: string,
@@ -209,7 +209,7 @@ export async function createDocumentRow(
   }
 }
 
-/** 新建文档，只回调用方用得上的三个字段（MCP 工具、飞书同步） */
+/** Create a document, returning only the three fields callers need (MCP tools, Feishu sync) */
 export async function createDocument(
   userId: string,
   input: CreateDocInput
@@ -219,8 +219,8 @@ export async function createDocument(
 }
 
 /**
- * 更新结果。写成了带回服务端时间戳；被别的设备抢先写过则带回服务端当前这一版，
- * 让调用方去做合并。文档不存在（或在回收站）统一用 null 表示。
+ * Update result. On success, carries the server timestamp; if another device wrote first, carries the server's current version
+ * for the caller to merge. A missing doc (or one in the trash) is uniformly represented as null.
  */
 export type UpdateOutcome =
   | { conflict: false; updatedAt: Date }
@@ -231,14 +231,14 @@ export interface UpdateDocInput {
   content?: string;
   category?: string;
   /**
-   * 客户端这次编辑所基于的服务端版本时刻。传了就是条件更新（乐观锁）：
-   * 服务端仍停在这个时刻才写得进去，否则回冲突让客户端自己合并。
-   * 不传 = 无条件覆盖，与历史行为完全一致——老客户端、MCP 工具、飞书同步都走这条。
+   * The server version time this client edit is based on. If given, it's a conditional update (optimistic locking):
+   * the write only lands if the server is still at that time; otherwise a conflict is returned for the client to merge.
+   * Omitted = unconditional overwrite, exactly the legacy behavior; old clients, MCP tools, and Feishu sync all use this path.
    */
   baseUpdatedAt?: string | number | Date | null;
 }
 
-/** 把 baseUpdatedAt 解析成 Date；空值与不合法值一律当没传（要拦的调用方自己先校验） */
+/** Parse baseUpdatedAt into a Date; empty and invalid values count as absent (callers that need to reject them validate first) */
 export function parseBaseUpdatedAt(v: unknown): Date | null {
   if (v == null || v === "") return null;
   if (typeof v !== "string" && typeof v !== "number" && !(v instanceof Date)) return null;
@@ -247,23 +247,23 @@ export function parseBaseUpdatedAt(v: unknown): Date | null {
 }
 
 /**
- * 条件更新这次要盖的时间戳——自己盖，而不是让 @updatedAt 刷新完再查一遍。
+ * The timestamp this conditional update stamps: we stamp it ourselves instead of letting @updatedAt refresh and then querying again.
  *
- * @updatedAt 在 updateMany 下同样会自动刷新（与 update 是同一条写参数处理路径），
- * 但 updateMany 不回行：要拿刷新后的值只能再 findFirst 一次，而这两步之间别人若又写了一次，
- * 回给客户端的就成了对方那次的时刻——客户端拿它当自己这次保存的基准，下一次条件保存
- * 反倒会正好覆盖掉对方。自己盖章就没有这条缝：写进去什么就回什么。
+ * @updatedAt also auto-refreshes under updateMany (same write-arg path as update),
+ * but updateMany doesn't return rows: getting the refreshed value needs another findFirst, and if someone else writes between the two,
+ * the client gets the other writer's time; using it as the base for its own save, the next conditional save
+ * would end up overwriting the other writer. Stamping ourselves closes that gap: what we write is what we return.
  *
- * 毫秒精度：DateTime 在 Postgres 上映射 timestamp(3)，与 JS Date 同为毫秒刻度，
- * 所以 where 里用 updatedAt 做等值比较是可靠的，不会因为精度截断而永远匹配不上。
- * 同一毫秒内连写两次时时间戳不变，会让这一次写入对后来者「不可见」，故至少往后挪 1ms。
+ * Millisecond precision: DateTime maps to timestamp(3) on Postgres, the same ms granularity as JS Date,
+ * so equality on updatedAt in where is reliable and won't fail forever due to precision truncation.
+ * Two writes in the same millisecond would keep the same timestamp and make this write "invisible" to later ones, so bump by at least 1ms.
  */
 function nextStamp(base: Date): Date {
   const now = Date.now();
   return new Date(now > base.getTime() ? now : base.getTime() + 1);
 }
 
-/** 正文真的变了才留版并记当日写作流水；编辑器保存与 MCP 写入共用这一份副作用 */
+/** Only when the body actually changed, save a version and log today's writing activity; editor saves and MCP writes share this side effect */
 async function recordContentChange(
   userId: string,
   id: string,
@@ -282,11 +282,11 @@ async function recordContentChange(
 }
 
 /**
- * 更新文档。仅更新传入的字段；正文变化时自动留版并记当日写作流水，
- * 与编辑器保存走完全相同的副作用。文档不存在（或在回收站）返回 null。
+ * Update a document. Only the provided fields are updated; body changes automatically save a version and log today's writing activity,
+ * with exactly the same side effects as an editor save. Returns null if the doc doesn't exist (or is in the trash).
  *
- * 成功时把服务端 updatedAt 带回去：客户端镜像要记的是服务器时间，
- * 本机时钟快的机器若拿本地时间当保存时刻，之后「服务端更新才替换」的比较会误判成本地更新。
+ * On success the server updatedAt is returned: the client mirror must store server time;
+ * a machine with a fast clock using local time as the save time would later misjudge the "replace only if server is newer" check as a local update.
  */
 export async function updateDocument(
   userId: string,
@@ -305,16 +305,16 @@ export async function updateDocument(
 
   const base = parseBaseUpdatedAt(input.baseUpdatedAt);
   if (base) {
-    // 条件更新：where 里带上 updatedAt=base，比较与写入在同一条 UPDATE 里由数据库完成，
-    // 两个设备并发保存不会都成功——先到的把时间戳推走，后到的匹配 0 行。
+    // Conditional update: updatedAt=base goes in the where, so comparison and write happen in the same UPDATE inside the database;
+    // two devices saving concurrently can't both succeed: the first moves the timestamp, the second matches 0 rows.
     const stamp = nextStamp(base);
     const { count } = await prisma.document.updateMany({
       where: { id, userId, deletedAt: null, updatedAt: base },
       data: { ...data, updatedAt: stamp },
     });
     if (count === 0) {
-      // 没写进去：要么被抢先写过（冲突，把服务端当前这版带回去让客户端合并），
-      // 要么这期间被删/移进了回收站（按不存在处理，与无条件路径口径一致）
+      // Not written: either someone wrote first (conflict; return the server's current version for the client to merge),
+      // or it was deleted/moved to trash meanwhile (treated as missing, consistent with the unconditional path)
       const fresh = await prisma.document.findFirst({ where: { id, userId } });
       if (!fresh || fresh.deletedAt) return null;
       return { conflict: true, doc: toDocFull(fresh) };
@@ -323,7 +323,7 @@ export async function updateDocument(
     return { conflict: false, updatedAt: stamp };
   }
 
-  // 下面的留版与流水都不动 document 行，这里取到的 updatedAt 就是本次保存的最终时刻
+  // The version saving and activity logging below don't touch the document row, so this updatedAt is the final time of this save
   const updated = await prisma.document.update({
     where: { id },
     data,
@@ -333,7 +333,7 @@ export async function updateDocument(
   return { conflict: false, updatedAt: updated.updatedAt };
 }
 
-/** 删除文档：默认软删除（移入回收站）；hard=true 永久删除。未命中返回 false。 */
+/** Delete a document: soft delete by default (move to trash); hard=true deletes permanently. Returns false if not found. */
 export async function deleteDocument(
   userId: string,
   id: string,

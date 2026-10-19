@@ -2,10 +2,10 @@ import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * /api/cover/generate 的门禁与限流：未登录、没开通、没配 Token、请求体、并发与每日额度。
- * 会话和库换成桩（库里只放一张内存用户表）——权限判定走真的 lib/permissions + lib/admin
- * （管理员按 ADMIN_EMAILS 现算），生图也走真的 lib/coverGenerate/replicate，
- * 只是全局 fetch 是假的，绝不真的打 Replicate。
+ * Gating and rate limiting for /api/cover/generate: not signed in, not enabled, no token configured, request body, concurrency and daily quota.
+ * Session and database are stubbed (the database holds just an in-memory user table) — permission checks use the real lib/permissions + lib/admin
+ * (admins computed from ADMIN_EMAILS), and generation uses the real lib/coverGenerate/replicate;
+ * only the global fetch is fake, never actually hitting Replicate.
  */
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: vi.fn() } } }));
@@ -24,7 +24,7 @@ interface UserRow {
   aiReviewDailyLimit: number | null;
   aiCoverDailyLimit: number | null;
 }
-/** 内存用户表：按 id 查；没登记过的 id 就当库里没这个人 */
+/** In-memory user table: looked up by id; an unregistered id means the user isn't in the database */
 let users: Map<string, UserRow>;
 
 const TOKEN = "r8_TESTTOKEN_SHOULD_NOT_LEAK";
@@ -35,7 +35,7 @@ const DATA_URL = `data:image/jpeg;base64,${JPEG.toString("base64")}`;
 
 type FetchLike = (url: string, init: RequestInit) => Promise<unknown>;
 
-/** 一个刚好够用的上游：打 Replicate 就直接出图，打别处就是下载那张图。gate 用来把第一次生成卡住 */
+/** A just-enough upstream: requests to Replicate return an image directly, anything else is the image download. gate holds the first generation */
 function okFetch(gate?: Promise<void>) {
   let first = true;
   return vi.fn<FetchLike>(async (url) => {
@@ -63,7 +63,7 @@ function okFetch(gate?: Promise<void>) {
   });
 }
 
-/** 一份填得齐的请求体：门禁和限流的用例不关心填了什么 */
+/** A fully filled request body: gating and rate-limit cases don't care what's in it */
 const ONE = { title: "两家大模型谁更能写", left: { name: "Claude", color: "orange" } };
 
 const post = (body: unknown, headers: Record<string, string> = {}) =>
@@ -75,7 +75,7 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
     })
   );
 
-/** 登录成某个账号，并把它登记进内存用户表（默认一个权限都没开） */
+/** Sign in as an account and register it in the in-memory user table (no permissions enabled by default) */
 const signedInAs = (id: string, email: string, extra: Partial<UserRow> = {}) => {
   users.set(id, {
     email,
@@ -93,7 +93,7 @@ beforeEach(() => {
   findUserMock.mockImplementation(async ({ where }: { where: { id: string } }) => users.get(where.id) ?? null);
   vi.stubEnv("ADMIN_EMAILS", ADMIN);
   vi.stubEnv("REPLICATE_API_TOKEN", TOKEN);
-  // 失败路径会往 stderr 写一行，测试输出里不需要
+  // Failure paths write a line to stderr; not needed in test output
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -207,7 +207,7 @@ describe("POST /api/cover/generate 的请求体", () => {
     signedInAs("u-no-slot", ADMIN);
 
     expect((await post({ title: "", left: { name: "Claude", color: "blue" } })).status).toBe(400);
-    // 今天只有一次额度，刚才那次要是算进去了，这一次就该 429 了
+    // Only one quota today; if the previous call had been counted, this one would get a 429
     expect((await post(ONE)).status).toBe(200);
   });
 
@@ -223,7 +223,7 @@ describe("POST /api/cover/generate 的请求体", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ images: [DATA_URL] });
 
-    // 一次点击只烧一次额度：打给 Replicate 的就这一发
+    // One click burns one quota: exactly one request goes to Replicate
     const created = fetchMock.mock.calls.filter(([url]) =>
       url.startsWith("https://api.replicate.com/")
     );
@@ -264,7 +264,7 @@ describe("POST /api/cover/generate 的限流", () => {
     signedInAs("u-busy", ADMIN);
 
     const first = post(ONE);
-    // 让第一单先卡在上游那一步
+    // Hold the first request at the upstream step
     await Promise.resolve();
     const second = await post({ ...ONE, title: "狗" });
     expect(second.status).toBe(409);
@@ -272,7 +272,7 @@ describe("POST /api/cover/generate 的限流", () => {
 
     release();
     expect((await first).status).toBe(200);
-    // 跑完之后又能生成了
+    // Once it finishes, generating works again
     expect((await post(ONE)).status).toBe(200);
   });
 

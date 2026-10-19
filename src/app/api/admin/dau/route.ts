@@ -5,7 +5,7 @@ import { adminSessionUserId } from "@/lib/admin";
 import { chinaDate } from "@/lib/active";
 import { tk } from "@/i18n/t";
 
-/** 活跃用户曲线数据：g=day 近 30 天 / g=week 近 12 周 / g=month 近 12 个月，缺口补零 */
+/** Active-user curve data: g=day last 30 days / g=week last 12 weeks / g=month last 12 months, gaps zero-filled */
 
 function shiftDate(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
@@ -13,7 +13,7 @@ function shiftDate(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** 该日期所在周的周一（周作为聚合桶的 key） */
+/** Monday of the week containing this date (key for the weekly bucket) */
 function mondayOf(date: string): string {
   const dow = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
   return shiftDate(date, -dow);
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
     });
   }
 
-  // (userId, date) 唯一，量级 = 活跃人天；周/月桶在内存里去重即可
+  // (userId, date) is unique, so row count = active user-days; week/month buckets dedupe in memory
   const start = gran === "month" ? `${buckets[0]}-01` : buckets[0];
   const rows = await prisma.dailyActive.findMany({
     where: { date: { gte: start, lte: today } },

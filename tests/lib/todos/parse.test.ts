@@ -141,7 +141,7 @@ describe("改日期", () => {
     expect(setTaskLineDue(md, 0, { due: "2026-10-10", end: null }, T)).toBe("- [ ] 写书 @2026-10-10");
     expect(setTaskLineDue(md, 0, { due: "2026-10-08", end: "2026-10-20" }, T)).toBe("- [ ] 写书 @2026-10-08~2026-10-20");
     expect(setTaskLineDue(md, 0, null, T)).toBe("- [ ] 写书");
-    // 不认识的段（结束早于开始）是文字，不剥
+    // An unrecognized segment (end before start) is text and isn't stripped
     expect(setTaskLineDue("- [ ] 写书 @10/12~10/9", 0, null, T)).toBe("- [ ] 写书 @10/12~10/9");
   });
 
@@ -211,7 +211,7 @@ describe("每日任务", () => {
     expect(toggleTaskLine("- [ ] 跑步 @每天\r\n- [ ] 别动 @每天", 0, true, T)).toBe(`- [x] 跑步 @每天:${T}\r\n- [ ] 别动 @每天`);
     expect(toggleTaskLine("- [x] Read @Daily:2026-10-01  ", 0, true, T)).toBe(`- [x] Read @Daily:${T}  `);
     expect(toggleTaskLine(`- [x] 跑步 @每天:${T}`, 0, false, T)).toBe("- [ ] 跑步 @每天");
-    // 普通日期标签不受影响
+    // Plain date tags are unaffected
     expect(toggleTaskLine("- [ ] 写稿 @明天", 0, true, T)).toBe("- [x] 写稿 @明天");
   });
 

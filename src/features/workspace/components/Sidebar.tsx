@@ -20,26 +20,26 @@ import { SidebarFooter } from "./SidebarFooter";
 import type { Workspace } from "../hooks/useWorkspace";
 
 /**
- * 工作区侧栏：桌面静态常驻；窄屏为 fixed 抽屉，关闭时滑出屏幕。
- * 结构自上而下——工作区头 / 全局搜索 / 今天 / 「文件夹」小标题 + 分类树 / 工具与账户。
- * 全部行共用一套网格（左内边距 8px + 14px 图标位 + 8px 间距 + 文字），图标、文字各自对齐成一条线。
+ * Workspace sidebar: statically docked on desktop; on narrow screens a fixed drawer that slides off-screen when closed.
+ * Structure top to bottom: workspace header / global search / Today / 「文件夹」 (Folders) heading + category tree / tools and account.
+ * All rows share one grid (8px left padding + 14px icon slot + 8px gap + text), so icons and text each line up vertically.
  */
 export function Sidebar({ ws }: { ws: Workspace }) {
   const { nav, prefs, library, menus, catActions } = ws;
   const t = useT();
-  // 「历史已完成」是今天页的子页，停在那里时「今天」仍高亮
+  // 「历史已完成」 (Completed history) is a subpage of Today, so 「今天」 (Today) stays highlighted while there
   const todayActive = (nav.activeCat === TODAY || nav.activeCat === HISTORY) && !nav.readingId;
-  /** 「今天」右侧的数：逾期 + 今天到期，含清单里没定日期的。
-   *  文库每次自动保存都换引用，collectTodos 按 updatedAt 缓存解析结果，重算只是遍历一遍 */
+  /** The number next to 「今天」 (Today): overdue + due today, including undated items in the list.
+   *  The library changes reference on every autosave; collectTodos caches parse results by updatedAt, so recomputing is just one pass */
   const { allDocs } = library;
   const todoCount = useMemo(() => {
-    // 要连待办清单那篇一起看（它不在可见列表 docs 里）
+    // Must include the todo list document too (it's not in the visible docs list)
     if (!allDocs) return 0;
     const today = todayKey();
     return actionableCount(bucketTodos(collectTodos(allDocs, today), today));
   }, [allDocs]);
 
-  /** 右缘手柄拖拽调宽：过程中只用本地值，松手才落盘（与阅读器分隔条同一套 hook） */
+  /** Drag the right-edge handle to resize: uses a local value while dragging and persists on release (same hook as the reader's divider) */
   const resize = useDragDivider<{ x: number; w: number }>({
     start: (e) => ({ x: e.clientX, w: prefs.sidebarWidth }),
     move: (ev, from) => clampSidebarWidth(from.w + ev.clientX - from.x),
@@ -54,7 +54,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
       }`}
       style={{ width: shownWidth }}
     >
-      {/* app-titlebar / traffic-inset：桌面壳里这条顶栏充当系统标题栏并给红绿灯留位 */}
+      {/* app-titlebar / traffic-inset: in the desktop shell this top bar acts as the system title bar and leaves room for the traffic lights */}
       <div className="app-titlebar traffic-inset flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
         <Link
           href="/about"
@@ -74,7 +74,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         </button>
       </div>
 
-      {/* 与下面各行同一网格：放大镜落在 8px，文字落在 30px */}
+      {/* Same grid as the rows below: the magnifier lands at 8px, the text at 30px */}
       <div className="shrink-0 px-2 pb-2 pt-0.5">
         <div className="relative">
           <Search
@@ -87,7 +87,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
             value={nav.search}
             onChange={(e) => nav.onSearch(e.target.value)}
           />
-          {/* 快速切换器的入口提示：输入框一有字就让位，窄屏抽屉里也不占地方 */}
+          {/* Hint for the quick switcher: yields as soon as the input has text, and takes no space in the narrow-screen drawer */}
           {!nav.search ? (
             <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 text-[10px] text-[var(--ink-faint)] md:block">
               ⌘O
@@ -96,8 +96,8 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         </div>
       </div>
 
-      {/* 视图入口：搜索之下、文件夹之上。「今天」是首页——待办 + 最近在写；
-          跨文件夹的时间流（ALL 视图）不再单列一行，从今天页「最近在写 · 全部」进入 */}
+      {/* View entries: below search, above folders. 「今天」 (Today) is the home page: todos + recently written;
+         the cross-folder timeline (ALL view) no longer has its own row; it's reached from Today's 「最近在写 · 全部」 (Recently written · All) */}
       <div className="flex shrink-0 flex-col gap-0.5 px-2">
         <NavRow
           icon={<CalendarCheck size={14} />}
@@ -108,7 +108,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
         />
       </div>
 
-      {/* 「文件夹」小标题：只标出下面是文件夹树，不可点；悬停露出「＋」新建顶级文件夹 */}
+      {/* The 「文件夹」 (Folders) heading: just labels the folder tree below, not clickable; hovering reveals 「＋」 to create a top-level folder */}
       <div className="mt-3 shrink-0 px-2">
         <div
           className="group flex h-[22px] items-center px-2 text-[11px] text-[var(--ink-faint)]"
@@ -128,7 +128,7 @@ export function Sidebar({ ws }: { ws: Workspace }) {
       <CategoryTree ws={ws} />
       <SidebarFooter ws={ws} />
 
-      {/* 调宽手柄：拖动改宽度，双击回默认；窄屏抽屉不提供 */}
+      {/* Resize handle: drag to change width, double-click to reset; not offered in the narrow-screen drawer */}
       <div
         className="absolute inset-y-0 -right-px z-10 hidden w-[5px] cursor-col-resize hover:bg-[var(--accent)]/25 active:bg-[var(--accent)]/40 md:block"
         title={t("拖动调整侧栏宽度，双击恢复默认")}

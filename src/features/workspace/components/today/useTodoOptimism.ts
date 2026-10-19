@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 今天页的乐观更新：勾选、删除、挪日期都先画到界面上，写回失败再撤。
+ * Optimistic updates on the Today page: checking, deleting and moving dates are drawn in the UI first and reverted if the write-back fails.
  *
- * 为什么不等汇总自己变：编辑器正开着那篇时，改动先进 store、要等自动保存才落盘，
- * 期间汇总读到的还是旧正文，条目会闪回原处。三张表都靠「key + 文字」认条目
- * （行号会因删行前移），留着也不会误伤别的行，所以成功后不急着清。
+ * Why not wait for the aggregation to change: while the editor has that doc open, changes go to the store first and hit disk only on autosave,
+ * so in between the aggregation still reads the old body and items flash back. All three maps identify items by "key + text"
+ * (line numbers shift when lines are deleted), so leftovers can't hit other rows, and there's no rush to clear them after success.
  */
 import { useState } from "react";
 import { bucketTodos, type TodoBuckets, type TodoItem } from "@/lib/todos/collect";
@@ -13,12 +13,12 @@ import type { DueRange } from "@/lib/todos/parse";
 
 type ItemMap = Map<string, TodoItem>;
 
-/** 待办此刻的日期（开始 + 结束）；没日期为 null */
+/** The todo's current dates (start + end); null if undated */
 type Span = DueRange | null;
 const spanOf = (i: TodoItem): Span => (i.due ? { due: i.due, end: i.end } : null);
 const sameSpan = (a: Span, b: Span) => (a?.due ?? null) === (b?.due ?? null) && (a?.end ?? null) === (b?.end ?? null);
 
-/** 勾掉后划线停留多久再落到「做完了」 */
+/** How long a checked item stays struck through before moving to "Done" */
 const SETTLE_MS = 800;
 
 const sameIn = (map: Map<string, { text: string }>, item: TodoItem) => map.get(item.key)?.text === item.text;
@@ -31,9 +31,9 @@ function withEntry<V>(prev: Map<string, V>, key: string, value: V | null): Map<s
 }
 
 export interface TodoOptimism {
-  /** 套上删除 / 挪日期之后重新分的桶 */
+  /** Buckets re-split after applying deletes / date moves */
   buckets: TodoBuckets;
-  /** 刚勾掉、还在原地画成已完成的（停留一下再落到「做完了」），且已不在逾期 / 今天桶里的 */
+  /** Just checked and still drawn done in place (lingering before moving to "Done"), and no longer in the overdue / today buckets */
   doneOnly: TodoItem[];
   isDone: (item: TodoItem) => boolean;
   toggle: (item: TodoItem, checked: boolean) => Promise<void>;
@@ -51,11 +51,11 @@ export function useTodoOptimism(
   }
 ): TodoOptimism {
   const [justDone, setJustDone] = useState<ItemMap>(() => new Map());
-  // 勾掉后在原地划线停一下再落到「做完了」：进了这张表就从列表里藏起来。
-  // 不能只靠汇总自己变：编辑器正开着那篇时改动要等自动保存才落盘，期间汇总读到的还是没勾的，
-  // 不藏的话它会以未完成的样子闪回列表
+  // After checking, it stays struck through in place for a moment before moving to "Done": once in this map it's hidden from the list.
+  // Can't rely on the aggregation alone: while the editor has that doc open the change hits disk only on autosave, and meanwhile the aggregation still reads it unchecked;
+  // without hiding it, it would flash back into the list as not done
   const [settled, setSettled] = useState<ItemMap>(() => new Map());
-  // 页面跨过零点：昨天勾掉的每日任务今天又该是没做，「刚勾掉」的记录得跟着作废（渲染期按日期重置）
+  // Page crossed midnight: daily tasks checked yesterday are undone again today, so the "just checked" records must be invalidated (reset during render by date)
   const [doneDay, setDoneDay] = useState(today);
   if (doneDay !== today) {
     setDoneDay(today);
@@ -63,8 +63,8 @@ export function useTodoOptimism(
     setSettled(new Map());
   }
   const [removed, setRemoved] = useState<ItemMap>(() => new Map());
-  // 挪日期记下「从哪挪到哪」（开始日与结束日都记）：只在汇总还显示旧日期（from）时才覆盖，
-  // 一旦正文落盘（或用户又在文章里改了日期）读到别的值，这条记录就自动失效，不会盖住真实数据
+  // Date moves record "from → to" (both start and end): they override only while the aggregation still shows the old date (from);
+  // once the body is saved (or the user changed the date in the doc) a different value is read and the record lapses on its own, never masking real data
   const [moved, setMoved] = useState<Map<string, { text: string; from: Span; due: Span }>>(() => new Map());
 
   const adjusted = items
@@ -73,7 +73,7 @@ export function useTodoOptimism(
       const m = moved.get(i.key);
       const now = spanOf(i);
       return m && m.text === i.text && sameSpan(m.from, now) && !sameSpan(m.due, now)
-        ? // 挪过日期的每日任务就成了普通单日待办（setTaskLineDue 换掉了重复标签）
+        ? // A daily task whose date was moved becomes a regular single-day todo (setTaskLineDue replaced the repeat tag)
           { ...i, due: m.due?.due ?? null, end: m.due?.end ?? null, repeat: null }
         : i;
     });
@@ -84,17 +84,17 @@ export function useTodoOptimism(
   );
 
   const toggle = async (item: TodoItem, checked: boolean) => {
-    setJustDone((p) => withEntry(p, item.key, checked ? item : null)); // 先画上，勾选要即时
+    setJustDone((p) => withEntry(p, item.key, checked ? item : null)); // Draw it first; checking should feel instant
     if (!checked) setSettled((p) => withEntry(p, item.key, null));
     if (!(await write.toggle(item, checked))) {
       setJustDone((p) => withEntry(p, item.key, checked ? null : item));
       return;
     }
-    // 写成功了才落下去：划线停留一下让人看清是哪条勾掉了，再从列表消失、出现在「做完了」
+    // Only move it once the write succeeds: the strike-through lingers so people can see which one was checked, then it leaves the list and appears in "Done"
     if (checked) setTimeout(() => setSettled((p) => withEntry(p, item.key, item)), SETTLE_MS);
   };
 
-  /** 删除不弹确认：删的只是正文里的一行，代价小 */
+  /** Delete without confirmation: it only removes one line from the body, low cost */
   const remove = async (item: TodoItem) => {
     setRemoved((p) => withEntry(p, item.key, item));
     if (!(await write.remove(item))) setRemoved((p) => withEntry(p, item.key, null));
@@ -102,7 +102,7 @@ export function useTodoOptimism(
 
   const move = async (item: TodoItem, range: DueRange | null) => {
     const before = moved.get(item.key) ?? null;
-    // item 可能已经套过一次乐观日期，「从哪挪」要以汇总里的真实值为准，连挪两次才不会闪回
+    // item may already carry an optimistic date; "from" must come from the real value in the aggregation, or moving twice in a row flashes back
     const from = spanOf(items.find((i) => i.key === item.key && i.text === item.text) ?? item);
     setMoved((p) => withEntry(p, item.key, { text: item.text, from, due: range }));
     if (!(await write.move(item, range))) setMoved((p) => withEntry(p, item.key, before));

@@ -1,6 +1,6 @@
 "use client";
 
-/** 小号开关，外观同编辑器菜单里的 ToggleRow，补上 role="switch" 给读屏 */
+/** Small switch styled like ToggleRow in the editor menu, with role="switch" added for screen readers */
 export function Switch({
   checked,
   disabled,

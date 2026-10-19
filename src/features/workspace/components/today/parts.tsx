@@ -1,29 +1,29 @@
 "use client";
 
-/** 今天页两栏共用的小零件：条目文案、空态、圆形复选框、行尾删除按钮 */
+/** Small pieces shared by both Today columns: item labels, empty states, round checkbox, row-end delete button */
 import { Check, X } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import type { TodoItem } from "@/lib/todos/collect";
 import type { DueRange } from "@/lib/todos/parse";
 
 /**
- * 一条待办在界面上的身份：key 里带行号，删掉一行后同一篇下面的行号会前移，
- * 旧 key 会落到别的条目头上，所以带上文字才唯一（菜单开关、React key 都用它）。
+ * A todo's identity in the UI: the key includes the line number, and deleting a line shifts the line numbers below it in the same doc,
+ * so an old key could land on another item; including the text makes it unique (used for menu toggles and React keys).
  */
 export const rowId = (item: TodoItem) => `${item.key}|${item.text}`;
 
-/** 发布排期的 text 是 lib 拼好的中文（也会原样记进当日记录），显示时按语言重拼 */
+/** A publish schedule's text is Chinese built by lib (also written verbatim into the daily log); rebuild it per locale for display */
 export function itemLabel(item: TodoItem, t: TFn): string {
   return item.source === "publish" ? t("发布《{title}》", { title: t(item.docTitle) }) : item.text;
 }
 
-/** 日志里记的是任务原文；发布排期的原文是 lib 拼好的中文，同 itemLabel 一样按语言重拼 */
+/** The log stores the task's original text; a publish schedule's original is Chinese built by lib, so rebuild it per locale like itemLabel */
 export function eventLabel(text: string, title: string | undefined, t: TFn): string {
-  return title !== undefined && text === `发布《${title}》` ? t("发布《{title}》", { title: t(title) }) : text; // i18n-ignore 比对数据原文
+  return title !== undefined && text === `发布《${title}》` ? t("发布《{title}》", { title: t(title) }) : text; // i18n-ignore compared against raw data text
 }
 
 /**
- * 清单里的事关联的那篇：返回 { id, title }。没关联、或关联的文章已删（解析不到标题）都按无关联处理。
+ * The doc a list item is linked to: returns { id, title }. Unlinked, or linked to a deleted doc (title can't be resolved), both count as unlinked.
  */
 export function linkedDoc(
   item: TodoItem,
@@ -35,8 +35,8 @@ export function linkedDoc(
 }
 
 /**
- * 来源副文本；待办清单里的就是「自己记的事」，不必再注明出处，关联了文章才注一句。
- * 关联的那篇只给书名号里的标题，前面配一个文章图标，不再写「关联」二字。
+ * Source subtext. Items in the todo list are "things I noted myself" and need no source; only linked ones get a note.
+ * The linked doc shows just its title in 《》 with a doc icon in front, no "Linked" label.
  */
 export function secondaryOf(item: TodoItem, t: TFn, titleOf: (id: string) => string | null): string | null {
   if (item.source === "doc") return t("文章里的待办 · 《{title}》", { title: item.docTitle });
@@ -45,23 +45,23 @@ export function secondaryOf(item: TodoItem, t: TFn, titleOf: (id: string) => str
   return linked ? t("《{title}》", { title: linked.title }) : null;
 }
 
-/** 两栏都要的行操作：打开出处、挪日期、关联文章、删除；菜单同一时刻只开一个，开关状态由页面统一管 */
+/** Row actions both columns need: open source, move date, link doc, delete. Only one menu is open at a time; the page owns the open state */
 export interface RowActions {
   onOpenDoc: (id: string) => void;
-  /** 改日期：开始日 + 可选结束日（时间段）；null = 去掉日期 */
+  /** Change date: start + optional end (range); null = remove the date */
   onMove: (item: TodoItem, range: DueRange | null) => void;
-  /** 设 / 取消每日重复 */
+  /** Set / clear daily repeat */
   onRepeat: (item: TodoItem, on: boolean) => void;
   onRemove: (item: TodoItem) => void;
-  /** 关联 / 更换 / 取消关联（null）文章 */
+  /** Link / change / unlink (null) a doc */
   onLink: (item: TodoItem, link: string | null) => void;
-  /** 选择器里点了「新建」并选好文件夹：建好那篇再关联上 */
+  /** "New" was picked in the picker and a folder chosen: create the doc, then link it */
   onLinkNew: (item: TodoItem, title: string, category: string) => void;
-  /** 「新建文章」可落的文件夹（已滤掉模板分类）；三处选择器都要，跟着行操作一路传下去 */
+  /** Folders a "New document" can go into (template categories filtered out); all three pickers need it, so it's passed down with the row actions */
   categories: string[];
-  /** 文章 id → 显示标题；找不到（已删、不在文库里）返回 null */
+  /** Doc id → display title; null if not found (deleted, or not in the library) */
   docTitleOf: (id: string) => string | null;
-  /** 当前开着的菜单：日期菜单是 rowId，关联菜单是 `${rowId}|link`；没有为 null */
+  /** The currently open menu: rowId for the date menu, `${rowId}|link` for the link menu; null if none */
   menuId: string | null;
   setMenuId: (id: string | null) => void;
 }
@@ -71,8 +71,8 @@ export function EmptyLine({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * 整页全空时的引导：一张单色线稿 + 一句话。线稿只提供透明度（PNG 的 alpha），
- * 颜色用 mask 从 currentColor 取，明暗主题各自跟着 --ink-faint 走，不用备两张图。
+ * Onboarding shown when the whole page is empty: a monochrome line drawing + one sentence. The drawing only supplies alpha (the PNG's alpha channel);
+ * color comes from currentColor via mask, so light and dark themes both follow --ink-faint without two images.
  */
 export function EmptyGuide({ text }: { text: string }) {
   return (
@@ -87,8 +87,8 @@ export function EmptyGuide({ text }: { text: string }) {
 }
 
 /**
- * 圆形复选框：勾上后墨色填满 + 反白对勾。
- * 不给 onClick 即只读（过去某天的完成记录），仍画成已勾的样子但不可点。
+ * Round checkbox: when checked, filled with ink plus a knocked-out checkmark.
+ * Without onClick it's read-only (done records from past days): still drawn checked but not clickable.
  */
 export function TodoBox({
   done,
@@ -123,8 +123,8 @@ export function TodoBox({
 }
 
 /**
- * 行尾的删除按钮：平时透明、悬停整行（外层带 group）时才露出来，免得每行都顶着一个叉。
- * 用透明度而不是 hidden：位置一直占着，悬停时右侧日期不会被挤得跳一下；键盘聚焦时也看得见。
+ * Row-end delete button: transparent until the whole row (outer `group`) is hovered, so every row isn't wearing an ×.
+ * Uses opacity instead of hidden: it always takes up space, so the date on the right doesn't jump on hover; also visible on keyboard focus.
  */
 export function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (

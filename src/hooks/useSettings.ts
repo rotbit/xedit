@@ -5,16 +5,16 @@ import type { CustomThemeSpec } from "@/lib/themes/custom";
 import type { SidebarOrder } from "@/features/workspace/lib/sidebarOrder";
 
 /**
- * `/api/settings` 的单一读写通道。
+ * Single read/write channel for `/api/settings`.
  *
- * 首屏原先有两处各拉一次 `/api/settings`（排版偏好 + 自建分类/侧栏排序），
- * 写入也各写各的：同一秒里既可能两个 PUT 并发、又可能拖排序时连发好几个。
- * 这里把读收成模块级的一次 promise（两处订阅同一份），把写收成一条防抖通道
- * （按字段合并，最后一次赢）。服务端 PUT 本身是按字段增量更新的，
- * 所以只带改动过的字段即可，不会把没带的字段清空。
+ * The first screen used to fetch `/api/settings` from two places (typography preferences + custom categories/sidebar ordering),
+ * and each wrote separately: two concurrent PUTs in the same second, or a burst of them while dragging to reorder.
+ * Here reads collapse into one module-level promise (both subscribers share it), and writes into one debounced channel
+ * (merged per field, last write wins). The server PUT updates per field incrementally,
+ * so sending only changed fields is fine; omitted fields aren't cleared.
  */
 
-/** GET 回来的原始行（字段都可能缺，老账号还没建过这行时整体为 null） */
+/** Raw row from the GET (any field may be missing; the whole thing is null for old accounts that never created the row) */
 export interface UserSettingsRow {
   themeId?: string | null;
   codeThemeId?: string | null;
@@ -26,7 +26,7 @@ export interface UserSettingsRow {
   sidebarOrder?: string | null;
 }
 
-/** 可写字段；数组/对象由服务端序列化，客户端按原样传 */
+/** Writable fields; arrays/objects are serialized by the server, the client sends them as-is */
 export interface SettingsPatch {
   themeId?: string;
   customCss?: string;
@@ -44,8 +44,8 @@ let writeTimer: ReturnType<typeof setTimeout> | null = null;
 let flushHooked = false;
 
 /**
- * 读一次云端设置。同一会话内重复调用共用同一个 promise，
- * 失败不进缓存——登录态刚变化时的那次 401 不该把后续的成功读取挡掉。
+ * Reads cloud settings once. Repeat calls within a session share the same promise;
+ * failures aren't cached -- a 401 right as the login state changes shouldn't block later successful reads.
  */
 export function loadSettings(): Promise<UserSettingsRow | null> {
   if (loadPromise) return loadPromise;
@@ -64,10 +64,10 @@ function sendPatch(patch: SettingsPatch, keepalive = false): void {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
     keepalive,
-  }).catch(() => undefined); // 写失败不打扰：下一次改动会带上最新值重试
+  }).catch(() => undefined); // Silent on write failure: the next change retries with the latest values
 }
 
-/** 立刻把攒着的改动发出去（页面要走了、或调用方明确要求落地） */
+/** Send pending changes immediately (the page is leaving, or the caller explicitly wants them persisted) */
 export function flushSettingsWrite(keepalive = false): void {
   if (writeTimer) {
     clearTimeout(writeTimer);
@@ -80,8 +80,8 @@ export function flushSettingsWrite(keepalive = false): void {
 }
 
 /**
- * 写入排队：攒 1s 合并成一个 PUT。同名字段后写覆盖先写，
- * 不同字段合并进同一个请求（排版偏好与侧栏排序常常一起变）。
+ * Queue a write: batch for 1s into a single PUT. Later writes to the same field win,
+ * and different fields merge into one request (typography preferences and sidebar ordering often change together).
  */
 export function queueSettingsWrite(patch: SettingsPatch): void {
   pendingPatch = { ...pendingPatch, ...patch };
@@ -90,7 +90,7 @@ export function queueSettingsWrite(patch: SettingsPatch): void {
     writeTimer = null;
     flushSettingsWrite();
   }, WRITE_DEBOUNCE_MS);
-  // 拖完排序就关标签页的情况：防抖窗口里的那一次不能丢
+  // Closing the tab right after reordering: the write still in the debounce window must not be lost
   if (!flushHooked && typeof window !== "undefined") {
     flushHooked = true;
     window.addEventListener("pagehide", () => flushSettingsWrite(true));
@@ -98,18 +98,18 @@ export function queueSettingsWrite(patch: SettingsPatch): void {
 }
 
 /**
- * 登录后把云端设置喂给 apply，每个订阅方只喂一次。
- * 多处调用共用 loadSettings 的那一次 GET，所以加订阅方不增加请求。
+ * After login, feeds cloud settings to apply, once per subscriber.
+ * All callers share loadSettings' single GET, so more subscribers don't mean more requests.
  *
- * @param onSettled 读取有结果（成功或失败）后回调；调用方靠它判断
- *        「云端那份已经落地了」，在此之前不该把本地值回写上去。
+ * @param onSettled Called once the read settles (success or failure); callers use it to know
+ *        "the cloud copy has landed" and must not write local values back before then.
  */
 export function useCloudSettings(
   enabled: boolean,
   apply: (row: UserSettingsRow) => void,
   onSettled?: () => void
 ): void {
-  // 回调每渲染都是新函数，存 ref：装载只该由 enabled 触发一次
+  // The callback is a new function every render, so keep it in a ref: loading should only be triggered once by enabled
   const applyRef = useRef(apply);
   const settledRef = useRef(onSettled);
   useEffect(() => {
@@ -117,9 +117,9 @@ export function useCloudSettings(
     settledRef.current = onSettled;
   });
 
-  // 只依赖 enabled：登录态翻转一次才装一次；退出再登录会重新装（resetSettings 已作废缓存）。
-  // 不能再加「只跑一次」的 ref 守卫——StrictMode 会把 effect 挂载→卸载→再挂载，
-  // 守卫会让第二次直接跳过，而第一次已被 cancelled，云端设置就永远应用不上
+  // Depends only on enabled: load once per login state flip; logging out and back in reloads (resetSettings already invalidated the cache).
+  // Don't add a "run once" ref guard -- StrictMode mounts → unmounts → remounts effects,
+  // the guard would skip the second run while the first was already cancelled, so cloud settings would never apply
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -137,9 +137,9 @@ export function useCloudSettings(
 }
 
 /**
- * 登出 / 换账号：作废读缓存，否则下一个账号沿用的还是上一个账号的设置。
- * 防抖窗口里攒着的那次改动属于「还没登出的这个账号」，先带 keepalive 发掉再清，
- * 免得最后一次改主题因为随手登出就丢了。
+ * Logout / account switch: invalidate the read cache, or the next account would inherit the previous one's settings.
+ * Changes pending in the debounce window belong to the account that hasn't logged out yet, so send them with keepalive before clearing,
+ * so a last-second theme change isn't lost to a quick logout.
  */
 export function resetSettings(): void {
   flushSettingsWrite(true);

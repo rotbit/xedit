@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 
-/** 文档菜单锚点：右锚定位，避免菜单被列表容器裁剪 */
+/** Doc menu anchor: right-anchored so the menu isn't clipped by the list container */
 export interface DocMenuAnchor {
   id: string;
   top: number;
@@ -15,35 +15,35 @@ export interface CatMenuAnchor {
   left: number;
 }
 
-/** 账户菜单贴着侧栏底部的触发行向上弹出 */
+/** The account menu pops upward from the trigger row at the bottom of the sidebar */
 export interface AccountMenuAnchor {
   bottom: number;
   left: number;
   width: number;
 }
 
-/** 菜单宽 192px + 右锚定位时，右锚的下限：防止菜单被推出屏幕左缘 */
+/** Lower bound for the right anchor given the 192px menu width and right anchoring: keeps the menu from being pushed off the left edge of the screen */
 const DOC_MENU_MIN_RIGHT = 208;
 
-/** 分类菜单的最大高度，用来算贴底时该上移多少。
- *  最长的一份是普通文件夹：新建文章 / 新建子文件夹 + 两条导入 + 移动 / 重命名 / 删除 共 7 条，
- *  外加 2 条分隔线与面板自身的上下内边距，按约 36px 一条估到 280 */
+/** Max height of the category menu, used to compute how far to shift up near the bottom.
+ *  The longest one is a regular folder: new doc / new subfolder + two imports + move / rename / delete, 7 items,
+ *  plus 2 dividers and the panel's own vertical padding; at about 36px per item that comes to 280 */
 const CAT_MENU_MAX_HEIGHT = 280;
 
 /**
- * 工作台的三个弹出菜单。侧栏与列表都可滚动，菜单一律 fixed 定位，
- * 因此这里只保存触发点的视口坐标，由各菜单组件 portal 到 body 渲染。
+ * The workspace's three popup menus. Both the sidebar and the list scroll, so menus are always fixed-positioned;
+ * we only store the trigger's viewport coordinates here, and each menu component portals into body to render.
  *
- * 返回的回调全部 useCallback 稳住：菜单组件拿它们去挂 keydown / 外部点击监听，
- * 每渲染换一份新闭包就会让这些监听跟着装卸一轮（列表几十行时尤其浪费）。
- * toggle 里要「已开同一个就收起」，靠 setState 的 updater 读旧值，避免把 state 写进依赖。
+ * All returned callbacks are stabilized with useCallback: menu components use them for keydown / outside-click listeners,
+ * and a new closure every render would attach and detach those listeners each time (especially wasteful with dozens of list rows).
+ * toggle needs "close if the same one is already open", which reads the old value via setState's updater to keep state out of deps.
  */
 export function useMenus() {
   const [docMenu, setDocMenu] = useState<DocMenuAnchor | null>(null);
   const [catMenu, setCatMenu] = useState<CatMenuAnchor | null>(null);
   const [accountMenu, setAccountMenu] = useState<AccountMenuAnchor | null>(null);
 
-  /** 右键唤出文档菜单：锚点跟随鼠标，在屏幕左缘（侧栏）右键时钳制右锚 */
+  /** Right-click opens the doc menu: the anchor follows the mouse, with the right anchor clamped when right-clicking near the left edge (sidebar) */
   const openDocMenuAt = useCallback((e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -54,7 +54,7 @@ export function useMenus() {
     });
   }, []);
 
-  /** 右键唤出分类菜单（含根节点「最近打开」）；靠近屏幕底部时上移，避免菜单溢出 */
+  /** Right-click opens the category menu (including the root "Recently opened"); shifts up near the bottom of the screen so it doesn't overflow */
   const openCatMenuAt = useCallback((e: React.MouseEvent, path: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -65,12 +65,12 @@ export function useMenus() {
     });
   }, []);
 
-  /** 「···」按钮：已展开同一目标则收起，否则贴按钮下沿展开。
-   *  按钮带 data-menu-trigger，不触发菜单自己的外部关闭，所以另一个菜单在这里手动关 */
+  /** The "···" button: collapses if the same target is already open, otherwise opens below the button.
+   *  The button has data-menu-trigger and doesn't trigger the menu's own outside-dismiss, so the other menu is closed manually here */
   const toggleDocMenuAt = useCallback((e: React.MouseEvent<HTMLElement>, id: string) => {
     e.stopPropagation();
     setCatMenu(null);
-    // currentTarget 在延后执行的 updater 里已被 React 置空，坐标必须现在读
+    // currentTarget is nulled by React by the time a deferred updater runs, so coordinates must be read now
     const r = e.currentTarget.getBoundingClientRect();
     setDocMenu((prev) =>
       prev?.id === id ? null : { id, top: r.bottom + 4, right: window.innerWidth - r.right }

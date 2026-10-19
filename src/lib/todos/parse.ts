@@ -1,27 +1,27 @@
 /**
- * Markdown 任务项的解析与改写（纯函数）。
+ * Parsing and rewriting of Markdown task items (pure functions).
  *
- * 改写一律「只动那一行 / 那几个字节」：待办所在的是用户的正文，
- * 勾一个框不能顺手把 \r\n 换成 \n、把行尾空格抹掉，否则同步那头看到的是整篇改动。
+ * Rewrites always touch "only that line / those few bytes": todos live in the user's own text,
+ * and checking a box must not also turn \r\n into \n or strip trailing spaces, or sync sees the whole doc as changed.
  */
 
 import { parseFrontmatter, setFrontmatterValue } from "@/lib/frontmatter";
 import { isDueTag, parseRepeatTag, parseTaskTag, todayKey } from "./dates";
 
 export interface ParsedTask {
-  /** 0 起的行号（按 \n 切分，含 frontmatter 那几行），改写时按它定位 */
+  /** 0-based line number (split on \n, frontmatter lines included), used to locate the line when rewriting */
   line: number;
   checked: boolean;
-  /** 去掉日期标签后的显示文字 */
+  /** Display text with the date tag removed */
   text: string;
   due: string | null;
-  /** 时间段 `@开始~结束` 的结束日；单个日期或没日期为 null */
+  /** End date of a `@start~end` range; null for a single date or no date */
   end: string | null;
-  /** 行尾是 `@每天` / `@daily`：due 恒为今天，checked 只看标签里的完成日 */
+  /** Line ends with `@每天` / `@daily`: due is always today, and checked depends only on the completion date in the tag */
   repeat: "daily" | null;
 }
 
-/** 未解析日期标签的原始任务行：缓存存这一份，日期标签留到取用时按「今天」现算 */
+/** Raw task line with date tags unresolved: this is what the cache stores; date tags are resolved against "today" on read */
 export interface RawTask {
   line: number;
   checked: boolean;
@@ -29,15 +29,15 @@ export interface RawTask {
 }
 
 const TASK_RE = /^\s*[-*+]\s+\[( |x|X)\]\s+(.+)$/;
-/** 行首到勾选框：$2 是框里那个字符 */
+/** Line start through the checkbox: $2 is the character inside the box */
 const BOX_RE = /^(\s*[-*+]\s+\[)( |x|X)(\])/;
 
-/** 把前缀（缩进 + `- [ ] `）里的勾选框改成 checked 对应的样子 */
+/** Rewrite the checkbox in the prefix (indent + `- [ ] `) to match checked */
 const withBox = (prefix: string, checked: boolean) => prefix.replace(BOX_RE, `$1${checked ? "x" : " "}$3`);
-/** 围栏代码块：最多缩进 3 格，``` 或 ~~~ 至少三个 */
+/** Fenced code block: indented at most 3 spaces, at least three ``` or ~~~ */
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
 
-/** frontmatter 占了前几行：解析器给的是字符偏移，换算成行数 */
+/** Lines taken by frontmatter: the parser gives a character offset, convert it to a line count */
 function bodyStartLine(md: string): number {
   const fm = parseFrontmatter(md);
   if (!fm) return 0;
@@ -46,16 +46,16 @@ function bodyStartLine(md: string): number {
   return n;
 }
 
-/** 扫出所有任务行（跳过 frontmatter 与围栏代码块，空文字的忽略） */
+/** Scan all task lines (skipping frontmatter and fenced code blocks, ignoring empty text) */
 export function parseTaskLines(md: string): RawTask[] {
   const lines = md.split("\n");
   const out: RawTask[] = [];
-  let fence: string | null = null; // 当前所在代码块的开栏记号
+  let fence: string | null = null; // Opening fence marker of the code block we're in
   for (let i = bodyStartLine(md); i < lines.length; i++) {
     const line = lines[i].replace(/\r$/, "");
     const f = FENCE_RE.exec(line);
     if (fence) {
-      // 收栏：同一种字符、不短于开栏，后面只能是空白
+      // Closing fence: same character, no shorter than the opener, followed only by whitespace
       if (f && f[1][0] === fence[0] && f[1].length >= fence.length && !line.slice(line.indexOf(f[1]) + f[1].length).trim()) {
         fence = null;
       }
@@ -74,7 +74,7 @@ export function parseTaskLines(md: string): RawTask[] {
   return out;
 }
 
-/** 行尾的关联标记 `[[docId]]`：只认一个，且在日期标签之前（日期标签先剥） */
+/** Trailing link marker `[[docId]]`: only one, and before the date tag (date tags are stripped first) */
 const LINK_RE = /\s*\[\[([^\[\]\s]+)\]\]$/;
 
 export interface ResolvedTask {
@@ -87,10 +87,10 @@ export interface ResolvedTask {
 }
 
 /**
- * 一条任务原文 + 勾选框 → 界面要的全部信息。先剥行尾日期 / 重复标签，withLink 时再剥紧挨着的
- * 关联标记 `[[docId]]`（只有待办清单认它：文章正文里的 `[[…]]` 是用户自己写的字）。
- * 格式是 `文字 [[docId]] @标签`；句中的 `[[x]]` 不算，剥完没字了也不剥（同 parseDueTag 的口径）。
- * 每日任务不看勾选框：昨天勾上留下的 `[x]` 今天不算数，只认标签里的完成日是不是今天。
+ * Raw task text + checkbox → everything the UI needs. Strip the trailing date / repeat tag first; with withLink, also strip the adjacent
+ * link marker `[[docId]]` (only the todo checklist recognizes it: `[[…]]` in an article body is the user's own text).
+ * Format is `text [[docId]] @tag`; a mid-sentence `[[x]]` doesn't count, and nothing is stripped if it would leave no text (same rule as parseDueTag).
+ * Daily tasks ignore the checkbox: an `[x]` left from checking it yesterday doesn't count today; only whether the tag's completion date is today matters.
  */
 export function resolveTask(raw: string, checked: boolean, today: string, withLink: boolean): ResolvedTask {
   const tag = parseTaskTag(raw, today);
@@ -106,7 +106,7 @@ export function resolveTask(raw: string, checked: boolean, today: string, withLi
   return { text, due: tag.due, end: tag.end, link, repeat: tag.repeat, checked: done };
 }
 
-/** 待办清单一行的文字、日期与关联（不管勾选）；口径见 resolveTask */
+/** Text, date and link of a todo checklist line (checkbox ignored); see resolveTask for the rules */
 export function parseTaskRaw(
   raw: string,
   today: string
@@ -122,7 +122,7 @@ export function parseTasks(md: string, today: string): ParsedTask[] {
   });
 }
 
-/** frontmatter 里的一个标量值（列表写法不算） */
+/** A scalar value in frontmatter (list syntax doesn't count) */
 function scalar(data: Record<string, string | string[]>, ...keys: string[]): string | null {
   for (const k of keys) {
     const v = data[k];
@@ -131,7 +131,7 @@ function scalar(data: Record<string, string | string[]>, ...keys: string[]): str
   return null;
 }
 
-/** `publish: 2026-10-12`（也认 `发布:`，允许 2026/10/12 与不补零），统一成补零的日期键 */
+/** `publish: 2026-10-12` (also accepts `发布:`, 2026/10/12 and unpadded forms), normalized to a zero-padded date key */
 export function parsePublish(md: string): { due: string | null; published: boolean } {
   const fm = parseFrontmatter(md);
   if (!fm) return { due: null, published: false };
@@ -139,19 +139,19 @@ export function parsePublish(md: string): { due: string | null; published: boole
   const m = raw ? /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(raw) : null;
   const due = m ? `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}` : null;
   const flag = scalar(fm.data, "published")?.toLowerCase();
-  return { due, published: flag === "true" || flag === "yes" || flag === "是" }; // i18n-ignore frontmatter 值
+  return { due, published: flag === "true" || flag === "yes" || flag === "是" }; // i18n-ignore frontmatter value
 }
 
-/** 「待办清单」那篇：frontmatter `type: todo` */
+/** The 「待办清单」 (Todo checklist) doc: frontmatter `type: todo` */
 export function isNotesDoc(md: string): boolean {
   const fm = parseFrontmatter(md);
   return scalar(fm?.data ?? {}, "type")?.toLowerCase() === "todo";
 }
 
 /**
- * 只改第 line 行的勾选框；那一行不是任务项就原样返回。
- * 每日任务（行尾 `@每天` / `@daily`）另把完成日写进标签：勾上记成 `@每天:今天`，取消就去掉日期——
- * 光靠 `[x]` 分不出是今天还是哪天勾的，第二天它得自己变回没做。today 不传取本地今天，测试可固定。
+ * Toggle only the checkbox on line `line`; if that line isn't a task item, return unchanged.
+ * Daily tasks (ending in `@每天` / `@daily`) also write the completion date into the tag: checking records `@每天:today`, unchecking drops the date —
+ * `[x]` alone can't tell whether it was checked today or some other day, and it has to revert to not done the next day. today defaults to local today; tests can pin it.
  */
 export function toggleTaskLine(md: string, line: number, checked: boolean, today: string = todayKey()): string {
   const lines = md.split("\n");
@@ -160,7 +160,7 @@ export function toggleTaskLine(md: string, line: number, checked: boolean, today
   if (!BOX_RE.test(target)) return md;
   const next = target
     .replace(BOX_RE, `$1${checked ? "x" : " "}$3`)
-    // 行尾空白（含 \r）原样接回去，只换标签那几个字
+    // Reattach trailing whitespace (including \r) as-is; only the tag characters change
     .replace(/(\s@)(\S+)(\s*)$/, (all, at: string, tag: string, tail: string) => {
       const rep = parseRepeatTag(tag);
       return rep ? `${at}${checked ? `${rep.word}:${today}` : rep.word}${tail}` : all;
@@ -171,8 +171,8 @@ export function toggleTaskLine(md: string, line: number, checked: boolean, today
 }
 
 /**
- * 删掉第 line 行（连同它的换行）；那一行不是任务项就原样返回。
- * 按 \n 切开再拼回去：\r 留在各行自己的尾巴上，删掉一整段 `内容\r` 之后 \r\n 风格自然不变。
+ * Delete line `line` (with its newline); if that line isn't a task item, return unchanged.
+ * Split on \n and rejoin: \r stays at the end of each line, so removing a whole `content\r` segment keeps \r\n style intact.
  */
 export function removeTaskLine(md: string, line: number): string {
   const lines = md.split("\n");
@@ -182,7 +182,7 @@ export function removeTaskLine(md: string, line: number): string {
   return lines.join("\n");
 }
 
-/** 末尾追加一行 `- [ ] text`；沿用原文的换行风格，文末有没有换行都接得上 */
+/** Append a `- [ ] text` line; reuses the original newline style and works whether or not the text ends with a newline */
 export function appendTask(md: string, text: string): string {
   const clean = text.replace(/[\r\n]+/g, " ").trim();
   if (!clean) return md;
@@ -193,34 +193,34 @@ export function appendTask(md: string, text: string): string {
 }
 
 /**
- * 勾掉「发布《标题》」= 在 frontmatter 收尾 `---` 前插一行 `published: true`。
- * 没有 frontmatter 就不动：publish 待办本来就只从 frontmatter 生成，不会走到这里。
+ * Checking off 「发布《标题》」 (Publish "Title") = insert a `published: true` line before the closing `---` of the frontmatter.
+ * Without frontmatter, do nothing: publish todos are only generated from frontmatter, so we never get here.
  */
 export function markPublished(md: string): string {
   const fm = parseFrontmatter(md);
   if (!fm) return md;
-  // 已有 published 键（如写着 false）就整行替换，免得出现两个同名键
+  // If a published key already exists (e.g. set to false), replace the whole line to avoid duplicate keys
   if ("published" in fm.data) return setFrontmatterValue(md, "published", "true");
   const head = md.slice(0, fm.end);
-  // 收尾 `---` 所在行的起点：frontmatter 段去掉末尾换行后的最后一行
+  // Start of the closing `---` line: the last line of the frontmatter block with its trailing newline removed
   const trimmed = head.replace(/\r?\n$/, "");
   const closeAt = trimmed.lastIndexOf("\n") + 1;
   const eol = head.includes("\r\n") ? "\r\n" : "\n";
   return md.slice(0, closeAt) + "published: true" + eol + md.slice(closeAt);
 }
 
-/** 待办的日期：单日 end 为 null，时间段是开始日 due 到结束日 end（两头都算） */
+/** A todo's date: end is null for a single day; a range runs from start due to end (inclusive) */
 export interface DueRange {
   due: string;
   end: string | null;
 }
 
 /**
- * 改第 line 行待办的日期：先剥掉行尾已有的日期标签（口径同 parseDueTag：行尾、前面有空白、
- * 认得的才剥，含 `a~b` 时间段；`@某人` 这种不认识的留在文字里），再追加 ` @YYYY-MM-DD`
- * 或时间段 ` @YYYY-MM-DD~YYYY-MM-DD`；range 为 null 即去掉日期。
- * 缩进、`- [ ]` 前缀与行尾 \r 原样保留，其它行不动；那一行不是任务项就原样返回。
- * today 只用来判断相对标签认不认得（不传取本地今天），测试可固定。
+ * Change the date of the todo on line `line`: first strip the existing trailing date tag (same rules as parseDueTag: at end of line, preceded by whitespace,
+ * recognized ones only, including `a~b` ranges; unrecognized ones like `@someone` stay in the text), then append ` @YYYY-MM-DD`
+ * or the range ` @YYYY-MM-DD~YYYY-MM-DD`; a null range removes the date.
+ * Indent, `- [ ]` prefix and trailing \r are preserved and other lines untouched; if that line isn't a task item, return unchanged.
+ * today is only used to decide whether relative tags are recognized (defaults to local today); tests can pin it.
  */
 export function setTaskLineDue(
   md: string,
@@ -239,10 +239,10 @@ export function setTaskLineDue(
   const tag = /(^|\s)@(\S+)$/.exec(text);
   if (tag && isDueTag(tag[2], today)) {
     const rest = text.slice(0, tag.index).trimEnd();
-    // 整行只有一个标签时 parseDueTag 把它当文字，这里也不剥，免得改完成了空任务
+    // If the line is only a tag, parseDueTag treats it as text; don't strip here either, or we'd end up with an empty task
     if (rest) {
       text = rest;
-      // 每日任务改成定日期：昨天勾上留下的 `[x]` 不能跟过来，否则一挪就成了「已完成」
+      // Daily task changed to a fixed date: the `[x]` left from yesterday mustn't carry over, or moving it would mark it 「已完成」 (Done)
       const rep = parseRepeatTag(tag[2]);
       if (rep) prefix = withBox(prefix, rep.last === today);
     }
@@ -255,8 +255,8 @@ export function setTaskLineDue(
 }
 
 /**
- * 改发布排期：把 frontmatter 里 `publish:`（或 `发布:`）那一行的值换成 due，键名、冒号后的空白、
- * 引号与行尾 \r 都不动；读取时 publish 优先，这里也先找它。没有这个键（或是列表写法）原样返回。
+ * Change the publish schedule: replace the value on the `publish:` (or `发布:`) line in frontmatter with due, leaving the key, the whitespace after the colon,
+ * quotes and trailing \r untouched; reading prefers publish, so we look for it first too. Without the key (or with list syntax), return unchanged.
  */
 export function setPublishDate(md: string, due: string): string {
   const fm = parseFrontmatter(md);
@@ -278,8 +278,8 @@ export function setPublishDate(md: string, due: string): string {
 }
 
 /**
- * 改第 line 行待办关联的文章：剥掉旧的 `[[…]]`，link 非空就在文字之后、日期标签之前插 ` [[link]]`；
- * link 为 null 即取消关联。缩进、`- [ ]` 前缀、日期标签与行尾 \r 原样保留；不是任务项就原样返回。
+ * Change the linked article of the todo on line `line`: strip the old `[[…]]`; if link is non-empty, insert ` [[link]]` after the text and before the date tag;
+ * a null link removes the link. Indent, `- [ ]` prefix, date tag and trailing \r are preserved; if it isn't a task item, return unchanged.
  */
 export function setTaskLineLink(md: string, line: number, link: string | null, today: string = todayKey()): string {
   const lines = md.split("\n");
@@ -289,7 +289,7 @@ export function setTaskLineLink(md: string, line: number, link: string | null, t
   const m = /^(\s*[-*+]\s+\[(?: |x|X)\]\s+)(.+)$/.exec(cr ? target.slice(0, -1) : target);
   if (!m) return md;
   let text = m[2].trimEnd();
-  // 日期标签先拆下来，改完关联再原样接回去（认法同 setTaskLineDue）
+  // Detach the date tag first and reattach it unchanged after updating the link (recognized the same way as setTaskLineDue)
   let tail = "";
   const tag = /(^|\s)@(\S+)$/.exec(text);
   if (tag && isDueTag(tag[2], today)) {
@@ -312,10 +312,10 @@ export function setTaskLineLink(md: string, line: number, link: string | null, t
 }
 
 /**
- * 设 / 取消每日重复。设：剥掉行尾已有的日期或重复标签，追加 ` @每天`（关联标记照旧在它前面）。
- * 取消：把重复标签换成今天的日期 `@today`——清单外的待办没日期就不上今天页，直接去掉会让它悄悄消失；
- * 勾选框按「今天做没做」重写，免得昨天的 `[x]` 让它一取消就变成已完成。
- * 缩进、前缀与行尾 \r 原样保留；不是任务项、或本来就是 / 不是重复的，原样返回。
+ * Set / clear daily repeat. Set: strip any existing trailing date or repeat tag and append ` @每天` (link marker still goes before it).
+ * Clear: replace the repeat tag with today's date `@today` — non-checklist todos without a date don't show on the Today page, so removing it would make it vanish silently;
+ * the checkbox is rewritten based on "done today or not", so yesterday's `[x]` doesn't make it Done the moment repeat is cleared.
+ * Indent, prefix and trailing \r are preserved; if it isn't a task item, or already is / isn't repeating, return unchanged.
  */
 export function setTaskLineRepeat(md: string, line: number, on: boolean, today: string = todayKey()): string {
   const lines = md.split("\n");
@@ -331,9 +331,9 @@ export function setTaskLineRepeat(md: string, line: number, on: boolean, today: 
   const rest = tag ? text.slice(0, tag.index).trimEnd() : "";
   if (on) {
     if (rep) return md;
-    // 同 setTaskLineDue：整行只有一个标签时不剥
+    // Same as setTaskLineDue: don't strip when the line is only a tag
     if (tag && rest && isDueTag(tag[2], today)) text = rest;
-    text = `${text} @每天`; // i18n-ignore 标签数据
+    text = `${text} @每天`; // i18n-ignore tag data
   } else {
     if (!rep) return md;
     prefix = withBox(prefix, rep.last === today);

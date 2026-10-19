@@ -1,7 +1,7 @@
 "use client";
 
-// 预览的外围件：顶栏右侧的主题入口、阅读模式的字数/时长，以及正文卡片顶部的标题。
-// 只在 Preview 的 reading 变体里出现，拆出来是为了不让 Preview 再背一份 store 依赖。
+// Preview peripherals: the theme entry on the right of the top bar, reading mode's word count/reading time, and the title atop the body card.
+// Only appears in Preview's reading variant; split out so Preview doesn't carry yet another store dependency.
 
 import { useMemo } from "react";
 import { Palette } from "lucide-react";
@@ -11,8 +11,8 @@ import { wordCount } from "@/lib/wordCount";
 import { useT } from "@/i18n/useT";
 import { useStore } from "@/store/useStore";
 
-/** 预览顶栏右侧的排版主题入口：主题只作用于渲染后的成品，所以入口就放在成品旁边，
- *  点开是主题列表 + 字号/行高/段距微调 */
+/** Typography theme entry on the right of the preview top bar: themes only affect the rendered result, so the entry sits right beside it;
+ *  opens the theme list + font size/line height/paragraph spacing tweaks */
 export function ThemeTrigger({ themeName }: { themeName: string }) {
   const t = useT();
   return (
@@ -33,11 +33,11 @@ export function ThemeTrigger({ themeName }: { themeName: string }) {
   );
 }
 
-/** 阅读模式顶栏右侧：字数 */
+/** Right side of the reading mode top bar: word count */
 export function ReadingMeta() {
   const t = useT();
   const content = useStore((s) => s.content);
-  // wordCount 内部要过几遍正则，只在正文变化时重扫
+  // wordCount runs several regex passes internally, so only rescan when the body changes
   const chars = useMemo(() => wordCount(content), [content]);
 
   return (
@@ -47,7 +47,7 @@ export function ReadingMeta() {
   );
 }
 
-/** 正文卡片顶部的文章标题（正文本体由排版主题渲染，标题不属于 Markdown 正文） */
+/** Article title atop the body card (the body itself is rendered by the theme; the title isn't part of the Markdown body) */
 export function ReadingTitle() {
   const title = useStore((s) => s.title);
 

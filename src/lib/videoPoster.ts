@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * 抽取视频首帧作封面：靠浏览器解码，画到 canvas 再导出 JPEG。
- * 解不出来（如 Chrome 播不了的 mov、损坏文件）返回 null，调用方按无封面继续。
+ * Grab a video's first frame as the poster: decode in the browser, draw to canvas, export JPEG.
+ * If it can't be decoded (e.g. a mov Chrome can't play, a corrupt file) return null and the caller continues without a poster.
  */
 
 const POSTER_MAX_WIDTH = 1280;
@@ -23,7 +23,7 @@ export async function extractVideoPoster(file: File): Promise<File | null> {
       video.addEventListener(
         "loadeddata",
         () => {
-          // 有些编码 0 时刻是黑帧，往后挪 0.1s 再截
+          // Some encodings have a black frame at time 0; seek to 0.1s before capturing
           const seekTo = Math.min(0.1, (video.duration || 0) / 2);
           if (video.currentTime >= seekTo) return resolve();
           video.addEventListener("seeked", () => resolve(), { once: true });
