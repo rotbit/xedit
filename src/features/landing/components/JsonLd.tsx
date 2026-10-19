@@ -1,22 +1,25 @@
 import {
   GITHUB_URL,
   OG_IMAGE,
-  SITE_DESCRIPTION,
   SITE_NAME,
-  SITE_TAGLINE,
   SITE_URL,
   absoluteUrl,
 } from "@/lib/site";
-import { FAQ, FEATURE_GROUPS } from "../data";
+import type { LandingCopy } from "../content/types";
+import { LANDING_PATH, type LandingLocale } from "../locales";
 
 /**
- * 结构化数据。用 @graph 把 WebSite / SoftwareApplication / FAQPage 串成一张图，
- * 各节点靠 @id 互相引用，避免重复描述同一个实体。
+ * Structured data; page-level strings (tagline, description, FAQ, features) come from the locale dictionary.
+ * @graph ties WebSite / SoftwareApplication / FAQPage into one graph;
+ * nodes reference each other by @id to avoid describing the same entity twice.
  */
-function landingGraph() {
+function landingGraph(copy: LandingCopy, locale: LandingLocale) {
+  // Site, app and publisher are the same entities in every language, so their @ids stay on `/`;
+  // the page URL and its FAQ belong to this locale's page
   const appId = absoluteUrl("/#app");
   const siteId = absoluteUrl("/#website");
   const orgId = absoluteUrl("/#publisher");
+  const pageUrl = absoluteUrl(LANDING_PATH[locale]);
 
   return {
     "@context": "https://schema.org",
@@ -33,29 +36,29 @@ function landingGraph() {
         "@type": "WebSite",
         "@id": siteId,
         url: SITE_URL,
-        name: `${SITE_NAME} · ${SITE_TAGLINE}`,
-        description: SITE_DESCRIPTION,
-        inLanguage: "zh-CN",
+        name: `${SITE_NAME} · ${copy.chrome.tagline}`,
+        description: copy.jsonLd.description,
+        inLanguage: copy.lang,
         publisher: { "@id": orgId },
       },
       {
         "@type": "SoftwareApplication",
         "@id": appId,
         name: SITE_NAME,
-        alternateName: SITE_TAGLINE,
-        url: SITE_URL,
-        description: SITE_DESCRIPTION,
+        alternateName: copy.chrome.tagline,
+        url: pageUrl,
+        description: copy.jsonLd.description,
         applicationCategory: "BusinessApplication",
-        applicationSubCategory: "文本编辑与排版",
+        applicationSubCategory: copy.jsonLd.appSubCategory,
         operatingSystem: "Web, macOS",
-        inLanguage: "zh-CN",
+        inLanguage: copy.lang,
         image: OG_IMAGE,
-        softwareHelp: absoluteUrl("/#faq"),
-        featureList: FEATURE_GROUPS.flatMap((g) => g.items.map((i) => i.title)),
+        softwareHelp: `${pageUrl}#faq`,
+        featureList: copy.features.groups.flatMap((g) => g.items.map((i) => i.title)),
         offers: {
           "@type": "Offer",
           price: "0",
-          priceCurrency: "CNY",
+          priceCurrency: copy.jsonLd.priceCurrency,
           availability: "https://schema.org/InStock",
         },
         publisher: { "@id": orgId },
@@ -63,8 +66,10 @@ function landingGraph() {
       },
       {
         "@type": "FAQPage",
-        "@id": absoluteUrl("/#faq"),
-        mainEntity: FAQ.map((item) => ({
+        "@id": `${pageUrl}#faq`,
+        url: pageUrl,
+        inLanguage: copy.lang,
+        mainEntity: copy.faq.items.map((item) => ({
           "@type": "Question",
           name: item.q,
           acceptedAnswer: { "@type": "Answer", text: item.a },
@@ -74,7 +79,7 @@ function landingGraph() {
   };
 }
 
-/** 主题页：一条 CollectionPage + 面包屑，让主题清单也能被结构化理解 */
+/** Themes page: a CollectionPage plus breadcrumbs so the theme list is machine-readable too */
 function themesGraph(themes: { name: string; tag: string }[]) {
   return {
     "@context": "https://schema.org",
@@ -109,8 +114,8 @@ function themesGraph(themes: { name: string; tag: string }[]) {
 }
 
 /**
- * React 会把 script 的文本子节点原样输出（不做 HTML 转义），正合 JSON-LD 所需；
- * 代价是字符串里的 `</script>` 会提前闭合标签，所以统一把 `<` 转成 \u003c。
+ * React outputs a script's text child as-is (no HTML escaping), which is exactly what JSON-LD needs;
+ * the catch is that `</script>` inside a string would close the tag early, so every `<` becomes <.
  */
 function Script({ data }: { data: object }) {
   return (
@@ -118,8 +123,8 @@ function Script({ data }: { data: object }) {
   );
 }
 
-export function LandingJsonLd() {
-  return <Script data={landingGraph()} />;
+export function LandingJsonLd({ copy, locale }: { copy: LandingCopy; locale: LandingLocale }) {
+  return <Script data={landingGraph(copy, locale)} />;
 }
 
 export function ThemesJsonLd({ themes }: { themes: { name: string; tag: string }[] }) {

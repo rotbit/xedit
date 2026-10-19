@@ -1,17 +1,21 @@
 import type { MetadataRoute } from "next";
 import { CHANGELOG } from "@/features/changelog/data";
+import { LANDING_LOCALES, LANDING_PATH } from "@/features/landing/locales";
+import { landingLanguages } from "@/features/landing/seo";
 import { absoluteUrl } from "@/lib/site";
 
-/** 站点地图：落地页、主题展示页、更新日志三张可收录页面 */
+/** Sitemap: the landing page in each language (cross-linked by hreflang), theme gallery and changelog */
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
+  const languages = landingLanguages(true);
   return [
-    {
-      url: absoluteUrl("/"),
+    ...LANDING_LOCALES.map((l) => ({
+      url: absoluteUrl(LANDING_PATH[l]),
       lastModified,
-      changeFrequency: "weekly",
-      priority: 1,
-    },
+      changeFrequency: "weekly" as const,
+      priority: l === "zh" ? 1 : 0.9,
+      alternates: { languages },
+    })),
     {
       url: absoluteUrl("/themes"),
       lastModified,
@@ -20,7 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: absoluteUrl("/changelog"),
-      // 日志最新一条的日期就是这页上次变动的时间
+      // The latest changelog entry's date is when this page last changed
       lastModified: new Date(CHANGELOG[0].date),
       changeFrequency: "weekly",
       priority: 0.5,

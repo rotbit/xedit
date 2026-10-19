@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import "./globals.css";
 import { auth } from "@/auth";
 import { Providers } from "@/components/Providers";
+import { LANDING_HTML_LANG, LANDING_LOCALE_HEADER, isLandingLocale } from "@/features/landing/locales";
 import { detectLocale, htmlLang, LANG_COOKIE } from "@/i18n/locale";
 import {
   OG_IMAGE,
@@ -14,10 +15,10 @@ import {
 } from "@/lib/site";
 
 export const metadata: Metadata = {
-  // 有了 metadataBase，各页的相对 canonical / OG 图路径才会补成绝对地址
+  // With metadataBase set, each page's relative canonical / OG image paths become absolute URLs
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} · ${SITE_TAGLINE}｜Markdown 公众号编辑器，AI 审核，一键发布`,
+    default: `${SITE_NAME} · ${SITE_TAGLINE}`,
     template: `%s｜${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
@@ -51,15 +52,15 @@ export const metadata: Metadata = {
 };
 
 /**
- * 首帧前的三件事，必须在浏览器绘制前跑完，否则会闪：
- * 1) 标记 macOS 桌面壳（Electron 隐藏了系统标题栏，顶栏要给红绿灯留位）——
- *    preload 也会在 DOMContentLoaded 打这个标记，这里更早一步，避免顶栏跳一下；
- * 2) 恢复夜间模式偏好（避免闪白）；
- * 3) 判断本机是否已有工作区（data-ws），老用户这一帧用 CSS 盖住落地页。
- * 2、3 单开一个 try：localStorage 不可用时（隐私模式）不能连带吞掉 1。
- * 内联而非外链 /theme-init.js：省掉一次渲染阻塞的网络往返。
- * （public/theme-init.js 仍保留，兜底 SW 离线壳里缓存的旧版 HTML。）
- * 编译期静态字符串，无任何运行时输入拼接，可安全注入。
+ * Three things that must run before the browser's first paint, or it flickers:
+ * 1) Mark the macOS desktop shell (Electron hides the system title bar, so the top bar must leave room for the traffic lights);
+ *    preload also sets this on DOMContentLoaded, but doing it earlier here keeps the top bar from jumping;
+ * 2) Restore the dark mode preference (avoids a white flash);
+ * 3) Detect whether this machine already has a workspace (data-ws), so returning users get the landing page covered by CSS on this frame.
+ * 2 and 3 get their own try: if localStorage is unavailable (private mode), it mustn't swallow 1 too.
+ * Inlined rather than linking /theme-init.js: saves a render-blocking network round trip.
+ * (public/theme-init.js is kept as a fallback for old HTML cached in the SW offline shell.)
+ * A compile-time static string with no runtime input concatenated, so it's safe to inject.
  */
 const THEME_INIT_SCRIPT = `try{if(window.xeditDesktop&&window.xeditDesktop.platform==="darwin")document.documentElement.classList.add("desktop-mac")}catch(e){}try{if(localStorage.getItem("xedit-dark")==="1")document.documentElement.dataset.theme="dark";var d=localStorage.getItem("xedit-local-docs");if(localStorage.getItem("xedit-was-authed")==="1"||localStorage.getItem("xedit-vault")==="1"||(d&&d!=="[]"))document.documentElement.dataset.ws="1"}catch(e){}`;
 
@@ -77,14 +78,24 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 服务端解好会话随 HTML 下发：SessionProvider 免掉客户端首帧的 /api/auth/session
-  // 往返，login 态相关的数据请求（文档镜像、设置等）不再被它卡 ~1s
+  // Resolve the session on the server and ship it with the HTML: SessionProvider skips the client's first-frame /api/auth/session
+  // round trip, so login-dependent data requests (doc mirror, settings, etc.) are no longer held up ~1s by it
   const session = await auth();
-  // 界面语言：cookie 优先，首访按 Accept-Language。布局本来就因 auth() 是动态渲染，读请求头不多付代价
+  // UI language: cookie first, Accept-Language on first visit. The layout is already dynamic because of auth(), so reading headers costs nothing extra
   const [cookieStore, headerList] = await Promise.all([cookies(), headers()]);
-  const locale = detectLocale(cookieStore.get(LANG_COOKIE)?.value, headerList.get("accept-language"));
+  // /en and /ja are tagged by src/proxy.ts: the page's language wins over the product cookie there, and since the
+  // app has no Japanese, any product UI on those pages (login dialog etc.) is English
+  const landingLocale = headerList.get(LANDING_LOCALE_HEADER);
+  const pageLocale = isLandingLocale(landingLocale) && landingLocale !== "zh" ? landingLocale : null;
+  const locale = pageLocale
+    ? "en"
+    : detectLocale(cookieStore.get(LANG_COOKIE)?.value, headerList.get("accept-language"));
   return (
-    <html lang={htmlLang(locale)} className="h-full" suppressHydrationWarning>
+    <html
+      lang={pageLocale ? LANDING_HTML_LANG[pageLocale] : htmlLang(locale)}
+      className="h-full"
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

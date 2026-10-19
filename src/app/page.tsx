@@ -3,23 +3,25 @@ import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { Home } from "@/features/workspace/Home";
 import { Landing } from "@/features/landing/Landing";
+import { landingMetadata } from "@/features/landing/seo";
 import { SITE_NAME } from "@/lib/site";
 
 /**
- * 已登录会话标签页只留「xEdit」——长标题是给搜索引擎看的，天天用的人不需要；
- * 未登录（含爬虫）沿用 layout 里的完整 SEO 标题。absolute 绕开父级 template。
+ * Logged-in sessions keep the tab title as just 「xEdit」: the long title is for search engines, daily users don't need it;
+ * logged-out visitors (including crawlers) get the Chinese landing metadata with hreflang to /en and /ja.
+ * absolute bypasses the parent template.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const session = await auth();
-  return session?.user ? { title: { absolute: SITE_NAME } } : {};
+  return session?.user ? { title: { absolute: SITE_NAME } } : landingMetadata("zh");
 }
 
 /**
- * 首页一身二任：未登录是产品落地页，登录后是工作台。
+ * The home page does double duty: the landing page when logged out, the workspace when logged in.
  *
- * 落地页在服务端整段渲染好再作为 prop 交给客户端的 Home——它是全站唯一要被搜索引擎
- * 读到的页面，不能像从前那样 ssr:false 动态加载（爬虫只会拿到一个空壳）。
- * 已登录的会话不会经过落地页，索性连渲染都省掉，首屏 HTML 只剩工作台。
+ * The landing page is fully server-rendered and passed as a prop to the client Home: it's the only page on the site
+ * search engines must read, so it can't be dynamically loaded with ssr:false as before (crawlers would get an empty shell).
+ * Logged-in sessions never see the landing page, so skip rendering it entirely; the first HTML is just the workspace.
  */
 export default async function HomePage() {
   const session = await auth();

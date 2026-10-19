@@ -35,26 +35,26 @@ const ImportDialog = dynamic(
   { ssr: false }
 );
 
-/** 外部（旧链接、桌面壳菜单栏）能触发的动作；`?new=1` 是 action=new 的老写法 */
+/** Actions that external sources (old links, the desktop shell menu bar) can trigger; `?new=1` is the old form of action=new */
 const URL_ACTIONS = ["new", "import-file", "import-folder", "feishu"] as const;
 type UrlAction = (typeof URL_ACTIONS)[number];
 
 /**
- * 放在组件外用模块级 t()：startLocalWriting 的身份必须稳定（deps 为空），
- * 闭包里拿不到随语言变化的 useT() 版本，而模块级 t() 调用时才读当前语言。
+ * Uses module-level t() outside the component: startLocalWriting's identity must be stable (empty deps),
+ * so its closure can't hold the locale-dependent useT() version, while module-level t() reads the current locale at call time.
  */
 function notifyStorageUnavailable() {
   toast(t("浏览器本地存储不可用，无法离线写作，请登录后使用"), "error");
 }
 
 interface HomeProps {
-  /** 服务端渲染好的落地页；已登录时为 null（那条路径根本走不到落地页） */
+  /** Server-rendered landing page; null when logged in (that path never reaches the landing page) */
   landing: React.ReactNode;
 }
 
 /**
- * 应用首页：已有内容时是 Notion 式工作台（全高侧栏 + 面包屑顶栏 + 独立滚动内容区），
- * 未登录且无本地文章时展示 page.tsx 传进来的落地页。
+ * App home: with content it's a Notion-style workspace (full-height sidebar + breadcrumb bar + independently scrolling content area);
+ * when logged out with no local docs it shows the landing page passed in from page.tsx.
  */
 export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
@@ -65,32 +65,32 @@ export function Home({ landing }: HomeProps) {
   const hydrated = useHydrated();
   const t = useT();
 
-  // 打开过文件夹（哪怕还是空库）也算有工作区：本地文库此刻在磁盘上，不该退回落地页
+  // Having opened a folder (even an empty library) counts as having a workspace: the local library is on disk now, so don't fall back to the landing page
   const hasWorkspace =
     auth.loggedIn ||
     auth.offlineAuthed ||
     (auth.localMode && ((library.docs?.length ?? 0) > 0 || vault.status !== "none"));
 
-  // 命令面板（⌘⇧P）里的工作台命令：新建 / 导航 / 侧栏。
-  // 文章相关的命令由 ArticleReader 自己注册，两边都汇进 lib/commandRegistry
+  // Workspace commands in the command palette (⌘⇧P): new / navigate / sidebar.
+  // Doc-related commands are registered by ArticleReader itself; both feed into lib/commandRegistry
   useWorkspaceCommands({
     ws,
     enabled: hasWorkspace,
     onQuickSwitch: () => setSwitcherOpen(true),
   });
 
-  // 全局快捷键：⌘⇧P 命令面板、⌘O/⌘P 快速切换器。
-  // capture 阶段抢在浏览器打印/打开之前（同 useEditorViewMode 的 ⌘E），编辑器有焦点时同样生效。
-  // 只在有工作台时挂：落地页上没有文章可切，更不该把 ⌘P 的打印抢掉
+  // Global shortcuts: ⌘⇧P command palette, ⌘O/⌘P quick switcher.
+  // Capture phase gets ahead of the browser's print/open (like ⌘E in useEditorViewMode), and also works while the editor has focus.
+  // Only attached when there's a workspace: the landing page has no docs to switch to, and certainly shouldn't hijack ⌘P printing
   useEffect(() => {
     if (!hasWorkspace) return;
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.shiftKey) {
-        // ⌘⇧P 命令面板：带 Shift 时 e.key 是大写 P，非拉丁布局下退回物理键位
+        // ⌘⇧P command palette: with Shift e.key is uppercase P; fall back to the physical key on non-Latin layouts
         if (e.key.toLowerCase() === "p" || e.code === "KeyP") {
           e.preventDefault();
-          setPaletteOpen((v) => !v); // 再按一次收起，与 Obsidian 一致
+          setPaletteOpen((v) => !v); // Pressing again closes it, consistent with Obsidian
         }
         return;
       }
@@ -104,11 +104,11 @@ export function Home({ landing }: HomeProps) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [hasWorkspace]);
 
-  // 外部带动作进来（旧 /edit 链接的 ?new=1、桌面壳菜单栏的 ?action=…）：会话就绪后执行一次
+  // Arriving with an external action (?new=1 from old /edit links, ?action=… from the desktop shell menu bar): run once when the session is ready
   const searchParams = useSearchParams();
   const actionConsumed = useRef(false);
-  // ws 每渲染都是新对象，进依赖表就等于这个 effect 每渲染重跑一次（现在靠 ref 守卫兜住，
-  // 但把 history.replaceState 这类副作用挂在「每渲染」上本就不该）。动作只在回调里用，存 ref
+  // ws is a new object every render, so putting it in deps would rerun this effect every render (currently held off by a ref guard,
+  // but side effects like history.replaceState shouldn't hang off "every render" anyway). The action is only used in the callback, so keep it in a ref
   const wsRef = useRef(ws);
   useEffect(() => {
     wsRef.current = ws;
@@ -121,7 +121,7 @@ export function Home({ landing }: HomeProps) {
     if (auth.status === "loading") return;
     actionConsumed.current = true;
     window.history.replaceState(null, "", "/");
-    // 挪到宏任务里执行，动作内部的同步 setState 不属于本 effect
+    // Run it in a macrotask so synchronous setState inside the action isn't part of this effect
     setTimeout(() => {
       const { docActions, dialogs: dlg } = wsRef.current;
       if (raw === "new") void docActions.createDoc();
@@ -131,12 +131,12 @@ export function Home({ landing }: HomeProps) {
     }, 0);
   }, [searchParams, auth.status]);
 
-  // 只订阅「有无本地草稿」这个布尔值：直接订阅 content 会让每次击键都重渲染整个工作台树
+  // Subscribe only to the boolean "is there a local draft": subscribing to content would re-render the whole workspace tree on every keystroke
   const hasLocalDraft = useStore(
     (s) => Boolean(s.content.trim()) && s.content !== DEFAULT_MARKDOWN
   );
 
-  /** 未登录直接写作：把旧版单篇草稿收编进本地文档库，否则新建一篇欢迎文档 */
+  /** Logged-out writing: fold the legacy single-doc draft into the local library, otherwise create a welcome doc */
   const startLocalWriting = useCallback(() => {
     const s = useStore.getState();
     const hasDraft =
@@ -144,33 +144,46 @@ export function Home({ landing }: HomeProps) {
     try {
       const doc = hasDraft
         ? createLocalDoc({ title: s.title, content: s.content })
-        : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN }); // i18n-ignore 写进数据的文章标题，与中文欢迎正文配套
-      // 草稿已入库，清空旧缓冲，避免登录后被旧迁移逻辑重复上传
+        : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN }); // i18n-ignore doc title written into data, paired with the Chinese welcome body
+      // The draft is now in the library; clear the old buffer so the legacy migration doesn't upload it again after login
       if (hasDraft) s.setDoc({ id: null, title: UNTITLED_DOC, content: DEFAULT_MARKDOWN });
-      // 走 ref 取 ws：这个回调要进落地页的 context，函数身份得一直稳定
+      // Read ws via ref: this callback goes into the landing page's context, so its identity must stay stable
       wsRef.current.library.setDocs(listLocalDocs());
       wsRef.current.nav.openDoc(doc.id);
     } catch {
-      // 本地文档库全靠 localStorage，不可用就只能明说（旧的单稿编辑页已下线）
+      // The local library relies entirely on localStorage; if it's unavailable, just say so (the old single-doc editor page is gone)
       notifyStorageUnavailable();
     }
   }, []);
 
-  // 落地页整棵树都从 context 里读它：行内字面量会让每次工作台渲染都白重渲一遍落地页
+  // `?action=start` comes from the localized landing pages (/en, /ja), which live outside the workspace: once the session and
+  // local library are known, a visitor without a workspace goes straight into a new local doc (as 「开始写作」 does here);
+  // anyone with a workspace already sees it, so there's nothing to do
+  const startConsumed = useRef(false);
+  const workspaceKnown =
+    auth.status !== "loading" && !(auth.localMode && (library.docs === null || vault.booting));
+  useEffect(() => {
+    if (startConsumed.current || !workspaceKnown || searchParams.get("action") !== "start") return;
+    startConsumed.current = true;
+    window.history.replaceState(null, "", "/");
+    if (!hasWorkspace) setTimeout(startLocalWriting, 0);
+  }, [searchParams, workspaceKnown, hasWorkspace, startLocalWriting]);
+
+  // The whole landing tree reads this from context: an inline literal would needlessly re-render the landing page on every workspace render
   const actions = useMemo(
     () => ({
       onStart: startLocalWriting,
       onLogin: () => openAuth("login"),
-      // 落地页整体保持中文（不在双语范围内），按钮文案跟着落地页走
+      // The landing page stays entirely Chinese (not in bilingual scope), and the button copy follows it
       startLabel: hasLocalDraft ? "继续编辑本地文稿" : "开始写作", // i18n-ignore
     }),
     [startLocalWriting, hasLocalDraft]
   );
 
-  // 会话已随 HTML 注入，但工作台内容来自 localStorage（镜像/本地文库），服务端读不到——
-  // hydration 完成前必须两端渲染一致，所以这一帧只出落地页或空壳，翻真后立即重渲染。
-  // 服务端已判定未登录时，这一帧就把落地页铺出来——它必须是真实 DOM，爬虫才读得到；
-  // 老用户由 theme-init 内联脚本在首次绘制前打上 data-ws，用 CSS 盖住这帧，不会看见落地页。
+  // The session is injected with the HTML, but workspace content comes from localStorage (mirror / local library), which the server can't read —
+  // render output must match on both sides until hydration finishes, so this frame renders only the landing page or an empty shell, then re-renders once it flips true.
+  // When the server has decided the user is logged out, lay out the landing page in this frame — it must be real DOM for crawlers to read;
+  // returning users get data-ws set by the theme-init inline script before first paint, and CSS hides this frame so they never see the landing page.
   if (
     !hydrated ||
     auth.status === "loading" ||
@@ -184,7 +197,7 @@ export function Home({ landing }: HomeProps) {
     );
   }
 
-  // 上次的文件夹还等着授权（或正在打开）：先挡一屏，别拿旧后端的列表糊一个工作台出来
+  // The last folder is still awaiting permission (or opening): show a gate screen first instead of slapping together a workspace from the old backend's list
   if (auth.localMode && (vault.status === "pending" || vault.status === "opening")) {
     return (
       <>
@@ -198,8 +211,8 @@ export function Home({ landing }: HomeProps) {
     return (
       <>
         <LandingActionsProvider value={actions}>
-          {/* 服务端渲染时会话已判定为未登录，landing 必然存在；
-              兜底分支只在会话中途失效（如另一个标签页登出）时短暂出现 */}
+          {/* During SSR the session was judged logged out, so landing must exist;
+              the fallback branch only flashes when the session expires mid-way (e.g. logged out in another tab) */}
           {landing ?? <SignedOutFallback onStart={startLocalWriting} />}
         </LandingActionsProvider>
         <Toaster />
@@ -209,7 +222,7 @@ export function Home({ landing }: HomeProps) {
 
   return (
     <div className="flex h-full overflow-hidden bg-[var(--paper)]">
-      {/* 窄屏抽屉的背板：点击关闭 */}
+      {/* Backdrop for the narrow-screen drawer: click to close */}
       {prefs.sidebarOpen ? (
         <div
           className="fixed inset-0 z-30 bg-black/30 md:hidden"
@@ -218,13 +231,13 @@ export function Home({ landing }: HomeProps) {
       ) : null}
       <Sidebar ws={ws} />
       <WorkspaceContent ws={ws} />
-      {/* 离线提示：登录态断网时改动全部落本地镜像，联网自动同步 */}
+      {/* Offline notice: while logged in and offline, all changes go to the local mirror and sync automatically once back online */}
       {!auth.online && !auth.localMode ? (
         <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-[var(--hairline)] bg-[var(--panel)] px-3.5 py-1.5 text-[12px] text-[var(--ink-soft)] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
           {t("已离线 · 改动保存在本地，联网后自动同步")}
         </div>
       ) : null}
-      {/* 飞书同步在后台跑着（或悄悄中断了）而对话框已关：右下角留个胶囊，点开回到详情 */}
+      {/* Feishu sync is running in the background (or quietly stopped) with the dialog closed: leave a pill at the bottom right that reopens the details */}
       {!dialogs.feishuOpen &&
       (feishuSync.syncing || (feishuSync.error && !feishuSync.errorAcked)) ? (
         <button
@@ -247,7 +260,7 @@ export function Home({ landing }: HomeProps) {
           )}
         </button>
       ) : null}
-      {/* 两个右键菜单整个工作台各挂一个，内容与坐标都由 ws.menus 的锚点决定 */}
+      {/* One instance of each context menu for the whole workspace; content and position come from the anchors in ws.menus */}
       <CategoryContextMenu ws={ws} />
       <DocContextMenu ws={ws} />
       <QuickSwitcher
@@ -272,7 +285,7 @@ export function Home({ landing }: HomeProps) {
         <FeishuDialog
           onClose={() => {
             dialogs.closeFeishu();
-            // 打开过对话框就算看过中断提示，胶囊不再提醒（面板里的原因保留）
+            // Opening the dialog counts as having seen the interruption notice; the pill stops nagging (the reason stays in the panel)
             ackSyncError();
           }}
           onSynced={() => void ws.docActions.refreshDocs()}
@@ -283,7 +296,7 @@ export function Home({ landing }: HomeProps) {
   );
 }
 
-/** 会话在客户端失效、手上又没有落地页 HTML 时的最小可用界面 */
+/** Minimal usable UI when the session expires on the client and there's no landing-page HTML at hand */
 function SignedOutFallback({ onStart }: { onStart: () => void }) {
   const t = useT();
   return (

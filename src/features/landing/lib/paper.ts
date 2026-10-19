@@ -1,16 +1,16 @@
 /**
- * 主题样张的 class 约定。刻意不 import 主题 CSS，
- * 好让客户端组件只拿到几十字节的类名规则，17KB 的主题表留在服务端。
+ * Class conventions for theme samples. Deliberately doesn't import theme CSS,
+ * so client components only get a few dozen bytes of class-name rules while the 17KB theme table stays on the server.
  */
 
 export const PAPER_CLASS = "xe-paper";
 
-/** 某套主题对应的样张 class */
+/** Sample class for a given theme */
 export function themeClass(id: string): string {
   return `${PAPER_CLASS} xe-t-${id}`;
 }
 
-/** 主题元信息（不含 CSS），可安全传给客户端组件 */
+/** Theme metadata (no CSS), safe to pass to client components */
 export interface ThemeMeta {
   id: string;
   name: string;

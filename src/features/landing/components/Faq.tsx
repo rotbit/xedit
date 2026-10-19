@@ -1,14 +1,14 @@
 import { ChevronDown } from "lucide-react";
-import { FAQ } from "../data";
+import type { FaqItem } from "../content/types";
 
 /**
- * 常见问题用 details/summary：无 JS 也能展开，答案始终留在 HTML 里，
- * 搜索引擎读得到（同一份内容还会输出成 FAQPage 结构化数据）。
+ * FAQ uses details/summary: expands without JS and the answers always stay in the HTML,
+ * so search engines can read them (the same content is also emitted as FAQPage structured data).
  */
-export function Faq() {
+export function Faq({ items }: { items: FaqItem[] }) {
   return (
     <div className="mt-10 grid gap-2.5 lg:grid-cols-2 lg:items-start">
-      {FAQ.map((item) => (
+      {items.map((item) => (
         <details key={item.q} className="lp-card group px-5 open:border-[var(--hairline-strong)]">
           <summary className="flex cursor-pointer list-none items-start gap-4 py-4.5 text-[14.5px] font-medium leading-[1.65] transition-colors hover:text-[var(--brand)]">
             <span className="flex-1">{item.q}</span>

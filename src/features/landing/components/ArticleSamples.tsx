@@ -1,11 +1,11 @@
 /**
- * 主题样张的内容骨架。三种体量共用一套结构约定：
- * 标题写成 prefix / content / suffix 三段 span（主题的装饰只能挂在真实元素上，
- * 伪元素复制到公众号会丢），与编辑器实际产出的 HTML 保持一致。
+ * Content skeleton for the /themes page samples. It follows one structural convention:
+ * headings are split into prefix / content / suffix spans (theme decorations must hang off real elements,
+ * since pseudo-elements get lost when copied to WeChat), matching the HTML the editor actually produces.
  *
- * 唯一的差别是标题用 div[data-h] 而不是 h1~h6：样张是「文字的图片」，
- * 不该混进页面大纲。样式由 themeStyles 里改写过的选择器负责，
- * 需要真标题的场合（复制到公众号）在导出前还原。
+ * The only difference is that headings use div[data-h] instead of h1~h6: a sample is a "picture of text"
+ * and shouldn't pollute the page outline. Styling comes from the rewritten selectors in themeStyles;
+ * where real headings are needed (copying to WeChat), they're restored before export.
  */
 
 function Heading({
@@ -24,43 +24,7 @@ function Heading({
   );
 }
 
-/** 主视觉样机右栏：与左栏 Markdown 源码逐行对应 */
-export function HeroArticle() {
-  return (
-    <>
-      <Heading level={1}>三步发一篇公众号</Heading>
-      <Heading level={2}>为什么样式不会丢</Heading>
-      <p>
-        <strong>复制之前</strong>，主题样式已经逐条内联到每个标签上。
-      </p>
-      <ul>
-        <li>13 套排版主题，即点即换</li>
-        <li>公式转成 SVG，公众号不变形</li>
-        <li>图片粘贴即传图床</li>
-      </ul>
-      <blockquote>
-        <p>打开就写，不登录也能用。</p>
-      </blockquote>
-    </>
-  );
-}
-
-/** 主题墙缩略卡：只保留标题、正文、引用三种最能看出主题气质的元素 */
-export function MiniArticle({ title }: { title: string }) {
-  return (
-    <>
-      <Heading level={2}>{title}</Heading>
-      <p>
-        正文的样子，<strong>重点</strong>这样强调。
-      </p>
-      <blockquote>
-        <p>引用块的样子</p>
-      </blockquote>
-    </>
-  );
-}
-
-/** /themes 页的完整样张：把常用 Markdown 元素铺开 */
+/** Full sample for the /themes page: lays out the common Markdown elements */
 export function FullArticle({ name }: { name: string }) {
   return (
     <>
