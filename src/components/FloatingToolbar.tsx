@@ -90,6 +90,9 @@ export function FloatingToolbar({
   // After Esc closes it, remember that selection; if it hasn't changed, don't pop back up automatically
   const escKeyRef = useRef<string | null>(null);
   const selKeyRef = useRef<string | null>(null);
+  // Mouse held down in the editor (drag-selecting): pausing mid-drag mustn't pop the pill over the lines the pointer is heading to
+  const pointerHeldRef = useRef(false);
+  const lastSelRef = useRef<SelectionInfo | null>(null);
 
   /** Position the pill for the current selection: anchored to the selection's starting line, horizontally centered on its midpoint when on one line */
   const place = useCallback(() => {
@@ -147,6 +150,7 @@ export function FloatingToolbar({
   /** Single entry point for the selection stream: show / hide / follow are all decided here */
   const onSelection = useCallback(
     (sel: SelectionInfo | null) => {
+      lastSelRef.current = sel;
       // Every report resets the delay: nothing appears mid-drag, it floats in after 80ms of stability
       if (showTimerRef.current) {
         clearTimeout(showTimerRef.current);
@@ -167,6 +171,8 @@ export function FloatingToolbar({
       selKeyRef.current = key;
       if (escKeyRef.current === key) return;
       escKeyRef.current = null;
+      // Still dragging: stay out of the way, the release re-runs this with the final selection
+      if (pointerHeldRef.current) return hide();
       // Already visible: just update the position, don't go through the delay again (the selection shifts after clicking a button)
       if (visibleRef.current) return place();
       showTimerRef.current = setTimeout(() => {
@@ -178,6 +184,26 @@ export function FloatingToolbar({
   );
 
   useEffect(() => subscribe(onSelection), [subscribe, onSelection]);
+
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const dom = editorRef.current?.view()?.dom;
+      if (e.button === 0 && dom?.contains(e.target as Node)) pointerHeldRef.current = true;
+    };
+    const onUp = () => {
+      if (!pointerHeldRef.current) return;
+      pointerHeldRef.current = false;
+      onSelection(lastSelRef.current);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("pointerup", onUp, true);
+    document.addEventListener("pointercancel", onUp, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("pointercancel", onUp, true);
+    };
+  }, [editorRef, onSelection]);
 
   useEffect(
     () => () => {
