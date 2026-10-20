@@ -61,17 +61,17 @@ export default function ChangelogPage() {
 
         <ol className="mt-12 border-l border-[var(--hairline)]">
           {CHANGELOG.map((entry) => (
-            <li key={entry.date} id={entry.date} className="relative pb-12 pl-6 last:pb-0 sm:pl-8">
+            <li key={entry.version} id={`v${entry.version}`} className="relative pb-12 pl-6 last:pb-0 sm:pl-8">
               <span
                 className="absolute -left-[4.5px] top-[7px] h-2 w-2 rounded-full bg-[var(--brand)] ring-4 ring-[var(--paper)]"
                 aria-hidden="true"
               />
-              <time
-                dateTime={entry.date}
-                className="text-[12.5px] tabular-nums tracking-wide text-[var(--ink-faint)]"
-              >
-                {formatChangelogDate(entry.date)}
-              </time>
+              <div className="flex items-baseline gap-2.5 text-[12.5px] tabular-nums tracking-wide">
+                <span className="font-medium text-[var(--ink-soft)] [font-family:var(--mono)]">v{entry.version}</span>
+                <time dateTime={entry.date} className="text-[var(--ink-faint)]">
+                  {formatChangelogDate(entry.date)}
+                </time>
+              </div>
               <h2 className="mt-1.5 text-[18px] font-semibold leading-snug tracking-tight">
                 {entry.title}
               </h2>

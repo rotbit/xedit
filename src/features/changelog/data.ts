@@ -1,9 +1,11 @@
 /**
  * Changelog data: the site's /changelog page renders straight from this.
  *
- * Maintenance convention: before every release (push to main), record user-visible changes at the top —
- * merge same-day changes into one entry, and add a new entry at the start of the array for a new day. Write plain language for users, not commit messages:
- * say "what you can do now / what got better", not which files changed. Pure refactors and internal tweaks don't need entries.
+ * Maintenance convention: every release (push to main) gets a new entry at the top with a bumped version, and
+ * package.json's "version" is bumped to match (a test keeps them in sync). Bump the minor version when the release
+ * brings a new feature, otherwise the patch version. Write plain language for users, not commit messages:
+ * say "what you can do now / what got better", not which files changed. Pure refactors and internal tweaks go unlisted,
+ * but a release made only of them still gets its version and a one-line entry.
  */
 
 export type ChangeKind = "new" | "improved" | "fixed";
@@ -22,7 +24,9 @@ export interface ChangeItem {
 }
 
 export interface ChangelogEntry {
-  /** YYYY-MM-DD, also used as the page anchor */
+  /** Semver "x.y.z", one per release; also the page anchor (v0.2.0) */
+  version: string;
+  /** YYYY-MM-DD release date; several releases can share a day */
   date: string;
   /** The one line most worth saying about this day */
   title: string;
@@ -32,6 +36,31 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.2.0",
+    date: "2026-10-20",
+    title: "代码块选中与复制更顺手，更新日志有了版本号",
+    items: [
+      {
+        kind: "improved",
+        text: "官网改版：重新定位为「本地优先的 Markdown 写作工具」，提供中文、英文、日文三种语言。",
+      },
+      {
+        kind: "fixed",
+        text: "在代码块里拖选时，选中高亮整齐地落在代码文字区域，不再错位、溢出卡片边框。",
+      },
+      {
+        kind: "fixed",
+        text: "在代码块里拖选复制，不会再把首尾的 ``` 围栏行一起复制进去。",
+      },
+      {
+        kind: "fixed",
+        text: "拖选文字的过程中格式工具条不再弹出挡住视线，松开鼠标后才出现；从下往上拖也能选到代码块第一行。",
+      },
+      { kind: "new", text: "更新日志标注版本号，之后每次发布都会递增并记录在这里。" },
+    ],
+  },
+  {
+    version: "0.1.10",
     date: "2026-09-23",
     title: "主题去掉文字背景渐变，适配公众号深色模式",
     items: [
@@ -54,6 +83,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.9",
     date: "2026-09-20",
     title: "AI 文章审核上线内测，官网有了更新日志",
     items: [
@@ -86,6 +116,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.8",
     date: "2026-09-19",
     title: "文章封面，以及桌面端一键发送到公众号",
     items: [
@@ -101,6 +132,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.7",
     date: "2026-09-18",
     title: "数据可靠性与编辑性能",
     items: [
@@ -109,6 +141,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.6",
     date: "2026-09-17",
     title: "编辑体验整体打磨",
     items: [
@@ -120,6 +153,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.5",
     date: "2026-09-16",
     title: "图片库重做，支持导入 Markdown",
     items: [
@@ -130,6 +164,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.4",
     date: "2026-09-15",
     title: "微信扫码登录，侧栏向 Obsidian 看齐",
     items: [
@@ -140,6 +175,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.3",
     date: "2026-09-11",
     title: "新品牌标识，Mac 客户端标题栏",
     items: [
@@ -151,6 +187,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.2",
     date: "2026-09-07",
     title: "编辑器体验重做",
     items: [
@@ -159,6 +196,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.1",
     date: "2026-08-08",
     title: "阅读模式与永久分享链接",
     items: [
@@ -167,6 +205,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.1.0",
     date: "2026-08-03",
     title: "字体颜色与拖拽排序",
     items: [
@@ -176,6 +215,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
 ];
+
+/** Current release version (the newest entry's) */
+export const APP_VERSION = CHANGELOG[0].version;
 
 /** "2026-09-20" → 「2026 年 9 月 20 日」 */
 export function formatChangelogDate(date: string): string {
