@@ -67,6 +67,10 @@
 .cm-editor.cm-caret-in-code .cm-cursor {
   border-left-color: var(--codeblock-fg);
 }
+/* drawSelection's own selection layer is replaced by codeAwareSelection (src/lib/editor/codeSelection.ts), which keeps code card selections aligned */
+.cm-editor .cm-selectionLayer:not(.cm-xe-selectionLayer) {
+  display: none;
+}
 /* Rounded selection: fully square blocks look harsh on Chinese lines; 3px softens the corners without looking round */
 .cm-editor .cm-selectionBackground,
 .cm-editor.cm-focused .cm-selectionBackground {

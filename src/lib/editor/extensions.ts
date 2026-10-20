@@ -15,6 +15,7 @@ import { codeHighlight, mdHighlight, sourceHeadingHighlight } from "@/lib/editor
 import { caretAndActiveLine } from "@/lib/editor/caret";
 import { headingFolding } from "@/lib/editor/folding";
 import { lineSelectionWithoutNewline } from "@/lib/lineSelection";
+import { codeAwareSelection } from "@/lib/editor/codeSelection";
 import type { Notify } from "@/lib/editor/commands";
 import { formatShortcuts } from "@/lib/editor/shortcuts";
 import { autoPairs } from "@/lib/editor/pairs";
@@ -53,6 +54,7 @@ export function createEditorExtensions(options: EditorExtensionOptions): Extensi
   return [
     history(),
     drawSelection(),
+    codeAwareSelection,
     lineSelectionWithoutNewline,
     caretAndActiveLine,
     EditorView.lineWrapping,
