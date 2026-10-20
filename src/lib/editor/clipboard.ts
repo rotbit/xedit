@@ -88,6 +88,37 @@ function caretInInlineCode(state: EditorState): boolean {
 const caretInCode = (state: EditorState): boolean =>
   caretInFencedCode(state) || caretInInlineCode(state);
 
+/** A selection inside one code block that partly sweeps its fence lines → only the code between the fences.
+ *  Dragging to the end of a code card easily lands on the closing ``` line (or the title bar's ```lang), and those
+ *  fences aren't part of the code the user meant to copy. Selecting the whole block, or across body text, keeps the fences. */
+export function codeCopyRange(state: EditorState): { from: number; to: number } | null {
+  const { ranges } = state.selection;
+  if (ranges.length !== 1 || ranges[0].empty) return null;
+  const { from, to } = ranges[0];
+  let block: SyntaxNode | null = syntaxTree(state).resolveInner(from, 1);
+  while (block && block.name !== "FencedCode") block = block.parent;
+  if (!block || to > block.to || (from <= block.from && to >= block.to)) return null;
+  const { doc } = state;
+  const open = doc.lineAt(block.from);
+  const close = doc.lineAt(block.to);
+  const hasClose = close.number > open.number && /^\s*(`{3,}|~{3,})\s*$/.test(close.text);
+  const contentFrom = open.number < doc.lines ? doc.line(open.number + 1).from : open.to;
+  const contentTo = hasClose ? Math.max(contentFrom, close.from - 1) : block.to;
+  const clamped = { from: Math.max(from, contentFrom), to: Math.min(to, contentTo) };
+  if (clamped.from === from && clamped.to === to) return null;
+  return clamped.from < clamped.to ? clamped : null;
+}
+
+function copyCodeOnly(event: ClipboardEvent, view: EditorView, cut: boolean): boolean {
+  const range = codeCopyRange(view.state);
+  if (!range || !event.clipboardData) return false;
+  event.clipboardData.clearData();
+  event.clipboardData.setData("text/plain", view.state.sliceDoc(range.from, range.to));
+  event.preventDefault();
+  if (cut) view.dispatch({ changes: range, userEvent: "delete.cut", scrollIntoView: true });
+  return true;
+}
+
 /** Paste and drop only convert the incoming content; default text input stays with CodeMirror.
  *  notify: pasting/dropping media triggers uploads, and the caller provides the messages (see Notify in commands.ts).
  *  dropCursor is attached here too: when dragging a file in, you need to see where it will land. */
@@ -96,6 +127,8 @@ export const editorClipboard = (notify: Notify): Extension => [
   // The built-in drop cursor is black in dark mode (core only styles .cm-cursor for dark), so follow the text color
   EditorView.baseTheme({ ".cm-dropCursor": { borderLeftColor: "var(--accent)" } }),
   EditorView.domEventHandlers({
+    copy: (event, view) => copyCodeOnly(event, view, false),
+    cut: (event, view) => copyCodeOnly(event, view, true),
     paste: (event, view) => {
       const files = event.clipboardData?.files;
       if (files && files.length > 0 && handleMediaFiles(view, files, notify)) {
