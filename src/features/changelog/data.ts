@@ -36,6 +36,18 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.3.0",
+    date: "2026-10-20",
+    title: "代码块一键复制",
+    items: [
+      { kind: "new", text: "代码块右上角新增「复制」按钮，点一下就复制整块代码，不带 ``` 围栏。" },
+      {
+        kind: "fixed",
+        text: "拖选代码块时多扫到卡片上下的空行，复制出来也只有代码，不会再混进 ``` 和空行。",
+      },
+    ],
+  },
+  {
     version: "0.2.0",
     date: "2026-10-20",
     title: "代码块选中与复制更顺手，更新日志有了版本号",

@@ -126,9 +126,10 @@
   cursor: pointer;
   font-size: 11px;
 }
-/* Delete-block button: owns the block's top-right corner (opposite the language dropdown on the title bar),
-   hidden normally, shown on hovering the opening line or when the dropdown has focus; once the fence is rendered away, deletion needs an obvious entry */
-.cm-live-preview .cm-lp-codefence-del {
+/* Header buttons on the block's top-right corner (opposite the language dropdown): copy sits in the corner and is always
+   visible, faintly; delete sits to its left and only shows on hovering the opening line or when the dropdown has focus */
+.cm-live-preview .cm-lp-codefence-del,
+.cm-live-preview .cm-lp-codefence-copy {
   position: absolute;
   top: 50%;
   right: 38px;
@@ -141,17 +142,24 @@
   background: transparent;
   color: var(--codeblock-faint);
   cursor: pointer;
-  opacity: 0;
   transition:
     opacity 0.12s,
     color 0.12s;
+}
+.cm-live-preview .cm-lp-codefence-del {
+  right: 64px;
+  opacity: 0;
 }
 .cm-live-preview .cm-line.cm-lp-code-first:hover .cm-lp-codefence-del,
 .cm-live-preview .cm-lp-codefence:focus-within ~ .cm-lp-codefence-del {
   opacity: 1;
 }
-.cm-live-preview .cm-lp-codefence-del:hover {
+.cm-live-preview .cm-lp-codefence-del:hover,
+.cm-live-preview .cm-lp-codefence-copy:hover {
   color: var(--codeblock-fg);
+}
+.cm-live-preview .cm-lp-codefence-copy.is-copied {
+  color: var(--accent);
 }
 /* Dropdown arrow: a standard chevron drawn with borders, vertically centered by flex (glyph triangles skew across fonts) */
 .cm-live-preview .cm-lp-codefence::after {

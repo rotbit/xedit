@@ -14,6 +14,8 @@ export const lib: Record<string, string> = {
   "▶ 视频": "▶ Video",
   点击编辑视频源码: "Click to edit video source",
   删除代码块: "Delete Code Block",
+  复制代码: "Copy code",
+  已复制: "Copied",
   纯文本: "Plain Text",
   代码语言: "Code language",
   点击编辑公式: "Click to edit formula",

@@ -32,12 +32,22 @@ describe("codeCopyRange: copying inside a code block drops swept fence lines", (
     expect(copied(at("```yaml"), at("Uri"))).toBe("Mongo:\n  ");
   });
 
+  it("ignores blank lines swept around the card", () => {
+    expect(copied(at("Mongo"), DOC.indexOf("after"))).toBe("Mongo:\n  Uri: x");
+    expect(copied(at("\n\n```yaml") + 1, at(": x") + 3)).toBe("Mongo:\n  Uri: x");
+  });
+
   it("leaves selections that don't touch the fences alone", () => {
     expect(copied(at("Mongo"), at(": x") + 3)).toBeNull();
   });
 
-  it("keeps the fences when the whole block or body text is selected", () => {
-    expect(copied(at("```yaml"), at("```\n\nafter") + 3)).toBeNull();
+  it("drops the fences even when the whole block is swept, since they're invisible", () => {
+    expect(copied(at("```yaml"), at("```\n\nafter") + 3)).toBe("Mongo:\n  Uri: x");
+    expect(copied(at("\n\n```yaml") + 1, at("```\n\nafter") + 4)).toBe("Mongo:\n  Uri: x");
+  });
+
+  it("keeps the fences when the selection reaches body text", () => {
     expect(copied(0, at("```\n\nafter") + 3)).toBeNull();
+    expect(copied(at("Mongo"), DOC.length)).toBeNull();
   });
 });

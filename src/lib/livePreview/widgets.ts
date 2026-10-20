@@ -111,7 +111,7 @@ const FENCE_LANGS = [
 ];
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-/** Path of lucide trash-2 (the widget is plain DOM, so React icons aren't available; we build the SVG ourselves) */
+/** Lucide icon paths (the widget is plain DOM, so React icons aren't available; we build the SVG ourselves) */
 const TRASH_PATHS = [
   "M3 6h18",
   "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6",
@@ -119,8 +119,13 @@ const TRASH_PATHS = [
   "M10 11v6",
   "M14 11v6",
 ];
+const COPY_PATHS = [
+  "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z",
+  "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
+];
+const CHECK_PATHS = ["M20 6 9 17l-5-5"];
 
-function trashIcon(): SVGSVGElement {
+function icon(paths: string[]): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("width", "14");
   svg.setAttribute("height", "14");
@@ -131,12 +136,33 @@ function trashIcon(): SVGSVGElement {
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
   svg.setAttribute("aria-hidden", "true");
-  for (const d of TRASH_PATHS) {
+  for (const d of paths) {
     const path = document.createElementNS(SVG_NS, "path");
     path.setAttribute("d", d);
     svg.appendChild(path);
   }
   return svg;
+}
+
+/** Header button that keeps mousedown away from the editor: otherwise focus/cursor get taken first,
+ *  and by click time the position no longer points at this block */
+function fenceButton(className: string, label: string, paths: string[], onClick: () => void): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = className;
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+  btn.appendChild(icon(paths));
+  btn.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClick();
+  });
+  return btn;
 }
 
 /**
@@ -165,23 +191,30 @@ export class CodeLangWidget extends WidgetType {
     const wrap = document.createElement("span");
     wrap.className = "cm-lp-codefence";
     // Delete the whole block: once the fences are rendered away, no cursor-based delete logic beats an obvious button
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "cm-lp-codefence-del";
-    del.title = t("删除代码块");
-    del.setAttribute("aria-label", t("删除代码块"));
-    del.appendChild(trashIcon());
-    // mousedown mustn't reach the editor: otherwise focus/cursor get taken first, and by click time the position no longer points at this block
-    del.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    del.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    const del = fenceButton("cm-lp-codefence-del", t("删除代码块"), TRASH_PATHS, () => {
       const block = fencedCodeAt(view.state, view.posAtDOM(bar), 1);
       if (block) deleteFencedBlock(view, block);
       view.focus();
+    });
+    // Copy just the code between the fences: dragging a long block to select it is fiddly and easily sweeps in the fences
+    let copiedTimer = 0;
+    const copy = fenceButton("cm-lp-codefence-copy", t("复制代码"), COPY_PATHS, () => {
+      const block = fencedCodeAt(view.state, view.posAtDOM(bar), 1);
+      if (!block) return;
+      void navigator.clipboard
+        .writeText(view.state.sliceDoc(block.contentFrom, block.contentTo))
+        .then(() => {
+          copy.replaceChildren(icon(CHECK_PATHS));
+          copy.classList.add("is-copied");
+          copy.title = t("已复制");
+          window.clearTimeout(copiedTimer);
+          copiedTimer = window.setTimeout(() => {
+            copy.replaceChildren(icon(COPY_PATHS));
+            copy.classList.remove("is-copied");
+            copy.title = t("复制代码");
+          }, 1500);
+        })
+        .catch(() => {});
     });
     // What's visible is text + arrow, with a transparent native select covering the whole label: clicking anywhere on the label opens the menu;
     // otherwise the select is only as wide as the text, and clicking the arrow or padding falls into the editor, jumps the cursor to the fence line, and the label turns back into source
@@ -207,9 +240,10 @@ export class CodeLangWidget extends WidgetType {
       });
     });
     wrap.appendChild(select);
-    // Dropdown first, delete button after: CSS uses the ~ selector to also highlight the button when the dropdown is focused
+    // Dropdown first, buttons after: CSS uses the ~ selector to also highlight the buttons when the dropdown is focused
     bar.appendChild(wrap);
     bar.appendChild(del);
+    bar.appendChild(copy);
     return bar;
   }
   ignoreEvent() {

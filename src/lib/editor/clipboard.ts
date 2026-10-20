@@ -4,6 +4,7 @@ import type { EditorState, Extension } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import type TurndownService from "turndown";
 import { caretInFencedCode } from "@/lib/livePreview/context";
+import { fencedCodeAt } from "@/lib/livePreview/fenceKeys";
 import { handleMediaFiles, type Notify } from "@/lib/editor/commands";
 
 // Rich text paste → Markdown. turndown isn't small and only paste needs it, so it stays out of the editor's main bundle:
@@ -88,28 +89,31 @@ function caretInInlineCode(state: EditorState): boolean {
 const caretInCode = (state: EditorState): boolean =>
   caretInFencedCode(state) || caretInInlineCode(state);
 
-/** A selection inside one code block that partly sweeps its fence lines → only the code between the fences.
- *  Dragging to the end of a code card easily lands on the closing ``` line (or the title bar's ```lang), and those
- *  fences aren't part of the code the user meant to copy. Selecting the whole block, or across body text, keeps the fences. */
+/** A selection inside one code block that sweeps its fence lines → only the code between the fences.
+ *  Under live rendering the fences are invisible: dragging to the end of a code card easily lands on the closing ``` line
+ *  (the card's bottom padding) or the title bar's ```lang, or overshoots into the blank line around the card; none of that
+ *  is code the user can see. Only a selection that reaches into body text keeps the fences. */
 export function codeCopyRange(state: EditorState): { from: number; to: number } | null {
   const { ranges } = state.selection;
   if (ranges.length !== 1 || ranges[0].empty) return null;
   const { from, to } = ranges[0];
-  let block: SyntaxNode | null = syntaxTree(state).resolveInner(from, 1);
-  while (block && block.name !== "FencedCode") block = block.parent;
-  if (!block || to > block.to || (from <= block.from && to >= block.to)) return null;
-  const { doc } = state;
-  const open = doc.lineAt(block.from);
-  const close = doc.lineAt(block.to);
-  const hasClose = close.number > open.number && /^\s*(`{3,}|~{3,})\s*$/.test(close.text);
-  const contentFrom = open.number < doc.lines ? doc.line(open.number + 1).from : open.to;
-  const contentTo = hasClose ? Math.max(contentFrom, close.from - 1) : block.to;
-  const clamped = { from: Math.max(from, contentFrom), to: Math.min(to, contentTo) };
+  // Blank lines swept around the card don't count as body text
+  const text = state.sliceDoc(from, to);
+  const start = from + (text.length - text.trimStart().length);
+  const end = to - (text.length - text.trimEnd().length);
+  if (start >= end) return null;
+  const block = fencedCodeAt(state, start, 1);
+  if (!block) return null;
+  const blockTo = block.lastLine ? block.lastLine.to : block.node.to;
+  if (end > blockTo) return null;
+  const clamped = { from: Math.max(from, block.contentFrom), to: Math.min(to, block.contentTo) };
   if (clamped.from === from && clamped.to === to) return null;
   return clamped.from < clamped.to ? clamped : null;
 }
 
 function copyCodeOnly(event: ClipboardEvent, view: EditorView, cut: boolean): boolean {
+  // In source mode the fences are visible text, so whatever is selected is what the user means
+  if (!view.dom.classList.contains("cm-live-preview")) return false;
   const range = codeCopyRange(view.state);
   if (!range || !event.clipboardData) return false;
   event.clipboardData.clearData();
