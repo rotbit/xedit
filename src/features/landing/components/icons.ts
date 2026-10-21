@@ -12,6 +12,7 @@ import {
   Link2,
   MessageSquareText,
   MonitorSmartphone,
+  Palette,
   PenLine,
   Plug,
   Search,
@@ -46,4 +47,5 @@ export const LANDING_ICONS: Record<LandingIconId, LucideIcon> = {
   obsidian: FileText,
   notion: SquareSlash,
   devices: MonitorSmartphone,
+  palette: Palette,
 };

@@ -14,16 +14,18 @@ export const SITE_TAGLINE = "本地优先的 Markdown 写作工具";
 
 /** Home page description: kept under 150 characters, covering the core search intent */
 export const SITE_DESCRIPTION =
-  "xEdit 是免费开源的本地优先 Markdown 写作工具：像 Obsidian 一样纯文本、双链、可用本地文件夹当文库，像 Notion 一样有斜杠命令、提示块和拖拽整理；待办自动汇总进今日视图，云端同步、离线可用，内置 MCP 让 AI 直接读写文章。提供网页版与 Mac 客户端。";
+  "xEdit 是免费开源的 Markdown 写作与轻量笔记工具：像 Obsidian 一样纯文本、双链、可用本地文件夹当文库，像 Notion 一样有斜杠命令、提示块和拖拽整理；登录后免费云同步、离线可用，内置 MCP 让 AI 直接读写文章。提供网页版与 Mac 客户端。";
 
 /** Keywords for search engines (low weight in modern engines, but still useful for some on-site/third-party search) */
 export const SITE_KEYWORDS = [
   "Markdown 编辑器",
+  "免费 Markdown 编辑器",
   "在线 Markdown 编辑器",
   "所见即所得 Markdown 编辑器",
   "即时渲染 Markdown",
   "Obsidian 替代",
   "Notion 替代",
+  "免费 Notion 替代",
   "双链笔记",
   "本地优先",
   "本地优先笔记",

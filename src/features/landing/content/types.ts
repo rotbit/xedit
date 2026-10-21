@@ -26,7 +26,8 @@ export type LandingIconId =
   | "plug"
   | "obsidian"
   | "notion"
-  | "devices";
+  | "devices"
+  | "palette";
 
 /** Nav entry: `#id` anchors point at section ids on the landing page, anything else is a route */
 export interface NavLink {
@@ -188,6 +189,33 @@ export interface FeatureGroup {
   items: Feature[];
 }
 
+/** 「免费范围」 (What's free): what costs nothing, the real limits, and where each storage mode keeps your notes */
+export interface FreeCopy {
+  eyebrow: string;
+  title: string;
+  note: string;
+  tiers: { label: string; title: string; items: string[] }[];
+  storageTitle: string;
+  /** Row labels inside each storage card: where the data lives / whether it syncs / who it suits */
+  storageLabels: { where: string; sync: string; fit: string };
+  storage: { name: string; where: string; sync: string; fit: string }[];
+}
+
+/** Side-by-side with Obsidian and Notion. Every xEdit cell must hold for the shipped code. */
+export interface CompareCopy {
+  eyebrow: string;
+  title: string;
+  note: string;
+  /** Header of the first column; the product columns are fixed names */
+  rowHead: string;
+  rows: { label: string; xedit: string; obsidian: string; notion: string }[];
+  fitTitle: string;
+  fit: string[];
+  otherTitle: string;
+  other: string[];
+  footnote: string;
+}
+
 export interface MacCopy {
   eyebrow: string;
   title: string;
@@ -213,6 +241,8 @@ export interface LandingCopy {
   pillars: { srTitle: string; items: Pillar[] };
   showcases: ShowcasesCopy;
   features: { eyebrow: string; title: string; note: string; groups: FeatureGroup[] };
+  free: FreeCopy;
+  compare: CompareCopy;
   mac: MacCopy;
   faq: {
     eyebrow: string;

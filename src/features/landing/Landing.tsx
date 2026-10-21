@@ -5,8 +5,10 @@
  */
 import { CONTACT_EMAIL } from "@/lib/site";
 import { getLandingCopy, type LandingLocale } from "./content";
+import { Compare } from "./components/Compare";
 import { Faq } from "./components/Faq";
 import { FeatureGrid } from "./components/FeatureGrid";
+import { FreeScope } from "./components/FreeScope";
 import { LandingFooter } from "./components/Footer";
 import { Hero } from "./components/Hero";
 import { LandingJsonLd } from "./components/JsonLd";
@@ -17,7 +19,7 @@ import { BAND, SectionHead, SHELL } from "./components/Section";
 import { Showcases } from "./components/Showcase";
 
 /** Section order: what it is (hero + app window), the four starting points, one screen per headline capability,
- *  the full feature set, the desktop app, FAQ, and finally the call to action. */
+ *  the full feature set, what's free, the Obsidian / Notion comparison, the desktop app, FAQ, and finally the call to action. */
 export function Landing({ locale = "zh" }: { locale?: LandingLocale }) {
   const copy = getLandingCopy(locale);
   return (
@@ -32,6 +34,8 @@ export function Landing({ locale = "zh" }: { locale?: LandingLocale }) {
         <Pillars srTitle={copy.pillars.srTitle} items={copy.pillars.items} />
         <Showcases copy={copy.showcases} />
         <FeatureGrid copy={copy.features} />
+        <FreeScope copy={copy.free} />
+        <Compare copy={copy.compare} />
         <MacSection copy={copy.mac} />
 
         {/* ———— FAQ ———— */}

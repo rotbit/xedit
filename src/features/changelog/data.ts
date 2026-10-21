@@ -36,6 +36,19 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.4.0",
+    date: "2026-10-21",
+    title: "官网讲清免费范围，新增与 Notion / Obsidian 的对比",
+    items: [
+      {
+        kind: "new",
+        text: "官网新增「免费范围」：不登录能用什么、登录后免费的云同步与各项限制、MCP 和 AI 审稿的费用由谁承担，以及三种存储方式的区别。",
+      },
+      { kind: "new", text: "官网新增与 Obsidian、Notion 的逐项对比，写明 xEdit 有什么、没有什么、什么时候选别家更合适。" },
+      { kind: "improved", text: "产品定位统一为「免费、开源的 Markdown 写作与轻量笔记工具」，中英日三语页面与 README 同步更新。" },
+    ],
+  },
+  {
     version: "0.3.0",
     date: "2026-10-20",
     title: "代码块一键复制",

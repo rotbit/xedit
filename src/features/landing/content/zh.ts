@@ -1,6 +1,8 @@
-import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/site";
 import type { LandingCopy } from "./types";
 import { zhChrome } from "./zhChrome";
+import { zhFaq } from "./zhFaq";
+import { zhPlans } from "./zhPlans";
 
 /**
  * Chinese landing copy: the source every other locale is translated from.
@@ -359,6 +361,11 @@ export const zh: LandingCopy = {
             title: "五种导出格式",
             desc: "Markdown、HTML、PDF、长图 PNG，以及保留完整结构、可导入飞书的 Word。",
           },
+          {
+            icon: "palette",
+            title: "一键复制到公众号",
+            desc: "13 套排版主题，复制时样式内联到每个标签，粘贴进公众号、知乎编辑器不走样。",
+          },
         ],
       },
       {
@@ -379,6 +386,8 @@ export const zh: LandingCopy = {
       },
     ],
   },
+
+  ...zhPlans,
 
   mac: {
     eyebrow: "桌面端",
@@ -404,54 +413,7 @@ export const zh: LandingCopy = {
     },
   },
 
-  faq: {
-    eyebrow: "常见问题",
-    title: "关于 xEdit，你可能想先问清楚",
-    noteBefore: "还有别的问题，可以到 GitHub 仓库提 issue，或者直接写信到 ",
-    noteAfter: "。",
-    items: [
-      {
-        q: "xEdit 是免费的吗？必须注册才能用吗？",
-        a: "免费，代码以 MIT 协议在 GitHub 开源。打开就能写，不登录时全部写作功能都可用，文章保存在这台设备上；需要多端同步、云端版本历史、图片上传、分享链接时再登录，用 GitHub、Google 或邮箱密码都可以。",
-      },
-      {
-        q: "和 Obsidian、Notion 比有什么不同？",
-        a: "和 Obsidian 一样，xEdit 的文章是纯文本 Markdown，用 [[双链]] 按标题互相引用，也能把本地文件夹当文库；和 Notion 一样，有斜杠命令、提示块和拖拽整理。不同的是它打开网页就能用、自带云同步，并且通过 MCP 让 AI 直接读写你的文库。xEdit 目前没有数据库、关系图谱和反向链接面板，如果你重度依赖这些，Obsidian 或 Notion 会更合适。",
-      },
-      {
-        q: "我的文章存在哪里？",
-        a: "未登录时存在当前浏览器里，只在这台设备可见；也可以打开电脑上的一个文件夹当文库，文章就是文件夹里的 .md 文件。登录后文章、文件夹、版本历史和图片同步到云端，本机保留一份离线镜像。",
-      },
-      {
-        q: "可以直接用电脑上的文件夹吗？",
-        a: "可以，在未登录的本地模式下，侧栏底部点「打开文件夹作为文库」，选一个文件夹即可，每篇文章就是一个 .md 文件，用别的编辑器打开也是纯文本。这个功能依赖浏览器的 File System Access 能力，目前需要 Chrome、Edge 等 Chromium 内核浏览器，Safari 和 Firefox 暂不支持。文件夹模式下文章只存在这个文件夹里，不会同步到云端。",
-      },
-      {
-        q: "断网了还能写吗？",
-        a: "能。未登录时本来就只存在本机；登录状态下断网，改动会先落在本机的离线镜像里，联网后自动补同步。Mac 客户端断网时会自动切到离线壳，照常打开和编辑。",
-      },
-      {
-        q: "双链和待办怎么用？",
-        a: "输入 [[ 会按标题补全文库里的文章，选中就插入链接；给文章改名时，其他文章里指向它的链接会一起更新。在任意文章里写 - [ ] 就是一条待办，行尾加 @明天、@10月20日 这类日期标签或 @每天，带日期的待办会自动汇总进侧栏的「今天」。",
-      },
-      {
-        q: "可以让 Claude 这类 AI 直接管理我的文章吗？",
-        a: "可以。xEdit 内置 MCP Server，走自托管的 OAuth 2.1 授权（支持动态客户端注册与 PKCE）。在 AI 客户端里添加 xEdit 并完成授权后，它就能列出、检索、新建、修改、删除你的云端文章，以及读写图片库里的图片；授权随时可以在设置里撤销。",
-      },
-      {
-        q: "AI 审稿能做什么？",
-        a: "写完点「审核」，AI 会通读全文，检查病句、啰嗦、用词不当和逻辑跳跃，每条意见都标在原文对应的句子上并附修改建议，可以一键采纳或忽略，⌘Z 可撤销，审核记录会自动保存。AI 审稿需要登录，目前处于内测，正在逐步开放。",
-      },
-      {
-        q: "能导出成哪些格式？能分享给别人看吗？",
-        a: "可以导出 Markdown、HTML、PDF、长图 PNG 和 Word 文档，Word 保留标题层级、列表、表格和图片，能直接导入飞书。登录后每篇文章都能生成分享链接，读者免登录阅读，还能选中文字、图片或视频写批注，你可以在分享页里直接回复；批注和链接都能随时关闭。",
-      },
-      {
-        q: "有 Mac 客户端吗？Windows 呢？",
-        a: "有 Mac 客户端，支持 Apple Silicon 的 macOS 12 及以上，提供登录态持久化、原生菜单与快捷键、离线可用等桌面体验，数据与网页版完全同步。安装包还未做代码签名，可以先到 GitHub 仓库获取。Windows 暂时没有独立客户端，但网页版在 Windows 上功能完全一致。",
-      },
-    ],
-  },
+  faq: zhFaq,
 
   cta: {
     title: "下一篇笔记，从这里开始写",
@@ -468,6 +430,9 @@ export const zh: LandingCopy = {
       { href: "#sync", label: "本地与云端" },
       { href: "#ai", label: "AI 与 MCP" },
       { href: "#features", label: "全部功能" },
+      { href: "#free", label: "免费范围" },
+      { href: "#compare", label: "对比 Obsidian / Notion" },
+      { href: "/themes", label: "公众号排版主题" },
       { href: "#desktop", label: "Mac 客户端" },
       { href: "/changelog", label: "更新日志" },
       { href: "#faq", label: "常见问题" },
@@ -478,7 +443,7 @@ export const zh: LandingCopy = {
   },
 
   seo: {
-    title: `${SITE_NAME} · ${SITE_TAGLINE}`,
+    title: `${SITE_NAME} · 免费开源的 Markdown 编辑器，轻量的 Notion / Obsidian 替代`,
     description: SITE_DESCRIPTION,
     keywords: SITE_KEYWORDS,
   },
