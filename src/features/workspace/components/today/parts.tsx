@@ -74,7 +74,7 @@ export interface RowActions {
 }
 
 export function EmptyLine({ children }: { children: React.ReactNode }) {
-  return <div className="px-0.5 py-2 text-[13px] text-[var(--ink-faint)]">{children}</div>;
+  return <div className="px-3.5 py-2.5 text-[13px] text-[var(--ink-faint)]">{children}</div>;
 }
 
 /**
@@ -83,7 +83,7 @@ export function EmptyLine({ children }: { children: React.ReactNode }) {
  */
 export function EmptyGuide({ text }: { text: string }) {
   return (
-    <div className="flex flex-col items-start gap-5 px-0.5 pb-4 pt-10 text-[var(--ink-faint)]">
+    <div className="flex flex-col items-start gap-5 px-3.5 pb-4 pt-10 text-[var(--ink-faint)]">
       <span
         aria-hidden
         className="block h-[124px] w-[220px] bg-current opacity-60 [mask:url(/today-empty.png)_center/contain_no-repeat] [-webkit-mask:url(/today-empty.png)_center/contain_no-repeat]"
@@ -94,7 +94,7 @@ export function EmptyGuide({ text }: { text: string }) {
 }
 
 /**
- * Round checkbox: when checked, filled with ink plus a knocked-out checkmark.
+ * Round checkbox: when checked, filled with the Today teal plus a knocked-out checkmark; hovering an open one previews that color.
  * Without onClick it's read-only (done records from past days): still drawn checked but not clickable.
  */
 export function TodoBox({
@@ -108,11 +108,11 @@ export function TodoBox({
 }) {
   const cls = `mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-[1.5px] ${
     done
-      ? "border-[var(--accent)] bg-[var(--accent)]"
-      : "border-[var(--hairline-strong)] bg-[var(--panel)] group-hover:border-[var(--ink-soft)]"
+      ? "border-[var(--today)] bg-[var(--today)]"
+      : "border-[var(--hairline-strong)] bg-[var(--panel)] group-hover:border-[var(--today)] group-hover:bg-[var(--today-tint)]"
   }`;
   const mark = done ? (
-    <Check size={10} strokeWidth={3} className="text-[var(--accent-fg)]" />
+    <Check size={10} strokeWidth={3} className="text-[var(--today-fg)]" />
   ) : null;
   if (!onClick) return <span className={cls}>{mark}</span>;
   return (

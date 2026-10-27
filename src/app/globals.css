@@ -26,6 +26,11 @@
   --brand-tint: #f5f4fc;
   /* The barely visible glow at the top of the hero */
   --brand-glow: rgb(63 58 158 / 0.1);
+  /* Today page accent, used only for done / progress / scheduled; the brand indigo stays for the landing page and the logo */
+  --today: #0f8f80;
+  --today-wash: #dcf1ee;
+  --today-tint: #eef8f6;
+  --today-fg: #ffffff;
   /* Vermilion accent: the dot on section tags and small marks on headings, landing page only */
   --ember: #b4432c;
   --ember-wash: #f9ece8;
@@ -105,6 +110,10 @@
   --brand-fg: #ffffff;
   --brand-wash: #ebeaf8;
   --brand-tint: #f5f4fc;
+  --today: #0f8f80;
+  --today-wash: #dcf1ee;
+  --today-tint: #eef8f6;
+  --today-fg: #ffffff;
   --ember: #b4432c;
   --ember-wash: #f9ece8;
   --ink-soft: #565656;
@@ -132,6 +141,11 @@
   --brand-wash: #262551;
   --brand-tint: #1a1a2b;
   --brand-glow: rgb(165 163 238 / 0.13);
+  /* Lift the teal for charcoal, same as the brand color; fg flips dark so the check stays knocked out */
+  --today: #4fc3b3;
+  --today-wash: #163834;
+  --today-tint: #152628;
+  --today-fg: #0f1a19;
   /* Tone down the vermilion in dark mode, or it fluoresces on charcoal */
   --ember: #e0795d;
   --ember-wash: #38201a;

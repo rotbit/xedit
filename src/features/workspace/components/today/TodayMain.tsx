@@ -6,13 +6,12 @@
  * Below the list is "Done this week": things checked today (from the daily log, still here even after a refresh drops them from the list) plus earlier days this week by day;
  * the section ends with a "Completed history" row leading to the history page. "Recently opened" is in the right column's UpcomingColumn, not here.
  */
-import { CalendarDays, ChevronRight, FileText, NotebookPen, Repeat } from "lucide-react";
+import { CalendarDays, ChevronRight, FileText, Repeat } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
 import {
   daysBetween,
-  formatDayTitle,
   formatDue,
   formatMonthDay,
   formatWeekday,
@@ -35,8 +34,9 @@ import {
   type RowActions,
 } from "./parts";
 import type { AddTarget } from "./AddTarget";
-import { doneCountAll, writingToday } from "./doneToday";
+import { doneCountAll } from "./doneToday";
 import { QuickAdd } from "./QuickAdd";
+import { TodayHeader } from "./TodayHeader";
 import { dragRowCls, useTodoDrag } from "./useTodoDrag";
 
 /** Small buttons revealed on row hover (link doc / change date): marked as menu triggers and toggled by the button itself */
@@ -55,6 +55,13 @@ function MenuTrigger({ open, onClick, children }: { open: boolean; onClick: () =
     </button>
   );
 }
+
+/** Row-end status pills (daily / overdue / range): same shape, color carries the meaning */
+const pillCls = "ml-1 mt-[2px] shrink-0 rounded-full px-[7px] text-[11px] leading-[18px] tabular-nums";
+
+/** Neutral count pill for section headers */
+const countPillCls =
+  "rounded-full bg-[var(--accent-wash)] px-[7px] text-[11px] leading-[18px] tracking-normal tabular-nums text-[var(--ink-soft)]";
 
 function TodoRow({
   item,
@@ -107,13 +114,13 @@ function TodoRow({
   return (
     <div
       {...(done ? {} : { ...drag.dragProps(item), ...drag.rowDropProps(item) })}
-      className={`group relative flex items-start gap-2.5 px-0.5 py-2 ${done ? "" : dragRowCls(drag, item)}`}
+      className={`group relative flex items-start gap-2.5 px-3.5 py-2.5 last:rounded-b-[9px] hover:bg-[var(--sidebar)] ${done ? "" : dragRowCls(drag, item)}`}
     >
       {/* Reorder insertion line: drawn on the row edge it will land on, straddling the gap so before-this and after-previous look the same */}
       {indicator ? (
         <div
           aria-hidden
-          className={`pointer-events-none absolute left-0 right-0 h-[2px] rounded-full bg-[var(--accent)] ${
+          className={`pointer-events-none absolute left-0 right-0 h-[2px] rounded-full bg-[var(--today)] ${
             indicator === "before" ? "top-[-1px]" : "bottom-[-1px]"
           }`}
         />
@@ -132,11 +139,16 @@ function TodoRow({
         ) : (
           <span className={textCls}>{label}</span>
         )}
-        {sub ? (
-          <div className="mt-px flex items-center gap-1 truncate text-[12.5px] text-[var(--ink-faint)]">
-            {item.source === "notes" && linked ? <FileText size={12} className="shrink-0" aria-hidden /> : null}
-            <span className="truncate">{sub}</span>
+        {/* A linked doc is a destination, so it gets the teal chip; other sources are just provenance and stay plain faint text */}
+        {sub && item.source === "notes" && linked ? (
+          <div className="flex min-w-0">
+            <span className="mt-[3px] inline-flex max-w-full items-center gap-1 rounded-[4px] bg-[var(--today-tint)] px-1.5 text-[12px] text-[var(--today)]">
+              <FileText size={12} className="shrink-0" aria-hidden />
+              <span className="min-w-0 truncate">{sub}</span>
+            </span>
           </div>
+        ) : sub ? (
+          <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{sub}</div>
         ) : null}
       </div>
       {/* Hover actions first, status labels after: actions are transparent but take space, and labels at the far right line up across rows instead of being pushed mid-row */}
@@ -152,16 +164,17 @@ function TodoRow({
       )}
       {canRemove ? <RemoveButton label={t("删除这条待办")} onClick={() => actions.onRemove(item)} /> : null}
       {repeat ? (
-        <span className="ml-1 mt-[3px] flex shrink-0 items-center gap-1 py-px text-[11px] text-[var(--ink-faint)]">
-          <Repeat size={12} className="text-[var(--ink-faint)]" aria-hidden />
+        // Daily is a property of the task, not a date, so its pill stays neutral; teal is kept for real schedules
+        <span className={`${pillCls} flex items-center gap-1 bg-[var(--accent-wash)] text-[var(--ink-soft)]`}>
+          <Repeat size={11} aria-hidden />
           {t("每天")}
         </span>
       ) : late && last ? (
-        <span className="ml-1 mt-[3px] shrink-0 rounded-[4px] bg-[var(--seal-wash)] px-1.5 py-px text-[11px] tabular-nums text-[var(--seal)]">
+        <span className={`${pillCls} bg-[var(--seal-wash)] text-[var(--seal)]`}>
           {t("{date} 逾期", { date: formatDue(last, today, locale) })}
         </span>
       ) : span ? (
-        <span className="ml-1 mt-[3px] shrink-0 py-px text-[11px] tabular-nums text-[var(--ink-faint)]">
+        <span className={`${pillCls} bg-[var(--today-wash)] text-[var(--today)]`}>
           {span.range} · {t("第 {n} 天", { n: span.n, abs: span.n })}
         </span>
       ) : null}
@@ -245,7 +258,7 @@ function DoneSection({
     <div className="mt-12">
       <div className="flex items-baseline justify-between border-b border-[var(--hairline)] pb-2">
         <h2 className="text-[11.5px] tracking-[.14em] text-[var(--ink-faint)]">{t("本周已完成")}</h2>
-        <span className="text-[11.5px] tabular-nums text-[var(--ink-faint)]">
+        <span className={countPillCls}>
           {t("{n} 件", { n: count, abs: count })}
         </span>
       </div>
@@ -329,65 +342,52 @@ export function TodayMain({
   onOpenDaily: () => void;
 }) {
   const t = useT();
-  // Pass the context locale explicitly when formatting dates: during SSR module variables are shared across requests and unreliable
-  const locale = useLocale();
-  const title = formatDayTitle(today, locale);
-  // Today's writing total goes under the date: the home page should show "what I did today" at a glance, more useful than filler at the bottom of the list;
-  // log changes trigger re-renders via TodayView's signals, so reading fresh on every render is fine
-  const wrote = writingToday(today);
+  // Progress counts both kinds of "done today": events already dropped from the list, and rows just checked that stay struck through in it
+  // (doneToday leaves those out of `done`, so counting only `done` would shrink the total every time something is checked)
+  const checked = rows.filter(isDone).length;
   // The list area is the drop target for "today"; it only accepts drags from the right column (starting after today) — overdue / today items are already here
   const drag = useTodoDrag();
   const listDrop = drag.dropProps(today, { accept: (i) => i.due !== null && i.due > today });
   return (
     <div className="min-w-0">
-      {/* The daily note sits beside the date it's named after: a quiet outlined button, so the page still reads as a task list first */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-[30px] font-semibold leading-[1.15] tracking-tight">{title.main}</h1>
-        <button
-          className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline)] px-2.5 text-[12.5px] font-medium text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
-          onClick={onOpenDaily}
-        >
-          <NotebookPen size={14} className="text-[var(--ink-faint)]" />
-          {t("今日笔记")}
-        </button>
-      </div>
-      <div className="mb-6 mt-1.5 text-[13px] text-[var(--ink-faint)] tabular-nums">
-        {title.sub} · {t("今天")}
-        {wrote.chars > 0 ? ` · ${t("写了 {n} 字", { n: wrote.chars.toLocaleString(locale), abs: wrote.chars })}` : null}
-        {wrote.docs > 0 ? ` · ${t("改了 {n} 篇", { n: wrote.docs, abs: wrote.docs })}` : null}
-      </div>
-      <QuickAdd disabled={!ready} docs={docs} categories={actions.categories} onSubmit={onAdd} />
-      <div
-        {...listDrop}
-        className={`-mx-1.5 rounded-md px-1.5 ${drag.isOver(today) ? "bg-[var(--accent-wash)]" : ""}`}
-      >
-        {rows.length === 0 ? (
-          allEmpty ? (
-            <EmptyGuide text={t("添加一件今天要做的事，或在右侧排到某一天")} />
+      <TodayHeader
+        today={today}
+        done={done.length + checked}
+        total={done.length + rows.length}
+        onOpenDaily={onOpenDaily}
+      />
+      {/* The list sits on a white card over the paper; no overflow-hidden, since row menus and the add picker hang out below it */}
+      <div className="mt-6 rounded-[10px] border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_18px_rgb(0_0_0/0.04)]">
+        <QuickAdd disabled={!ready} docs={docs} categories={actions.categories} onSubmit={onAdd} />
+        <div {...listDrop} className={`rounded-b-[9px] ${drag.isOver(today) ? "bg-[var(--today-tint)]" : ""}`}>
+          {rows.length === 0 ? (
+            allEmpty ? (
+              <EmptyGuide text={t("添加一件今天要做的事，或在右侧排到某一天")} />
+            ) : (
+              <EmptyLine>{t("今天没有安排")}</EmptyLine>
+            )
           ) : (
-            <EmptyLine>{t("今天没有安排")}</EmptyLine>
-          )
-        ) : (
-          <div className="divide-y divide-[var(--hairline-soft)]">
-            {rows.map((item) => {
-              const done = isDone(item);
-              // Checking a publish schedule writes published: true; there's no "unpublish"
-              const locked = done && item.source === "publish";
-              return (
-                <TodoRow
-                  key={rowId(item)}
-                  item={item}
-                  done={done}
-                  today={today}
-                  docs={docs}
-                  actions={actions}
-                  onToggle={locked ? undefined : () => onToggle(item, !done)}
-                  t={t}
-                />
-              );
-            })}
-          </div>
-        )}
+            <div className="divide-y divide-[var(--hairline-soft)]">
+              {rows.map((item) => {
+                const done = isDone(item);
+                // Checking a publish schedule writes published: true; there's no "unpublish"
+                const locked = done && item.source === "publish";
+                return (
+                  <TodoRow
+                    key={rowId(item)}
+                    item={item}
+                    done={done}
+                    today={today}
+                    docs={docs}
+                    actions={actions}
+                    onToggle={locked ? undefined : () => onToggle(item, !done)}
+                    t={t}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       <DoneSection
         today={today}

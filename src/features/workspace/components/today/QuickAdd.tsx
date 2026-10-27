@@ -19,6 +19,12 @@ import type { DocMeta } from "../../types";
 import { Picker, TargetControl, useAddTarget, type AddTarget } from "./AddTarget";
 
 /**
+ * Both states are the head of the Today card: a paper-colored strip above the white list, so "add" reads as separate from the items.
+ * The top corners are rounded to sit inside the card's border; the card can't clip with overflow-hidden because its menus and the picker hang out below it.
+ */
+const headCls = "rounded-t-[9px] bg-[var(--paper)] px-3.5 py-2.5";
+
+/**
  * The open-state input row (with the picker). Closing unmounts it; next open starts fresh and the target resets to standalone.
  */
 function InputRow({
@@ -63,7 +69,7 @@ function InputRow({
       <div
         role="group"
         aria-label={t("添加待办")}
-        className="flex items-center gap-2.5 border-b border-[var(--hairline)] px-0.5 py-2"
+        className={`flex items-center gap-2.5 border-b border-[var(--hairline)] ${headCls}`}
       >
         <span className="h-4 w-4 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--hairline-strong)]" />
         <input
@@ -115,7 +121,7 @@ export function QuickAdd({
   const [open, setOpen] = useState(false);
   const t = useT();
   return (
-    <div className="relative mb-1.5">
+    <div className="relative">
       {open ? (
         <InputRow docs={docs} categories={categories} onSubmit={onSubmit} onClose={() => setOpen(false)} />
       ) : (
@@ -123,7 +129,7 @@ export function QuickAdd({
           type="button"
           // Marked as a menu trigger: the outside-dismiss logic lets it through and it toggles itself
           data-menu-trigger
-          className="flex w-full cursor-pointer items-center gap-2.5 border-b border-[var(--hairline)] px-0.5 py-2 text-left text-[14px] text-[var(--ink-faint)] hover:text-[var(--ink-soft)] disabled:cursor-default disabled:opacity-60"
+          className={`flex w-full cursor-pointer items-center gap-2.5 border-b border-[var(--hairline)] ${headCls} text-left text-[14px] text-[var(--ink-faint)] hover:text-[var(--ink-soft)] disabled:cursor-default disabled:opacity-60`}
           disabled={disabled}
           aria-expanded={open}
           onClick={() => setOpen(true)}

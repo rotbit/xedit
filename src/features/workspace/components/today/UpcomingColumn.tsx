@@ -55,11 +55,8 @@ function UpcomingItem({
         menuOpen ? "bg-[var(--accent-wash)]" : ""
       } ${dragRowCls(drag, item)}`}
     >
-      <span
-        className={`h-[5px] w-[5px] shrink-0 rounded-full ${
-          item.source === "publish" ? "bg-[var(--ink-soft)]" : "bg-[var(--hairline-strong)]"
-        }`}
-      />
+      {/* Teal dot: everything here is scheduled, the same accent the left column uses for ranges */}
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--today)]" />
       {openId ? (
         <button
           type="button"
@@ -274,7 +271,8 @@ export function UpcomingColumn({
     if (item.due > last) beyond.push(item);
     else byDay.get(item.due)?.push(item);
   }
-  const weekCount = days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
+  // Header count covers every dated item, including the ones folded into "N more", so it matches what the column holds
+  const datedCount = days.reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0) + beyond.length;
   // Two or more consecutive days with nothing scheduled merge into one row 「13–16 · 周二 – 周五」: empty days as tall as busy ones would stretch the right column,
   // pushing "Recently opened" below the fold. Clicking any segment expands all merged segments into single days at once (users don't want to click them one by one), so they can add to a specific day; expansion state lasts only for this session
   const [expanded, setExpanded] = useState(false);
@@ -300,8 +298,8 @@ export function UpcomingColumn({
     <aside className="min-w-0">
       <div className="flex items-baseline justify-between border-b border-[var(--hairline)] pb-2">
         <h2 className="text-[11.5px] tracking-[.14em] text-[var(--ink-faint)]">{t("接下来")}</h2>
-        <span className="text-[11.5px] tabular-nums text-[var(--ink-faint)]">
-          {t("{n} 件", { n: weekCount, abs: weekCount })}
+        <span className="rounded-full bg-[var(--accent-wash)] px-[7px] text-[11px] leading-[18px] tracking-normal tabular-nums text-[var(--ink-soft)]">
+          {t("{n} 件", { n: datedCount, abs: datedCount })}
         </span>
       </div>
       {groups.map(({ from, to }) => {
@@ -322,7 +320,7 @@ export function UpcomingColumn({
                 {dayOfMonth(a)}–{dayOfMonth(b)}
               </div>
               <div className={`min-w-0 truncate py-[3px] text-[12px] leading-[12px] ${locale === "en" ? "" : "tracking-[.14em]"}`}>
-                {dayName(a, from)} – {dayName(b, to)}
+                {dayName(a, from)} – {dayName(b, to)} · {t("没有安排")}
               </div>
             </button>
           );
@@ -341,14 +339,14 @@ export function UpcomingColumn({
               <div className="[font-family:var(--serif)] text-[18px] leading-none">{dayOfMonth(day)}</div>
               <div
                 className={`mt-1.5 whitespace-nowrap text-[10.5px] ${locale === "en" ? "" : "tracking-[.14em]"} ${
-                  empty ? "" : "text-[var(--ink-faint)]"
+                  from === 0 ? "text-[var(--today)]" : empty ? "" : "text-[var(--ink-faint)]"
                 }`}
               >
                 {name}
               </div>
             </div>
             <div className="min-w-0">
-              {empty ? <div className="py-[3px] text-[13px] text-[var(--hairline-strong)]">—</div> : null}
+              {empty ? <div className="py-[3px] text-[12px] text-[var(--ink-faint)]">{t("没有安排")}</div> : null}
               {items.map((item) => (
                 <UpcomingItem key={rowId(item)} item={item} today={today} actions={actions} showDate={false} t={t} />
               ))}

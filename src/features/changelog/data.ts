@@ -36,6 +36,19 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.0",
+    date: "2026-10-27",
+    title: "今天页换新装",
+    items: [
+      { kind: "new", text: "今天页右上角多了「今日完成」进度环，勾掉几条、还剩几条一眼看清。" },
+      {
+        kind: "improved",
+        text: "今天页整体换了新样子：待办清单放进白色卡片，完成、进度、排期统一用一抹薄荷青，「每天」「第 N 天」「逾期」变成小标签，关联的文章也更显眼。",
+      },
+      { kind: "improved", text: "右侧「接下来」里没有安排的日子直接写明「没有安排」，不再只是一个破折号；明天的标签也用青色标出。" },
+    ],
+  },
+  {
     version: "0.5.0",
     date: "2026-10-27",
     title: "今日笔记，待办拖动排序",

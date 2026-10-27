@@ -72,6 +72,8 @@ export const workspace: Record<string, string> = {
   "没移成：浏览器存储空间不足": "Couldn't move: browser storage is full",
   "没关联上：浏览器存储空间不足": "Couldn't link: browser storage is full",
   今天没有安排: "Nothing planned for today",
+  没有安排: "Nothing planned",
+  今日完成: "Done today",
   "添加一件今天要做的事，或在右侧排到某一天": "Add something for today, or schedule it on a day to the right",
   变更日期: "Change date",
   下周一: "Next Monday",
