@@ -151,18 +151,25 @@ function TodoRow({
           <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{sub}</div>
         ) : null}
       </div>
-      {/* Hover actions first, status labels after: actions are transparent but take space, and labels at the far right line up across rows instead of being pushed mid-row */}
-      {canLink ? (
-        <MenuTrigger open={linkOpen} onClick={() => actions.setMenuId(linkOpen ? null : linkId)}>
-          {t("关联文章")} ▾
-        </MenuTrigger>
-      ) : null}
-      {done ? null : (
-        <MenuTrigger open={menuOpen} onClick={() => actions.setMenuId(menuOpen ? null : id)}>
-          {t("变更日期")} ▾
-        </MenuTrigger>
-      )}
-      {canRemove ? <RemoveButton label={t("删除这条待办")} onClick={() => actions.onRemove(item)} /> : null}
+      {/* Hover actions sit between the text and the status label, and leave the layout entirely while hidden: in a narrow column their reserved width
+          squeezed long titles to a few characters per line. They come back on hover, keyboard focus inside the row, or while one of their menus is open */}
+      <div
+        className={`hidden shrink-0 items-start gap-1 group-hover:flex group-focus-within:flex ${
+          linkOpen || menuOpen ? "flex" : ""
+        }`}
+      >
+        {canLink ? (
+          <MenuTrigger open={linkOpen} onClick={() => actions.setMenuId(linkOpen ? null : linkId)}>
+            {t("关联文章")} ▾
+          </MenuTrigger>
+        ) : null}
+        {done ? null : (
+          <MenuTrigger open={menuOpen} onClick={() => actions.setMenuId(menuOpen ? null : id)}>
+            {t("变更日期")} ▾
+          </MenuTrigger>
+        )}
+        {canRemove ? <RemoveButton label={t("删除这条待办")} onClick={() => actions.onRemove(item)} /> : null}
+      </div>
       {repeat ? (
         // Daily is a property of the task, not a date, so its pill stays neutral; teal is kept for real schedules
         <span className={`${pillCls} flex items-center gap-1 bg-[var(--accent-wash)] text-[var(--ink-soft)]`}>
@@ -357,7 +364,7 @@ export function TodayMain({
         onOpenDaily={onOpenDaily}
       />
       {/* The list sits on a white card over the paper; no overflow-hidden, since row menus and the add picker hang out below it */}
-      <div className="mt-6 rounded-[10px] border border-[var(--hairline)] bg-[var(--panel)] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_18px_rgb(0_0_0/0.04)]">
+      <div className="mt-6 rounded-[10px] border border-[var(--hairline)] bg-[var(--panel)]">
         <QuickAdd disabled={!ready} docs={docs} categories={actions.categories} onSubmit={onAdd} />
         <div {...listDrop} className={`rounded-b-[9px] ${drag.isOver(today) ? "bg-[var(--today-tint)]" : ""}`}>
           {rows.length === 0 ? (

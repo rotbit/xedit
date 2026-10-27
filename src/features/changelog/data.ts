@@ -36,6 +36,15 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.1",
+    date: "2026-10-27",
+    title: "今天页卡片去阴影",
+    items: [
+      { kind: "improved", text: "今天页的待办卡片去掉了阴影，只留一圈细边，看起来更干净。" },
+      { kind: "fixed", text: "窗口较窄时，待办标题不再被行尾的隐藏按钮挤成一行几个字，关联的文章名也能完整显示。" },
+    ],
+  },
+  {
     version: "0.6.0",
     date: "2026-10-27",
     title: "今天页换新装",
