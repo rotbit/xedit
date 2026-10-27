@@ -151,10 +151,11 @@ function TodoRow({
           <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{sub}</div>
         ) : null}
       </div>
-      {/* Hover actions sit between the text and the status label, and leave the layout entirely while hidden: in a narrow column their reserved width
-          squeezed long titles to a few characters per line. They come back on hover, keyboard focus inside the row, or while one of their menus is open */}
+      {/* Hover actions float over the row's right end instead of sitting in the flow: reserving their width squeezed long titles in a narrow column,
+          and inserting them on hover made the text and label jump. They cover the status label while shown, on the row's hover color so nothing moves;
+          they also appear on keyboard focus inside the row and while one of their menus is open */}
       <div
-        className={`hidden shrink-0 items-start gap-1 group-hover:flex group-focus-within:flex ${
+        className={`absolute right-3.5 top-2.5 hidden items-start gap-1 bg-[var(--sidebar)] pl-2 group-hover:flex group-focus-within:flex ${
           linkOpen || menuOpen ? "flex" : ""
         }`}
       >

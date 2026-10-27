@@ -36,6 +36,12 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.2",
+    date: "2026-10-27",
+    title: "待办行悬停不再跳动",
+    items: [{ kind: "fixed", text: "鼠标移到待办上时，操作按钮改为浮在行尾上方，正文和标签不再被挤得来回移动。" }],
+  },
+  {
     version: "0.6.1",
     date: "2026-10-27",
     title: "今天页卡片去阴影",
