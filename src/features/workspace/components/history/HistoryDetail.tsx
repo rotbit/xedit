@@ -3,18 +3,18 @@
 /**
  * History page right column: a row at the top switches between this week / month / year, with details for the selected day or range below.
  * Each day lists unfinished todos due that day (or whose time span covers it) first, then completed items (those checked off on the 「今天」 (Today) page),
- * in the same order as Today; ranges are grouped by day, and this week includes upcoming scheduled days. Written documents aren't listed here.
+ * in the same order as Today (a single day sits on a card with completed first, see DayCard); ranges are grouped by day, and this week includes upcoming scheduled days. Written documents aren't listed here.
  * This year is folded by month, showing just month and count; a month's day-grouped details render only when it's expanded.
  */
 import { useState } from "react";
-import { Check, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { Locale } from "@/i18n/locale";
 import { tk, type TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import type { TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, formatMonthDay, formatWeekday, relativeDayLabel, shiftDay } from "@/lib/todos/dates";
-import { KEEP_DAYS, listDayLogKeys, type DayEvent } from "@/lib/todos/events";
+import { KEEP_DAYS, listDayLogKeys } from "@/lib/todos/events";
 import {
   dayDigest,
   earliestLogKey,
@@ -23,111 +23,15 @@ import {
   formatYearTitle,
   rangeKeys,
   rangeStart,
-  type DayDigest,
   type HistoryRange,
 } from "@/lib/todos/history";
-import { NOTES_TITLE } from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
-import { eventLabel, itemLabel, linkedDoc, rowId, TodoBox } from "../today/parts";
 import type { HistorySel } from "./HistoryView";
-
-const rowCls = "flex items-start gap-2.5 px-0.5 py-[7px] text-[13.5px] leading-[1.45]";
-
-/** How documents display and link: if still in the library use the current name and make it clickable; deleted ones use the recorded title, not clickable */
-export interface DocLookup {
-  /** Visible document id → current name */
-  titles: Map<string, string>;
-  /** id of the todo list document (hidden from the user): task rows no longer note their source */
-  notesIds: Set<string>;
-  open: (id: string) => void;
-}
+import { DayCard, DigestRows, Empty, hasRows, type DayRowsData, type DocLookup } from "./rows";
 
 function relLabel(key: string, today: string, t: TFn): string | null {
   const rel = relativeDayLabel(key, today);
   return rel === "today" ? t("今天") : rel === "yesterday" ? t("昨天") : null;
-}
-
-function TaskRow({ e, lookup, t }: { e: DayEvent; lookup: DocLookup; t: TFn }) {
-  const label = eventLabel(e.text ?? "", e.title, t);
-  // Source: not noted for the todo list doc (hidden from users) or publish schedules (title already in the text); others use the current name, deleted ones the recorded title
-  const fromNotes = (e.docId !== undefined && lookup.notesIds.has(e.docId)) || e.title === NOTES_TITLE;
-  const isPublish = e.title !== undefined && e.text === `发布《${e.title}》`; // i18n-ignore compared against the raw data text
-  const source =
-    e.title && !fromNotes && !isPublish ? ((e.docId && lookup.titles.get(e.docId)) ?? e.title) : null;
-  return (
-    <div className={rowCls}>
-      <Check size={14} className="mt-[3px] shrink-0 text-[var(--ink-faint)]" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <div>{label}</div>
-        {source ? (
-          <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{t("《{title}》", { title: source })}</div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-/** Unfinished todos: read-only; those dated before today are marked overdue */
-function PendingRow({ item, overdue, lookup, t }: { item: TodoItem; overdue: boolean; lookup: DocLookup; t: TFn }) {
-  const label = itemLabel(item, t);
-  const linked = linkedDoc(item, (id) => lookup.titles.get(id) ?? null);
-  // Source: noted for items from a document body; list items only if linked to a document; publish schedules already include the title, so not noted
-  const source = item.source === "doc" ? item.docTitle : (linked?.title ?? null);
-  // Where clicking the text goes: body items and publish schedules go to that document; the list doc is hidden from users, so only linked items are clickable
-  const openId = item.source === "notes" ? (linked?.id ?? null) : item.docId;
-  return (
-    <div className={rowCls}>
-      <TodoBox done={false} />
-      <div className="min-w-0 flex-1">
-        {openId ? (
-          <button
-            type="button"
-            className="cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)]"
-            onClick={() => lookup.open(openId)}
-          >
-            {label}
-          </button>
-        ) : (
-          <div>{label}</div>
-        )}
-        {source ? (
-          <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{t("《{title}》", { title: source })}</div>
-        ) : null}
-      </div>
-      {overdue ? (
-        <span className="ml-1 mt-[3px] shrink-0 rounded-[4px] bg-[var(--seal-wash)] px-1.5 py-px text-[11px] text-[var(--seal)]">
-          {t("逾期")}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-/** One day's details: unfinished first, completed after, same order as the Today page */
-interface DayRowsData {
-  d: DayDigest;
-  pending: TodoItem[];
-}
-
-function DigestRows({ day, today, lookup, t }: { day: DayRowsData; today: string; lookup: DocLookup; t: TFn }) {
-  const overdue = day.d.key < today;
-  return (
-    <div className="divide-y divide-[var(--hairline-soft)]">
-      {day.pending.map((item) => (
-        <PendingRow key={`p:${rowId(item)}`} item={item} overdue={overdue} lookup={lookup} t={t} />
-      ))}
-      {day.d.tasks.map((e) => (
-        <TaskRow key={e.id} e={e} lookup={lookup} t={t} />
-      ))}
-    </div>
-  );
-}
-
-// Completed items plus unfinished todos; which documents were written / created isn't listed here
-const hasRows = (day: DayRowsData) => day.pending.length > 0 || day.d.tasks.length > 0;
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="px-0.5 py-2 text-[13px] text-[var(--ink-faint)]">{children}</div>;
 }
 
 function Heading({ main, sub }: { main: string; sub: string }) {
@@ -154,8 +58,8 @@ const EMPTY_ZH: Record<HistoryRange, string> = {
 /** Range switcher: none of the three is highlighted when a specific day is selected */
 function RangeTabs({ sel, onSelect, t }: { sel: HistorySel; onSelect: (sel: HistorySel) => void; t: TFn }) {
   return (
-    // Segmented control: outlined frame + solid selected item, more prominent than a row of faint text so you can see which range you're on
-    <div className="mb-3.5 inline-flex rounded-[7px] border border-[var(--hairline)] p-0.5 text-[12.5px]">
+    // Segmented control: outlined frame + solid teal selected item (the history page shares Today's accent), so you can see which range you're on
+    <div className="mb-3.5 inline-flex rounded-[7px] border border-[var(--hairline)] bg-[var(--panel)] p-0.5 text-[12.5px]">
       {RANGES.map(({ range, zh }) => {
         const on = sel.kind === "range" && sel.range === range;
         return (
@@ -166,7 +70,7 @@ function RangeTabs({ sel, onSelect, t }: { sel: HistorySel; onSelect: (sel: Hist
             onClick={() => onSelect({ kind: "range", range })}
             className={`cursor-pointer rounded-[5px] px-3 py-1 leading-none transition-colors ${
               on
-                ? "bg-[var(--ink)] font-medium text-[var(--paper)]"
+                ? "bg-[var(--today)] font-medium text-[var(--today-fg)]"
                 : "text-[var(--ink-soft)] hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
             }`}
           >
@@ -334,17 +238,22 @@ export function HistoryDetail({
     const day = dayOf(sel.key);
     const title = formatDayTitle(sel.key, locale);
     const rel = relLabel(sel.key, today, t);
+    const done = day.d.tasks.length;
+    const total = done + day.pending.length;
     return (
       <section className="min-w-0">
         {tabs}
-        <Heading main={title.main} sub={rel ? `${title.sub} · ${rel}` : title.sub} />
-        <div className="mt-3.5">
-          {hasRows(day) ? (
-            <DigestRows day={day} today={today} lookup={lookup} t={t} />
-          ) : (
-            <Empty>{t("这天没有记录")}</Empty>
-          )}
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="min-w-0">
+            <Heading main={title.main} sub={rel ? `${title.sub} · ${rel}` : title.sub} />
+          </div>
+          {total > 0 ? (
+            <span className="shrink-0 rounded-full bg-[var(--today-wash)] px-[7px] text-[11px] leading-[18px] tabular-nums text-[var(--today)]">
+              {t("{done} / {total} 完成", { done, total })}
+            </span>
+          ) : null}
         </div>
+        <DayCard day={day} today={today} lookup={lookup} t={t} empty={t("这天没有记录")} />
       </section>
     );
   }

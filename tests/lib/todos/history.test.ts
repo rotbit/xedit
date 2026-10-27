@@ -3,6 +3,7 @@ import type { TodoItem } from "@/lib/todos/collect";
 import type { DayEvent } from "@/lib/todos/events";
 import {
   dayDigest,
+  doneStreak,
   earliestLogKey,
   earliestLogMonth,
   mondayOf,
@@ -174,5 +175,23 @@ describe("pendingByDay", () => {
 
   it("已勾掉的不收", () => {
     expect(pendingByDay([todo("done", "2026-10-12", "2026-10-14", true)]).size).toBe(0);
+  });
+});
+
+describe("doneStreak", () => {
+  const counts = (m: Record<string, number>) => (k: string) => m[k] ?? 0;
+
+  it("今天还没完成就是 0", () => {
+    expect(doneStreak("2026-10-27", counts({ "2026-10-26": 3 }))).toBe(0);
+  });
+
+  it("跨月连续计数", () => {
+    const m = { "2026-11-02": 1, "2026-11-01": 2, "2026-10-31": 1, "2026-10-30": 4 };
+    expect(doneStreak("2026-11-02", counts(m))).toBe(4);
+  });
+
+  it("中间断一天就停", () => {
+    const m = { "2026-10-27": 1, "2026-10-26": 1, "2026-10-24": 5 };
+    expect(doneStreak("2026-10-27", counts(m))).toBe(2);
   });
 });

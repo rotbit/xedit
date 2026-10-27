@@ -36,6 +36,17 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.7.0",
+    date: "2026-10-27",
+    title: "历史页换新装",
+    items: [
+      { kind: "new", text: "月历格子按当天完成的数量染上深浅不同的青色底，哪几天最忙一眼就能看出来；格子里每条记录前多了小点，实心青点是已完成、空心圈是待办、红点是逾期。" },
+      { kind: "new", text: "月份标题右侧新增本月摘要：完成了多少件、有记录的天数，以及连续完成的天数。" },
+      { kind: "improved", text: "选中某一天后，右侧记录放到了白卡上，分成「已完成」和「未完成」两段，并显示每条的完成时间；日期旁多了「完成 / 总数」的小标签。" },
+      { kind: "improved", text: "今天的日期改为青色圆底，选中的格子和周 / 月 / 年切换按钮也统一用了今天页的薄荷青。" },
+    ],
+  },
+  {
     version: "0.6.2",
     date: "2026-10-27",
     title: "待办行悬停不再跳动",

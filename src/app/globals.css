@@ -30,6 +30,8 @@
   --today: #0f8f80;
   --today-wash: #dcf1ee;
   --today-tint: #eef8f6;
+  /* Third heat step on the history calendar: busy days (4+ done) read darker than tint / wash */
+  --today-wash-deep: #c3e6df;
   --today-fg: #ffffff;
   /* Vermilion accent: the dot on section tags and small marks on headings, landing page only */
   --ember: #b4432c;
@@ -113,6 +115,8 @@
   --today: #0f8f80;
   --today-wash: #dcf1ee;
   --today-tint: #eef8f6;
+  /* Third heat step on the history calendar: busy days (4+ done) read darker than tint / wash */
+  --today-wash-deep: #c3e6df;
   --today-fg: #ffffff;
   --ember: #b4432c;
   --ember-wash: #f9ece8;
@@ -145,6 +149,8 @@
   --today: #4fc3b3;
   --today-wash: #163834;
   --today-tint: #152628;
+  /* History calendar heat step for busy days; still below --today so the teal text stays readable */
+  --today-wash-deep: #1d4a44;
   --today-fg: #0f1a19;
   /* Tone down the vermilion in dark mode, or it fluoresces on charcoal */
   --ember: #e0795d;

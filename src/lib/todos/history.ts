@@ -126,6 +126,20 @@ export function earliestLogMonth(keys: string[] = listDayLogKeys()): string | nu
   return earliestLogKey(keys)?.slice(0, 7) ?? null;
 }
 
+/**
+ * Consecutive days ending today with at least one done item; 0 when nothing is done today yet.
+ * doneOn is injected so the calendar can pass its digest counts and tests don't touch localStorage; maxDays bounds the walk.
+ */
+export function doneStreak(today: string, doneOn: (key: string) => number, maxDays = 400): number {
+  let k = today;
+  let n = 0;
+  while (n < maxDays && doneOn(k) > 0) {
+    n++;
+    k = shiftDay(k, -1);
+  }
+  return n;
+}
+
 /** The three ranges selectable in the right column */
 export type HistoryRange = "week" | "month" | "year";
 

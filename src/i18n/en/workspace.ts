@@ -258,6 +258,16 @@ export const workspace: Record<string, string> = {
   "本周 · 周一到周日": "This week · Mon–Sun",
   "只有最近 {n} 天的记录": "only the last {n} days are kept",
   逾期: "Overdue",
+  // History calendar summary, legend and single-day card
+  "{n} 件完成": "{n} {abs, to-do, to-dos} done",
+  "{n} 天有记录": "{n} active {abs, day, days}",
+  "{n} 天连续": "{n} {abs, day, days} in a row",
+  "{done} / {total} 完成": "{done} / {total} done",
+  已完成: "Done",
+  未完成: "Open",
+  待办: "To do",
+  少: "Less",
+  多: "More",
 
   // Settings page
   账号: "Account",
