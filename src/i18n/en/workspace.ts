@@ -148,6 +148,11 @@ export const workspace: Record<string, string> = {
   快速切换文章: "Quick Switch Article",
   回到最近打开: "Go to Recently Opened",
   打开今天: "Open Today",
+  // Daily notes: 「日记」 is also the reserved category name (stored in Chinese, translated for display)
+  日记: "Daily notes",
+  今日笔记: "Today's note",
+  打开今日笔记: "Open today's daily note",
+  更多新建方式: "More ways to create",
   我的待办: "My todos",
   打开回收站: "Open Trash",
   视图: "View",

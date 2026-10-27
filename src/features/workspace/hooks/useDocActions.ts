@@ -16,6 +16,8 @@ import { saveMirrorLocal, removeMirrorDoc, applyServerDoc } from "@/lib/docStore
 import { syncNow } from "@/lib/sync";
 import { applyTemplate, defaultTitleFromTemplate, isTemplateCategory } from "@/lib/templates";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
+import { DAILY_CATEGORY, findDailyNote, findDailyTemplate } from "@/lib/dailyNote";
+import { todayKey } from "@/lib/todos/dates";
 import { logEvent } from "@/lib/todos/events";
 import { useStore } from "@/store/useStore";
 import { toast } from "@/components/Toast";
@@ -173,6 +175,22 @@ export function useDocActions({ auth, library, nav }: Params) {
     await createDoc(category ?? fallback, {
       title,
       content: applyTemplate(getDocContent(template.id), { title }),
+    });
+  };
+
+  /**
+   * Open today's daily note, creating it on first use: titled with today's date, in the 「日记」 category,
+   * starting from the daily template if the user has one in 「模板」.
+   */
+  const openDailyNote = async () => {
+    const day = todayKey();
+    const existing = findDailyNote(library.docs, day);
+    if (existing) return nav.openDoc(existing.id);
+    if (creating) return; // A second click while the cloud create is in flight would make a duplicate
+    const tpl = findDailyTemplate(library.docs);
+    await createDoc(DAILY_CATEGORY, {
+      title: day,
+      content: tpl ? applyTemplate(getDocContent(tpl.id), { title: day }) : "",
     });
   };
 
@@ -433,6 +451,7 @@ export function useDocActions({ auth, library, nav }: Params) {
     createDoc,
     createDocQuietly,
     createFromTemplate,
+    openDailyNote,
     removeDoc,
     restoreDoc,
     hardDeleteDoc,

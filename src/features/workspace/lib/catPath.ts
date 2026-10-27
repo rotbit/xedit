@@ -5,6 +5,7 @@
  */
 import type { TFn } from "@/i18n/t";
 import { UNCATEGORIZED } from "@/lib/docDefaults";
+import { DAILY_CATEGORY } from "@/lib/dailyNote";
 import { TEMPLATE_CATEGORY } from "@/lib/templates";
 
 /** Parent path; top-level categories return an empty string (which is also the key for the "top level" drop target) */
@@ -16,11 +17,11 @@ export const nameOf = (path: string): string =>
   path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
 
 /**
- * Displaying category names: 「未分类」 and 「模板」 are reserved names written into data and matched literally, so they're always stored in Chinese
+ * Displaying category names: 「未分类」, 「模板」 and 「日记」 are reserved names written into data and matched literally, so they're always stored in Chinese
  * and only translated for display. User-created category names are shown as-is — the whole string can't be passed to t(),
  * or a category that happens to be named something like 「删除」 would get translated by the dictionary.
  */
-const RESERVED_CATS = new Set<string>([UNCATEGORIZED, TEMPLATE_CATEGORY]);
+const RESERVED_CATS = new Set<string>([UNCATEGORIZED, TEMPLATE_CATEGORY, DAILY_CATEGORY]);
 
 export const displayCatName = (name: string, t: TFn): string =>
   RESERVED_CATS.has(name) ? t(name) : name;

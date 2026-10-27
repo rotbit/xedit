@@ -9,7 +9,7 @@
  */
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BookDown, ChevronDown, FileInput, FilePlus2, FolderInput, Loader2 } from "lucide-react";
+import { BookDown, ChevronDown, FileInput, FilePlus2, FolderInput, Loader2, NotebookPen } from "lucide-react";
 import { useDismissMenu } from "@/hooks/useDismissMenu";
 import { useEscape } from "@/hooks/useEscape";
 import { useT } from "@/i18n/useT";
@@ -70,7 +70,7 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
         <button
           className={`flex h-7 w-6 cursor-pointer items-center justify-center rounded text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${anchor ? "bg-[var(--accent-wash)] text-[var(--ink)]" : ""}`}
           data-menu-trigger
-          title={t("导入")}
+          title={t("更多新建方式")}
           onClick={toggle}
         >
           <ChevronDown size={14} />
@@ -84,6 +84,11 @@ export function NewDocButton({ ws }: { ws: Workspace }) {
               className={menuPanelCls}
               style={{ top: anchor.top, right: anchor.right, width: MENU_WIDTH }}
             >
+              <button className={menuItemCls} onClick={run(() => void docActions.openDailyNote())}>
+                <NotebookPen size={14} className="text-[var(--ink-faint)]" />
+                {t("今日笔记")}
+              </button>
+              <div className="my-1 border-t border-[var(--hairline)]" />
               <button className={menuItemCls} onClick={openImport("file")}>
                 <FileInput size={14} className="text-[var(--ink-faint)]" />
                 {t("导入文件")}

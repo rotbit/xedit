@@ -41,6 +41,12 @@ export function useWorkspaceCommands({ ws, enabled, onQuickSwitch }: Params) {
           run: () => docActions.createDoc(),
         },
         {
+          id: "workspace.daily",
+          group: t("文章"),
+          label: t("打开今日笔记"),
+          run: () => docActions.openDailyNote(),
+        },
+        {
           id: "workspace.switch",
           group: t("导航"),
           label: t("快速切换文章"),
