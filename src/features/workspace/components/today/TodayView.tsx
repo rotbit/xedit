@@ -15,11 +15,19 @@ import { collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { splitRepeatTag } from "@/lib/todos/dates";
 import { removeDayEvent, type DayEvent } from "@/lib/todos/events";
 import type { DueRange } from "@/lib/todos/parse";
-import { addNoteTask, deleteTask, setTaskChecked, setTaskDue, setTaskLink, setTaskRepeat } from "@/lib/todos/write";
+import {
+  addNoteTask,
+  deleteTask,
+  reorderTask,
+  setTaskChecked,
+  setTaskDue,
+  setTaskLink,
+  setTaskRepeat,
+} from "@/lib/todos/write";
 import type { Workspace } from "../../hooks/useWorkspace";
 import { HISTORY } from "../../constants";
 import { allCategories } from "../../lib/catTree";
-import type { RowActions } from "./parts";
+import { rowId, type RowActions } from "./parts";
 import type { AddTarget } from "./AddTarget";
 import { doneThisWeek, doneToday } from "./doneToday";
 import { TodayMain } from "./TodayMain";
@@ -110,6 +118,15 @@ export function TodayView({ ws }: { ws: Workspace }) {
     }
   };
 
+  /** Line order in the checklist is the list order, so rewriting the doc is enough: the recompute after the write shows the new order */
+  const reorder = async (item: TodoItem, target: TodoItem, place: "before" | "after"): Promise<void> => {
+    try {
+      await reorderTask(item, target, place);
+    } catch {
+      toast(t("保存失败：浏览器存储空间不足"), "error");
+    }
+  };
+
   const linkNew = async (item: TodoItem, title: string, category: string): Promise<void> => {
     let id: string;
     try {
@@ -131,6 +148,10 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const opt = useTodoOptimism(all, today, { toggle, remove, move });
   const { buckets } = opt;
   const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
+  // Rows that can be dragged up / down: open checklist items of the today bucket (see RowActions.reorderable). Keyed by rowId so optimistic copies still match
+  const reorderIds = new Set(
+    buckets.today.filter((i) => i.source === "notes" && !i.checked && !opt.isDone(i)).map(rowId)
+  );
   // Log changes trigger re-renders via useTodaySignals, so reading fresh on every render is fine
   const done = doneToday(today, rows);
   const week = doneThisWeek(today, rows);
@@ -157,6 +178,8 @@ export function TodayView({ ws }: { ws: Workspace }) {
     onRemove: (item) => void opt.remove(item),
     onLink: (item, id) => void link(item, id),
     onLinkNew: (item, title, category) => void linkNew(item, title, category),
+    reorderable: (item) => reorderIds.has(rowId(item)),
+    onReorder: (item, target, place) => void reorder(item, target, place),
     categories,
     docTitleOf: (id) => titles.get(id) ?? null,
     menuId,
@@ -187,6 +210,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
             onUndo={undo}
             onAdd={addToday}
             onOpenHistory={() => nav.openCategory(HISTORY)}
+            onOpenDaily={() => void docActions.openDailyNote()}
           />
           <UpcomingColumn
             today={today}

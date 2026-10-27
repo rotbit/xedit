@@ -59,6 +59,13 @@ export interface RowActions {
   onLinkNew: (item: TodoItem, title: string, category: string) => void;
   /** Folders a "New document" can go into (template categories filtered out); all three pickers need it, so it's passed down with the row actions */
   categories: string[];
+  /**
+   * Whether this row takes part in drag-to-reorder: only open checklist items in the left column's today bucket. Overdue is sorted by date,
+   * done rows aren't scheduled, and body / publish items' order comes from the library, so dragging them up or down would have nothing to persist.
+   */
+  reorderable: (item: TodoItem) => boolean;
+  /** Drop a reorderable row onto another: move its checklist line to just before / after the target's */
+  onReorder: (item: TodoItem, target: TodoItem, place: "before" | "after") => void;
   /** Doc id → display title; null if not found (deleted, or not in the library) */
   docTitleOf: (id: string) => string | null;
   /** The currently open menu: rowId for the date menu, `${rowId}|link` for the link menu; null if none */

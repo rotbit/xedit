@@ -19,6 +19,7 @@ import { logEvent } from "./events";
 import {
   appendTask,
   markPublished,
+  moveTaskLine,
   parseTaskLines,
   removeTaskLine,
   resolveTask,
@@ -167,6 +168,22 @@ export async function setTaskRepeat(item: TodoItem, on: boolean): Promise<void> 
   const line = locateTask(md, item, null, today);
   if (line < 0) return;
   const next = setTaskLineRepeat(md, line, on, today);
+  if (next === md) return;
+  await writeDocContent(item.docId, next);
+}
+
+/**
+ * Drag-to-reorder: move item's line to just before / after target's line. Only checklist items in the same doc can be reordered —
+ * the Today list's order for those is simply their line order in the checklist, so moving the line is the whole persistence story (no separate order store).
+ * Lines are located fresh (the list may be stale against edits made elsewhere); if either is gone, do nothing.
+ */
+export async function reorderTask(item: TodoItem, target: TodoItem, place: "before" | "after"): Promise<void> {
+  if (item.source !== "notes" || target.source !== "notes" || item.docId !== target.docId) return;
+  const md = readDocContent(item.docId);
+  const from = locateTask(md, item, null);
+  const to = locateTask(md, target, null);
+  if (from < 0 || to < 0) return;
+  const next = moveTaskLine(md, from, to, place);
   if (next === md) return;
   await writeDocContent(item.docId, next);
 }

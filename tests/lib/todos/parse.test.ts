@@ -3,6 +3,7 @@ import {
   appendTask,
   isNotesDoc,
   markPublished,
+  moveTaskLine,
   parsePublish,
   parseTaskRaw,
   parseTasks,
@@ -240,5 +241,40 @@ describe("每日任务", () => {
     expect(parseTaskRaw(`跑步 [[abc]] @每天:${T}`, T)).toEqual({ text: "跑步", due: T, end: null, link: "abc" });
     expect(setTaskLineLink("- [ ] 跑步 @每天:2026-10-07", 0, "a", T)).toBe("- [ ] 跑步 [[a]] @每天:2026-10-07");
     expect(setTaskLineLink("- [ ] 跑步 [[a]] @daily", 0, null, T)).toBe("- [ ] 跑步 @daily");
+  });
+});
+
+describe("moveTaskLine", () => {
+  it("移到目标行之前 / 之后，上移下移都对", () => {
+    const md = "- [ ] a\n- [ ] b\n- [ ] c\n";
+    expect(moveTaskLine(md, 2, 0, "before")).toBe("- [ ] c\n- [ ] a\n- [ ] b\n");
+    expect(moveTaskLine(md, 0, 2, "after")).toBe("- [ ] b\n- [ ] c\n- [ ] a\n");
+    expect(moveTaskLine(md, 0, 2, "before")).toBe("- [ ] b\n- [ ] a\n- [ ] c\n");
+    expect(moveTaskLine(md, 2, 0, "after")).toBe("- [ ] a\n- [ ] c\n- [ ] b\n");
+  });
+
+  it("保留 \\r\\n，末行无换行时也不留孤立的 \\r", () => {
+    expect(moveTaskLine("- [ ] a\r\n- [ ] b\r\n", 1, 0, "before")).toBe("- [ ] b\r\n- [ ] a\r\n");
+    expect(moveTaskLine("- [ ] a\r\n- [ ] b", 1, 0, "before")).toBe("- [ ] b\r\n- [ ] a");
+    expect(moveTaskLine("- [ ] a\r\n- [ ] b", 0, 1, "after")).toBe("- [ ] b\r\n- [ ] a");
+  });
+
+  it("行号按全文计（含 frontmatter）", () => {
+    const md = "---\ntype: todo\n---\n\n- [ ] a\n- [ ] b";
+    expect(moveTaskLine(md, 5, 4, "before")).toBe("---\ntype: todo\n---\n\n- [ ] b\n- [ ] a");
+  });
+
+  it("原地不动、结果相同时原样返回", () => {
+    const md = "- [ ] a\n- [ ] b\n";
+    expect(moveTaskLine(md, 0, 0, "before")).toBe(md);
+    expect(moveTaskLine(md, 0, 1, "before")).toBe(md);
+    expect(moveTaskLine(md, 1, 0, "after")).toBe(md);
+  });
+
+  it("任一行不是任务行或越界不动", () => {
+    const md = "标题\n- [ ] a\n- [ ] b\n";
+    expect(moveTaskLine(md, 2, 0, "before")).toBe(md);
+    expect(moveTaskLine(md, 0, 2, "after")).toBe(md);
+    expect(moveTaskLine(md, 1, 9, "after")).toBe(md);
   });
 });

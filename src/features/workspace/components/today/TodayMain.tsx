@@ -6,7 +6,7 @@
  * Below the list is "Done this week": things checked today (from the daily log, still here even after a refresh drops them from the list) plus earlier days this week by day;
  * the section ends with a "Completed history" row leading to the history page. "Recently opened" is in the right column's UpcomingColumn, not here.
  */
-import { CalendarDays, ChevronRight, FileText, Repeat } from "lucide-react";
+import { CalendarDays, ChevronRight, FileText, NotebookPen, Repeat } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
@@ -103,11 +103,21 @@ function TodoRow({
   const canRemove = !done && item.source !== "publish";
   // Done items can't be dragged: they're no longer scheduled on any day
   const drag = useTodoDrag();
+  const indicator = done ? null : drag.rowIndicator(item);
   return (
     <div
-      {...(done ? {} : drag.dragProps(item))}
+      {...(done ? {} : { ...drag.dragProps(item), ...drag.rowDropProps(item) })}
       className={`group relative flex items-start gap-2.5 px-0.5 py-2 ${done ? "" : dragRowCls(drag, item)}`}
     >
+      {/* Reorder insertion line: drawn on the row edge it will land on, straddling the gap so before-this and after-previous look the same */}
+      {indicator ? (
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute left-0 right-0 h-[2px] rounded-full bg-[var(--accent)] ${
+            indicator === "before" ? "top-[-1px]" : "bottom-[-1px]"
+          }`}
+        />
+      ) : null}
       <TodoBox done={done} onClick={onToggle} label={done ? t("取消完成") : t("标记完成")} />
       <div className="min-w-0 flex-1">
         {/* Click the text to see the source: todos often need the doc for the details */}
@@ -292,6 +302,7 @@ export function TodayMain({
   onUndo,
   onAdd,
   onOpenHistory,
+  onOpenDaily,
 }: {
   today: string;
   /** Overdue + today + just checked */
@@ -314,6 +325,8 @@ export function TodayMain({
   onAdd: (text: string, target: AddTarget) => Promise<boolean>;
   /** "Completed history" entry: go to the history page */
   onOpenHistory: () => void;
+  /** Open today's daily note, creating it on first use */
+  onOpenDaily: () => void;
 }) {
   const t = useT();
   // Pass the context locale explicitly when formatting dates: during SSR module variables are shared across requests and unreliable
@@ -327,7 +340,17 @@ export function TodayMain({
   const listDrop = drag.dropProps(today, { accept: (i) => i.due !== null && i.due > today });
   return (
     <div className="min-w-0">
-      <h1 className="text-[30px] font-semibold leading-[1.15] tracking-tight">{title.main}</h1>
+      {/* The daily note sits beside the date it's named after: a quiet outlined button, so the page still reads as a task list first */}
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-[30px] font-semibold leading-[1.15] tracking-tight">{title.main}</h1>
+        <button
+          className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--hairline)] px-2.5 text-[12.5px] font-medium text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+          onClick={onOpenDaily}
+        >
+          <NotebookPen size={14} className="text-[var(--ink-faint)]" />
+          {t("今日笔记")}
+        </button>
+      </div>
       <div className="mb-6 mt-1.5 text-[13px] text-[var(--ink-faint)] tabular-nums">
         {title.sub} · {t("今天")}
         {wrote.chars > 0 ? ` · ${t("写了 {n} 字", { n: wrote.chars.toLocaleString(locale), abs: wrote.chars })}` : null}

@@ -182,6 +182,29 @@ export function removeTaskLine(md: string, line: number): string {
   return lines.join("\n");
 }
 
+/**
+ * Move task line `from` to just before / after task line `to` (used by drag-to-reorder on the Today page; the checklist's line order is the list order).
+ * Both must be task lines or md comes back unchanged. Line numbers count the whole text (frontmatter included), same as parseTaskLines.
+ * Line endings are tracked per position, not per line: in a \r\n doc whose last line has no newline, moving that last line up must give it a \r
+ * and the new last line must lose one, otherwise the join produces a stray \r mid-line. So strip \r, move the content, then re-apply each slot's \r.
+ */
+export function moveTaskLine(md: string, from: number, to: number, place: "before" | "after"): string {
+  if (from === to) return md;
+  const lines = md.split("\n");
+  const src = lines[from];
+  const dst = lines[to];
+  if (src === undefined || dst === undefined) return md;
+  const cr = lines.map((l) => l.endsWith("\r"));
+  const bare = lines.map((l) => l.replace(/\r$/, ""));
+  if (!TASK_RE.test(bare[from]) || !TASK_RE.test(bare[to])) return md;
+  const [moved] = bare.splice(from, 1);
+  // Removing `from` shifts every line below it up by one
+  const target = to > from ? to - 1 : to;
+  bare.splice(place === "before" ? target : target + 1, 0, moved);
+  const next = bare.map((l, i) => (cr[i] ? `${l}\r` : l)).join("\n");
+  return next === md ? md : next;
+}
+
 /** Append a `- [ ] text` line; reuses the original newline style and works whether or not the text ends with a newline */
 export function appendTask(md: string, text: string): string {
   const clean = text.replace(/[\r\n]+/g, " ").trim();

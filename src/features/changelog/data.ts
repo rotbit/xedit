@@ -36,6 +36,18 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.5.0",
+    date: "2026-10-27",
+    title: "今日笔记，待办拖动排序",
+    items: [
+      {
+        kind: "new",
+        text: "新增「今日笔记」：今天页日期旁、新建菜单和命令面板都能一键打开当天的日记，第一次打开自动创建在「日记」分类，模板里有日记模板就按模板起稿。",
+      },
+      { kind: "new", text: "今天页的待办可以按住上下拖动排序，松手就落位；顺序存在待办清单里，各设备保持一致。" },
+    ],
+  },
+  {
     version: "0.4.0",
     date: "2026-10-21",
     title: "官网讲清免费范围，新增与 Notion / Obsidian 的对比",
