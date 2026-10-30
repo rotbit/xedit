@@ -24,6 +24,8 @@ export interface DocLookup {
   /** id of the todo list document (hidden from the user): task rows no longer note their source */
   notesIds: Set<string>;
   open: (id: string) => void;
+  /** The document a done record opens on click (doneOpenId in today/parts.tsx); null when there's nothing to open */
+  openIdOf: (e: DayEvent) => string | null;
 }
 
 /** Source chip: same teal chip Today rows use for a linked doc, so the two pages read as one system */
@@ -49,11 +51,24 @@ function TaskRow({ e, lookup, inset, t }: { e: DayEvent; lookup: DocLookup; inse
   const fromNotes = (e.docId !== undefined && lookup.notesIds.has(e.docId)) || e.title === NOTES_TITLE;
   const isPublish = e.title !== undefined && e.text === `发布《${e.title}》`; // i18n-ignore compared against the raw data text
   const source = e.title && !fromNotes && !isPublish ? ((e.docId && lookup.titles.get(e.docId)) ?? e.title) : null;
+  // Where clicking the text goes: the linked article of a checklist item, or the document a body item / publish schedule belongs to
+  const openId = lookup.openIdOf(e);
+  const textCls = "text-[var(--ink-soft)] line-through decoration-[var(--hairline-strong)]";
   return (
     <div className={rowCls(inset)}>
       <TodoBox done />
       <div className="min-w-0 flex-1">
-        <div className="text-[var(--ink-soft)] line-through decoration-[var(--hairline-strong)]">{label}</div>
+        {openId ? (
+          <button
+            type="button"
+            className={`${textCls} cursor-pointer text-left hover:text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)]`}
+            onClick={() => lookup.open(openId)}
+          >
+            {label}
+          </button>
+        ) : (
+          <div className={textCls}>{label}</div>
+        )}
         {source ? <SourceChip title={source} t={t} /> : null}
       </div>
       <span className="mt-[2px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>

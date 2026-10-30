@@ -12,7 +12,7 @@ import type { Locale } from "@/i18n/locale";
 import { tk, type TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
-import type { TodoItem } from "@/lib/todos/collect";
+import { collectTodos, type TodoItem } from "@/lib/todos/collect";
 import { formatDayTitle, formatMonthDay, formatWeekday, relativeDayLabel, shiftDay } from "@/lib/todos/dates";
 import { KEEP_DAYS, listDayLogKeys } from "@/lib/todos/events";
 import {
@@ -27,6 +27,7 @@ import {
 } from "@/lib/todos/history";
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { HistorySel } from "./HistoryView";
+import { doneOpenId } from "../today/parts";
 import { DayCard, DigestRows, Empty, hasRows, type DayRowsData, type DocLookup } from "./rows";
 
 function relLabel(key: string, today: string, t: TFn): string | null {
@@ -225,11 +226,15 @@ export function HistoryDetail({
   const { library, nav } = ws;
   const docs = library.docs ?? [];
   const visible = new Set(docs.map((d) => d.id));
+  const titles = new Map(docs.map((d) => [d.id, d.title || t(UNTITLED_DOC)]));
+  // Every todo in the library, checked ones included: a done record is matched back to its line to find the article it's about (parse results are cached per doc)
+  const items = collectTodos(library.allDocs ?? [], today);
   const lookup: DocLookup = {
-    titles: new Map(docs.map((d) => [d.id, d.title || t(UNTITLED_DOC)])),
+    titles,
     // What's in the full library but not the visible list is the todo list document (deliberately hidden)
     notesIds: new Set((library.allDocs ?? []).filter((d) => !visible.has(d.id)).map((d) => d.id)),
     open: nav.openDoc,
+    openIdOf: (e) => doneOpenId(e, items, (id) => titles.get(id) ?? null),
   };
   const tabs = <RangeTabs sel={sel} onSelect={onSelect} t={t} />;
   const dayOf = (key: string): DayRowsData => ({ d: dayDigest(key), pending: pending.get(key) ?? [] });

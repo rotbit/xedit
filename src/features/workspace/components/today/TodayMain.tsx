@@ -217,15 +217,41 @@ function clock(ts: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** A row in "Done": read-only, no navigation; a mistaken entry can be deleted (only the log record, not the body) */
-/** A done row; only with onUndo (today's) can the check be clicked to undo; earlier days are read-only */
-function DoneRow({ day, e, t, onUndo }: { day: string; e: DayEvent; t: TFn; onUndo?: () => void }) {
+/**
+ * A done row; only with onUndo (today's) can the check be clicked to undo; earlier days are read-only.
+ * The text opens the document the task is about (openId, resolved by the page) when there is one; a mistaken entry can be deleted (only the log record, not the body)
+ */
+function DoneRow({
+  day,
+  e,
+  t,
+  openId,
+  onOpen,
+  onUndo,
+}: {
+  day: string;
+  e: DayEvent;
+  t: TFn;
+  openId: string | null;
+  onOpen: (id: string) => void;
+  onUndo?: () => void;
+}) {
+  const label = eventLabel(e.text ?? "", e.title, t);
+  const textCls = "min-w-0 flex-1 text-[13.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]";
   return (
     <div className="group flex items-start gap-2.5 px-0.5 py-1.5">
       <TodoBox done onClick={onUndo} label={onUndo ? t("取消完成") : undefined} />
-      <span className="min-w-0 flex-1 text-[13.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]">
-        {eventLabel(e.text ?? "", e.title, t)}
-      </span>
+      {openId ? (
+        <button
+          type="button"
+          className={`${textCls} cursor-pointer text-left hover:text-[var(--ink-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)]`}
+          onClick={() => onOpen(openId)}
+        >
+          {label}
+        </button>
+      ) : (
+        <span className={textCls}>{label}</span>
+      )}
       <span className="mt-[2px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>
       <RemoveButton label={t("删除这条记录")} onClick={() => removeDayEvent(day, e.id)} />
     </div>
@@ -242,6 +268,8 @@ function DoneSection({
   week,
   total,
   t,
+  openIdOf,
+  onOpen,
   onUndo,
   onOpenHistory,
 }: {
@@ -251,6 +279,8 @@ function DoneSection({
   /** Everything ever done in the local log (doneCountAll) */
   total: number;
   t: TFn;
+  openIdOf: (e: DayEvent) => string | null;
+  onOpen: (id: string) => void;
   onUndo: (e: DayEvent) => void;
   onOpenHistory: () => void;
 }) {
@@ -273,7 +303,7 @@ function DoneSection({
       {done.length > 0 ? (
         <div className="divide-y divide-[var(--hairline-soft)]">
           {done.map((e) => (
-            <DoneRow key={e.id} day={today} e={e} t={t} onUndo={() => onUndo(e)} />
+            <DoneRow key={e.id} day={today} e={e} t={t} openId={openIdOf(e)} onOpen={onOpen} onUndo={() => onUndo(e)} />
           ))}
         </div>
       ) : null}
@@ -284,7 +314,7 @@ function DoneSection({
           </h3>
           <div className="divide-y divide-[var(--hairline-soft)]">
             {g.events.map((e) => (
-              <DoneRow key={e.id} day={g.day} e={e} t={t} />
+              <DoneRow key={e.id} day={g.day} e={e} t={t} openId={openIdOf(e)} onOpen={onOpen} />
             ))}
           </div>
         </div>
@@ -321,6 +351,7 @@ export function TodayMain({
   actions,
   onToggle,
   onUndo,
+  doneOpenId,
   onAdd,
   onOpenHistory,
   onOpenDaily,
@@ -343,6 +374,8 @@ export function TodayMain({
   onToggle: (item: TodoItem, checked: boolean) => void;
   /** Clicking the check in "Done": mark undone, back to the list */
   onUndo: (e: DayEvent) => void;
+  /** The document a "Done" row opens on click: its linked article, or the document it was written in; null when there's nothing to open */
+  doneOpenId: (e: DayEvent) => string | null;
   onAdd: (text: string, target: AddTarget) => Promise<boolean>;
   /** "Completed history" entry: go to the history page */
   onOpenHistory: () => void;
@@ -403,6 +436,8 @@ export function TodayMain({
         week={week}
         total={doneCountAll()}
         t={t}
+        openIdOf={doneOpenId}
+        onOpen={actions.onOpenDoc}
         onUndo={onUndo}
         onOpenHistory={onOpenHistory}
       />

@@ -4,6 +4,7 @@
 import { Check, X } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import type { TodoItem } from "@/lib/todos/collect";
+import type { DayEvent } from "@/lib/todos/events";
 import type { DueRange } from "@/lib/todos/parse";
 
 /**
@@ -32,6 +33,18 @@ export function linkedDoc(
   if (item.source !== "notes" || !item.link) return null;
   const title = titleOf(item.link);
   return title === null ? null : { id: item.link, title };
+}
+
+/**
+ * Where clicking a "Done" record goes. The record stores only doc + text, so find the (still checked) line it came from among `items`:
+ * a checklist item goes to its linked article, if any; a body item or publish schedule goes to that document. The checklist doc itself
+ * is hidden from the user (titleOf returns null for it), so a record whose line is gone resolves only when its doc is a visible one.
+ */
+export function doneOpenId(e: DayEvent, items: TodoItem[], titleOf: (id: string) => string | null): string | null {
+  if (!e.docId) return null;
+  const item = items.find((i) => i.docId === e.docId && i.text === e.text);
+  if (item?.source === "notes") return linkedDoc(item, titleOf)?.id ?? null;
+  return titleOf(e.docId) === null ? null : e.docId;
 }
 
 /**

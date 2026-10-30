@@ -36,6 +36,14 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.7.1",
+    date: "2026-10-30",
+    title: "已完成的待办也能点开文章",
+    items: [
+      { kind: "improved", text: "今天页「本周已完成」和历史页「已完成」里的条目，如果关联了文章或来自某篇文章，点一下就能打开那篇文章，之前打过勾的记录同样有效。" },
+    ],
+  },
+  {
     version: "0.7.0",
     date: "2026-10-27",
     title: "历史页换新装",
