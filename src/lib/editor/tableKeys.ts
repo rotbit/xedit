@@ -14,17 +14,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import { caretInFencedCode } from "@/lib/livePreview/context";
-
-interface Cell {
-  /** Full cell range (including padding spaces on both sides), excluding the pipes */
-  from: number;
-  to: number;
-}
-
-/** Delimiter row `| --- | :-: |`: not content, Tab always skips over it */
-function isDelimiterRow(line: Line): boolean {
-  return line.text.includes("-") && /^[\s|:-]+$/.test(line.text);
-}
+import { cellsOf, contentRange, isDelimiterRow } from "@/lib/editor/tableOps";
 
 function isTableLine(line: Line): boolean {
   return line.text.trim().startsWith("|");
@@ -37,38 +27,6 @@ function inTableNode(state: EditorState, pos: number): boolean {
     }
   }
   return false;
-}
-
-/** Split this line into cells on pipes; `\|` is an escaped pipe and doesn't count */
-function cellsOf(line: Line): Cell[] {
-  const text = line.text;
-  const bars: number[] = [];
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === "\\") i++;
-    else if (text[i] === "|") bars.push(i);
-  }
-  if (bars.length === 0) return [];
-  const cells: Cell[] = [];
-  // Leading/trailing pipes are optional; without them, the segment outside the pipe is a cell too
-  if (text.slice(0, bars[0]).trim()) cells.push({ from: line.from, to: line.from + bars[0] });
-  for (let i = 0; i + 1 < bars.length; i++) {
-    cells.push({ from: line.from + bars[i] + 1, to: line.from + bars[i + 1] });
-  }
-  const tailAt = bars[bars.length - 1] + 1;
-  if (text.slice(tailAt).trim()) cells.push({ from: line.from + tailAt, to: line.to });
-  return cells;
-}
-
-/** Content range of a cell: jumping in selects the content so typing replaces it (empty cells just get a cursor) */
-function contentRange(state: EditorState, cell: Cell): [number, number] {
-  const text = state.sliceDoc(cell.from, cell.to);
-  const lead = text.length - text.trimStart().length;
-  const trail = text.length - text.trimEnd().length;
-  if (lead + trail >= text.length) {
-    const at = Math.min(cell.from + 1, cell.to);
-    return [at, at];
-  }
-  return [cell.from + lead, cell.to - trail];
 }
 
 /** Line range the table occupies: scan both ways from the cursor line, all contiguous table rows count */

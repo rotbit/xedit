@@ -211,4 +211,14 @@ export const editor: Record<string, string> = {
   "已替换 $ 处匹配": "replaced $ matches",
   跳转到行: "Go to line",
   跳转: "Go",
+
+  // Live-preview table toolbar
+  上方插入行: "Insert row above",
+  下方插入行: "Insert row below",
+  删除行: "Delete row",
+  左侧插入列: "Insert column left",
+  右侧插入列: "Insert column right",
+  删除列: "Delete column",
+  对齐: "Cycle column alignment",
+  源码: "Edit as Markdown source",
 };

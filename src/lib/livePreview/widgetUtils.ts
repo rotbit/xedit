@@ -6,12 +6,13 @@ import type { EditorView } from "@codemirror/view";
 /**
  * Clicking a widget means "I want to edit": put the cursor inside the syntax (source is revealed only when strictly inside the range).
  *
- * - offset: chars to skip past the opening marker (`![` is 2, `$$` is 2, a rule is 1, a table row's leading `|` is 1...),
+ * - offset: chars to skip past the opening marker (`![` is 2, `$$` is 2, a rule is 1...),
  *   so the cursor lands inside the range and the decoration yields to source (images/videos now check boundaries, so this
  *   is no longer required to reveal them, but we still use 2 to land in the alt text: typing edits the caption instead of eating the `!`)
  * - anchor: the posAtDOM anchor, defaulting to the element with the listener. The video player bar swallows all clicks,
  *   so the edit entry must sit on the caption below, while the position is resolved via the outer container; hence they can differ
- * - table cells also carry data-source-offset: the cursor lands in the clicked cell, taking precedence over offset
+ * - an element carrying data-source-offset under the click takes precedence over offset (for widgets that map
+ *   sub-elements to source positions)
  */
 export function editOnClick(
   el: HTMLElement,

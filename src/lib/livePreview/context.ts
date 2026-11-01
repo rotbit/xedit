@@ -51,7 +51,8 @@ export function selectionInside(state: EditorState, from: number, to: number): b
   return state.selection.ranges.some((r) => !r.empty && r.from > from && r.to < to);
 }
 
-/** Cursor within [from, to] (inclusive) — the reveal check shared by inline syntax and whole widgets (images/video/dividers/tables/math).
+/** Cursor within [from, to] (inclusive) — the reveal check shared by inline syntax and whole widgets (images/video/dividers/math,
+    and tables only once switched to source; see tableSource.ts).
     Boundaries must count: after opening the source, the cursor moving to either end (line start, after `)`, end of `---`)
     lands right on a boundary; a strict-interior check would flip back to the widget, so moving within the line would flicker.
     Cursor only, not selections: on drag/select-all every widget would gain a few lines of source and the layout would jolt */

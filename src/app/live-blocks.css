@@ -6,6 +6,7 @@
 /* Rounded corners are drawn on the outer div: the table uses border-collapse, so its outer border would poke square corners through,
    so the outer frame belongs to the wrapper and cells only draw the inner grid lines */
 .cm-live-preview .cm-lp-table {
+  position: relative;
   overflow: hidden;
   margin: 6px 0;
   border: 1px solid var(--hairline);
@@ -55,6 +56,75 @@
   color: var(--md-link);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* In-place cell editing (lib/livePreview/tableEdit.ts): the focused cell shows its raw source; a faint inset ring marks it
+   instead of the browser's focus outline, which would be clipped by the rounded frame */
+.cm-live-preview .cm-lp-table th:focus,
+.cm-live-preview .cm-lp-table td:focus {
+  outline: none;
+}
+.cm-live-preview .cm-lp-table .cm-lp-cell-editing {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent);
+  white-space: pre-wrap;
+}
+
+/* Hover toolbar: top-right inside the frame, only on hover or while a cell is focused; muted until a button is hovered */
+.cm-live-preview .cm-lp-table-tools {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--paper);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.cm-live-preview .cm-lp-table:hover .cm-lp-table-tools,
+.cm-live-preview .cm-lp-table:focus-within .cm-lp-table-tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+.cm-live-preview .cm-lp-table-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+/* Small gaps between the row / column / other groups */
+.cm-live-preview .cm-lp-table-tool-col-left,
+.cm-live-preview .cm-lp-table-tool-align {
+  margin-left: 5px;
+}
+.cm-live-preview .cm-lp-table-tool:hover {
+  background: var(--accent-wash);
+  color: var(--ink);
+}
+.cm-live-preview .cm-lp-table-tool-row-delete:hover,
+.cm-live-preview .cm-lp-table-tool-col-delete:hover {
+  color: rgb(224 72 76);
+}
+@media print {
+  .cm-live-preview .cm-lp-table-tools {
+    display: none;
+  }
 }
 
 /* —— Display math —— */

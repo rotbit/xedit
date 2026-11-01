@@ -30,6 +30,7 @@ import { footnoteDefLine, isFootnoteDefLine } from "@/lib/livePreview/footnote";
 import { fencedCodeDecorations } from "@/lib/livePreview/fence";
 import { fenceKeymap } from "@/lib/livePreview/fenceKeys";
 import { livePreviewBlocks, renderedBlockRanges } from "@/lib/livePreview/blocks";
+import { tableBoundary } from "@/lib/livePreview/tableBoundary";
 import { colorSpanKeys } from "@/lib/editor/colorSpanKeys";
 import { requestOpenWikiLink } from "@/lib/wikiLink";
 
@@ -40,10 +41,12 @@ import { requestOpenWikiLink } from "@/lib/wikiLink";
  * - inline markers (**, `, ~~, links): shown only when the cursor enters that syntax range, so shifts happen only at the focus point
  * - line-start markers (#, >): take no space when the cursor isn't on the line; on the line they hang in a zero-width box outside the text's left edge,
  *   so the text's left edge stays put in both states
- * - whole widgets (images/video/dividers/tables/math): source expands as soon as the cursor touches either boundary (clicking the widget
+ * - whole widgets (images/video/dividers/math): source expands as soon as the cursor touches either boundary (clicking the widget
  *   or arrowing past both count); otherwise atomicRanges makes the cursor skip over them; when an image expands its source shows as-is
  *   and the image moves below the source — if the image vanished, the layout would collapse (see the Image branch in inline.ts).
  *   Always cursor only, never sweeping selections: if ⌘A/drag burst every widget into source, the whole layout would jump
+ * - tables are the exception: they stay rendered and are edited in place cell by cell (tableEdit.ts); their source shows only
+ *   when asked for from the table toolbar (tableSource.ts)
  * - task lists: `- ` is always hidden, `[ ]` appears only when the cursor enters the marker, so Home/← to line start causes zero shift
  *
  * Multi-line replacements (tables, $$ math) aren't in this plugin — CodeMirror forbids plugins from providing multi-line replace;
@@ -455,4 +458,6 @@ export const livePreview: Extension = [
   fenceKeymap,
   // Same for color spans: the opening/closing tags are usually hidden and atomic, so delete keys skip them and clean up orphans when half is deleted
   colorSpanKeys,
+  // The editor caret at a rendered table's edge: delete keys step into the table, typing goes onto its own line
+  tableBoundary,
 ];

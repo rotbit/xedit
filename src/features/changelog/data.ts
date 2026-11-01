@@ -36,6 +36,25 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.9.0",
+    date: "2026-11-01",
+    title: "表格直接在表格里改",
+    items: [
+      {
+        kind: "new",
+        text: "表格不再因为光标进入而展开成竖线源码：点进单元格就能直接改字，Tab / Shift+Tab 横向跳格，Enter 向下跳、在末行按 Enter 追加新行，Shift+Enter 在格内换行，Esc 退出表格",
+      },
+      {
+        kind: "new",
+        text: "鼠标悬停表格右上角出现工具栏：上下插行、删行、左右插列、删列、切换列对齐，需要时也能一键查看源码，光标离开后自动变回表格",
+      },
+      {
+        kind: "improved",
+        text: "在表格紧邻的行上按退格 / Delete 会进入最近的单元格，不会再把下一段误并进表格",
+      },
+    ],
+  },
+  {
     version: "0.8.1",
     date: "2026-11-01",
     title: "拖入的 CSV 表格立即渲染",

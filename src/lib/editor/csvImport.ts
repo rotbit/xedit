@@ -178,8 +178,8 @@ export function handleDelimitedFiles(
           notify(t("「{name}」的插入位置已被删掉，没有插入", { name: file.name }), "info");
           return;
         }
-        // Park the cursor on the line after the table: a caret touching a table reveals its source (livePreview/blocks.ts),
-        // so leaving it at the drop point, which is the table's first line in an empty doc, would show raw pipes instead of a table
+        // Park the cursor on the line after the table, so typing continues below it; the table itself renders as a widget
+        // edited in place (livePreview/tableEdit.ts) wherever the caret is
         view.dispatch({ selection: { anchor: end } });
       })
       .catch(() => slots[i].cancel());
