@@ -27,7 +27,7 @@ import {
 import type { Workspace } from "../../hooks/useWorkspace";
 import { HISTORY } from "../../constants";
 import { allCategories } from "../../lib/catTree";
-import { doneOpenId, rowId, type RowActions } from "./parts";
+import { doneDoc, rowId, type RowActions } from "./parts";
 import type { AddTarget } from "./AddTarget";
 import { doneThisWeek, doneToday } from "./doneToday";
 import { TodayMain } from "./TodayMain";
@@ -171,7 +171,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
     if (item) void opt.toggle(item, false);
   };
 
-  const openIdOf = (e: DayEvent) => doneOpenId(e, all, (id) => titles.get(id) ?? null);
+  const docOf = (e: DayEvent) => doneDoc(e, all, (id) => titles.get(id) ?? null);
 
   const actions: RowActions = {
     onOpenDoc: nav.openDoc,
@@ -210,7 +210,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
             actions={actions}
             onToggle={(item, checked) => void opt.toggle(item, checked)}
             onUndo={undo}
-            doneOpenId={openIdOf}
+            doneDoc={docOf}
             onAdd={addToday}
             onOpenHistory={() => nav.openCategory(HISTORY)}
             onOpenDaily={() => void docActions.openDailyNote()}

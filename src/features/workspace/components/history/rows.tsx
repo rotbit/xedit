@@ -4,13 +4,12 @@
  * Row pieces of the history detail column: done / open task rows, a day's rows grouped plainly (week / month / year)
  * or on a card with 已完成 / 未完成 sections (single-day view). Split out of HistoryDetail.tsx to keep both under the file cap.
  */
-import { FileText } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import type { TodoItem } from "@/lib/todos/collect";
 import type { DayEvent } from "@/lib/todos/events";
 import type { DayDigest } from "@/lib/todos/history";
 import { NOTES_TITLE } from "@/lib/todos/write";
-import { eventLabel, itemLabel, linkedDoc, rowId, TodoBox } from "../today/parts";
+import { DocChip, eventLabel, itemLabel, linkedDoc, rowId, TodoBox } from "../today/parts";
 
 /** Horizontal padding differs by context: card rows sit inset like Today's, plain day groups stay flush with their header */
 type Inset = "card" | "flush";
@@ -24,18 +23,8 @@ export interface DocLookup {
   /** id of the todo list document (hidden from the user): task rows no longer note their source */
   notesIds: Set<string>;
   open: (id: string) => void;
-  /** The document a done record opens on click (doneOpenId in today/parts.tsx); null when there's nothing to open */
-  openIdOf: (e: DayEvent) => string | null;
-}
-
-/** Source chip: same teal chip Today rows use for a linked doc, so the two pages read as one system */
-function SourceChip({ title, t }: { title: string; t: TFn }) {
-  return (
-    <span className="mt-[3px] inline-flex max-w-full items-center gap-1 rounded-[4px] bg-[var(--today-tint)] px-1.5 text-[12px] text-[var(--today)]">
-      <FileText size={12} className="shrink-0" aria-hidden />
-      <span className="min-w-0 truncate">{t("《{title}》", { title })}</span>
-    </span>
-  );
+  /** The document a done record is about (doneDoc in today/parts.tsx): the text opens it and a chip names it; null when there's nothing to open */
+  docOf: (e: DayEvent) => { id: string; title: string } | null;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -50,26 +39,27 @@ function TaskRow({ e, lookup, inset, t }: { e: DayEvent; lookup: DocLookup; inse
   // Source: not noted for the todo list doc (hidden from users) or publish schedules (title already in the text); others use the current name, deleted ones the recorded title
   const fromNotes = (e.docId !== undefined && lookup.notesIds.has(e.docId)) || e.title === NOTES_TITLE;
   const isPublish = e.title !== undefined && e.text === `发布《${e.title}》`; // i18n-ignore compared against the raw data text
-  const source = e.title && !fromNotes && !isPublish ? ((e.docId && lookup.titles.get(e.docId)) ?? e.title) : null;
-  // Where clicking the text goes: the linked article of a checklist item, or the document a body item / publish schedule belongs to
-  const openId = lookup.openIdOf(e);
+  // The linked article of a checklist item, or the document a body item / publish schedule belongs to: the text opens it
+  const doc = lookup.docOf(e);
+  // Source chip: a body item's document (current name, or the recorded title once deleted) or a checklist item's linked article; publish schedules already name the doc
+  const source = isPublish ? null : e.title && !fromNotes ? ((e.docId && lookup.titles.get(e.docId)) ?? e.title) : (doc?.title ?? null);
   const textCls = "text-[var(--ink-soft)] line-through decoration-[var(--hairline-strong)]";
   return (
     <div className={rowCls(inset)}>
       <TodoBox done />
       <div className="min-w-0 flex-1">
-        {openId ? (
+        {doc ? (
           <button
             type="button"
             className={`${textCls} cursor-pointer text-left hover:text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)]`}
-            onClick={() => lookup.open(openId)}
+            onClick={() => lookup.open(doc.id)}
           >
             {label}
           </button>
         ) : (
           <div className={textCls}>{label}</div>
         )}
-        {source ? <SourceChip title={source} t={t} /> : null}
+        {source ? <DocChip title={t("《{title}》", { title: source })} className="mt-[3px]" /> : null}
       </div>
       <span className="mt-[2px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>
     </div>
@@ -111,7 +101,7 @@ function PendingRow({
         ) : (
           <div>{label}</div>
         )}
-        {source ? <SourceChip title={source} t={t} /> : null}
+        {source ? <DocChip title={t("《{title}》", { title: source })} className="mt-[3px]" /> : null}
       </div>
       {overdue ? (
         <span className="ml-1 mt-[2px] shrink-0 rounded-full bg-[var(--seal-wash)] px-[7px] text-[11px] leading-[18px] text-[var(--seal)]">

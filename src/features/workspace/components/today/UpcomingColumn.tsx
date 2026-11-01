@@ -18,7 +18,7 @@ import type { DocMeta } from "../../types";
 import { isDefaultTarget, Picker, TargetControl, useAddTarget, type AddTarget } from "./AddTarget";
 import { MoveMenu } from "./MoveMenu";
 import { RecentDocsSection } from "./RecentDocs";
-import { itemLabel, linkedDoc, rowId, type RowActions } from "./parts";
+import { DocChip, itemLabel, linkedDoc, rowId, type RowActions } from "./parts";
 import { dragRowCls, useTodoDrag } from "./useTodoDrag";
 
 const DAYS_AHEAD = 6;
@@ -46,7 +46,8 @@ function UpcomingItem({
   const label = itemLabel(item, t);
   const textCls = "min-w-0 flex-1 truncate text-left";
   // List items' doc is invisible to the user; clickable only when linked, and goes to the linked doc
-  const openId = item.source === "notes" ? (linkedDoc(item, actions.docTitleOf)?.id ?? null) : item.docId;
+  const linked = linkedDoc(item, actions.docTitleOf);
+  const openId = item.source === "notes" ? (linked?.id ?? null) : item.docId;
   const drag = useTodoDrag();
   return (
     <div
@@ -71,6 +72,8 @@ function UpcomingItem({
           {label}
         </span>
       )}
+      {/* Linked article: the column is too narrow for a title, so just the teal doc icon, title on hover; the text itself opens the article */}
+      {linked ? <DocChip icon title={linked.title} /> : null}
       {showDate && item.due ? (
         <span className="shrink-0 text-[11.5px] tabular-nums text-[var(--ink-faint)]">
           {formatDue(item.due, today, locale)}

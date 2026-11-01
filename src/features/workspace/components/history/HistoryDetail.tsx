@@ -27,7 +27,7 @@ import {
 } from "@/lib/todos/history";
 import type { Workspace } from "../../hooks/useWorkspace";
 import type { HistorySel } from "./HistoryView";
-import { doneOpenId } from "../today/parts";
+import { doneDoc } from "../today/parts";
 import { DayCard, DigestRows, Empty, hasRows, type DayRowsData, type DocLookup } from "./rows";
 
 function relLabel(key: string, today: string, t: TFn): string | null {
@@ -234,7 +234,7 @@ export function HistoryDetail({
     // What's in the full library but not the visible list is the todo list document (deliberately hidden)
     notesIds: new Set((library.allDocs ?? []).filter((d) => !visible.has(d.id)).map((d) => d.id)),
     open: nav.openDoc,
-    openIdOf: (e) => doneOpenId(e, items, (id) => titles.get(id) ?? null),
+    docOf: (e) => doneDoc(e, items, (id) => titles.get(id) ?? null),
   };
   const tabs = <RangeTabs sel={sel} onSelect={onSelect} t={t} />;
   const dayOf = (key: string): DayRowsData => ({ d: dayDigest(key), pending: pending.get(key) ?? [] });

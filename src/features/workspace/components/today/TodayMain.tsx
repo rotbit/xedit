@@ -6,7 +6,7 @@
  * Below the list is "Done this week": things checked today (from the daily log, still here even after a refresh drops them from the list) plus earlier days this week by day;
  * the section ends with a "Completed history" row leading to the history page. "Recently opened" is in the right column's UpcomingColumn, not here.
  */
-import { CalendarDays, ChevronRight, FileText, Repeat } from "lucide-react";
+import { CalendarDays, ChevronRight, Repeat } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import { useLocale, useT } from "@/i18n/useT";
 import type { TodoItem } from "@/lib/todos/collect";
@@ -22,6 +22,7 @@ import type { DocMeta } from "../../types";
 import { LinkMenu } from "./LinkMenu";
 import { MoveMenu } from "./MoveMenu";
 import {
+  DocChip,
   EmptyGuide,
   EmptyLine,
   eventLabel,
@@ -142,10 +143,7 @@ function TodoRow({
         {/* A linked doc is a destination, so it gets the teal chip; other sources are just provenance and stay plain faint text */}
         {sub && item.source === "notes" && linked ? (
           <div className="flex min-w-0">
-            <span className="mt-[3px] inline-flex max-w-full items-center gap-1 rounded-[4px] bg-[var(--today-tint)] px-1.5 text-[12px] text-[var(--today)]">
-              <FileText size={12} className="shrink-0" aria-hidden />
-              <span className="min-w-0 truncate">{sub}</span>
-            </span>
+            <DocChip title={sub} className="mt-[3px]" />
           </div>
         ) : sub ? (
           <div className="mt-px truncate text-[12.5px] text-[var(--ink-faint)]">{sub}</div>
@@ -225,33 +223,38 @@ function DoneRow({
   day,
   e,
   t,
-  openId,
+  doc,
   onOpen,
   onUndo,
 }: {
   day: string;
   e: DayEvent;
   t: TFn;
-  openId: string | null;
+  /** The document the task is about (resolved by the page): the text opens it and a chip names it; null when there's nothing to open */
+  doc: { id: string; title: string } | null;
   onOpen: (id: string) => void;
   onUndo?: () => void;
 }) {
   const label = eventLabel(e.text ?? "", e.title, t);
-  const textCls = "min-w-0 flex-1 text-[13.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]";
+  const textCls = "min-w-0 text-[13.5px] leading-[1.45] text-[var(--ink-faint)] line-through decoration-[var(--hairline-strong)]";
   return (
     <div className="group flex items-start gap-2.5 px-0.5 py-1.5">
       <TodoBox done onClick={onUndo} label={onUndo ? t("取消完成") : undefined} />
-      {openId ? (
-        <button
-          type="button"
-          className={`${textCls} cursor-pointer text-left hover:text-[var(--ink-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)]`}
-          onClick={() => onOpen(openId)}
-        >
-          {label}
-        </button>
-      ) : (
-        <span className={textCls}>{label}</span>
-      )}
+      {/* The chip sits beside the text, not under it: done rows stay one line high so the week reads as a list, not a stack of cards */}
+      <div className="flex min-w-0 flex-1 items-start gap-2">
+        {doc ? (
+          <button
+            type="button"
+            className={`${textCls} cursor-pointer text-left hover:text-[var(--ink-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-soft)]`}
+            onClick={() => onOpen(doc.id)}
+          >
+            {label}
+          </button>
+        ) : (
+          <span className={textCls}>{label}</span>
+        )}
+        {doc ? <DocChip title={t("《{title}》", { title: doc.title })} className="mt-px max-w-[45%]" /> : null}
+      </div>
       <span className="mt-[2px] shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">{clock(e.ts)}</span>
       <RemoveButton label={t("删除这条记录")} onClick={() => removeDayEvent(day, e.id)} />
     </div>
@@ -268,7 +271,7 @@ function DoneSection({
   week,
   total,
   t,
-  openIdOf,
+  docOf,
   onOpen,
   onUndo,
   onOpenHistory,
@@ -279,7 +282,7 @@ function DoneSection({
   /** Everything ever done in the local log (doneCountAll) */
   total: number;
   t: TFn;
-  openIdOf: (e: DayEvent) => string | null;
+  docOf: (e: DayEvent) => { id: string; title: string } | null;
   onOpen: (id: string) => void;
   onUndo: (e: DayEvent) => void;
   onOpenHistory: () => void;
@@ -303,7 +306,7 @@ function DoneSection({
       {done.length > 0 ? (
         <div className="divide-y divide-[var(--hairline-soft)]">
           {done.map((e) => (
-            <DoneRow key={e.id} day={today} e={e} t={t} openId={openIdOf(e)} onOpen={onOpen} onUndo={() => onUndo(e)} />
+            <DoneRow key={e.id} day={today} e={e} t={t} doc={docOf(e)} onOpen={onOpen} onUndo={() => onUndo(e)} />
           ))}
         </div>
       ) : null}
@@ -314,7 +317,7 @@ function DoneSection({
           </h3>
           <div className="divide-y divide-[var(--hairline-soft)]">
             {g.events.map((e) => (
-              <DoneRow key={e.id} day={g.day} e={e} t={t} openId={openIdOf(e)} onOpen={onOpen} />
+              <DoneRow key={e.id} day={g.day} e={e} t={t} doc={docOf(e)} onOpen={onOpen} />
             ))}
           </div>
         </div>
@@ -351,7 +354,7 @@ export function TodayMain({
   actions,
   onToggle,
   onUndo,
-  doneOpenId,
+  doneDoc,
   onAdd,
   onOpenHistory,
   onOpenDaily,
@@ -374,8 +377,8 @@ export function TodayMain({
   onToggle: (item: TodoItem, checked: boolean) => void;
   /** Clicking the check in "Done": mark undone, back to the list */
   onUndo: (e: DayEvent) => void;
-  /** The document a "Done" row opens on click: its linked article, or the document it was written in; null when there's nothing to open */
-  doneOpenId: (e: DayEvent) => string | null;
+  /** The document a "Done" row is about: its linked article, or the document it was written in; null when there's nothing to open */
+  doneDoc: (e: DayEvent) => { id: string; title: string } | null;
   onAdd: (text: string, target: AddTarget) => Promise<boolean>;
   /** "Completed history" entry: go to the history page */
   onOpenHistory: () => void;
@@ -436,7 +439,7 @@ export function TodayMain({
         week={week}
         total={doneCountAll()}
         t={t}
-        openIdOf={doneOpenId}
+        docOf={doneDoc}
         onOpen={actions.onOpenDoc}
         onUndo={onUndo}
         onOpenHistory={onOpenHistory}

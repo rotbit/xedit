@@ -1,7 +1,7 @@
 "use client";
 
 /** Small pieces shared by both Today columns: item labels, empty states, round checkbox, row-end delete button */
-import { Check, X } from "lucide-react";
+import { Check, FileText, X } from "lucide-react";
 import type { TFn } from "@/i18n/t";
 import type { TodoItem } from "@/lib/todos/collect";
 import type { DayEvent } from "@/lib/todos/events";
@@ -36,15 +36,42 @@ export function linkedDoc(
 }
 
 /**
- * Where clicking a "Done" record goes. The record stores only doc + text, so find the (still checked) line it came from among `items`:
- * a checklist item goes to its linked article, if any; a body item or publish schedule goes to that document. The checklist doc itself
+ * The document a "Done" record is about, as { id, title }. The record stores only doc + text, so find the (still checked) line it came from among `items`:
+ * a checklist item resolves to its linked article, if any; a body item or publish schedule to its own document. The checklist doc itself
  * is hidden from the user (titleOf returns null for it), so a record whose line is gone resolves only when its doc is a visible one.
  */
-export function doneOpenId(e: DayEvent, items: TodoItem[], titleOf: (id: string) => string | null): string | null {
+export function doneDoc(
+  e: DayEvent,
+  items: TodoItem[],
+  titleOf: (id: string) => string | null
+): { id: string; title: string } | null {
   if (!e.docId) return null;
   const item = items.find((i) => i.docId === e.docId && i.text === e.text);
-  if (item?.source === "notes") return linkedDoc(item, titleOf)?.id ?? null;
-  return titleOf(e.docId) === null ? null : e.docId;
+  if (item?.source === "notes") return linkedDoc(item, titleOf);
+  const title = titleOf(e.docId);
+  return title === null ? null : { id: e.docId, title };
+}
+
+/**
+ * The mark for a todo's document: a small teal chip with a doc icon and the title, the same on every page so a linked article reads as one thing everywhere.
+ * `icon` keeps only the icon (title in the tooltip) for the narrow Up-next column, where a title would crowd out the todo itself.
+ */
+export function DocChip({ title, icon = false, className = "" }: { title: string; icon?: boolean; className?: string }) {
+  if (icon) {
+    return (
+      <span title={title} className={`inline-flex shrink-0 text-[var(--today)] ${className}`}>
+        <FileText size={12} aria-hidden />
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`inline-flex min-w-0 max-w-full items-center gap-1 rounded-[4px] bg-[var(--today-tint)] px-1.5 text-[12px] leading-[18px] text-[var(--today)] ${className}`}
+    >
+      <FileText size={12} className="shrink-0" aria-hidden />
+      <span className="min-w-0 truncate">{title}</span>
+    </span>
+  );
 }
 
 /**
