@@ -1,5 +1,5 @@
 /**
- * Editing safeguards once color spans are hidden: Delete-key takeover + orphan tag cleanup.
+ * Editing safeguards once color spans are hidden: Delete / Enter key takeover + orphan tag cleanup.
  *
  * In live preview the opening/closing tags of `<span style="color:…">` are hidden and registered as atomic (see
  * livePreview/inline.ts). The cost falls entirely on Delete: default Backspace stepping one char left lands inside the hidden
@@ -11,8 +11,12 @@
  * - Cleanup: when a tag still gets deleted whole (deleting a selection, cut, paste-over), delete the other half of the pair
  *   too; pairs whose inner text was emptied are removed as well, since they'd be invisible, undeletable junk.
  *
- * Both only apply in live preview (livePreview/index.ts): in source mode tags are visible plain text
- * and should delete normally; interfering would only get in the way.
+ * Enter has the mirror problem: with the cursor at the end of colored text it actually sits before the hidden `</span>`, so a plain
+ * newline lands inside the span and the next paragraph starts colored (and a blank line inside the span breaks the pair entirely).
+ * So Enter at a span's edge first steps the cursor out of the tags, and Enter in the middle closes the span and reopens it on the new line.
+ *
+ * All of this only applies in live preview (livePreview/index.ts): in source mode tags are visible plain text
+ * and should edit normally; interfering would only get in the way.
  */
 
 import {
@@ -25,7 +29,12 @@ import {
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import {
+  COLOR_SPAN_CLOSE,
+  COLOR_SPAN_OPEN_EXACT,
+  colorSpanOpen,
+  colorSpanPairAt,
   colorSpanPairsIn,
+  hiddenColorTagAt,
   skipHiddenColorTags,
   type ColorSpanTag,
 } from "@/lib/editor/colorSpan";
@@ -78,6 +87,46 @@ function deleteOverTag(view: EditorView): boolean {
     changes: { from: end, to },
     // Don't move the cursor: the deletion point is to its right, so it stays put next to it, still inside the span, and typing keeps this color
     userEvent: "delete.forward",
+    scrollIntoView: true,
+  });
+  return true;
+}
+
+/**
+ * Where Enter should break the line when the cursor sits at a span's edge: past every hidden closing tag to its right (end of colored
+ * text), else before every hidden opening tag to its left (start of colored text); null when it's not at an edge.
+ * Only tags of the matching kind are crossed: between back-to-back pairs (`</span>|<span …>`) the cursor is already outside both
+ */
+function spanEdgeExit(state: EditorState, head: number): number | null {
+  const isOpen = (tag: ColorSpanTag) => COLOR_SPAN_OPEN_EXACT.test(state.sliceDoc(tag.from, tag.to));
+  let at = head;
+  for (let tag = hiddenColorTagAt(state, at, 1); tag && !isOpen(tag); tag = hiddenColorTagAt(state, at, 1)) at = tag.to;
+  if (at !== head) return at;
+  for (let tag = hiddenColorTagAt(state, at, -1); tag && isOpen(tag); tag = hiddenColorTagAt(state, at, -1)) at = tag.from;
+  return at !== head ? at : null;
+}
+
+/**
+ * Enter inside a color span. At an edge: move the cursor out of the tags and return false, so the default Enter (list / quote
+ * continuation included) breaks the line outside the span. In the middle: close the span here and reopen it on the new line,
+ * so both halves stay colored and neither tag pair straddles a line break.
+ */
+function enterInSpan(view: EditorView): boolean {
+  const { state } = view;
+  const head = loneCaret(view);
+  if (head === null) return false;
+  const exit = spanEdgeExit(state, head);
+  if (exit !== null) {
+    view.dispatch({ selection: { anchor: exit } });
+    return false;
+  }
+  const pair = colorSpanPairAt(state, head);
+  if (!pair || pair.empty) return false;
+  const insert = `${COLOR_SPAN_CLOSE}\n${colorSpanOpen(pair.color)}`;
+  view.dispatch({
+    changes: { from: head, insert },
+    selection: { anchor: head + insert.length },
+    userEvent: "input",
     scrollIntoView: true,
   });
   return true;
@@ -159,6 +208,7 @@ export const colorSpanKeys: Extension = [
     keymap.of([
       { key: "Backspace", run: backspaceOverTag },
       { key: "Delete", run: deleteOverTag },
+      { key: "Enter", run: enterInSpan },
     ])
   ),
   colorSpanCleanup,

@@ -36,6 +36,15 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.7.3",
+    date: "2026-11-01",
+    title: "彩色文字末尾回车不再把标签打散",
+    items: [
+      { kind: "fixed", text: "在设置了颜色的文字末尾按回车，换行会落到颜色之外，新一行恢复普通颜色；之前换行会被塞进颜色标签里，整段变成源码露出来。在彩色文字中间回车，两半各自保持颜色。" },
+      { kind: "fixed", text: "标题下方的文件夹、保存状态、字数、时间这一行不再随输入左右跳动：保存状态移到了最后，数字改为等宽，整行固定一行。" },
+    ],
+  },
+  {
     version: "0.7.2",
     date: "2026-11-01",
     title: "逾期的待办也能拖动排序",
