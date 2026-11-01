@@ -36,6 +36,17 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.8.1",
+    date: "2026-11-01",
+    title: "拖入的 CSV 表格立即渲染",
+    items: [
+      {
+        kind: "fixed",
+        text: "CSV 导入完成后光标停在表格里，表格会以源码形式展开；现在光标自动落到表格下一行，拖进去就直接看到渲染好的表格",
+      },
+    ],
+  },
+  {
     version: "0.8.0",
     date: "2026-11-01",
     title: "CSV 文件拖进编辑器直接变成表格",

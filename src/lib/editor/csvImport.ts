@@ -168,8 +168,19 @@ export function handleDelimitedFiles(
           notify(t("「{name}」里没有读到表格数据", { name: file.name }), "error");
           return slots[i].cancel();
         }
-        if (!slots[i].resolve((target, state) => padTableBlock(table, target, state)))
+        let end = 0;
+        const inserted = slots[i].resolve((target, state) => {
+          const block = padTableBlock(table, target, state);
+          end = target + block.length;
+          return block;
+        });
+        if (!inserted) {
           notify(t("「{name}」的插入位置已被删掉，没有插入", { name: file.name }), "info");
+          return;
+        }
+        // Park the cursor on the line after the table: a caret touching a table reveals its source (livePreview/blocks.ts),
+        // so leaving it at the drop point, which is the table's first line in an empty doc, would show raw pipes instead of a table
+        view.dispatch({ selection: { anchor: end } });
       })
       .catch(() => slots[i].cancel());
   });
