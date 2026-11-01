@@ -437,12 +437,15 @@ export function ArticleReader({
                         if (!title.trim()) setTitle(UNTITLED_DOC);
                       }}
                     />
-                    <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ink-faint)]">
+                    {/* Metadata row. It must never move: cells are ordered by how often their width changes (never → on every keystroke) so a change in one
+                        can't push the ones before it, tabular digits keep counts and times from jittering, and the row never wraps — the folder is the only
+                        cell allowed to shrink (truncated), the rest keep their width */}
+                    <div className="mt-2.5 flex items-center gap-x-2 overflow-hidden whitespace-nowrap text-[12px] tabular-nums text-[var(--ink-faint)]">
                       {/* Deep category paths are long enough to crush the metadata row: show only the last segment, with the full path in the hover tooltip;
                           clicking opens the searchable category picker (same as the article list's context menu).
                           No background normally, same texture as the save status and word count on the same row; a light background appears on hover to hint it's clickable */}
                       <button
-                        className="-ml-1 flex max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
+                        className="-ml-1 flex min-w-0 max-w-[260px] cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)]"
                         title={`${t(category || UNCATEGORIZED)}\n${t("点击移动到文件夹")}`}
                         onClick={() => void pickCategory()}
                       >
@@ -454,21 +457,22 @@ export function ArticleReader({
                         </span>
                         <ChevronDown size={12} className="shrink-0 opacity-60" />
                       </button>
+                      <DocTimestamps meta={docs?.find((d) => d.id === docId)} />
                       <span>·</span>
-                      {/* After MCP / another device changes it and the page auto-refreshes, show a light hint in this cell for a few seconds then revert, no toast */}
+                      <span className="shrink-0">{t("{n} 字", { n: chars, abs: chars })}</span>
+                      <span>·</span>
+                      <CoverPicker content={content} onPick={pickCover} />
+                      <span>·</span>
+                      {/* Last on purpose: this cell changes width on every save cycle (保存中… / 已保存 / …), and at the end nothing sits after it to be pushed around.
+                          After MCP / another device changes it and the page auto-refreshes, show a light hint here for a few seconds then revert, no toast */}
                       {refreshedHint ? (
-                        <span className="sync-hint flex items-center gap-1 text-[var(--accent)]">
+                        <span className="sync-hint flex shrink-0 items-center gap-1 text-[var(--accent)]">
                           <RefreshCw size={12} />
                           {t("已更新到最新版本")}
                         </span>
                       ) : (
-                        <span>{SAVE_LABEL[saveState] ? t(SAVE_LABEL[saveState]) : saveState}</span>
+                        <span className="shrink-0">{SAVE_LABEL[saveState] ? t(SAVE_LABEL[saveState]) : saveState}</span>
                       )}
-                      <span>·</span>
-                      <span>{t("{n} 字", { n: chars, abs: chars })}</span>
-                      <DocTimestamps meta={docs?.find((d) => d.id === docId)} />
-                      <span>·</span>
-                      <CoverPicker content={content} onPick={pickCover} />
                     </div>
                     <div className="mt-3 h-px w-10 bg-[var(--hairline-strong)]" />
                   </div>

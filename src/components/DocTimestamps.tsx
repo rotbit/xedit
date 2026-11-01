@@ -19,13 +19,13 @@ export function DocTimestamps({ meta }: { meta?: DocMeta }) {
       {created ? (
         <>
           <span>·</span>
-          <span title={formatDateTime(created)}>{t("创建于 {t}", { t: short(created) })}</span>
+          <span className="shrink-0" title={formatDateTime(created)}>{t("创建于 {t}", { t: short(created) })}</span>
         </>
       ) : null}
       {updated ? (
         <>
           <span>·</span>
-          <span title={formatDateTime(updated)}>{t("更新于 {t}", { t: short(updated) })}</span>
+          <span className="shrink-0" title={formatDateTime(updated)}>{t("更新于 {t}", { t: short(updated) })}</span>
         </>
       ) : null}
     </>

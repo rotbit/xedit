@@ -84,7 +84,7 @@ export function CoverPicker({
       closeOnBlur={false}
       trigger={
         <button
-          className={`flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${broken ? "text-[var(--danger,#d9534f)]" : "text-[var(--ink-faint)]"}`}
+          className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-[var(--accent-wash)] hover:text-[var(--ink)] ${broken ? "text-[var(--danger,#d9534f)]" : "text-[var(--ink-faint)]"}`}
           title={
             broken ? t("封面图片打不开了，请重新选择") : t("公众号封面：发送到公众号时自动设好")
           }
