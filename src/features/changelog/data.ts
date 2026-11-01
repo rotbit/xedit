@@ -36,6 +36,16 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.7.2",
+    date: "2026-11-01",
+    title: "逾期的待办也能拖动排序",
+    items: [
+      { kind: "fixed", text: "今天页左栏里逾期的待办现在也可以上下拖动排序；之前日期一过，待办变成逾期后就拖不动了。" },
+      { kind: "improved", text: "左栏待办按清单里的顺序显示，不再把逾期的强制排到最前，逾期状态仍由红色标签标出。" },
+      { kind: "improved", text: "「本周已完成」和历史页的记录旁直接显示关联文章的名字，「接下来」里关联了文章的待办带一个小文档图标。" },
+    ],
+  },
+  {
     version: "0.7.1",
     date: "2026-10-30",
     title: "已完成的待办也能点开文章",

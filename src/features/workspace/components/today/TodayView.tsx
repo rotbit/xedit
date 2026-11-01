@@ -147,11 +147,9 @@ export function TodayView({ ws }: { ws: Workspace }) {
   const all = collectTodos(allDocs ?? [], today);
   const opt = useTodoOptimism(all, today, { toggle, remove, move });
   const { buckets } = opt;
-  const rows = [...buckets.overdue, ...buckets.today, ...opt.doneOnly];
-  // Rows that can be dragged up / down: open checklist items of the today bucket (see RowActions.reorderable). Keyed by rowId so optimistic copies still match
-  const reorderIds = new Set(
-    buckets.today.filter((i) => i.source === "notes" && !i.checked && !opt.isDone(i)).map(rowId)
-  );
+  const rows = [...opt.active, ...opt.doneOnly];
+  // Rows that can be dragged up / down: open checklist items in the left column, overdue included (see RowActions.reorderable). Keyed by rowId so optimistic copies still match
+  const reorderIds = new Set(opt.active.filter((i) => i.source === "notes" && !i.checked && !opt.isDone(i)).map(rowId));
   // Log changes trigger re-renders via useTodaySignals, so reading fresh on every render is fine
   const done = doneToday(today, rows);
   const week = doneThisWeek(today, rows);

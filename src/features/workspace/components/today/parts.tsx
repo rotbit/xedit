@@ -100,8 +100,8 @@ export interface RowActions {
   /** Folders a "New document" can go into (template categories filtered out); all three pickers need it, so it's passed down with the row actions */
   categories: string[];
   /**
-   * Whether this row takes part in drag-to-reorder: only open checklist items in the left column's today bucket. Overdue is sorted by date,
-   * done rows aren't scheduled, and body / publish items' order comes from the library, so dragging them up or down would have nothing to persist.
+   * Whether this row takes part in drag-to-reorder: open checklist items in the left column (overdue or today; the list is in line order).
+   * Done rows aren't scheduled, and body / publish items' order comes from the library, so dragging them up or down would have nothing to persist.
    */
   reorderable: (item: TodoItem) => boolean;
   /** Drop a reorderable row onto another: move its checklist line to just before / after the target's */

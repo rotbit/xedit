@@ -33,6 +33,11 @@ function withEntry<V>(prev: Map<string, V>, key: string, value: V | null): Map<s
 export interface TodoOptimism {
   /** Buckets re-split after applying deletes / date moves */
   buckets: TodoBuckets;
+  /**
+   * Left-column rows (overdue + today) in library / checklist line order, not grouped by date: drag-to-reorder writes line order back to the
+   * checklist, so the list has to show that same order or a drop would land somewhere other than where the row was dropped. Overdue shows as a pill
+   */
+  active: TodoItem[];
   /** Just checked and still drawn done in place (lingering before moving to "Done"), and no longer in the overdue / today buckets */
   doneOnly: TodoItem[];
   isDone: (item: TodoItem) => boolean;
@@ -78,7 +83,8 @@ export function useTodoOptimism(
         : i;
     });
   const buckets = bucketTodos(adjusted, today);
-  const active = [...buckets.overdue, ...buckets.today];
+  const activeKeys = new Set([...buckets.overdue, ...buckets.today].map((i) => i.key));
+  const active = adjusted.filter((i) => activeKeys.has(i.key));
   const doneOnly = [...justDone.values()].filter(
     (i) => !sameIn(removed, i) && !sameIn(settled, i) && !active.some((a) => a.key === i.key && a.text === i.text)
   );
@@ -108,5 +114,5 @@ export function useTodoOptimism(
     if (!(await write.move(item, range))) setMoved((p) => withEntry(p, item.key, before));
   };
 
-  return { buckets, doneOnly, isDone: (item) => sameIn(justDone, item), toggle, remove, move };
+  return { buckets, active, doneOnly, isDone: (item) => sameIn(justDone, item), toggle, remove, move };
 }
