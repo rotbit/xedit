@@ -36,6 +36,17 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.9.1",
+    date: "2026-11-01",
+    title: "表格工具栏不再挡住表头",
+    items: [
+      {
+        kind: "fixed",
+        text: "悬停表格时出现的工具栏原先压在表头最后一格上，现在浮在表格上方的外侧，不再遮住任何单元格",
+      },
+    ],
+  },
+  {
     version: "0.9.0",
     date: "2026-11-01",
     title: "表格直接在表格里改",

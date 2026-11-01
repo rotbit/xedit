@@ -7,11 +7,13 @@
    so the outer frame belongs to the wrapper and cells only draw the inner grid lines */
 .cm-live-preview .cm-lp-table {
   position: relative;
-  overflow: hidden;
   margin: 6px 0;
+  cursor: text;
+}
+.cm-live-preview .cm-lp-table-frame {
+  overflow: hidden;
   border: 1px solid var(--hairline);
   border-radius: 8px;
-  cursor: text;
 }
 .cm-live-preview .cm-lp-table table {
   width: 100%;
@@ -69,11 +71,12 @@
   white-space: pre-wrap;
 }
 
-/* Hover toolbar: top-right inside the frame, only on hover or while a cell is focused; muted until a button is hovered */
+/* Hover toolbar: floats just above the table's top-right corner (outside the frame, so it never covers a cell),
+   only on hover or while a cell is focused; muted until a button is hovered */
 .cm-live-preview .cm-lp-table-tools {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  bottom: calc(100% + 3px);
+  right: 0;
   z-index: 2;
   display: flex;
   gap: 1px;

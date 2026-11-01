@@ -74,7 +74,11 @@ export class TableWidget extends WidgetType {
     }
     if (head.childElementCount > 0) table.appendChild(head);
     if (body.childElementCount > 0) table.appendChild(body);
-    wrap.appendChild(table);
+    // The frame clips the rounded corners; the toolbar sits outside it (above the table) so it never covers a cell
+    const frame = document.createElement("div");
+    frame.className = "cm-lp-table-frame";
+    frame.appendChild(table);
+    wrap.appendChild(frame);
     wrap.appendChild(buildTableToolbar(wrap, view));
     attachTableEditing(wrap, view, this.source, parsed);
     return wrap;
