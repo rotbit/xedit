@@ -36,6 +36,17 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.8.0",
+    date: "2026-11-01",
+    title: "CSV 文件拖进编辑器直接变成表格",
+    items: [
+      {
+        kind: "new",
+        text: "把 .csv / .tsv 文件拖进或粘贴到编辑器，会在落点插入一张 Markdown 表格，第一行作表头；自动识别逗号、Tab、分号分隔，带引号的字段和单元格内换行也能正确处理",
+      },
+    ],
+  },
+  {
     version: "0.7.3",
     date: "2026-11-01",
     title: "彩色文字末尾回车不再把标签打散",

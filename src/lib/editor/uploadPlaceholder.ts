@@ -14,7 +14,7 @@
  */
 
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
-import { MapMode, StateEffect, StateField, type Extension } from "@codemirror/state";
+import { MapMode, StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
 import { t } from "@/i18n/t";
 
 /** A pending placeholder: the id is used to find itself again in the mapped decoration set */
@@ -194,8 +194,9 @@ const chipTheme = EditorView.baseTheme({
 /** Insertion handle after an upload completes, one per file */
 export interface UploadSlot {
   /** Success: insert the Markdown wherever the badge currently is and remove the badge.
+   *  A function receives the badge's live position and state, for content whose padding depends on its surroundings.
    *  Returns false if the drop point was deleted by the user (or the document was switched); nothing is inserted */
-  resolve(markdown: string): boolean;
+  resolve(markdown: string | ((at: number, state: EditorState) => string)): boolean;
   /** Failure/cancel: remove the badge only, leave the text untouched */
   cancel(): void;
 }
@@ -216,11 +217,12 @@ export function reserveUploadSlots(view: EditorView, at: number, names: string[]
   const slots: Slot[] = names.map((name) => ({ id: nextId++, pos, name }));
   if (installed) view.dispatch({ effects: slots.map((slot) => addChip.of(slot)) });
   return slots.map((slot) => ({
-    resolve(markdown: string) {
+    resolve(markdown) {
       const target = installed ? livePos(view, slot.id) : Math.min(slot.pos, view.state.doc.length);
       if (target === null) return false;
+      const insert = typeof markdown === "function" ? markdown(target, view.state) : markdown;
       view.dispatch({
-        changes: { from: target, insert: markdown },
+        changes: { from: target, insert },
         effects: installed ? dropChip.of(slot.id) : [],
       });
       return true;

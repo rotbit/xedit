@@ -6,6 +6,7 @@ import type TurndownService from "turndown";
 import { caretInFencedCode } from "@/lib/livePreview/context";
 import { fencedCodeAt } from "@/lib/livePreview/fenceKeys";
 import { handleMediaFiles, type Notify } from "@/lib/editor/commands";
+import { handleDelimitedFiles } from "@/lib/editor/csvImport";
 
 // Rich text paste → Markdown. turndown isn't small and only paste needs it, so it stays out of the editor's main bundle:
 // preloaded asynchronously after the editor mounts, used synchronously on paste; pasting before it loads degrades to plain-text paste.
@@ -135,9 +136,14 @@ export const editorClipboard = (notify: Notify): Extension => [
     cut: (event, view) => copyCodeOnly(event, view, true),
     paste: (event, view) => {
       const files = event.clipboardData?.files;
-      if (files && files.length > 0 && handleMediaFiles(view, files, notify)) {
-        event.preventDefault();
-        return true;
+      if (files && files.length > 0) {
+        // Run both: a mixed paste handles media and CSV/TSV alike (no short-circuit)
+        const media = handleMediaFiles(view, files, notify);
+        const tables = handleDelimitedFiles(view, files, notify);
+        if (media || tables) {
+          event.preventDefault();
+          return true;
+        }
       }
       // Pasting in code: hand back to CodeMirror to insert text/plain as-is (Cmd+Shift+V takes this path too)
       if (caretInCode(view.state)) return false;
@@ -170,7 +176,9 @@ export const editorClipboard = (notify: Notify): Extension => [
       if (!files || files.length === 0) return false;
       // Drop position follows the mouse: when dragging in, the cursor is usually elsewhere, so inserting at the cursor would be wrong
       const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-      if (!handleMediaFiles(view, files, notify, pos ?? undefined)) return false;
+      const media = handleMediaFiles(view, files, notify, pos ?? undefined);
+      const tables = handleDelimitedFiles(view, files, notify, pos ?? undefined);
+      if (!media && !tables) return false;
       event.preventDefault();
       return true;
     },
