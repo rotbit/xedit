@@ -3,8 +3,6 @@
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 import {
   DROP_HL,
-  DROP_LINE_BOTTOM,
-  DROP_LINE_TOP,
   UNCATEGORIZED,
   rowCls,
   rowInset,
@@ -13,6 +11,8 @@ import {
 } from "../constants";
 import { useT } from "@/i18n/useT";
 import { displayCatName } from "../lib/catPath";
+import { SHIFT_TRANSITION } from "../lib/dragShift";
+import { catRowKey } from "../hooks/useDragMove";
 import { DocRow } from "./DocRow";
 import { iconTone } from "./NavRow";
 import type { CatNode } from "../types";
@@ -62,16 +62,21 @@ export function CategoryRow({
   const active = nav.activeCat === node.path && !nav.readingId;
   const canManage = node.path !== UNCATEGORIZED;
   const spot = drag.dropSpot;
-  const zone = spot?.kind === "cat" && spot.key === node.path ? spot.zone : null;
-  const dropCls =
-    zone === "into" ? DROP_HL : zone === "before" ? DROP_LINE_TOP : zone === "after" ? DROP_LINE_BOTTOM : "";
+  // Before/after spots make room by sliding rows (see useDragMove.shiftStyle); only "into" highlights the folder row
+  const dropCls = spot?.kind === "cat" && spot.key === node.path && spot.zone === "into" ? DROP_HL : "";
+  const rowKey = catRowKey(node.path);
 
   return (
-    <div>
+    // The block (row + expanded children) moves as one while a drag makes room; children nested inside shift with it
+    <div
+      data-drag-block=""
+      className={drag.dragItem ? SHIFT_TRANSITION : ""}
+      style={drag.shiftStyle(rowKey)}
+    >
       <div
         className="group/cat relative"
+        data-drag-row={rowKey}
         {...(canManage ? drag.dragSrcProps({ kind: "cat", path: node.path }) : {})}
-        {...drag.dropProps(node.path)}
       >
         <div
           className={`flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[13px] transition-colors ${rowCls(active)} ${dropCls} ${

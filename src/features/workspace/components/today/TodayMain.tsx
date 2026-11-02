@@ -38,7 +38,7 @@ import type { AddTarget } from "./AddTarget";
 import { doneCountAll } from "./doneToday";
 import { QuickAdd } from "./QuickAdd";
 import { TodayHeader } from "./TodayHeader";
-import { dragRowCls, useTodoDrag } from "./useTodoDrag";
+import { dragRowCls, shiftRowCls, useTodoDrag } from "./useTodoDrag";
 
 /** Small buttons revealed on row hover (link doc / change date): marked as menu triggers and toggled by the button itself */
 function MenuTrigger({ open, onClick, children }: { open: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -111,21 +111,15 @@ function TodoRow({
   const canRemove = !done && item.source !== "publish";
   // Done items can't be dragged: they're no longer scheduled on any day
   const drag = useTodoDrag();
-  const indicator = done ? null : drag.rowIndicator(item);
   return (
     <div
-      {...(done ? {} : { ...drag.dragProps(item), ...drag.rowDropProps(item) })}
-      className={`group relative flex items-start gap-2.5 px-3.5 py-2.5 last:rounded-b-[9px] hover:bg-[var(--sidebar)] ${done ? "" : dragRowCls(drag, item)}`}
+      {...(done ? {} : drag.dragProps(item))}
+      // Every row (done ones too) is measured and slid aside while a reorder drag makes room (see lib/dragShift)
+      data-drag-row={id}
+      data-drag-block=""
+      style={drag.rowStyle(item)}
+      className={`group relative flex items-start gap-2.5 px-3.5 py-2.5 last:rounded-b-[9px] hover:bg-[var(--sidebar)] ${shiftRowCls(drag)} ${done ? "" : dragRowCls(drag, item)}`}
     >
-      {/* Reorder insertion line: drawn on the row edge it will land on, straddling the gap so before-this and after-previous look the same */}
-      {indicator ? (
-        <div
-          aria-hidden
-          className={`pointer-events-none absolute left-0 right-0 h-[2px] rounded-full bg-[var(--today)] ${
-            indicator === "before" ? "top-[-1px]" : "bottom-[-1px]"
-          }`}
-        />
-      ) : null}
       <TodoBox done={done} onClick={onToggle} label={done ? t("取消完成") : t("标记完成")} />
       <div className="min-w-0 flex-1">
         {/* Click the text to see the source: todos often need the doc for the details */}
@@ -411,7 +405,7 @@ export function TodayMain({
               <EmptyLine>{t("今天没有安排")}</EmptyLine>
             )
           ) : (
-            <div className="divide-y divide-[var(--hairline-soft)]">
+            <div className="divide-y divide-[var(--hairline-soft)]" {...drag.listReorderProps()}>
               {rows.map((item) => {
                 const done = isDone(item);
                 // Checking a publish schedule writes published: true; there's no "unpublish"

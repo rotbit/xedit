@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { ALL, UNCATEGORIZED } from "../constants";
 import { nameOf, parentOf } from "../lib/catPath";
 import { allCategories, canNestCategory } from "../lib/catTree";
+import {
+  computeShifts,
+  hitRow,
+  measureRows,
+  sameShifts,
+  shiftTransform,
+  type Shifts,
+} from "../lib/dragShift";
 import { catKey, docKey } from "../lib/sidebarOrder";
 import type { DocMeta, DragItem } from "../types";
 
@@ -46,10 +54,23 @@ interface Params {
   ) => void;
 }
 
+/** A row's untranslated vertical extent (see lib/dragShift: hit testing ignores the make-room shifts) */
+interface RowRect {
+  top: number;
+  height: number;
+}
+
+const NO_SHIFTS: Shifts = new Map();
+
+/** data-drag-row keys for sidebar rows */
+export const catRowKey = (path: string) => `cat:${path}`;
+export const docRowKey = (id: string) => `doc:${id}`;
+const rowKeyOf = (item: DragItem) => (item.kind === "doc" ? docRowKey(item.id) : catRowKey(item.path));
+const spotRowKey = (spot: DropSpot) => (spot.kind === "doc" ? docRowKey(spot.key) : catRowKey(spot.key));
+
 /** Pointer's vertical position within the row → drop zone. edge is the fraction taken by the top/bottom edges */
-function zoneOf(e: React.DragEvent, edge: number): "before" | "after" | "into" {
-  const rect = e.currentTarget.getBoundingClientRect();
-  const y = (e.clientY - rect.top) / Math.max(rect.height, 1);
+function zoneOf(clientY: number, rect: RowRect, edge: number): "before" | "after" | "into" {
+  const y = (clientY - rect.top) / Math.max(rect.height, 1);
   if (y < edge) return "before";
   if (y > 1 - edge) return "after";
   return "into";
@@ -61,6 +82,8 @@ function zoneOf(e: React.DragEvent, edge: number): "before" | "after" | "into" {
  * Folders and docs under the same parent share one display sequence and can be freely interleaved — both drop kinds treat them the same:
  * folder row edge = insert before/after that folder, doc row edge = insert before/after that doc.
  * Dropping a doc on a folder row only "moves in" in the middle band — the edges are a bit narrower as a buffer so aiming to reorder doesn't get swallowed by the folder.
+ * The whole tree is one drop target (treeDropProps on the nav): rows are hit-tested by their untranslated geometry, and a before/after spot
+ * makes the rows in between slide aside so the dragged item's slot follows the pointer (lib/dragShift) instead of drawing an insertion line.
  */
 export function useDragMove({
   docs,
@@ -73,11 +96,13 @@ export function useDragMove({
 }: Params) {
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [dropSpot, setDropSpot] = useState<DropSpot | null>(null);
+  const [shifts, setShifts] = useState<Shifts>(NO_SHIFTS);
 
   const endDrag = () => {
     cancelDragExpand();
     setDragItem(null);
     setDropSpot(null);
+    setShifts(NO_SHIFTS);
   };
 
   /** Whether a category drag can "drop into" parent (empty = top level) or be reordered beneath it */
@@ -94,7 +119,7 @@ export function useDragMove({
   };
 
   /** Determine the drop zone on a category row; null = not droppable */
-  const spotOnCat = (e: React.DragEvent, target: string): DropSpot | null => {
+  const spotOnCat = (clientY: number, rect: RowRect, target: string): DropSpot | null => {
     if (!dragItem) return null;
     if (dragItem.kind === "doc") {
       // The root-level blank area has no before/after, so the whole block counts as "move to uncategorized"
@@ -103,7 +128,7 @@ export function useDragMove({
       }
       // Doc dragged onto a category row: the middle band is "move in", the top/bottom edges are narrow — when aiming to reorder and the hand slips onto a folder row,
       // the file shouldn't get swallowed into that folder.
-      const zone = zoneOf(e, 0.25);
+      const zone = zoneOf(clientY, rect, 0.25);
       if (zone === "into") {
         return docCanMoveTo(dragItem.id, target) ? { kind: "cat", key: target, zone: "into" } : null;
       }
@@ -119,7 +144,7 @@ export function useDragMove({
       return catCanGo(path, "", false) ? { kind: "cat", key: ALL, zone: "into" } : null;
     }
     if (target === path || target.startsWith(`${path}/`)) return null; // Itself or a descendant
-    const zone = zoneOf(e, 0.28);
+    const zone = zoneOf(clientY, rect, 0.28);
     if (zone === "into") {
       return catCanGo(path, target, false) ? { kind: "cat", key: target, zone } : null;
     }
@@ -130,7 +155,7 @@ export function useDragMove({
   };
 
   /** Determine the drop zone on a doc row; both docs and folders can be inserted before/after this doc. null = not droppable */
-  const spotOnDoc = (e: React.DragEvent, target: DocMeta): DropSpot | null => {
+  const spotOnDoc = (clientY: number, rect: RowRect, target: DocMeta): DropSpot | null => {
     if (!dragItem) return null;
     if (dragItem.kind === "doc") {
       if (dragItem.id === target.id) return null;
@@ -142,7 +167,7 @@ export function useDragMove({
       if (host === path || host.startsWith(`${path}/`)) return null; // Itself or a descendant
       if (!catCanGo(path, host, true)) return null;
     }
-    const zone = zoneOf(e, 0.5);
+    const zone = zoneOf(clientY, rect, 0.5);
     return { kind: "doc", key: target.id, zone: zone === "into" ? "after" : zone };
   };
 
@@ -168,12 +193,15 @@ export function useDragMove({
     if (!spot) {
       // Clear leftover highlight when sliding from a droppable to a non-droppable zone within the same row (e.g. edge → middle)
       setDropSpot((prev) => (prev && prev.kind === rowKind && prev.key === rowKey ? null : prev));
+      setShifts(NO_SHIFTS);
       cancelDragExpand();
       return;
     }
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
+    // "Into" opens no gap (the folder row is highlighted instead); edge spots get their shifts from treeDropProps
+    if (spot.zone === "into") setShifts(NO_SHIFTS);
     setDropSpot((prev) =>
       prev && prev.kind === spot.kind && prev.key === spot.key && prev.zone === spot.zone
         ? prev
@@ -186,53 +214,118 @@ export function useDragMove({
     }
   };
 
-  const clearSpot = (e: React.DragEvent, kind: DropSpot["kind"], key: string) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-    setDropSpot((prev) => (prev && prev.kind === kind && prev.key === key ? null : prev));
-    cancelDragExpand();
+  /** Run a resolved drop: into = move into the category; edge = insert before/after the folder/doc (docs and folders share one sequence) */
+  const applyDrop = (item: DragItem, spot: DropSpot) => {
+    if (spot.kind === "doc") {
+      const target = (docs ?? []).find((d) => d.id === spot.key);
+      if (!target || spot.zone === "into") return;
+      reorderItem(item, target.category || UNCATEGORIZED, docKey(target.id), spot.zone);
+      return;
+    }
+    const target = spot.key;
+    if (item.kind === "doc") {
+      const doc = (docs ?? []).find((d) => d.id === item.id);
+      if (!doc) return;
+      if (spot.zone === "into") moveDoc(doc, target === ALL ? UNCATEGORIZED : target);
+      else reorderItem(item, parentOf(target), catKey(nameOf(target)), spot.zone);
+      return;
+    }
+    if (spot.zone === "into") moveCategory(item.path, target === ALL ? "" : target);
+    else reorderItem(item, parentOf(target), catKey(nameOf(target)), spot.zone);
   };
 
-  /** Drop-target props for category rows (and the root node) */
-  const dropProps = (target: string) => ({
-    onDragOver: (e: React.DragEvent) => acceptSpot(e, spotOnCat(e, target), "cat", target),
-    onDragLeave: (e: React.DragEvent) => clearSpot(e, "cat", target),
-    onDrop: (e: React.DragEvent) => {
-      const spot = spotOnCat(e, target);
-      const item = dragItem;
-      endDrag();
-      if (!spot || !item) return;
-      e.preventDefault();
-      e.stopPropagation();
-      // Middle = move into this category; edge = insert before/after this folder (docs and folders share one sequence)
-      if (item.kind === "doc") {
-        const doc = (docs ?? []).find((d) => d.id === item.id);
-        if (!doc) return;
-        if (spot.zone === "into") moveDoc(doc, target === ALL ? UNCATEGORIZED : target);
-        else reorderItem(item, parentOf(target), catKey(nameOf(target)), spot.zone);
+  /** Drop-target props for the root-level blank area below the tree (target = ALL: no edges, the whole block is "into") */
+  const dropProps = (target: string) => {
+    const spotHere = () => spotOnCat(0, { top: 0, height: 1 }, target);
+    return {
+      onDragOver: (e: React.DragEvent) => acceptSpot(e, spotHere(), "cat", target),
+      onDragLeave: (e: React.DragEvent) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setDropSpot((prev) => (prev && prev.kind === "cat" && prev.key === target ? null : prev));
+        cancelDragExpand();
+      },
+      onDrop: (e: React.DragEvent) => {
+        const spot = spotHere();
+        const item = dragItem;
+        endDrag();
+        if (!spot || !item) return;
+        e.preventDefault();
+        e.stopPropagation();
+        applyDrop(item, spot);
+      },
+    };
+  };
+
+  /** Hit-test the tree rows at clientY → the row hit and the drop spot there (null spot = that row doesn't accept this drag) */
+  const spotInTree = (container: HTMLElement, clientY: number) => {
+    const rows = measureRows(container);
+    const hit = hitRow(rows, clientY);
+    if (!hit) return { rows, hit: null, spot: null };
+    const rect = { top: hit.rowTop, height: hit.rowBottom - hit.rowTop };
+    let spot: DropSpot | null = null;
+    if (hit.key.startsWith("cat:")) {
+      spot = spotOnCat(clientY, rect, hit.key.slice(4));
+    } else if (hit.key.startsWith("doc:")) {
+      const id = hit.key.slice(4);
+      const doc = (docs ?? []).find((d) => d.id === id);
+      spot = doc ? spotOnDoc(clientY, rect, doc) : null;
+    }
+    return { rows, hit, spot };
+  };
+
+  /** Drop-target props for the whole tree (the nav): one target hit-tests every row, so shifted rows never steal the pointer */
+  const treeDropProps = () => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!dragItem) return;
+      const { rows, hit, spot } = spotInTree(e.currentTarget as HTMLElement, e.clientY);
+      if (!hit) {
+        // Between / outside rows: not a target here; drop any row spot (the root blank area keeps its own ALL spot)
+        setDropSpot((prev) => (prev && !(prev.kind === "cat" && prev.key === ALL) ? null : prev));
+        setShifts(NO_SHIFTS);
+        cancelDragExpand();
         return;
       }
-      if (spot.zone === "into") {
-        moveCategory(item.path, target === ALL ? "" : target);
-      } else {
-        reorderItem(item, parentOf(target), catKey(nameOf(target)), spot.zone);
+      if (!spot) {
+        // A non-droppable zone of this row: nothing should stay highlighted or shifted
+        setDropSpot(null);
+        setShifts(NO_SHIFTS);
+        cancelDragExpand();
+        return;
       }
+      const changed =
+        !dropSpot || dropSpot.kind !== spot.kind || dropSpot.key !== spot.key || dropSpot.zone !== spot.zone;
+      acceptSpot(e, spot, hit.key.startsWith("doc:") ? "doc" : "cat", hit.key.slice(4));
+      // dragover fires continuously; only recompute the gap when the spot actually moves
+      if (!changed) return;
+      const next =
+        spot.zone === "into"
+          ? NO_SHIFTS
+          : computeShifts(rows, rowKeyOf(dragItem), { key: spotRowKey(spot), place: spot.zone });
+      setShifts((prev) => (sameShifts(prev, next) ? prev : next));
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+      // Left the tree: rows slide back so the dragged one shows in its own slot again
+      setDropSpot(null);
+      setShifts(NO_SHIFTS);
+      cancelDragExpand();
+    },
+    onDrop: (e: React.DragEvent) => {
+      const item = dragItem;
+      if (!item) return;
+      // Recompute from the drop point rather than trusting dropSpot: the last dragover may lag the pointer by a frame
+      const { spot } = spotInTree(e.currentTarget as HTMLElement, e.clientY);
+      if (!spot) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // endDrag and the order update render in the same batch: order and shifts reset together, without a transition
+      endDrag();
+      applyDrop(item, spot);
     },
   });
 
-  /** Drop-target props for sidebar doc rows: top/bottom half inserts before/after this doc (accepts both docs and folders) */
-  const docDropProps = (target: DocMeta) => ({
-    onDragOver: (e: React.DragEvent) => acceptSpot(e, spotOnDoc(e, target), "doc", target.id),
-    onDragLeave: (e: React.DragEvent) => clearSpot(e, "doc", target.id),
-    onDrop: (e: React.DragEvent) => {
-      const spot = spotOnDoc(e, target);
-      const item = dragItem;
-      endDrag();
-      if (!spot || !item || spot.zone === "into") return;
-      e.preventDefault();
-      e.stopPropagation();
-      reorderItem(item, target.category || UNCATEGORIZED, docKey(target.id), spot.zone);
-    },
-  });
+  /** translateY for a row's block while a before/after spot makes room ("into" and no spot = no shift) */
+  const shiftStyle = (key: string): CSSProperties => shiftTransform(shifts.get(key));
 
   /** Lower opacity for the row/card being dragged */
   const isDragging = (item: DragItem): boolean =>
@@ -241,6 +334,6 @@ export function useDragMove({
       ? dragItem.kind === "doc" && dragItem.id === item.id
       : dragItem.kind === "cat" && dragItem.path === item.path);
 
-  return { dragItem, dropSpot, dragSrcProps, dropProps, docDropProps, isDragging };
+  return { dragItem, dropSpot, dragSrcProps, dropProps, treeDropProps, shiftStyle, isDragging };
 }
 

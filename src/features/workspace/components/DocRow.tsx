@@ -3,28 +3,31 @@
 import { FileText, Trash2 } from "lucide-react";
 import { UNTITLED_DOC } from "@/lib/docDefaults";
 import { useT } from "@/i18n/useT";
-import { DROP_LINE_BOTTOM, DROP_LINE_TOP, rowCls, rowInset, rowPadLeft } from "../constants";
+import { rowCls, rowInset, rowPadLeft } from "../constants";
+import { SHIFT_TRANSITION } from "../lib/dragShift";
+import { docRowKey } from "../hooks/useDragMove";
 import { iconTone } from "./NavRow";
 import type { DocMeta } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 
-/** Document row in the sidebar category tree; also a reorder drop target (drop on the top/bottom half to insert before/after) */
+/** Document row in the sidebar category tree; reorder drops on it are hit-tested by the tree (useDragMove.treeDropProps) */
 export function DocRow({ ws, doc, depth }: { ws: Workspace; doc: DocMeta; depth: number }) {
   const { nav, menus, drag, docActions } = ws;
   const active = nav.readingId === doc.id;
   const t = useT();
   const label = doc.title || t(UNTITLED_DOC);
-  const spot = drag.dropSpot;
-  const zone = spot?.kind === "doc" && spot.key === doc.id ? spot.zone : null;
-  const dropCls = zone === "before" ? DROP_LINE_TOP : zone === "after" ? DROP_LINE_BOTTOM : "";
+  const rowKey = docRowKey(doc.id);
 
   return (
     <div
-      className={`group/doc relative rounded-md ${dropCls} ${
+      className={`group/doc relative rounded-md ${drag.dragItem ? SHIFT_TRANSITION : ""} ${
         drag.isDragging({ kind: "doc", id: doc.id }) ? "opacity-40" : ""
       }`}
+      // Row and block at once: slides aside while a drag makes room (see lib/dragShift)
+      data-drag-row={rowKey}
+      data-drag-block=""
+      style={drag.shiftStyle(rowKey)}
       {...drag.dragSrcProps({ kind: "doc", id: doc.id })}
-      {...drag.docDropProps(doc)}
     >
       <button
         className={`flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[12.5px] transition-colors group-hover/doc:pr-7 ${rowCls(active)}`}

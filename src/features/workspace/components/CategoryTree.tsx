@@ -14,7 +14,11 @@ export function CategoryTree({ ws }: { ws: Workspace }) {
   const rootDrop = drag.dropSpot?.kind === "cat" && drag.dropSpot.key === ALL;
 
   return (
-    <nav className="mt-0 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
+    // The whole tree is one reorder/move drop target: it hit-tests rows itself so rows sliding aside never steal the pointer
+    <nav
+      className="mt-0 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
+      {...drag.treeDropProps()}
+    >
       {tree.map((n) => (
         <CategoryRow key={n.path} ws={ws} node={n} depth={0} />
       ))}

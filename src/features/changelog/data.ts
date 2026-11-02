@@ -36,6 +36,17 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.10.0",
+    date: "2026-11-02",
+    title: "拖动排序时其他条目会让位",
+    items: [
+      {
+        kind: "improved",
+        text: "侧边栏里拖动文档或文件夹、今日页里拖动待办调整顺序时，不再只显示一条插入线：经过的条目会平滑滑开让出位置，被拖的条目半透明地停在将要落下的位置，松手就落在那里",
+      },
+    ],
+  },
+  {
     version: "0.9.1",
     date: "2026-11-01",
     title: "表格工具栏不再挡住表头",

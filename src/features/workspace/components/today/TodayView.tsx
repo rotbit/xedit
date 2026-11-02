@@ -194,7 +194,7 @@ export function TodayView({ ws }: { ws: Workspace }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       {/* Drag a todo to change its date: drag sources and drop targets span both columns, so the state is provided here */}
-      <TodoDragProvider actions={actions}>
+      <TodoDragProvider actions={actions} rows={rows}>
         <div className="mx-auto grid w-full max-w-[880px] gap-10 px-6 pb-16 pt-9 sm:px-10 md:grid-cols-[minmax(0,1fr)_300px] md:gap-12">
           <TodayMain
             today={today}

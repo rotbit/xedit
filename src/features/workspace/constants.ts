@@ -50,9 +50,6 @@ export function rowPadLeft(depth: number): number {
 
 /** Highlight style for the target row while hovering a drag (drop into this category) */
 export const DROP_HL = "bg-[var(--accent-wash)] shadow-[inset_0_0_0_1.5px_var(--accent)]";
-/** Insertion indicator for drag reordering: insert before/after this row. 3px is what's visible at a glance in a light sidebar */
-export const DROP_LINE_TOP = "shadow-[0_-3px_0_0_var(--accent)]";
-export const DROP_LINE_BOTTOM = "shadow-[0_3px_0_0_var(--accent)]";
 
 /** Base sidebar row style: emphasized when selected, brightened on hover when not */
 export function rowCls(active: boolean): string {
