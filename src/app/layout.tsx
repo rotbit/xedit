@@ -62,7 +62,7 @@ export const metadata: Metadata = {
  * (public/theme-init.js is kept as a fallback for old HTML cached in the SW offline shell.)
  * A compile-time static string with no runtime input concatenated, so it's safe to inject.
  */
-const THEME_INIT_SCRIPT = `try{if(window.xeditDesktop&&window.xeditDesktop.platform==="darwin")document.documentElement.classList.add("desktop-mac")}catch(e){}try{if(localStorage.getItem("xedit-dark")==="1")document.documentElement.dataset.theme="dark";var d=localStorage.getItem("xedit-local-docs");if(localStorage.getItem("xedit-was-authed")==="1"||localStorage.getItem("xedit-vault")==="1"||(d&&d!=="[]"))document.documentElement.dataset.ws="1"}catch(e){}`;
+const THEME_INIT_SCRIPT = `try{if(window.xeditDesktop&&window.xeditDesktop.platform==="darwin")document.documentElement.classList.add("desktop-mac")}catch(e){}try{if(localStorage.getItem("xedit-dark")==="1")document.documentElement.dataset.theme="dark";var d=localStorage.getItem("xedit-local-docs");if(localStorage.getItem("xedit-was-authed")==="1"||localStorage.getItem("xedit-vault")==="1"||localStorage.getItem("xedit-local-workspace")==="1"||(d&&d!=="[]"))document.documentElement.dataset.ws="1"}catch(e){}`;
 
 export const viewport: Viewport = {
   width: "device-width",

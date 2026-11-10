@@ -3,7 +3,6 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import WeChat from "next-auth/providers/wechat";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { DEFAULT_MARKDOWN, WELCOME_TITLE } from "@/lib/welcomeDoc";
 import { prisma } from "@/lib/prisma";
 import { isVerifiedAdmin } from "@/lib/admin";
 import { githubProfile } from "@/lib/oauth/githubProfile";
@@ -95,13 +94,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   events: {
-    // Account just created: add a welcome doc, never again afterward (the client no longer decides based on "cloud is empty")
-    async createUser({ user }) {
-      if (!user.id) return;
-      await prisma.document
-        .create({ data: { userId: user.id, title: WELCOME_TITLE, content: DEFAULT_MARKDOWN } })
-        .catch((err) => console.error("[auth] 创建欢迎稿失败", err));
-    },
     // Refresh last login time on every third-party login; failure doesn't affect login
     async signIn({ user }) {
       if (!user.id) return;

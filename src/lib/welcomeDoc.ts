@@ -1,7 +1,6 @@
 /**
- * Welcome doc for new accounts. Generated once by the server at account creation (auth's createUser event);
- * the client no longer "adds one when the cloud looks empty" — longtime users who deleted all their articles got a new one on every sign-in.
- * Also used as the first doc in signed-out local mode.
+ * Legacy welcome content kept as the editor's initial buffer and a migration sentinel.
+ * Workspace entry and account creation no longer save it as a document.
  */
 
 export const WELCOME_TITLE = "欢迎使用 xEdit";

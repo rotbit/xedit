@@ -24,6 +24,10 @@ import { useWorkspaceCommands } from "./hooks/useWorkspaceCommands";
 import { useHydrated } from "@/hooks/useHydrated";
 import { t } from "@/i18n/t";
 import { useT } from "@/i18n/useT";
+import { readLocal } from "./lib/storage";
+
+// Remember entering local writing even when the library is empty; no placeholder document is needed.
+const LOCAL_WORKSPACE_KEY = "xedit-local-workspace";
 
 const FeishuDialog = dynamic(
   () => import("@/components/FeishuDialog").then((m) => m.FeishuDialog),
@@ -54,7 +58,7 @@ interface HomeProps {
 
 /**
  * App home: with content it's a Notion-style workspace (full-height sidebar + breadcrumb bar + independently scrolling content area);
- * when logged out with no local docs it shows the landing page passed in from page.tsx.
+ * New visitors see the landing page; entering local writing also enables an empty workspace.
  */
 export function Home({ landing }: HomeProps) {
   const ws = useWorkspace();
@@ -64,12 +68,13 @@ export function Home({ landing }: HomeProps) {
   const feishuSync = useFeishuSync();
   const hydrated = useHydrated();
   const t = useT();
+  const [localWorkspaceStarted, setLocalWorkspaceStarted] = useState(() => readLocal(LOCAL_WORKSPACE_KEY) === "1");
 
   // Having opened a folder (even an empty library) counts as having a workspace: the local library is on disk now, so don't fall back to the landing page
   const hasWorkspace =
     auth.loggedIn ||
     auth.offlineAuthed ||
-    (auth.localMode && ((library.docs?.length ?? 0) > 0 || vault.status !== "none"));
+    (auth.localMode && (localWorkspaceStarted || (library.docs?.length ?? 0) > 0 || vault.status !== "none"));
 
   // Workspace commands in the command palette (⌘⇧P): new / navigate / sidebar.
   // Doc-related commands are registered by ArticleReader itself; both feed into lib/commandRegistry
@@ -136,20 +141,20 @@ export function Home({ landing }: HomeProps) {
     (s) => Boolean(s.content.trim()) && s.content !== DEFAULT_MARKDOWN
   );
 
-  /** Logged-out writing: fold the legacy single-doc draft into the local library, otherwise create a welcome doc */
+  /** Enter local writing without adding a document. Preserve a real legacy draft only when there is no library yet. */
   const startLocalWriting = useCallback(() => {
     const s = useStore.getState();
     const hasDraft =
-      s.docId === null && Boolean(s.content.trim()) && s.content !== DEFAULT_MARKDOWN;
+      listLocalDocs().length === 0 && s.docId === null && Boolean(s.content.trim()) && s.content !== DEFAULT_MARKDOWN;
     try {
-      const doc = hasDraft
-        ? createLocalDoc({ title: s.title, content: s.content })
-        : createLocalDoc({ title: "欢迎使用 xEdit", content: DEFAULT_MARKDOWN }); // i18n-ignore doc title written into data, paired with the Chinese welcome body
+      localStorage.setItem(LOCAL_WORKSPACE_KEY, "1");
+      const doc = hasDraft ? createLocalDoc({ title: s.title, content: s.content }) : null;
       // The draft is now in the library; clear the old buffer so the legacy migration doesn't upload it again after login
       if (hasDraft) s.setDoc({ id: null, title: UNTITLED_DOC, content: DEFAULT_MARKDOWN });
       // Read ws via ref: this callback goes into the landing page's context, so its identity must stay stable
       wsRef.current.library.setDocs(listLocalDocs());
-      wsRef.current.nav.openDoc(doc.id);
+      setLocalWorkspaceStarted(true);
+      if (doc) wsRef.current.nav.openDoc(doc.id);
     } catch {
       // The local library relies entirely on localStorage; if it's unavailable, just say so (the old single-doc editor page is gone)
       notifyStorageUnavailable();
@@ -157,7 +162,7 @@ export function Home({ landing }: HomeProps) {
   }, []);
 
   // `?action=start` comes from the localized landing pages (/en, /ja), which live outside the workspace: once the session and
-  // local library are known, a visitor without a workspace goes straight into a new local doc (as 「开始写作」 does here);
+  // local library are known, a visitor without a workspace enters an empty workspace (as 「开始写作」 does here);
   // anyone with a workspace already sees it, so there's nothing to do
   const startConsumed = useRef(false);
   const workspaceKnown =
@@ -174,10 +179,10 @@ export function Home({ landing }: HomeProps) {
     () => ({
       onStart: startLocalWriting,
       onLogin: () => openAuth("login"),
-      // The landing page stays entirely Chinese (not in bilingual scope), and the button copy follows it
-      startLabel: hasLocalDraft ? "继续编辑本地文稿" : "开始写作", // i18n-ignore
+      // Keep the first client frame identical to SSR; the server cannot read a local draft.
+      startLabel: hydrated && hasLocalDraft ? "继续编辑本地文稿" : "开始写作", // i18n-ignore
     }),
-    [startLocalWriting, hasLocalDraft]
+    [startLocalWriting, hydrated, hasLocalDraft]
   );
 
   // The session is injected with the HTML, but workspace content comes from localStorage (mirror / local library), which the server can't read —

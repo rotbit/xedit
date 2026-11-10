@@ -5,7 +5,7 @@ import { openAuth } from "@/components/AuthDialog";
 import { setLocale } from "@/i18n/locale";
 
 export interface LandingActions {
-  /** 「开始写作」 (Start writing): inside the workspace, creates a new local document and opens it */
+  /** 「开始写作」 (Start writing): enters the local workspace without creating a document */
   onStart: () => void;
   onLogin: () => void;
   /** Primary button label (becomes 「继续编辑」 (Continue editing) when there's already a local draft) */
@@ -44,7 +44,7 @@ export function useLandingActions(): LandingActions {
  * Actions for the localized landing pages (/en, /ja), which render outside the workspace.
  * The app has no Japanese, so both switch the product UI to English before entering it; a full load of
  * `/?action=start` (not client navigation) re-renders the root layout in that language, and Home turns the
- * action into a fresh local doc for visitors without a workspace, so nobody bounces back to the Chinese landing.
+ * action into an empty workspace for new visitors, so nobody bounces back to the Chinese landing.
  */
 export function LocaleLandingActions({
   startLabel,

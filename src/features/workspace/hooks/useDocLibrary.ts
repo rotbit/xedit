@@ -161,7 +161,7 @@ export function useDocLibrary({ loggedIn, offlineAuthed, localMode, activeCat }:
   useCloudSettings(loggedIn, applySettings);
 
   // Sync engine: refresh the list after each round; if the cloud is empty and the editor holds a draft written while logged out, move it to the cloud
-  // (the welcome doc is created once by the server at account creation and isn't added here: returning users who deleted everything shouldn't get one more on every login)
+  // Empty accounts stay empty: only an actual legacy draft is migrated, never the built-in welcome content.
   useEffect(() => {
     // The local account snapshot is written by useAuthMode (it runs earlier, and clearing the library on account switch is done there too)
     if (!loggedIn && !offlineAuthed) return;
