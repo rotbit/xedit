@@ -37,6 +37,7 @@ services:
       DATABASE_URL: postgresql://xedit:${POSTGRES_PASSWORD}@db:5432/xedit
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env (generate one with openssl rand -base64 32)}
       AUTH_URL: ${AUTH_URL:-}
+      CLIENT_IP_HEADER: ${CLIENT_IP_HEADER:-}
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID:-}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET:-}
       AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID:-}

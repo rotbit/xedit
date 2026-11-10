@@ -5,6 +5,18 @@
  */
 export const api: Record<string, string> = {
   // General
+  "文件过大": "File is too large",
+  "删除失败，请稍后重试": "Delete failed, please try again later",
+  "图片请使用服务端上传": "Images must use the server upload endpoint",
+  "无法处理图片，请检查格式和尺寸": "Unable to process the image. Check its format and dimensions",
+  "不支持的图片内容": "Unsupported image content",
+  "上传刚完成，请五分钟后再删除": "This upload just finished. Please wait five minutes before deleting it",
+  "文件与上传凭证不匹配": "The file does not match its upload authorization",
+  "上传凭证已过期": "Upload authorization has expired",
+  "上传凭证不存在或不属于当前账号": "Upload authorization not found for this account",
+  "未完成的上传过多，请稍后重试": "Too many pending uploads, please try again later",
+  "操作太频繁，请稍后重试": "Too many requests, please try again later",
+  "本站仅支持第三方账号登录": "Only third-party sign-in is supported",
   "未登录": "Not signed in",
   "请先登录": "Please sign in first",
   "无权访问": "Access denied",
@@ -19,7 +31,6 @@ export const api: Record<string, string> = {
   "提示词得是一段文字": "The prompt must be text",
   "认不出这个 AI 供应商": "Unrecognized AI provider",
   "账号不存在": "Account not found",
-  "密码": "Password",
   "管理员账号不能封禁": "Admin accounts can't be banned",
   "配额需在 0 到 1TB 之间": "Quota must be between 0 and 1 TB",
   "配额格式不正确": "Invalid quota format",

@@ -5,6 +5,7 @@ import { readOnlyGuard } from "@/lib/guards";
 import { ossConfigured, ossDelete } from "@/lib/oss";
 import { parseImageDimensions } from "@/lib/media";
 import { tk } from "@/i18n/t";
+import { uploadCanBeDeleted } from "@/lib/uploadReservations";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -49,11 +50,14 @@ export async function DELETE(_req: Request, { params }: Params) {
   });
   if (!asset) return NextResponse.json({ error: tk("图片不存在") }, { status: 404 });
 
+  if (!uploadCanBeDeleted(asset)) {
+    return NextResponse.json({ error: tk("上传刚完成，请五分钟后再删除") }, { status: 409 });
+  }
   if (ossConfigured()) {
     try {
       await ossDelete(asset.key);
     } catch {
-      // An OSS delete failure doesn't block index cleanup (the object may already be gone)
+      return NextResponse.json({ error: tk("删除失败，请稍后重试") }, { status: 502 });
     }
   }
   await prisma.asset.delete({ where: { id: asset.id } });

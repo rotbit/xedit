@@ -37,7 +37,7 @@ Common status codes:
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `POST` | `/api/register` | Public | Register with email and password |
+| `POST` | `/api/register` | Public | Disabled; returns 410 (third-party sign-in only) |
 | `GET/POST` | `/api/auth/*` | NextAuth | Sign-in, callback, session, and other auth flows |
 | `GET` | `/api/config` | Public | Check whether OAuth and OSS are configured |
 | `GET` | `/api/settings` | Logged in | Get user settings |
@@ -123,28 +123,12 @@ Common status codes:
 
 ## 3. Core Endpoints
 
-### 3.1 Register
+### 3.1 Sign In
 
-`POST /api/register`
-
-Request:
-
-```json
-{
-  "email": "user@example.com",
-  "password": "your-password",
-  "name": "Jane Doe"
-}
-```
-
-Rules: the email must be valid; the password must be 8–200 characters; the name may be up to 40 characters. After registering, the client still needs to sign in through the NextAuth
-credentials flow to obtain a session.
-
-Success response:
-
-```json
-{ "ok": true }
-```
+Cloud accounts use configured GitHub / Google / WeChat providers through Auth.js.
+`POST /api/register` returns **410 Gone** for legacy clients and never creates an account.
+The credentials provider is removed, so email/password login is also unavailable.
+Admin access requires both membership in `ADMIN_EMAILS` and an email verified by the provider.
 
 ### 3.2 List Documents
 
@@ -479,46 +463,19 @@ Paginated response:
 }
 ```
 
-### 5.2 Direct Browser Upload to OSS
+### 5.2 Direct Video Upload to OSS
 
-Step 1: get a time-limited signed URL:
+1. `POST /api/upload/direct` with `{ "mime": "video/mp4", "size": 102400 }`.
+   The server reserves quota and returns `{ key, uploadUrl, url, headers }`.
+2. `PUT` the file to `uploadUrl`, including every returned header (`Content-Type` and
+   `x-oss-forbid-overwrite: true`). The exact byte length is signed; browser File bodies supply Content-Length.
+   The URL expires after five minutes and cannot overwrite an existing object.
+3. `PUT /api/upload/direct` with `{ "key": "<returned key>" }` to register it.
+   Only the account that reserved the key can finalize it; OSS HEAD must match the reserved type and size.
 
-```http
-POST /api/upload/direct
-Content-Type: application/json
-
-{ "mime": "image/png", "size": 102400 }
-```
-
-Response:
-
-```json
-{
-  "key": "xedit/2026/example.png",
-  "uploadUrl": "https://signed-oss-url",
-  "url": "https://cdn.example.com/xedit/2026/example.png"
-}
-```
-
-Step 2: the client uploads the file to `uploadUrl` with `PUT`, using the same `Content-Type`.
-
-Step 3: confirm and register the asset:
-
-```http
-PUT /api/upload/direct
-Content-Type: application/json
-
-{ "key": "xedit/2026/example.png" }
-```
-
-The server confirms the object exists with an OSS HEAD request and runs the final quota check against the actual type and size.
-
-Supported formats and limits:
-
-| Type | MIME | Max size |
-| --- | --- | --- |
-| Image | `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/svg+xml` | 10 MB |
-| Video | `video/mp4`, `video/webm`, `video/quicktime` | 100 MB |
+Supports MP4, WebM and QuickTime, up to 100 MB. Images use the server endpoint below.
+Pending uploads consume quota even if the client skips finalization. Expired uploads are cleaned up on a later
+upload attempt after a one-hour grace period; quota stays charged if OSS deletion fails.
 
 ### 5.3 Upload via the Server
 
@@ -530,12 +487,12 @@ curl -b cookies.txt \
   'https://<your-domain>/api/upload'
 ```
 
-This endpoint only accepts images up to 10 MB. Videos must use direct browser upload to OSS.
+This endpoint accepts PNG, JPEG, GIF, WebP and SVG up to 10 MB. Images are re-encoded to remove metadata, including EXIF/GPS/XMP; SVG is converted to PNG. Videos must use direct browser upload to OSS. Existing objects and video metadata are not rewritten.
 
 ### 5.4 Asset References and Deletion
 
 - `GET /api/assets/{id}/usage` returns `{ "docs": [...] }`, listing up to 50 documents that reference the object key.
-- `DELETE /api/assets/{id}` deletes the database index and attempts to delete the OSS object; this cannot be undone.
+- `DELETE /api/assets/{id}` deletes the OSS object before releasing the database index and quota; this cannot be undone. A recently finalized video returns 409 until its signed upload URL expires.
 - `POST /api/assets` is only for super admins migrating legacy OSS objects. It assigns `xedit/` objects not yet in the database to
   the current admin and should not be used as a regular sync endpoint.
 

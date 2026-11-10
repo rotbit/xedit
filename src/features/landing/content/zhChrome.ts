@@ -20,7 +20,7 @@ export const zhChrome: LandingChromeCopy = {
   navAria: "页面导航",
   githubAria: "在 GitHub 上查看 xEdit 源码",
   login: "登录",
-  loginOrSignup: "登录 / 注册",
+  loginOrSignup: "登录",
   start: "开始写作",
   langAria: "切换页面语言",
 };

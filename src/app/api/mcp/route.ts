@@ -5,8 +5,12 @@
  * A tool's description is the model's only usage guide; rewording it directly affects call accuracy, so don't edit it like ordinary copy.
  */
 import { z } from "zod";
-import { createMcpHandler, withMcpAuth } from "mcp-handler";
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { withMcpAuth } from "mcp-handler";
+import { createMcpHandler, McpServer, type AuthInfo } from "@modelcontextprotocol/server";
+import { publicFetch } from "@/lib/publicFetch";
+import { readLimitedBody } from "@/lib/security/requestBody";
+import { MAX_IMAGE_SIZE, MAX_VIDEO_SIZE } from "@/lib/media";
+import { UploadError } from "@/lib/uploadReservations";
 import { acceptedAudiences, publicOrigin } from "@/lib/oauth/config";
 import { verifyAccessToken } from "@/lib/oauth/token";
 import {
@@ -29,12 +33,12 @@ import { UNCATEGORIZED, UNTITLED_DOC } from "@/lib/docDefaults";
 import { touchDailyActive } from "@/lib/active";
 
 export const runtime = "nodejs";
-// Upload tools fetch remote files server-side and the default time limit isn't enough; keep in sync with maxDuration in createMcpHandler below
+// Upload tools fetch remote files server-side and the default time limit isn't enough
 export const maxDuration = 60;
 
 /** Take userId from the verified token; every tool isolates data by it */
-function requireUserId(extra: { authInfo?: AuthInfo }): string {
-  const uid = extra.authInfo?.extra?.userId;
+function requireUserId(context: { http?: { authInfo?: AuthInfo } }): string {
+  const uid = context.http?.authInfo?.extra?.userId;
   if (typeof uid !== "string" || !uid) throw new Error("未授权");
   return uid;
 }
@@ -49,16 +53,17 @@ function fail(message: string) {
 }
 
 const handler = createMcpHandler(
-  (server) => {
+  () => {
+    const server = new McpServer({ name: "xedit", version: "1.0.0" }, { maxToolInputElements: 512 });
     server.registerTool(
       "list_documents",
       {
         description: "列出当前用户的文档（按更新时间倒序）。可按分类过滤，或只看回收站。",
-        inputSchema: {
+        inputSchema: z.object({
           category: z.string().optional().describe("只看某个分类"),
           trash: z.boolean().optional().describe("为 true 时只列回收站中的文档"),
           limit: z.number().int().min(1).max(200).optional().describe("最多返回条数，默认 50"),
-        },
+        }),
       },
       async (args, extra) => {
         const docs = await listDocuments(requireUserId(extra), {
@@ -74,10 +79,10 @@ const handler = createMcpHandler(
       "search_documents",
       {
         description: "在标题与正文中全文搜索文档（不含回收站），返回命中片段。",
-        inputSchema: {
+        inputSchema: z.object({
           query: z.string().min(1).describe("搜索关键词"),
           limit: z.number().int().min(1).max(100).optional().describe("最多返回条数，默认 20"),
-        },
+        }),
       },
       async (args, extra) => {
         const docs = await searchDocuments(requireUserId(extra), args.query, args.limit ?? 20);
@@ -89,7 +94,7 @@ const handler = createMcpHandler(
       "get_document",
       {
         description: "按 id 获取文档全文（Markdown）。",
-        inputSchema: { id: z.string().min(1).describe("文档 id") },
+        inputSchema: z.object({ id: z.string().min(1).describe("文档 id") }),
       },
       async (args, extra) => {
         const doc = await getDocument(requireUserId(extra), args.id);
@@ -101,11 +106,11 @@ const handler = createMcpHandler(
       "create_document",
       {
         description: "新建文档，正文为 Markdown。返回新文档 id。",
-        inputSchema: {
+        inputSchema: z.object({
           title: z.string().optional().describe(`标题，缺省为「${UNTITLED_DOC}」`),
           content: z.string().optional().describe("Markdown 正文"),
           category: z.string().optional().describe(`分类，缺省为「${UNCATEGORIZED}」`),
-        },
+        }),
       },
       async (args, extra) => {
         const userId = requireUserId(extra);
@@ -121,12 +126,12 @@ const handler = createMcpHandler(
       "update_document",
       {
         description: "更新文档标题/正文/分类（仅传要改的字段）。正文变化会自动留版。",
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().min(1).describe("文档 id"),
           title: z.string().optional(),
           content: z.string().optional().describe("Markdown 正文（整篇覆盖）"),
           category: z.string().optional(),
-        },
+        }),
       },
       async (args, extra) => {
         const userId = requireUserId(extra);
@@ -144,10 +149,10 @@ const handler = createMcpHandler(
       "delete_document",
       {
         description: "删除文档。默认软删除（移入回收站，可恢复）；hard=true 为永久删除。",
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().min(1).describe("文档 id"),
           hard: z.boolean().optional().describe("为 true 时永久删除，不可恢复"),
-        },
+        }),
       },
       async (args, extra) => {
         const userId = requireUserId(extra);
@@ -164,9 +169,9 @@ const handler = createMcpHandler(
       "list_images",
       {
         description: "列出当前用户素材库里的图片与视频（返回可访问 URL、类型、尺寸）。",
-        inputSchema: {
+        inputSchema: z.object({
           limit: z.number().int().min(1).max(200).optional().describe("最多返回条数，默认 50"),
-        },
+        }),
       },
       async (args, extra) => {
         const images = await listImages(requireUserId(extra), args.limit);
@@ -179,10 +184,10 @@ const handler = createMcpHandler(
       {
         description:
           "按 id 获取图片，返回可访问 URL。include_data=true 时同时把图片本身返回，供模型查看内容。",
-        inputSchema: {
+        inputSchema: z.object({
           id: z.string().min(1).describe("图片 id"),
           include_data: z.boolean().optional().describe("为 true 时附带图片本体（base64）供查看"),
-        },
+        }),
       },
       async (args, extra) => {
         const img = await getImage(requireUserId(extra), args.id);
@@ -204,9 +209,9 @@ const handler = createMcpHandler(
         if (args.include_data && !img.mime.startsWith("video/")) {
           try {
             // 15s timeout: images are in object storage, and failing to fetch one mustn't hang the whole tool call
-            const res = await fetch(img.url, { signal: AbortSignal.timeout(15000) });
+            const res = await publicFetch(img.url, 15000);
             if (res.ok) {
-              const buf = Buffer.from(await res.arrayBuffer());
+              const buf = await readLimitedBody(res.body, MAX_IMAGE_SIZE);
               content.push({
                 type: "image",
                 data: buf.toString("base64"),
@@ -225,14 +230,18 @@ const handler = createMcpHandler(
       "delete_image",
       {
         description: "从图床删除图片（同时删除 OSS 对象），不可恢复。",
-        inputSchema: { id: z.string().min(1).describe("图片 id") },
+        inputSchema: z.object({ id: z.string().min(1).describe("图片 id") }),
       },
       async (args, extra) => {
         const userId = requireUserId(extra);
         const blocked = await writeBlocked(userId);
         if (blocked) return fail(blocked);
-        const deleted = await deleteImage(userId, args.id);
-        return deleted ? ok({ ok: true, id: args.id }) : fail("图片不存在");
+        try {
+          const deleted = await deleteImage(userId, args.id);
+          return deleted ? ok({ ok: true, id: args.id }) : fail("图片不存在");
+        } catch (error) {
+          return fail(error instanceof UploadError ? error.message : "删除失败，请稍后重试");
+        }
       }
     );
 
@@ -241,11 +250,11 @@ const handler = createMcpHandler(
       {
         description:
           "上传图片到图床，返回可访问 URL。二选一：url=从该网址抓取图片转存（推荐）；或 data=图片 base64（可带 data URL 前缀），data 方式建议附 mime。限 10MB，支持 png/jpg/gif/webp/svg。",
-        inputSchema: {
+        inputSchema: z.object({
           url: z.string().optional().describe("图片直链，服务端抓取后转存到图床"),
           data: z.string().optional().describe("图片的 base64，可带 data:image/*;base64, 前缀"),
           mime: z.string().optional().describe("data 方式的 MIME，如 image/png"),
-        },
+        }),
       },
       async (args, extra) => {
         const userId = requireUserId(extra);
@@ -266,11 +275,11 @@ const handler = createMcpHandler(
           "上传视频到素材库，返回可访问 URL；正文中用图片语法 ![说明](URL) 引用即可渲染为播放器。" +
           "二选一：url=从该网址抓取转存（推荐）；或 data=视频 base64（可带 data URL 前缀），data 方式建议附 mime。" +
           "限 100MB，支持 mp4/webm/mov。",
-        inputSchema: {
+        inputSchema: z.object({
           url: z.string().optional().describe("视频直链，服务端抓取后转存到素材库"),
           data: z.string().optional().describe("视频的 base64，可带 data:video/*;base64, 前缀"),
           mime: z.string().optional().describe("data 方式的 MIME，如 video/mp4"),
-        },
+        }),
       },
       async (args, extra) => {
         const userId = requireUserId(extra);
@@ -283,10 +292,10 @@ const handler = createMcpHandler(
         }
       }
     );
+    return server;
   },
-  { serverInfo: { name: "xedit", version: "1.0.0" } },
-  // disableSse: keep only streamable HTTP transport. SSE needs long-lived connections and session affinity, which the current deployment can't provide
-  { basePath: "/api", disableSse: true, maxDuration: 60 }
+  // Bound bodies before JSON parsing, including the legacy transport. Allow base64 for a 100 MB video.
+  { legacy: "stateless", maxSubscriptions: 0, maxRequestBodySize: Math.ceil(MAX_VIDEO_SIZE / 3) * 4 + 65536 }
 );
 
 /** Bearer token verification: signature check + audience binding, attaching userId to authInfo.extra */
@@ -307,10 +316,10 @@ async function verifyToken(req: Request, bearerToken?: string): Promise<AuthInfo
 }
 
 // With required: true, requests without a token get a 401 and resourceMetadataPath, from which clients auto-discover the authorization server
-const authHandler = withMcpAuth(handler, verifyToken, {
+const authHandler = withMcpAuth((req) => handler.fetch(req, { authInfo: req.auth }), verifyToken, {
   required: true,
   resourceMetadataPath: "/.well-known/oauth-protected-resource",
 });
 
-// All three methods share one handler: MCP uses POST to send messages, GET to pull the stream, DELETE to end the session
+// Stateless Streamable HTTP; legacy GET/DELETE session operations return 405.
 export { authHandler as GET, authHandler as POST, authHandler as DELETE };

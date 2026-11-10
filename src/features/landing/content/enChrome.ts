@@ -19,7 +19,7 @@ export const enChrome: LandingChromeCopy = {
   navAria: "Page navigation",
   githubAria: "View the xEdit source on GitHub",
   login: "Log in",
-  loginOrSignup: "Log in / Sign up",
+  loginOrSignup: "Log in",
   start: "Start writing",
   langAria: "Change page language",
 };

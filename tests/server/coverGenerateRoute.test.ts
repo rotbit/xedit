@@ -19,6 +19,7 @@ const findUserMock = prisma.user.findUnique as unknown as Mock;
 
 interface UserRow {
   email: string | null;
+  emailVerified: Date | null;
   bannedAt: Date | null;
   permissions: string[];
   aiReviewDailyLimit: number | null;
@@ -79,6 +80,7 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
 const signedInAs = (id: string, email: string, extra: Partial<UserRow> = {}) => {
   users.set(id, {
     email,
+    emailVerified: new Date(),
     bannedAt: null,
     permissions: [],
     aiReviewDailyLimit: null,

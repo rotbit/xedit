@@ -2,12 +2,11 @@ import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import WeChat from "next-auth/providers/wechat";
-import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { DEFAULT_MARKDOWN, WELCOME_TITLE } from "@/lib/welcomeDoc";
 import { prisma } from "@/lib/prisma";
-import { verifyPassword } from "@/lib/password";
-import { isAdminEmail } from "@/lib/admin";
+import { isVerifiedAdmin } from "@/lib/admin";
+import { githubProfile } from "@/lib/oauth/githubProfile";
 import type { Provider } from "next-auth/providers";
 
 export const githubConfigured = Boolean(
@@ -26,7 +25,9 @@ const wechatEnabled = ["1", "true"].includes(
 export const wechatConfigured = Boolean(wechatEnabled && wechatId && wechatSecret);
 
 const providers: Provider[] = [];
-if (githubConfigured) providers.push(GitHub);
+if (githubConfigured) providers.push(GitHub({
+  userinfo: { request: ({ tokens }: { tokens: { access_token?: string } }) => githubProfile(tokens.access_token) },
+}));
 if (googleConfigured) providers.push(Google);
 // The last two checks only narrow TS to string; they always have values when wechatConfigured is true
 if (wechatConfigured && wechatId && wechatSecret) {
@@ -49,48 +50,46 @@ if (wechatConfigured && wechatId && wechatSecret) {
     })
   );
 }
-// Email + password: always available, no third-party config needed
-providers.push(
-  Credentials({
-    credentials: {
-      // i18n-ignore only used by NextAuth's built-in sign-in page (the product uses a custom login UI)
-      email: { label: "邮箱", type: "email" },
-      password: { label: "密码", type: "password" }, // i18n-ignore
-    },
-    authorize: async (creds) => {
-      const email = typeof creds?.email === "string" ? creds.email.trim().toLowerCase() : "";
-      const password = typeof creds?.password === "string" ? creds.password : "";
-      if (!email || !password) return null;
-      const user = await prisma.user.findUnique({ where: { email } });
-      // Don't distinguish "no such account" from "wrong password", to avoid revealing whether an email is registered
-      if (!user?.passwordHash) return null;
-      const ok = await verifyPassword(password, user.passwordHash);
-      if (!ok) return null;
-      return { id: user.id, name: user.name, email: user.email, image: user.image };
-    },
-  })
-);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers,
-  // Credentials only work with JWT sessions; OAuth reuses the same strategy.
   // maxAge is one year: the default 30 days is too short for a writing tool that's "installed and left open for years"; on expiry it drops back to the landing page.
   // Still sliding renewal: every online session fetch re-signs the JWT, pushing expiry back out a year,
   // so only accounts truly unused for a year expire (the local account snapshot uses the same lifetime)
   session: { strategy: "jwt", maxAge: 365 * 24 * 60 * 60 },
   trustHost: true,
   callbacks: {
-    jwt({ token, user }) {
-      if (user) token.uid = user.id;
-      // Admin status is re-evaluated against the env allowlist each time, so allowlist changes don't wait for JWT expiry
-      token.adm = isAdminEmail(typeof token.email === "string" ? token.email : null);
+    async jwt({ token, user, account, profile }) {
+      if (account && user?.id) {
+        token.uid = user.id;
+        token.loginProvider = account.provider;
+        // Bind the proof to the account email, not just a provider-supplied boolean.
+        const email = user.email?.trim().toLowerCase();
+        const verified = profile?.email_verified === true && email === profile.email?.trim().toLowerCase();
+        token.verifiedEmail = verified ? email : null;
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { emailVerified: verified ? new Date() : null },
+        });
+      }
+      // Old sessions lack a provider proof, including password sessions: require one fresh OAuth login after rollout.
+      if (!token.uid || !["github", "google", "wechat"].includes(String(token.loginProvider))) return null;
+      const current = await prisma.user.findUnique({
+        where: { id: String(token.uid) },
+        select: { email: true, emailVerified: true, bannedAt: true },
+      });
+      if (!current) return null;
+      token.email = current.email;
+      token.ev = Boolean(current.emailVerified && token.verifiedEmail === current.email?.trim().toLowerCase());
+      token.adm = token.ev && !current.bannedAt && isVerifiedAdmin(current);
       return token;
     },
     session({ session, token }) {
       if (session.user && token.uid) {
         session.user.id = token.uid as string;
         session.user.isAdmin = token.adm === true;
+        session.user.emailIsVerified = token.ev === true;
       }
       return session;
     },
@@ -103,7 +102,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         .create({ data: { userId: user.id, title: WELCOME_TITLE, content: DEFAULT_MARKDOWN } })
         .catch((err) => console.error("[auth] 创建欢迎稿失败", err));
     },
-    // Refresh last login time on every login (both OAuth and password trigger it); failure doesn't affect login
+    // Refresh last login time on every third-party login; failure doesn't affect login
     async signIn({ user }) {
       if (!user.id) return;
       await prisma.user

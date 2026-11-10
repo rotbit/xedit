@@ -9,7 +9,7 @@ export const enFaq: LandingCopy["faq"] = {
   items: [
     {
       q: "Is xEdit free? Do I need an account?",
-      a: "It's free: there's no paid plan today, and the code is open source on GitHub under the MIT license. Just open it and write: every editing feature works without logging in, and your notes are saved on this device. Log in when you want sync across devices, cloud version history, image uploads or share links, which are free too. You can use GitHub, Google, or email and password. Images can be up to 10 MB and videos up to 100 MB each, every account has a total media storage quota, and each note keeps its latest 100 versions; see What's free on this page.",
+      a: "It's free: there's no paid plan today, and the code is open source on GitHub under the MIT license. Just open it and write: every editing feature works without logging in, and your notes are saved on this device. Log in when you want sync across devices, cloud version history, image uploads or share links, which are free too. Sign in with an enabled third-party provider, such as GitHub or Google. Images can be up to 10 MB and videos up to 100 MB each, every account has a total media storage quota, and each note keeps its latest 100 versions; see What's free on this page.",
     },
     {
       q: "How is it different from Obsidian or Notion?",

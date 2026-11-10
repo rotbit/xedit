@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { adminSessionUserId, isAdminEmail } from "@/lib/admin";
+import { adminSessionUserId, isVerifiedAdmin } from "@/lib/admin";
 import { DEFAULT_STORAGE_QUOTA } from "@/lib/guards";
 import { knownPermissions } from "@/lib/permissionKeys";
 import { tk } from "@/i18n/t";
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
       select: {
         id: true,
         name: true,
-        email: true,
+        email: true, emailVerified: true,
         image: true,
         createdAt: true,
         lastLoginAt: true,
@@ -62,11 +62,14 @@ export async function GET(req: Request) {
   const usedBy = new Map<string, number>();
   const activeBy = new Map<string, string>();
   if (ids.length) {
-    const [sums, actives] = await Promise.all([
+    const [sums, pending, actives] = await Promise.all([
       prisma.asset.groupBy({
         by: ["userId"],
         where: { userId: { in: ids } },
         _sum: { size: true },
+      }),
+      prisma.uploadReservation.groupBy({
+        by: ["userId"], where: { userId: { in: ids } }, _sum: { size: true },
       }),
       prisma.dailyActive.groupBy({
         by: ["userId"],
@@ -75,6 +78,7 @@ export async function GET(req: Request) {
       }),
     ]);
     for (const s of sums) usedBy.set(s.userId, s._sum.size ?? 0);
+    for (const s of pending) usedBy.set(s.userId, (usedBy.get(s.userId) ?? 0) + (s._sum.size ?? 0));
     for (const a of actives) if (a._max.date) activeBy.set(a.userId, a._max.date);
   }
 
@@ -98,7 +102,7 @@ export async function GET(req: Request) {
       storageUsed: usedBy.get(u.id) ?? 0,
       docCount: u._count.documents,
       assetCount: u._count.assets,
-      admin: isAdminEmail(u.email),
+      admin: isVerifiedAdmin(u),
       // The raw stored value (without admin all-on / banned all-off applied); the admin checkboxes must reflect it
       permissions: knownPermissions(u.permissions),
     })),

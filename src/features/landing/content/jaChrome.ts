@@ -16,7 +16,7 @@ export const jaChrome: LandingChromeCopy = {
   navAria: "ページ内ナビゲーション",
   githubAria: "GitHub で xEdit のソースコードを見る",
   login: "ログイン",
-  loginOrSignup: "ログイン / 新規登録",
+  loginOrSignup: "ログイン",
   start: "書きはじめる",
   langAria: "表示言語を切り替える",
 };

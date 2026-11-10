@@ -92,11 +92,12 @@ export async function POST() {
   if (!ossConfigured()) {
     return NextResponse.json({ error: tk("服务端未配置 OSS") }, { status: 501 });
   }
-  const [objects, existing] = await Promise.all([
+  const [objects, existing, pending] = await Promise.all([
     ossList(),
-    prisma.asset.findMany({ where: { userId }, select: { key: true } }),
+    prisma.asset.findMany({ select: { key: true } }),
+    prisma.uploadReservation.findMany({ select: { key: true } }),
   ]);
-  const known = new Set(existing.map((e) => e.key));
+  const known = new Set([...existing, ...pending].map((e) => e.key));
   const mimeOf = (key: string): string =>
     MIME_BY_EXT[key.split(".").pop()?.toLowerCase() ?? ""] ?? "";
   const fresh = objects.filter((o) => !known.has(o.key) && mimeOf(o.key));

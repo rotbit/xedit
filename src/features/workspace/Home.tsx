@@ -314,7 +314,7 @@ function SignedOutFallback({ onStart }: { onStart: () => void }) {
           className="h-10 cursor-pointer rounded-lg border border-[var(--hairline-strong)] bg-[var(--panel)] px-5 text-[14px]"
           onClick={() => openAuth("login")}
         >
-          {t("登录 / 注册")}
+          {t("登录")}
         </button>
       </div>
     </div>

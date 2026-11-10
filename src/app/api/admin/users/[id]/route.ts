@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { adminSessionUserId, isAdminEmail } from "@/lib/admin";
+import { adminSessionUserId, isVerifiedAdmin } from "@/lib/admin";
 import { DEFAULT_STORAGE_QUOTA, storageUsed } from "@/lib/guards";
 import { ossConfigured, ossDeleteMany } from "@/lib/oss";
 import { cleanPermissions, knownPermissions, type Permission } from "@/lib/permissionKeys";
@@ -48,7 +48,7 @@ export async function GET(_req: Request, { params }: Params) {
     select: {
       id: true,
       name: true,
-      email: true,
+      email: true, emailVerified: true,
       image: true,
       createdAt: true,
       lastLoginAt: true,
@@ -58,7 +58,6 @@ export async function GET(_req: Request, { params }: Params) {
       permissions: true,
       aiReviewDailyLimit: true,
       aiCoverDailyLimit: true,
-      passwordHash: true,
       accounts: { select: { provider: true } },
     },
   });
@@ -102,12 +101,12 @@ export async function GET(_req: Request, { params }: Params) {
       bannedAt: user.bannedAt,
       banReason: user.banReason,
       storageQuota: user.storageQuota == null ? null : Number(user.storageQuota),
-      admin: isAdminEmail(user.email),
+      admin: isVerifiedAdmin(user),
       permissions: knownPermissions(user.permissions),
       aiReviewDailyLimit: user.aiReviewDailyLimit,
       aiCoverDailyLimit: user.aiCoverDailyLimit,
-      // Login methods: OAuth provider names + whether a password is set
-      logins: [...user.accounts.map((a) => a.provider), ...(user.passwordHash ? [tk("密码")] : [])],
+      // Only linked third-party providers can sign in; legacy password hashes are retained but unused.
+      logins: user.accounts.map((a) => a.provider),
     },
     totals: {
       docCount,
@@ -132,7 +131,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!(await requireAdmin())) return forbidden();
   const { id } = await params;
 
-  const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  const target = await prisma.user.findUnique({ where: { id }, select: { email: true, emailVerified: true } });
   if (!target) return notFound();
 
   const body = await req.json().catch(() => ({}));
@@ -146,7 +145,7 @@ export async function PATCH(req: Request, { params }: Params) {
   } = {};
 
   if (typeof body.banned === "boolean") {
-    if (body.banned && isAdminEmail(target.email)) {
+    if (body.banned && isVerifiedAdmin(target)) {
       return NextResponse.json({ error: tk("管理员账号不能封禁") }, { status: 400 });
     }
     data.bannedAt = body.banned ? new Date() : null;
@@ -223,10 +222,10 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const target = await prisma.user.findUnique({
     where: { id },
-    select: { email: true, assets: { select: { key: true } } },
+    select: { email: true, emailVerified: true, assets: { select: { key: true } } },
   });
   if (!target) return notFound();
-  if (isAdminEmail(target.email)) {
+  if (isVerifiedAdmin(target)) {
     return NextResponse.json({ error: tk("管理员账号不能删除") }, { status: 400 });
   }
 

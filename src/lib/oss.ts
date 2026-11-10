@@ -35,27 +35,25 @@ export function ossObjectKey(ext: string): string {
   return `${dir}/${crypto.randomUUID()}.${ext}`;
 }
 
-/** Only keys issued by this service may be registered in the database */
-export const OSS_KEY_PATTERN = /^xedit\/\d{6}\/[0-9a-f-]{36}\.[a-z0-9]{1,5}$/;
-
 /** Upload a Buffer to OSS, returning the accessible URL and object key */
 export async function ossPut(
   buffer: Buffer,
   ext: string,
-  contentType: string
+  contentType: string,
+  reservedKey?: string
 ): Promise<{ url: string; key: string }> {
-  const key = ossObjectKey(ext);
+  const key = reservedKey ?? ossObjectKey(ext);
   const result = await client().put(key, buffer, { headers: { "Content-Type": contentType } });
   return { url: ossUrlOf(key, result.url), key };
 }
 
 /** Sign a time-limited PUT URL so the browser sends the file straight to OSS (no relay through this service) */
-export function ossSignedPutUrl(key: string, contentType: string): string {
-  return client().signatureUrl(key, {
-    method: "PUT",
+export function ossSignedPutUrl(key: string, contentType: string, size: number, expires: number): Promise<string> {
+  return client().signatureUrlV4("PUT", expires, { headers: {
     "Content-Type": contentType,
-    expires: 600,
-  });
+    "Content-Length": size,
+    "x-oss-forbid-overwrite": "true",
+  } }, key, ["Content-Length"]);
 }
 
 /** Read object metadata; null if the object doesn't exist (used to confirm a direct upload really succeeded) */

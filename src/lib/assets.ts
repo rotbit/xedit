@@ -1,5 +1,3 @@
-import { lookup } from "node:dns/promises";
-import net from "node:net";
 import { prisma } from "@/lib/prisma";
 import { uploadBlocked } from "@/lib/guards";
 import { ossConfigured, ossDelete, ossPut } from "@/lib/oss";
@@ -11,6 +9,10 @@ import {
   sizeLimitError,
 } from "@/lib/media";
 import { tk } from "@/i18n/t";
+import { prepareImage } from "@/lib/imagePrivacy";
+import { reserveUpload, finishUpload, cancelServerUpload, uploadCanBeDeleted, UploadError } from "@/lib/uploadReservations";
+import { publicFetch } from "@/lib/publicFetch";
+import { readLimitedBody } from "@/lib/security/requestBody";
 
 /**
  * Shared service layer for media assets (images/videos), used by MCP tools. Reuses the OSS logic in src/lib/oss.ts,
@@ -22,7 +24,7 @@ export type MediaKind = "image" | "video";
 /** Validate mime per tool semantics: upload_image only accepts images, upload_video only videos */
 function assertKind(mime: string, kind: MediaKind): void {
   const table = kind === "video" ? VIDEO_EXT : IMAGE_EXT;
-  if (!(mime in table)) {
+  if (!Object.hasOwn(table, mime)) {
     const hint = kind === "video" ? "mp4/webm/mov" : "png/jpg/gif/webp/svg";
     throw new Error(`不支持的${kind === "video" ? "视频" : "图片"}类型: ${mime || "未知"}（支持 ${hint}）`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   }
@@ -87,12 +89,13 @@ export async function getImage(
 export async function deleteImage(userId: string, id: string): Promise<boolean> {
   const a = await prisma.asset.findFirst({ where: { id, userId } });
   if (!a) return false;
+  if (!uploadCanBeDeleted(a)) throw new UploadError(tk("上传刚完成，请五分钟后再删除"), 409);
   if (ossConfigured()) {
-    // An OSS delete failure doesn't block index cleanup (the object may already be gone), same as the REST behavior
     try {
       await ossDelete(a.key);
     } catch {
-      /* ignore */
+      // Keep both the index and quota charged until storage deletion succeeds.
+      throw new UploadError(tk("删除失败，请稍后重试"), 502);
     }
   }
   await prisma.asset.delete({ where: { id: a.id } });
@@ -106,20 +109,22 @@ export async function uploadMediaBuffer(
   mime: string,
   source: string
 ): Promise<AssetView> {
-  const ext = MEDIA_EXT[mime];
-  if (!ext) throw new Error(`不支持的文件类型: ${mime || "未知"}`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
-  if (buffer.length === 0) throw new Error(tk("空文件"));
-  if (buffer.length > maxSizeOf(mime)) throw new Error(sizeLimitError(mime));
-  if (!ossConfigured()) throw new Error(tk("服务端未配置阿里云 OSS，无法上传"));
-  // Read-only ban / storage quota: both MCP upload paths funnel here
-  const blocked = await uploadBlocked(userId, buffer.length);
-  if (blocked) throw new Error(blocked);
-  const { url, key } = await ossPut(buffer, ext, mime);
-  // Don't decode to get pixel dimensions (the server would need another image library just to save the frontend one decode); leave empty for the frontend to fill in
-  const a = await prisma.asset.create({
-    data: { userId, key, url, size: buffer.length, mime, source },
-  });
-  return toView(a);
+  if (!Object.hasOwn(MEDIA_EXT, mime)) throw new UploadError(tk("不支持的图片内容"));
+  if (buffer.length === 0) throw new UploadError(tk("空文件"));
+  if (buffer.length > maxSizeOf(mime)) throw new UploadError(sizeLimitError(mime), 413);
+  if (!ossConfigured()) throw new UploadError(tk("服务端未配置阿里云 OSS，无法上传"), 501);
+  let media;
+  try { media = await prepareImage(buffer, mime); }
+  catch { throw new UploadError(tk("无法处理图片，请检查格式和尺寸")); }
+  const reserved = await reserveUpload(userId, media.mime, media.buffer.length);
+  try {
+    await ossPut(media.buffer, MEDIA_EXT[media.mime], media.mime, reserved.key);
+    return toView(await finishUpload(userId, reserved.key, media.buffer.length, media.mime, source));
+  } catch (error) {
+    await cancelServerUpload(userId, reserved.key).catch(() => {});
+    if (error instanceof UploadError) throw error;
+    throw new UploadError(tk("上传失败，请稍后重试"), 502);
+  }
 }
 
 export async function uploadMediaFromBase64(
@@ -133,88 +138,9 @@ export async function uploadMediaFromBase64(
   const finalMime = mime || (m ? m[1] : "");
   assertKind(finalMime, kind);
   const b64 = m ? m[2] : data;
+  if (b64.length > Math.ceil(maxSizeOf(finalMime) / 3) * 4) throw new UploadError(sizeLimitError(finalMime), 413);
   const buffer = Buffer.from(b64, "base64");
   return uploadMediaBuffer(userId, buffer, finalMime, "mcp");
-}
-
-// ---- SSRF guard: upload-from-URL fetches a user-supplied address server-side, so internal/reserved ranges must be blocked ----
-
-function isPrivateIp(ip: string): boolean {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    if (a === 0 || a === 10 || a === 127) return true;
-    if (a === 169 && b === 254) return true; // link-local + cloud metadata 169.254.169.254
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-    return false;
-  }
-  const low = ip.toLowerCase();
-  if (low === "::1" || low === "::") return true;
-  if (low.startsWith("::ffff:")) return isPrivateIp(low.slice(7)); // v4-mapped
-  if (low.startsWith("fc") || low.startsWith("fd")) return true; // ULA
-  if (low.startsWith("fe80")) return true; // link-local
-  return false;
-}
-
-async function assertPublicHttpUrl(u: string): Promise<void> {
-  let parsed: URL;
-  try {
-    parsed = new URL(u);
-  } catch {
-    throw new Error(tk("非法的图片 URL"));
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(tk("仅支持 http/https 图片地址"));
-  }
-  const host = parsed.hostname.replace(/^\[|\]$/g, ""); // Strip IPv6 brackets
-  const addrs = net.isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
-  for (const a of addrs) {
-    if (isPrivateIp(a.address)) throw new Error(tk("禁止访问内网 / 保留地址"));
-  }
-}
-
-/** Safe fetch validated hop by hop: follow redirects manually, running each hop through the SSRF guard to prevent redirect bypasses */
-async function safeMediaFetch(url: string, timeoutMs: number): Promise<Response> {
-  let current = url;
-  for (let hop = 0; hop <= 3; hop++) {
-    await assertPublicHttpUrl(current);
-    const res = await fetch(current, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (!loc) throw new Error(tk("重定向缺少 Location"));
-      current = new URL(loc, current).toString();
-      continue;
-    }
-    return res;
-  }
-  throw new Error(tk("重定向次数过多"));
-}
-
-/**
- * Read the response body as a stream up to the limit. content-length can be missing or lie, so trusting it is as good as nothing;
- * instead count as we read and cancel the connection once over -- otherwise arrayBuffer() would read the whole oversized response
- * into memory before deciding it's "too big", by which point the memory is already spent.
- */
-async function readBodyWithLimit(res: Response, maxBytes: number, mime: string): Promise<Buffer> {
-  if (!res.body) throw new Error(tk("抓取失败: 响应没有内容"));
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      throw new Error(sizeLimitError(mime));
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks);
 }
 
 export async function uploadMediaFromUrl(
@@ -228,7 +154,7 @@ export async function uploadMediaFromUrl(
   const blocked = await uploadBlocked(userId, 0);
   if (blocked) throw new Error(blocked);
   // Videos are large, so the fetch window is wider (the MCP route's overall cap is 60s)
-  const res = await safeMediaFetch(sourceUrl, kind === "video" ? 45000 : 15000);
+  const res = await publicFetch(sourceUrl, kind === "video" ? 45000 : 15000);
   if (!res.ok) throw new Error(`抓取失败: HTTP ${res.status}`); // i18n-ignore server error message with variables; client t() can't match it, so it stays in Chinese for now
   const mime = (res.headers.get("content-type") || "").split(";")[0].trim();
   assertKind(mime, kind);
@@ -236,6 +162,6 @@ export async function uploadMediaFromUrl(
   const declared = Number(res.headers.get("content-length") || 0);
   // Reject outright if the declared size is over the limit; no need to read the body
   if (declared && declared > limit) throw new Error(sizeLimitError(mime));
-  const buffer = await readBodyWithLimit(res, limit, mime);
+  const buffer = await readLimitedBody(res.body, limit);
   return uploadMediaBuffer(userId, buffer, mime, "mcp-url");
 }

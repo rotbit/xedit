@@ -26,7 +26,7 @@ describe("resolvePermissions", () => {
   });
 
   it("管理员不看库、一律全开；邮箱大小写不计较", () => {
-    expect(resolvePermissions({ email: ADMIN.toUpperCase(), bannedAt: null, permissions: [] })).toEqual([
+    expect(resolvePermissions({ email: ADMIN.toUpperCase(), emailVerified: new Date(), bannedAt: null, permissions: [] })).toEqual([
       "ai_review",
       "ai_cover",
     ]);

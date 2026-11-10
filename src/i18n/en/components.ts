@@ -171,26 +171,16 @@ export const components: Record<string, string> = {
     "Closing this window won't stop the sync. Network hiccups are retried automatically and you'll be notified when it's done.",
   "关闭或刷新页面会中断，下次同步自动续传": "Closing or refreshing the page interrupts it; the next sync resumes automatically",
 
-  // Login / sign-up dialog (AuthDialog)
-  "或使用第三方账号": "or continue with",
+  // Third-party sign-in dialog (AuthDialog)
   "使用 GitHub 登录": "Continue with GitHub",
   "使用 Google 登录": "Continue with Google",
   "使用微信登录": "Continue with WeChat",
-  "请输入正确的邮箱地址": "Enter a valid email address",
-  "注册失败，请重试": "Sign-up failed, please try again",
-  "注册成功，但自动登录失败，请重新登录": "Account created, but automatic sign-in failed. Please sign in",
-  "邮箱或密码错误": "Incorrect email or password",
   "网络错误，请稍后重试": "Network error, please try again later",
   "登录 xEdit": "Sign In to xEdit",
-  "注册 xEdit": "Sign Up for xEdit",
-  "登录后文章自动同步云端，多设备随处可写": "Sign in to sync your articles to the cloud and write on any device",
-  "邮箱地址": "Email address",
-  "设置密码（至少 8 位）": "Create a password (8+ characters)",
   "登录": "Sign In",
-  "注册并登录": "Sign Up",
-  "还没有账号？": "No account yet?",
-  "已有账号？": "Already have an account?",
-  "注册新账号": "Create one",
+  "正在加载登录方式": "Loading sign-in options",
+  "暂未开放账号登录，你仍可在本地写作": "Sign-in is unavailable. You can still write locally",
+  "使用第三方账号登录，文章自动同步云端": "Sign in with a third-party account to sync your articles",
   "暂不登录，继续本地写作": "Not now, keep writing locally",
 
   // Import local Markdown (ImportDialog)

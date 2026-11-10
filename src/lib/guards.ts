@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatBytes } from "@/lib/format";
 import { tk } from "@/i18n/t";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Write guards: read-only bans and storage quotas (the enforcement side of the admin panel).
@@ -11,7 +12,8 @@ import { tk } from "@/i18n/t";
 
 /** Global default storage quota (bytes, 10GB by default); can be overridden with DEFAULT_STORAGE_QUOTA_MB. Per-account User.storageQuota takes precedence; 0 means unlimited. */
 export const DEFAULT_STORAGE_QUOTA = (() => {
-  const mb = Number(process.env.DEFAULT_STORAGE_QUOTA_MB);
+  const value = process.env.DEFAULT_STORAGE_QUOTA_MB?.trim();
+  const mb = value ? Number(value) : NaN;
   return Number.isFinite(mb) && mb >= 0 ? mb * 1024 * 1024 : 10 * 1024 * 1024 * 1024;
 })();
 
@@ -41,15 +43,18 @@ export function quotaOf(storageQuota: bigint | null): number {
   return storageQuota == null ? DEFAULT_STORAGE_QUOTA : Number(storageQuota);
 }
 
-/** Storage used = sum of Asset.size */
-export async function storageUsed(userId: string): Promise<number> {
-  const agg = await prisma.asset.aggregate({ where: { userId }, _sum: { size: true } });
-  return agg._sum.size ?? 0;
+/** Completed assets and pending uploads both consume storage quota. */
+export async function storageUsed(userId: string, db: Prisma.TransactionClient = prisma): Promise<number> {
+  const [assets, pending] = await Promise.all([
+    db.asset.aggregate({ where: { userId }, _sum: { size: true } }),
+    db.uploadReservation.aggregate({ where: { userId }, _sum: { size: true } }),
+  ]);
+  return (assets._sum.size ?? 0) + (pending._sum.size ?? 0);
 }
 
 /** Upload guard: checks ban and quota together. Returns null to allow, otherwise a user-facing message */
-export async function uploadBlocked(userId: string, incomingBytes: number): Promise<string | null> {
-  const user = await prisma.user.findUnique({
+export async function uploadBlocked(userId: string, incomingBytes: number, db: Prisma.TransactionClient = prisma): Promise<string | null> {
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { bannedAt: true, banReason: true, storageQuota: true },
   });
@@ -57,7 +62,7 @@ export async function uploadBlocked(userId: string, incomingBytes: number): Prom
   if (user.bannedAt) return readOnlyMsg(user.banReason);
   const quota = quotaOf(user.storageQuota);
   if (quota <= 0) return null;
-  const used = await storageUsed(userId);
+  const used = await storageUsed(userId, db);
   if (used + Math.max(0, incomingBytes) > quota) {
     return `存储空间不足：已用 ${formatBytes(used)}，配额 ${formatBytes(quota)}，请清理素材或联系管理员`; // i18n-ignore server error message with variables; client-side t() can't match it, keep Chinese for now
   }

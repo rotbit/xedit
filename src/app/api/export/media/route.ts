@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { publicFetch } from "@/lib/publicFetch";
+import { readLimitedBody } from "@/lib/security/requestBody";
 import { MAX_IMAGE_SIZE } from "@/lib/media";
 import { tk, translate } from "@/i18n/t";
 import { localeOfRequest } from "@/i18n/server";
@@ -36,7 +38,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const upstream = await fetch(target, { cache: "no-store" });
+    const upstream = await publicFetch(target.toString(), 15000);
     if (!upstream.ok) {
       return NextResponse.json({ error: translate("源站返回 {status}", localeOfRequest(req), { status: upstream.status }) }, { status: 502 });
     }
@@ -44,7 +46,7 @@ export async function GET(req: Request) {
     if (!type.startsWith("image/")) {
       return NextResponse.json({ error: tk("仅支持图片") }, { status: 415 });
     }
-    const buf = await upstream.arrayBuffer();
+    const buf = new Uint8Array(await readLimitedBody(upstream.body, MAX_IMAGE_SIZE));
     if (buf.byteLength > MAX_IMAGE_SIZE) {
       return NextResponse.json({ error: tk("图片过大") }, { status: 413 });
     }

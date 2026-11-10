@@ -9,6 +9,8 @@ declare module "next-auth" {
       image?: string | null;
       /** Whether the user is a super admin on the ADMIN_EMAILS allowlist */
       isAdmin?: boolean;
+      /** Email ownership confirmed by the third-party provider, never by self-registration. */
+      emailIsVerified?: boolean;
     };
   }
 }

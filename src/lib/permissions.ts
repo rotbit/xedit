@@ -1,6 +1,6 @@
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminEmail } from "@/lib/admin";
+import { isVerifiedAdmin } from "@/lib/admin";
 import { PERMISSIONS, knownPermissions, type Permission } from "@/lib/permissionKeys";
 
 /**
@@ -19,12 +19,12 @@ const LIMIT_COLUMN = {
   ai_cover: "aiCoverDailyLimit",
 } as const satisfies Record<Permission, string>;
 
-type PermissionRow = { email: string | null; bannedAt: Date | null; permissions: string[] };
+type PermissionRow = { email: string | null; emailVerified?: Date | null; bannedAt: Date | null; permissions: string[] };
 
 /** Pure function: one user row → effective permissions */
 export function resolvePermissions(u: PermissionRow): Permission[] {
   if (u.bannedAt) return [];
-  if (isAdminEmail(u.email)) return [...ALL];
+  if (isVerifiedAdmin(u)) return [...ALL];
   return knownPermissions(u.permissions);
 }
 
@@ -34,7 +34,7 @@ export async function sessionPermissions(session: Session | null): Promise<Permi
   if (!id) return [];
   const u = await prisma.user.findUnique({
     where: { id },
-    select: { email: true, bannedAt: true, permissions: true },
+    select: { email: true, emailVerified: true, bannedAt: true, permissions: true },
   });
   return u ? resolvePermissions(u) : [];
 }
@@ -53,6 +53,7 @@ export async function requirePermission(
     where: { id },
     select: {
       email: true,
+      emailVerified: true,
       bannedAt: true,
       permissions: true,
       aiReviewDailyLimit: true,

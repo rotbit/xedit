@@ -1,6 +1,6 @@
 /**
  * Image hosting media type allowlist and helpers (client-safe, no ali-oss dependency).
- * Images: direct upload with /api/upload relay as fallback; videos: browser direct upload only (the relay would read the whole file into memory).
+ * Images pass through /api/upload for metadata removal; videos use signed browser uploads.
  */
 
 import { t } from "@/i18n/t";
@@ -29,7 +29,7 @@ export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 export const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 
 export function isVideoMime(mime: string): boolean {
-  return mime in VIDEO_EXT;
+  return Object.hasOwn(VIDEO_EXT, mime);
 }
 
 /** Strip the trailing extension from a filename: image/video captions inserted into the body shouldn't include `.png` */

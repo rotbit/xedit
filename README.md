@@ -133,7 +133,7 @@ npx prisma migrate dev
 npm run dev
 ```
 
-Open <http://localhost:3000>. It runs without GitHub/Google OAuth or OSS configured — sign up with email and password, and image pasting will silently skip the upload.
+Open <http://localhost:3000>. It runs without GitHub/Google OAuth or OSS configured — write locally without signing in. Configure a third-party provider for cloud sync and OSS for media uploads.
 
 ## Environment variables
 

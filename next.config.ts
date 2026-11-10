@@ -5,6 +5,17 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // ali-oss and its deps (urllib etc.) use dynamic require at runtime; let Node load them directly instead of bundling
   serverExternalPackages: ["ali-oss"],
+  async headers() {
+    return [{ source: "/:path*", headers: [
+      { key: "Content-Security-Policy", value: "frame-ancestors 'self'; object-src 'none'; base-uri 'self'" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "Permissions-Policy", value: "geolocation=(), camera=(), microphone=()" },
+      ...(process.env.NODE_ENV === "production"
+        ? [{ key: "Strict-Transport-Security", value: "max-age=31536000" }] : []),
+    ] }];
+  },
   // MCP OAuth discovery documents must live under the root /.well-known (RFC 8414 / 9728),
   // so rewrite them to the actual route handlers. :path* covers the "resource path suffix" variant.
   async rewrites() {

@@ -47,7 +47,7 @@ Then start it:
 docker compose up -d --build
 ```
 
-Open `http://SERVER_IP:3000` and sign up with an email and password to get started.
+Open `http://SERVER_IP:3000` to write locally. Configure a third-party provider below to sign in and sync.
 
 Logs, stop, restart:
 
@@ -138,6 +138,7 @@ Put Nginx in front as a reverse proxy to `127.0.0.1:3000`, and make sure to forw
 
 ```nginx
 location / {
+    client_max_body_size 140m; # MCP base64 videos; the app applies per-endpoint limits
     proxy_pass http://127.0.0.1:3000;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Host $host;
@@ -153,7 +154,7 @@ location / {
 
 ## 4. Third-party login (GitHub / Google / WeChat)
 
-This is optional — **email + password sign-up and login always work**. Each third-party login only appears on the login screen once its variables are set.
+**Only third-party sign-in is supported.** Configure at least one provider for cloud accounts. Without one, local writing is available. Email/password registration and login are disabled. Each provider appears only after its variables are set.
 
 ### GitHub
 
@@ -175,7 +176,7 @@ This is optional — **email + password sign-up and login always work**. Each th
 3. Fill in `AUTH_WECHAT_ID` / `AUTH_WECHAT_SECRET`, set `AUTH_WECHAT_ENABLED=1`, and restart the app
 4. For web authorization inside WeChat Official Accounts, set `AUTH_WECHAT_PLATFORM` to `official`; the default `website` is PC QR-code login
 
-> **Note**: WeChat doesn't return an email address, so WeChat login creates an account without one — the same person's WeChat account and email account are two separate accounts that don't share documents.
+> **Note**: WeChat doesn't return an email address, so WeChat login creates an account without one — the same person's WeChat and GitHub/Google accounts are separate and do not share documents. Accounts are never automatically linked by a matching email.
 
 > Use separate OAuth apps for local development and production, with callbacks pointing to `http://localhost:3000/...` and your production domain respectively, so they don't interfere.
 
@@ -186,12 +187,12 @@ This is optional — **email + password sign-up and login always work**. Each th
 This is optional; without it, images pasted into the editor just won't be uploaded.
 
 1. Create a bucket with **public read** access
-2. In the RAM console, create a sub-user, **grant it only `PutObject` / `DeleteObject` on that bucket**, and generate an AccessKey
+2. In the RAM console, create a sub-user, **grant only `PutObject` / `GetObject` (including HEAD) / `DeleteObject` on the media prefix in that bucket**, and generate an AccessKey
 3. Fill in `OSS_REGION` (e.g. `oss-cn-hangzhou`), `OSS_ACCESS_KEY_ID`, `OSS_ACCESS_KEY_SECRET` and `OSS_BUCKET`
 4. If you have a CDN / custom domain, also set `OSS_CDN_DOMAIN` (e.g. `https://img.example.com`)
-5. In the bucket's **CORS settings**, allow your domain (origin `https://your-domain`, methods `PUT`/`POST`/`GET`), or the browser will block direct uploads from the front end
+5. In the bucket's **CORS settings**, allow your domain (origin `https://your-domain`, methods `PUT`/`GET`/`HEAD`, allowed headers `Content-Type` and `x-oss-forbid-overwrite`), or the browser will block direct uploads from the front end
 
-The AccessKey stays on the server; uploads are proxied through `/api/upload` and it is never sent to the browser.
+The AccessKey stays on the server. Images pass through `/api/upload` to remove EXIF/GPS/XMP metadata; SVG is rasterized to PNG. Videos use size-bound, non-overwriting signed PUT URLs that expire after five minutes. Existing stored images and video metadata are not rewritten. Public-read URLs remain accessible to anyone who knows the URL.
 
 ---
 
@@ -224,6 +225,21 @@ docker compose up -d --build     # prisma migrate deploy runs automatically on s
 ```
 
 Database migrations are run by `docker-entrypoint.sh` when the container starts, so there's nothing to do by hand. For bare-metal deployments, run `npm ci && npx prisma migrate deploy && npm run build && pm2 restart xedit`.
+
+### Security update rollout (OAuth-only login)
+
+- Back up the database, then apply migrations before starting the new app (`prisma migrate deploy`).
+  The migration adds upload reservations and rate-limit counters; it does not delete users, password hashes or documents.
+- Configure at least one OAuth provider before rollout. Existing sessions require one fresh third-party sign-in.
+  Password-only users retain their data but cannot sign in until an administrator performs a separately verified account migration.
+  Matching email addresses never trigger automatic account linking.
+- `ADMIN_EMAILS` remains the allowlist. Admin access requires a verified primary GitHub email or a Google `email_verified` claim.
+  WeChat accounts cannot qualify through an email allowlist.
+- With the Nginx configuration above, set `CLIENT_IP_HEADER=x-real-ip` and keep the app port inaccessible from the internet.
+  Other proxies must overwrite the chosen header too. Leaving it empty uses shared limits:
+  60 OAuth sign-in/callback requests per five minutes and 30 MCP client registrations per hour.
+- Update OSS CORS to allow the signed `x-oss-forbid-overwrite` header. Refresh older clients after deployment.
+- Image metadata removal applies to new uploads only. Review old public images and videos separately if they may contain location metadata.
 
 ### Backup
 

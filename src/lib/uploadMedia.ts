@@ -4,12 +4,12 @@ import { isVideoMime } from "@/lib/media";
 import { t } from "@/i18n/t";
 
 /**
- * Media upload: prefer direct browser upload to OSS so files skip this server, saving a round of bandwidth and speeding up large files.
- * Images fall back to the /api/upload relay automatically when the bucket has no CORS configured (or direct upload is blocked), invisible to the user;
+ * Media upload: videos use signed, size-bound direct uploads to OSS; images use the server privacy pipeline.
+ * Images use /api/upload so GPS/EXIF is removed before the object becomes public;
  * videos are large and relaying would read the whole file into memory and hit the request body limit, so they only go direct and failures surface the reason.
  */
 
-type Signed = { key: string; uploadUrl: string };
+type Signed = { key: string; uploadUrl: string; headers: Record<string, string> };
 
 /** Image pixel dimensions; null if unreadable, in which case those two fields are left out on registration */
 export type ImageSize = { width: number; height: number } | null;
@@ -91,7 +91,7 @@ async function putDirect(signed: Signed, file: File, size: ImageSize): Promise<s
     const put = await fetch(signed.uploadUrl, {
       method: "PUT",
       body: file,
-      headers: { "Content-Type": file.type },
+      headers: signed.headers,
     });
     if (!put.ok) return null;
   } catch {
@@ -126,6 +126,7 @@ export async function uploadMediaFile(file: File): Promise<string> {
   const video = isVideoMime(file.type);
   // Read once, reused by both direct upload and relay
   const size = await readImageSize(file);
+  if (!video) return viaProxy(file, size);
   const signed = await sign(file);
   if (signed) {
     const url = await putDirect(signed, file, size);

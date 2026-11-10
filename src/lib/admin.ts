@@ -16,8 +16,13 @@ export function isAdminEmail(email: string | null | undefined): boolean {
     .includes(lower);
 }
 
-/** Admin API guard: returns the userId if the session belongs to a whitelisted admin, otherwise null */
+/** Whitelist membership alone is not identity proof; the provider must have verified this account's email. */
+export function isVerifiedAdmin(user: { email?: string | null; emailVerified?: Date | boolean | null }): boolean {
+  return Boolean(user.emailVerified) && isAdminEmail(user.email);
+}
+
+/** Session flags are refreshed from the database and bound to the OAuth proof in auth.ts on every auth() call. */
 export function adminSessionUserId(session: Session | null): string | null {
-  if (!session?.user?.id || !isAdminEmail(session.user.email)) return null;
+  if (!session?.user?.id || !session.user.isAdmin || !isVerifiedAdmin({ email: session.user.email, emailVerified: session.user.emailIsVerified })) return null;
   return session.user.id;
 }

@@ -13,7 +13,7 @@ model User {
   email         String?           @unique
   emailVerified DateTime?
   image         String?
-  /// scrypt password hash for email-registered users; null for OAuth users
+  /// Legacy password hash retained for data preservation; no registration or login path reads it.
   passwordHash  String?
   /// Signup time (backfilled by migration for legacy users as the creation time of their earliest document)
   createdAt     DateTime          @default(now())
@@ -37,6 +37,7 @@ model User {
   settings      UserSettings?
   activities    WritingActivity[]
   assets        Asset[]
+  uploadReservations UploadReservation[]
   aiProviders   AiProvider[]
   oauthAuthCodes     OAuthAuthCode[]
   oauthRefreshTokens OAuthRefreshToken[]
@@ -79,6 +80,30 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+/// Persistent fixed-window counters, shared by replicas. Keys contain hashes, never raw email/IP addresses.
+model RateLimit {
+  key       String   @id
+  count     Int      @default(1)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+/// Bytes are reserved before any OSS upload; abandoning the finalization call cannot bypass the quota.
+model UploadReservation {
+  key       String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  size      Int
+  mime      String
+  state     String   @default("pending")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Document {
@@ -385,6 +410,8 @@ model Asset {
   size      Int      @default(0)
   mime      String   @default("")
   source    String   @default("upload")
+  /// Prevent deletion while a previously issued direct-upload URL can still recreate this object.
+  uploadExpiresAt DateTime?
   /// Image pixel width; read by the browser on upload, null for server-side paths like MCP/Feishu, backfilled on first frontend display
   width     Int?
   /// Image pixel height; same as width, null for videos and images whose size can't be read
