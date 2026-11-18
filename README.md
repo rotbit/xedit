@@ -167,6 +167,8 @@ The repo ships a `Dockerfile` (Next.js standalone output; `prisma migrate deploy
 
 See the **[deployment guide](./docs/deployment.md)** for the full walkthrough: Docker / Docker Compose, one-click Dokploy, domains and HTTPS, production OAuth setup, and upgrades and rollbacks.
 
+One-click deployment is also available on [RepoCloud](https://repocloud.io/details/xEdit/).
+
 ## Tech stack
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · CodeMirror 6 · markdown-it · highlight.js · MathJax (SVG) · DOMPurify · Auth.js v5 · Prisma + PostgreSQL · ali-oss · Zustand · MCP SDK
