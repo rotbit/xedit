@@ -32,6 +32,9 @@
 /* cover: not part of the card; rendered as a body-width hero image. 28px inset each side aligns with body text (= .cm-line's inline padding),
    2.35:1 = WeChat Official Account headline cover ratio */
 .cm-live-preview .cm-lp-fm-wrap {
+  /* flow-root keeps the card's bottom margin inside the widget box: CodeMirror measures that box,
+     and a margin collapsing through it would shift every click below by 10px */
+  display: flow-root;
   cursor: text;
 }
 /* Cover only: clicking won't expand the source, so don't fake it with a text cursor */

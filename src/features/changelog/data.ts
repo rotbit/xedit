@@ -36,6 +36,17 @@ export interface ChangelogEntry {
 /** Newest first */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.10.1",
+    date: "2026-11-23",
+    title: "修复表格较多的文档里点不准光标",
+    items: [
+      {
+        kind: "fixed",
+        text: "文档里有表格时，表格下方的内容点击后光标会落到更靠下的行（表格越多偏得越远，文末甚至像“点了没反应”），现在点哪里光标就落在哪里",
+      },
+    ],
+  },
+  {
     version: "0.10.0",
     date: "2026-11-02",
     title: "拖动排序时其他条目会让位",

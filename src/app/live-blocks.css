@@ -7,7 +7,9 @@
    so the outer frame belongs to the wrapper and cells only draw the inner grid lines */
 .cm-live-preview .cm-lp-table {
   position: relative;
-  margin: 6px 0;
+  /* Padding, not margin: CodeMirror measures a block widget's border box, so a vertical margin is missing from
+     its height map and every click below the table lands 12px too low (on the next line) */
+  padding: 6px 0;
   cursor: text;
 }
 .cm-live-preview .cm-lp-table-frame {
@@ -75,7 +77,8 @@
    only on hover or while a cell is focused; muted until a button is hovered */
 .cm-live-preview .cm-lp-table-tools {
   position: absolute;
-  bottom: calc(100% + 3px);
+  /* 100% includes the wrapper's 6px top padding; this still sits 3px above the frame */
+  bottom: calc(100% - 3px);
   right: 0;
   z-index: 2;
   display: flex;
